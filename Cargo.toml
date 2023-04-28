@@ -1,0 +1,24 @@
+[package]
+name = "card_io_fw"
+description = "Card/IO ECG device firmware"
+version = "0.1.0"
+authors = ["Dániel Buga <bugadani@gmail.com>"]
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+esp32s2-hal = { version = "0.8.0", optional = true }
+esp32s3-hal = { version = "0.8.0", optional = true }
+esp-backtrace = { version = "0.7.0", features = ["panic-handler", "exception-handler"] }
+esp-println = { version = "0.5.0", default-features = false, features = ["critical-section", "colors"] }
+esp-alloc = { version = "0.3.0"}
+
+[features]
+default = ["esp32s3", "jtag_serial"]
+
+# MCU options - make sure to update `.cargo/config.toml`!
+esp32s2 = ["dep:esp32s2-hal", "esp-backtrace/esp32s2", "esp-println/esp32s2"]
+esp32s3 = ["dep:esp32s3-hal", "esp-backtrace/esp32s3", "esp-println/esp32s3"]
+
+# Print options
+jtag_serial = ["esp-backtrace/print-jtag-serial", "esp-println/jtag_serial"]
