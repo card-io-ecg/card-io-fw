@@ -20,7 +20,8 @@ esp-backtrace = { version = "0.7.0", features = ["panic-handler", "exception-han
 esp-println = { version = "0.5.0", default-features = false, features = ["critical-section", "colors", "log"] }
 esp-alloc = { version = "0.3.0" }
 
-ssd1306 = { git = "https://github.com/bugadani/ssd1306.git", branch = "async" }
+display-interface-spi-async = { git = "https://github.com/bugadani/display-interface.git", branch = "async" }
+ssd1306 = { git = "https://github.com/bugadani/ssd1306.git", branch = "async", features = ["async"] }
 
 log = "0.4.17"
 

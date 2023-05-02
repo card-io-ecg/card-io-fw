@@ -16,6 +16,7 @@ pub use esp32s3_hal as hal;
 
 use esp_println::logger::init_logger;
 
+use display_interface_spi_async::SPIInterface;
 use hal::{
     clock::{ClockControl, CpuClock},
     dma::DmaPriority,
@@ -27,6 +28,7 @@ use hal::{
     timer::TimerGroup,
     Rtc, Spi, IO,
 };
+use ssd1306::{rotation::DisplayRotation, size::DisplaySize128x64, Ssd1306};
 
 mod heap;
 
@@ -60,19 +62,19 @@ fn main() -> ! {
     let display_dma_channel = dma.channel0;
 
     let _display_reset = io.pins.gpio9.into_push_pull_output();
-    let _display_dc = io.pins.gpio13.into_push_pull_output();
+    let display_dc = io.pins.gpio13.into_push_pull_output();
 
-    let mut display_cs = io.pins.gpio10;
+    let mut display_cs = io.pins.gpio10.into_push_pull_output();
     let display_sclk = io.pins.gpio12;
     let display_mosi = io.pins.gpio11;
 
     let display_spi = peripherals.SPI2;
 
-    display_cs
-        .set_to_push_pull_output()
-        .connect_peripheral_to_output(display_spi.cs_signal());
+    display_cs.connect_peripheral_to_output(display_spi.cs_signal());
 
-    let mut display_spi = Spi::new_no_cs_no_miso(
+    let mut descriptors = [0u32; 8 * 3];
+    let mut rx_descriptors = [0u32; 8 * 3];
+    let display_spi = Spi::new_no_cs_no_miso(
         display_spi,
         display_sclk,
         display_mosi,
@@ -83,10 +85,19 @@ fn main() -> ! {
     )
     .with_dma(display_dma_channel.configure(
         false,
-        &mut [0u32; 8 * 3],
-        &mut [0u32; 8 * 3],
+        &mut descriptors,
+        &mut rx_descriptors,
         DmaPriority::Priority0,
     ));
+
+    let display_interface = SPIInterface::new(display_spi, display_dc, display_cs);
+
+    let _display = Ssd1306::new(
+        display_interface,
+        DisplaySize128x64,
+        DisplayRotation::Rotate0,
+    )
+    .into_buffered_graphics_mode();
 
     let executor = EXECUTOR.init(Executor::new());
     executor.run(|spawner| {
