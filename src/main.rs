@@ -18,11 +18,14 @@ use esp_println::logger::init_logger;
 
 use hal::{
     clock::{ClockControl, CpuClock},
+    dma::DmaPriority,
     embassy,
+    gdma::Gdma,
     peripherals::Peripherals,
     prelude::*,
+    spi::SpiMode,
     timer::TimerGroup,
-    Rtc,
+    Rtc, Spi, IO,
 };
 
 mod heap;
@@ -50,6 +53,41 @@ fn main() -> ! {
         &mut system.peripheral_clock_control,
     );
     embassy::init(&clocks, timer_group0.timer0);
+
+    let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
+
+    let dma = Gdma::new(peripherals.DMA, &mut system.peripheral_clock_control);
+    let display_dma_channel = dma.channel0;
+
+    let _display_reset = io.pins.gpio9.into_push_pull_output();
+    let _display_dc = io.pins.gpio13.into_push_pull_output();
+
+    let mut display_cs = io.pins.gpio10;
+    let display_sclk = io.pins.gpio12;
+    let display_mosi = io.pins.gpio11;
+
+    let display_spi = peripherals.SPI2;
+
+    display_cs
+        .set_to_push_pull_output()
+        .connect_peripheral_to_output(display_spi.cs_signal());
+
+    let mut display_spi = Spi::new_no_cs_no_miso(
+        display_spi,
+        display_sclk,
+        display_mosi,
+        100u32.kHz(),
+        SpiMode::Mode0,
+        &mut system.peripheral_clock_control,
+        &clocks,
+    )
+    .with_dma(display_dma_channel.configure(
+        false,
+        &mut [0u32; 8 * 3],
+        &mut [0u32; 8 * 3],
+        DmaPriority::Priority0,
+    ));
+
     let executor = EXECUTOR.init(Executor::new());
     executor.run(|spawner| {
         spawner.spawn(ticker_task()).ok();
