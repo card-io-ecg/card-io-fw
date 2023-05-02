@@ -15,7 +15,7 @@ pub use esp32s2_hal as hal;
 pub use esp32s3_hal as hal;
 
 use esp_println::logger::init_logger;
-use futures_util::StreamExt;
+
 use hal::{
     clock::{ClockControl, CpuClock},
     embassy,
@@ -38,13 +38,17 @@ fn main() -> ! {
 
     let peripherals = Peripherals::take();
 
-    let system = peripherals.SYSTEM.split();
+    let mut system = peripherals.SYSTEM.split();
     let clocks = ClockControl::configure(system.clock_control, CpuClock::Clock240MHz).freeze();
 
     let mut rtc = Rtc::new(peripherals.RTC_CNTL);
     rtc.rwdt.disable();
 
-    let timer_group0 = TimerGroup::new(peripherals.TIMG0, &clocks);
+    let timer_group0 = TimerGroup::new(
+        peripherals.TIMG0,
+        &clocks,
+        &mut system.peripheral_clock_control,
+    );
     embassy::init(&clocks, timer_group0.timer0);
     let executor = EXECUTOR.init(Executor::new());
     executor.run(|spawner| {
