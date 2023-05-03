@@ -180,6 +180,10 @@ impl<SPI> Ads129x<SPI> {
     fn start_read_command<R: ReadOnlyRegister<u8>>(buf: &[u8]) -> Command {
         Command::RREG(R::ADDRESS, buf.len() as u8)
     }
+
+    pub fn into_inner(self) -> SPI {
+        self.spi
+    }
 }
 
 impl<SPI> Ads129x<SPI>

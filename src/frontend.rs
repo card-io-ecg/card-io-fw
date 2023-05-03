@@ -37,6 +37,10 @@ where
     pub fn is_touched(&self) -> bool {
         self.touch.is_low().unwrap()
     }
+
+    pub fn split(self) -> (S, DRDY, RESET, TOUCH) {
+        (self.adc.into_inner(), self.drdy, self.reset, self.touch)
+    }
 }
 
 pub struct PoweredFrontend<'a, S, DRDY, RESET, TOUCH>

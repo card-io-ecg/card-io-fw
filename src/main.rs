@@ -207,16 +207,39 @@ fn main() -> ! {
     });
 }
 
+enum AppState {
+    Initialize,
+    Measure,
+    Shutdown,
+}
+
 #[embassy_executor::task]
 async fn main_task(mut resources: Resources) {
     // If the device is awake, the display should be enabled.
     let mut display = resources.display.enable().await.unwrap();
 
-    let mut ticker = Ticker::every(Duration::from_millis(500));
+    let mut state = AppState::Initialize;
+
     loop {
-        ticker.next().await;
-        log::info!("Tick");
-        ticker.next().await;
-        log::info!("Tock");
+        let new_state = match state {
+            AppState::Initialize => initialize(&mut display).await,
+            AppState::Measure => todo!(),
+            AppState::Shutdown => break,
+        };
+
+        state = new_state;
     }
+
+    let (_, _, _, touch) = resources.frontend.split();
+    enter_deep_sleep(touch);
+}
+
+async fn initialize(
+    display: &mut display::PoweredDisplay<'_, DisplayInterface<'_>, DisplayReset>,
+) -> AppState {
+    todo!()
+}
+
+fn enter_deep_sleep(wakeup_pin: TouchDetect) -> ! {
+    todo!()
 }
