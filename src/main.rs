@@ -222,13 +222,15 @@ async fn main_task(mut resources: Resources) {
 
     loop {
         let new_state = match state {
-            AppState::Initialize => initialize(&mut display).await,
-            AppState::Measure => todo!(),
+            AppState::Initialize => initialize(&mut display, &mut resources.frontend).await,
+            AppState::Measure => measure(&mut display, &mut resources.frontend).await,
             AppState::Shutdown => break,
         };
 
         state = new_state;
     }
+
+    display.shut_down();
 
     let (_, _, _, touch) = resources.frontend.split();
     enter_deep_sleep(touch);
@@ -236,6 +238,14 @@ async fn main_task(mut resources: Resources) {
 
 async fn initialize(
     display: &mut display::PoweredDisplay<'_, DisplayInterface<'_>, DisplayReset>,
+    frontend: &mut Frontend<AdcSpi<'_>, AdcDrdy, AdcReset, TouchDetect>,
+) -> AppState {
+    todo!()
+}
+
+async fn measure(
+    display: &mut display::PoweredDisplay<'_, DisplayInterface<'_>, DisplayReset>,
+    frontend: &mut Frontend<AdcSpi<'_>, AdcDrdy, AdcReset, TouchDetect>,
 ) -> AppState {
     todo!()
 }
