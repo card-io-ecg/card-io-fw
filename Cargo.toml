@@ -32,14 +32,15 @@ ads129x = { path = "ads129x" }
 log = "0.4.17"
 
 [features]
-default = ["esp32s3", "jtag_serial"]
+default = ["esp32s3"]
 
 # MCU options - make sure to update `.cargo/config.toml`!
-esp32s2 = ["dep:esp32s2", "dep:esp32s2-hal", "esp-backtrace/esp32s2", "esp-println/esp32s2"]
-esp32s3 = ["dep:esp32s3", "dep:esp32s3-hal", "esp-backtrace/esp32s3", "esp-println/esp32s3"]
+esp32s2 = ["dep:esp32s2", "dep:esp32s2-hal", "esp-backtrace/esp32s2", "esp-println/esp32s2", "rtt"]
+esp32s3 = ["dep:esp32s3", "dep:esp32s3-hal", "esp-backtrace/esp32s3", "esp-println/esp32s3", "jtag_serial"]
 
 # Print options
 jtag_serial = ["esp-backtrace/print-jtag-serial", "esp-println/jtag_serial"]
+rtt = ["esp-backtrace/print-rtt", "esp-println/rtt"]
 
 [workspace]
 members = [
