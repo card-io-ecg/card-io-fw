@@ -283,7 +283,7 @@ async fn initialize(
     let entered = Instant::now();
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     while let elapsed = entered.elapsed() && elapsed <= INIT_TIME {
-        display_init_screen(display, elapsed);
+        display_init_screen(display, elapsed, INIT_TIME);
 
         display.flush().await.unwrap();
 
@@ -304,23 +304,33 @@ async fn initialize(
 fn display_init_screen(
     display: &mut impl DrawTarget<Color = BinaryColor, Error: Debug>,
     elapsed: Duration,
+    max: Duration,
 ) {
     display.clear(BinaryColor::Off).unwrap();
 
+    let elapsed_secs = elapsed.as_secs() as u32;
+    let max_secs = (max.as_secs() as u32).min(elapsed_secs);
+
+    let max_progress = 255;
+    let progress = (elapsed_secs * max_progress) / max_secs;
+
     if elapsed > MENU_THRESHOLD {
-        draw_startup_progress_bar(display, "Release to menu");
+        draw_startup_progress_bar("Release to menu", display, progress, max_progress);
     } else {
-        draw_startup_progress_bar(display, "Release to shutdown");
+        draw_startup_progress_bar("Release to shutdown", display, progress, max_progress);
     }
 
     todo!("Based on elapsed, display a message and a progress bar")
 }
 
 fn draw_startup_progress_bar(
-    display: &mut impl DrawTarget<Color = BinaryColor, Error: Debug>,
     label: &str,
+    display: &mut impl DrawTarget<Color = BinaryColor, Error: Debug>,
+    progress: u32,
+    max_progress: u32,
 ) {
-    let progress_bar = Rectangle::new(Point::new(0, 51), Size::new(128, 13));
+    let progress_bar = Rectangle::new(Point::new(0, 49), Size::new(128, 15));
+    let filler_area = progress_bar.offset(-2); // 1px gap between border and fill
 
     // Border
     progress_bar
@@ -328,22 +338,30 @@ fn draw_startup_progress_bar(
         .draw(display)
         .unwrap();
 
-    let inverted_area = progress_bar.resized(
-        Size::new(
-            progress_bar.size.width - 4, // TODO: calculate based on the elapsed time
-            progress_bar.size.height - 4,
-        ),
-        AnchorPoint::CenterRight,
+    let filler_width = filler_area.size.width;
+    let empty_area_width = (progress * filler_width) / max_progress;
+    // remaining as in remaining time until measurement starts
+    let remaining_width = filler_width - empty_area_width;
+
+    // Progress filler - we could use the whole filler area but
+    // let's resize to avoid unnecessary drawing
+    filler_area
+        .resized(
+            Size::new(remaining_width, filler_area.size.height),
+            AnchorPoint::TopLeft,
+        )
+        .into_styled(PrimitiveStyle::with_fill(BinaryColor::On))
+        .draw(display)
+        .unwrap();
+
+    // Invert the area right to the progress filler so we can display text on both portions
+    // of the progress bar with one draw call
+    let inverted_area = filler_area.resized(
+        Size::new(empty_area_width, filler_area.size.height),
+        AnchorPoint::TopRight,
     );
 
     let mut draw_area = display.invert_area(&inverted_area);
-
-    // Progress filler
-    progress_bar
-        .resized(progress_bar.size - Size::new(4, 4), AnchorPoint::Center)
-        .into_styled(PrimitiveStyle::with_fill(BinaryColor::On))
-        .draw(&mut draw_area)
-        .unwrap();
 
     let textbox_style = TextBoxStyleBuilder::new()
         .height_mode(HeightMode::ShrinkToText(VerticalOverdraw::FullRowsOnly))
@@ -357,7 +375,7 @@ fn draw_startup_progress_bar(
         progress_bar,
         MonoTextStyleBuilder::new()
             .font(&FONT_6X10)
-            .text_color(BinaryColor::Off) // off on normally-on background
+            .text_color(BinaryColor::Off) // Off on normally-On background
             .build(),
         textbox_style,
     )
