@@ -210,7 +210,7 @@ fn main() -> ! {
 #[embassy_executor::task]
 async fn main_task(mut resources: Resources) {
     // If the device is awake, the display should be enabled.
-    let mut display = resources.display.enable().await;
+    let mut display = resources.display.enable().await.unwrap();
 
     let mut ticker = Ticker::every(Duration::from_millis(500));
     loop {
