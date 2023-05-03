@@ -5,7 +5,6 @@
 extern crate alloc;
 
 use embassy_executor::{Executor, _export::StaticCell};
-use embassy_time::{Duration, Ticker};
 use esp_backtrace as _;
 
 #[cfg(feature = "esp32s2")]
