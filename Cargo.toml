@@ -27,10 +27,9 @@ display-interface-spi-async = { git = "https://github.com/bugadani/display-inter
 ssd1306 = { git = "https://github.com/bugadani/ssd1306.git", branch = "async", features = ["async", "graphics"] }
 
 embedded-graphics = "0.7.1"
-embedded-text = "0.5"
 
 device-descriptor = { path = "device-descriptor" }
-graphics-utils = { path = "graphics-utils" }
+gui = { path = "gui" }
 ads129x = { path = "ads129x" }
 log = "0.4.17"
 
@@ -50,6 +49,6 @@ members = [
     ".",
     "ads129x",
     "device-descriptor",
-    "graphics-utils",
+    "gui",
     "register-access"
 ]

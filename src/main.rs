@@ -3,26 +3,13 @@
 #![feature(async_fn_in_trait)]
 #![feature(type_alias_impl_trait)]
 #![feature(let_chains)]
-#![feature(associated_type_bounds)]
 #![allow(incomplete_features)]
 
 extern crate alloc;
 
 use embassy_executor::{Executor, _export::StaticCell};
 use embassy_time::{Duration, Instant, Ticker};
-use embedded_graphics::{
-    geometry::AnchorPoint,
-    mono_font::{ascii::FONT_6X10, MonoTextStyleBuilder},
-    pixelcolor::BinaryColor,
-    prelude::{DrawTarget, Point, Size},
-    primitives::{Primitive, PrimitiveStyle, Rectangle},
-    Drawable,
-};
-use embedded_text::{
-    alignment::{HorizontalAlignment, VerticalAlignment},
-    style::{HeightMode, TextBoxStyleBuilder, VerticalOverdraw},
-    TextBox,
-};
+use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget};
 use esp_backtrace as _;
 
 #[cfg(feature = "esp32s2")]
@@ -38,9 +25,7 @@ pub use esp32s2 as pac;
 pub use esp32s3 as pac;
 
 use esp_println::logger::init_logger;
-use graphics_utils::BinaryColorDrawTargetExt;
 
-use core::fmt::Debug;
 use display_interface_spi_async::SPIInterface;
 use hal::{
     clock::{ClockControl, CpuClock},
@@ -284,7 +269,7 @@ async fn initialize(
     let entered = Instant::now();
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     while let elapsed = entered.elapsed() && elapsed <= INIT_TIME {
-        display_init_screen(display, elapsed, MENU_THRESHOLD, INIT_TIME);
+        display_init_screen(display, elapsed, MENU_THRESHOLD, INIT_TIME).unwrap();
 
         display.flush().await.unwrap();
 
@@ -302,13 +287,13 @@ async fn initialize(
     AppState::Measure
 }
 
-fn display_init_screen(
-    display: &mut impl DrawTarget<Color = BinaryColor, Error: Debug>,
+fn display_init_screen<DT: DrawTarget<Color = BinaryColor>>(
+    display: &mut DT,
     elapsed: Duration,
     menu_threshold: Duration,
     max: Duration,
-) {
-    display.clear(BinaryColor::Off).unwrap();
+) -> Result<(), DT::Error> {
+    display.clear(BinaryColor::Off)?;
 
     let elapsed_secs = elapsed.as_secs() as u32;
     let max_secs = (max.as_secs() as u32).min(elapsed_secs);
@@ -322,63 +307,7 @@ fn display_init_screen(
         "Release to shutdown"
     };
 
-    draw_startup_progress_bar(label, display, progress, max_progress);
-}
-
-fn draw_startup_progress_bar(
-    label: &str,
-    display: &mut impl DrawTarget<Color = BinaryColor, Error: Debug>,
-    progress: u32,
-    max_progress: u32,
-) {
-    let progress_bar = Rectangle::new(Point::new(0, 49), Size::new(128, 15));
-    let filler_area = progress_bar.offset(-2); // 1px gap between border and fill
-
-    // Border
-    progress_bar
-        .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
-        .draw(display)
-        .unwrap();
-
-    let filler_width = filler_area.size.width;
-    let empty_area_width = (progress * filler_width) / max_progress;
-    // remaining as in remaining time until measurement starts
-    let remaining_width = filler_width - empty_area_width;
-
-    // Progress filler - we could use the whole filler area but
-    // let's resize to avoid unnecessary drawing
-    let progress_filler = filler_area.resized(
-        Size::new(remaining_width, filler_area.size.height),
-        AnchorPoint::TopLeft,
-    );
-
-    progress_filler
-        .into_styled(PrimitiveStyle::with_fill(BinaryColor::On))
-        .draw(display)
-        .unwrap();
-
-    // Invert the area on top of the progress filler so we can display text on both portions
-    // of the progress bar with one draw call
-    let mut draw_area = display.invert_area(&progress_filler);
-
-    let textbox_style = TextBoxStyleBuilder::new()
-        .height_mode(HeightMode::ShrinkToText(VerticalOverdraw::FullRowsOnly))
-        .alignment(HorizontalAlignment::Center)
-        .vertical_alignment(VerticalAlignment::Middle)
-        .build();
-
-    // using embedded-text because I'm lazy to position the label vertically
-    TextBox::with_textbox_style(
-        label,
-        progress_bar,
-        MonoTextStyleBuilder::new()
-            .font(&FONT_6X10)
-            .text_color(BinaryColor::On) // On on normally-Off background
-            .build(),
-        textbox_style,
-    )
-    .draw(&mut draw_area)
-    .unwrap();
+    gui::draw_startup_progress_bar(label, display, progress, max_progress)
 }
 
 async fn measure(

@@ -1,6 +1,4 @@
-#![no_std]
-
-use embedded_graphics_core::{
+use embedded_graphics::{
     pixelcolor::BinaryColor,
     prelude::{Dimensions, DrawTarget},
     primitives::Rectangle,
