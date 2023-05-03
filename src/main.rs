@@ -11,6 +11,7 @@ extern crate alloc;
 use embassy_executor::{Executor, _export::StaticCell};
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::{
+    geometry::AnchorPoint,
     mono_font::{ascii::FONT_6X10, MonoTextStyleBuilder},
     pixelcolor::BinaryColor,
     prelude::{DrawTarget, Point, Size},
@@ -37,6 +38,7 @@ pub use esp32s2 as pac;
 pub use esp32s3 as pac;
 
 use esp_println::logger::init_logger;
+use graphics_utils::BinaryColorDrawTargetExt;
 
 use core::fmt::Debug;
 use display_interface_spi_async::SPIInterface;
@@ -320,9 +322,27 @@ fn draw_startup_progress_bar(
 ) {
     let progress_bar = Rectangle::new(Point::new(0, 51), Size::new(128, 13));
 
+    // Border
     progress_bar
         .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
         .draw(display)
+        .unwrap();
+
+    let inverted_area = progress_bar.resized(
+        Size::new(
+            progress_bar.size.width - 4, // TODO: calculate based on the elapsed time
+            progress_bar.size.height - 4,
+        ),
+        AnchorPoint::CenterRight,
+    );
+
+    let mut draw_area = display.invert_area(&inverted_area);
+
+    // Progress filler
+    progress_bar
+        .resized(progress_bar.size - Size::new(4, 4), AnchorPoint::Center)
+        .into_styled(PrimitiveStyle::with_fill(BinaryColor::On))
+        .draw(&mut draw_area)
         .unwrap();
 
     let textbox_style = TextBoxStyleBuilder::new()
@@ -337,12 +357,11 @@ fn draw_startup_progress_bar(
         progress_bar,
         MonoTextStyleBuilder::new()
             .font(&FONT_6X10)
-            .background_color(BinaryColor::Off)
-            .text_color(BinaryColor::On)
+            .text_color(BinaryColor::Off) // off on normally-on background
             .build(),
         textbox_style,
     )
-    .draw(display)
+    .draw(&mut draw_area)
     .unwrap();
 }
 
