@@ -1,8 +1,10 @@
 #![no_std]
 #![no_main]
+#![feature(async_fn_in_trait)]
 #![feature(type_alias_impl_trait)]
 #![feature(let_chains)]
 #![feature(associated_type_bounds)]
+#![allow(incomplete_features)]
 
 extern crate alloc;
 
@@ -47,8 +49,9 @@ use hal::{
 mod display;
 mod frontend;
 mod heap;
+mod spi_device;
 
-use crate::{display::Display, frontend::Frontend, heap::init_heap};
+use crate::{display::Display, frontend::Frontend, heap::init_heap, spi_device::SpiDeviceWrapper};
 
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 
@@ -112,7 +115,15 @@ type TouchDetect = GpioPin<
     Gpio1Signals,
     1,
 >;
-type AdcSpi<'a> = Spi<'a, hal::peripherals::SPI3, FullDuplexMode>;
+type AdcChipSelect = GpioPin<
+    Output<PushPull>,
+    Bank0GpioRegisterAccess,
+    SingleCoreInteruptStatusRegisterAccessBank0,
+    InputOutputAnalogPinType,
+    Gpio18Signals,
+    18,
+>;
+type AdcSpi<'a> = SpiDeviceWrapper<Spi<'a, hal::peripherals::SPI3, FullDuplexMode>, AdcChipSelect>;
 
 struct Resources {
     display: Display<DisplayInterface<'static>, DisplayReset>,
@@ -183,24 +194,26 @@ fn main() -> ! {
     let adc_sclk = io.pins.gpio6;
     let adc_mosi = io.pins.gpio7;
     let adc_miso = io.pins.gpio5;
-    let adc_cs = io.pins.gpio18;
 
+    let adc_cs = io.pins.gpio18.into_push_pull_output();
     let adc_drdy = io.pins.gpio4.into_floating_input();
     let adc_reset = io.pins.gpio2.into_push_pull_output();
     let touch_detect = io.pins.gpio1.into_floating_input();
 
     let adc = Frontend::new(
-        Spi::new(
-            peripherals.SPI3,
-            adc_sclk,
-            adc_mosi,
-            adc_miso,
-            adc_cs,
-            500u32.kHz(),
-            SpiMode::Mode0,
-            &mut system.peripheral_clock_control,
-            &clocks,
-        ),
+        SpiDeviceWrapper {
+            spi: Spi::new_no_cs(
+                peripherals.SPI3,
+                adc_sclk,
+                adc_mosi,
+                adc_miso,
+                500u32.kHz(),
+                SpiMode::Mode0,
+                &mut system.peripheral_clock_control,
+                &clocks,
+            ),
+            chip_select: adc_cs,
+        },
         adc_drdy,
         adc_reset,
         touch_detect,
