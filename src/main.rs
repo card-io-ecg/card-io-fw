@@ -14,6 +14,12 @@ pub use esp32s2_hal as hal;
 #[cfg(feature = "esp32s3")]
 pub use esp32s3_hal as hal;
 
+#[cfg(feature = "esp32s2")]
+pub use esp32s2 as pac;
+
+#[cfg(feature = "esp32s3")]
+pub use esp32s3 as pac;
+
 use esp_println::logger::init_logger;
 
 use display_interface_spi_async::SPIInterface;
@@ -251,5 +257,7 @@ async fn measure(
 }
 
 fn enter_deep_sleep(wakeup_pin: TouchDetect) -> ! {
+    let rtc = unsafe { &*pac::RTC_CNTL::PTR };
+
     todo!()
 }

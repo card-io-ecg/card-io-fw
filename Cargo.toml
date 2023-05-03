@@ -16,6 +16,8 @@ embedded-hal-async = { version = "0.2.0-alpha.1" }
 
 esp32s2-hal = { version = "0.9.0", optional = true, features = ["rt", "async", "embassy", "embassy-time-timg0"] }
 esp32s3-hal = { version = "0.9.0", optional = true, features = ["rt", "async", "embassy", "embassy-time-timg0"] }
+esp32s2 = { version = "0.14.0", optional = true }
+esp32s3 = { version = "0.18.0", optional = true }
 esp-backtrace = { version = "0.7.0", features = ["panic-handler", "exception-handler"] }
 esp-println = { version = "0.5.0", default-features = false, features = ["critical-section", "colors", "log"] }
 esp-alloc = { version = "0.3.0" }
@@ -33,8 +35,8 @@ log = "0.4.17"
 default = ["esp32s3", "jtag_serial"]
 
 # MCU options - make sure to update `.cargo/config.toml`!
-esp32s2 = ["dep:esp32s2-hal", "esp-backtrace/esp32s2", "esp-println/esp32s2"]
-esp32s3 = ["dep:esp32s3-hal", "esp-backtrace/esp32s3", "esp-println/esp32s3"]
+esp32s2 = ["dep:esp32s2", "dep:esp32s2-hal", "esp-backtrace/esp32s2", "esp-println/esp32s2"]
+esp32s3 = ["dep:esp32s3", "dep:esp32s3-hal", "esp-backtrace/esp32s3", "esp-println/esp32s3"]
 
 # Print options
 jtag_serial = ["esp-backtrace/print-jtag-serial", "esp-println/jtag_serial"]
