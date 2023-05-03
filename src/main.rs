@@ -246,19 +246,24 @@ async fn main_task(mut resources: Resources) {
     }
 }
 
+const MIN_FRAME_TIME: Duration = Duration::from_millis(10);
+
 async fn initialize(
     display: &mut display::PoweredDisplay<'_, DisplayInterface<'_>, DisplayReset>,
     frontend: &mut Frontend<AdcSpi<'_>, AdcDrdy, AdcReset, TouchDetect>,
 ) -> AppState {
+    const INIT_TIME: Duration = Duration::from_secs(20);
+    const MENU_THRESHOLD: Duration = Duration::from_secs(10);
+
     let entered = Instant::now();
-    let mut ticker = Ticker::every(Duration::from_millis(10));
-    while let elapsed = entered.elapsed() && elapsed <= Duration::from_secs(20) {
+    let mut ticker = Ticker::every(MIN_FRAME_TIME);
+    while let elapsed = entered.elapsed() && elapsed <= INIT_TIME {
         display_init_screen(display, elapsed);
 
         display.flush().await.unwrap();
 
         if !frontend.is_touched() {
-            return if elapsed > Duration::from_secs(10) {
+            return if elapsed > MENU_THRESHOLD {
                 AppState::Menu
             } else {
                 AppState::Shutdown
