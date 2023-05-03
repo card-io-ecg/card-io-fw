@@ -47,8 +47,8 @@ static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 type DisplaySpi<'d> = SpiDma<
     'd,
     hal::peripherals::SPI2,
-    ChannelTx<'d, Channel0TxImpl, esp32s3_hal::gdma::Channel0>,
-    ChannelRx<'d, Channel0RxImpl, esp32s3_hal::gdma::Channel0>,
+    ChannelTx<'d, Channel0TxImpl, Channel0>,
+    ChannelRx<'d, Channel0RxImpl, Channel0>,
     SuitablePeripheral0,
     FullDuplexMode,
 >;
