@@ -4,6 +4,7 @@
 
 extern crate alloc;
 
+use ads129x::Ads129x;
 use embassy_executor::{Executor, _export::StaticCell};
 use embassy_time::{Duration, Ticker};
 use esp_backtrace as _;
@@ -75,8 +76,11 @@ type Display<'a> = Ssd1306<
     BufferedGraphicsMode<DisplaySize128x64>,
 >;
 
+type Adc<'a> = Ads129x<Spi<'a, hal::peripherals::SPI3, FullDuplexMode>>;
+
 struct Resources {
     display: Display<'static>,
+    adc: Adc<'static>,
 }
 
 #[entry]
@@ -104,6 +108,7 @@ fn main() -> ! {
     let dma = Gdma::new(peripherals.DMA, &mut system.peripheral_clock_control);
     let display_dma_channel = dma.channel0;
 
+    // Display
     let _display_reset = io.pins.gpio9.into_push_pull_output();
     let display_dc = io.pins.gpio13.into_push_pull_output();
 
@@ -133,16 +138,32 @@ fn main() -> ! {
         DmaPriority::Priority0,
     ));
 
-    let display_interface = SPIInterface::new(display_spi, display_dc, display_cs);
-
     let display = Ssd1306::new(
-        display_interface,
+        SPIInterface::new(display_spi, display_dc, display_cs),
         DisplaySize128x64,
         DisplayRotation::Rotate0,
     )
     .into_buffered_graphics_mode();
 
-    let resources = Resources { display };
+    // ADC
+    let adc_sclk = io.pins.gpio6;
+    let adc_mosi = io.pins.gpio7;
+    let adc_miso = io.pins.gpio5;
+    let adc_cs = io.pins.gpio18;
+
+    let adc = Ads129x::new(Spi::new(
+        peripherals.SPI3,
+        adc_sclk,
+        adc_mosi,
+        adc_miso,
+        adc_cs,
+        500u32.kHz(),
+        SpiMode::Mode0,
+        &mut system.peripheral_clock_control,
+        &clocks,
+    ));
+
+    let resources = Resources { display, adc };
 
     let executor = EXECUTOR.init(Executor::new());
     executor.run(move |spawner| {
