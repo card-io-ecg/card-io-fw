@@ -81,10 +81,6 @@ where
     RESET: OutputPin,
     S: AsyncWriteOnlyDataCommand,
 {
-    pub fn clear(&mut self) {
-        self.display.display.clear()
-    }
-
     pub async fn flush(&mut self) -> Result<(), DisplayError> {
         self.display.display.flush_async().await
     }

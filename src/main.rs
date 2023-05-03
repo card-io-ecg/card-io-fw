@@ -1,10 +1,14 @@
 #![no_std]
 #![no_main]
 #![feature(type_alias_impl_trait)]
+#![feature(let_chains)]
+#![feature(associated_type_bounds)]
 
 extern crate alloc;
 
 use embassy_executor::{Executor, _export::StaticCell};
+use embassy_time::{Duration, Instant};
+use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget};
 use esp_backtrace as _;
 
 #[cfg(feature = "esp32s2")]
@@ -21,6 +25,7 @@ pub use esp32s3 as pac;
 
 use esp_println::logger::init_logger;
 
+use core::fmt::Debug;
 use display_interface_spi_async::SPIInterface;
 use hal::{
     clock::{ClockControl, CpuClock},
@@ -215,6 +220,7 @@ fn main() -> ! {
 enum AppState {
     Initialize,
     Measure,
+    Menu,
     Shutdown,
 }
 
@@ -226,29 +232,59 @@ async fn main_task(mut resources: Resources) {
     let mut state = AppState::Initialize;
 
     loop {
-        let new_state = match state {
+        state = match state {
             AppState::Initialize => initialize(&mut display, &mut resources.frontend).await,
             AppState::Measure => measure(&mut display, &mut resources.frontend).await,
-            AppState::Shutdown => break,
+            AppState::Menu => menu(&mut display, &mut resources.frontend).await,
+            AppState::Shutdown => {
+                display.shut_down();
+
+                let (_, _, _, touch) = resources.frontend.split();
+                enter_deep_sleep(touch);
+            }
         };
-
-        state = new_state;
     }
-
-    display.shut_down();
-
-    let (_, _, _, touch) = resources.frontend.split();
-    enter_deep_sleep(touch);
 }
 
 async fn initialize(
     display: &mut display::PoweredDisplay<'_, DisplayInterface<'_>, DisplayReset>,
     frontend: &mut Frontend<AdcSpi<'_>, AdcDrdy, AdcReset, TouchDetect>,
 ) -> AppState {
-    todo!()
+    let entered = Instant::now();
+    while let elapsed = entered.elapsed() && elapsed <= Duration::from_secs(20) {
+        display_init_screen(display, elapsed);
+
+        display.flush().await.unwrap();
+
+        if !frontend.is_touched() {
+            return if elapsed > Duration::from_secs(10) {
+                AppState::Menu
+            } else {
+                AppState::Shutdown
+            };
+        }
+    }
+
+    AppState::Measure
+}
+
+fn display_init_screen(
+    display: &mut impl DrawTarget<Color = BinaryColor, Error: Debug>,
+    elapsed: Duration,
+) {
+    display.clear(BinaryColor::Off).unwrap();
+
+    todo!("Based on elapsed, display a message and a progress bar")
 }
 
 async fn measure(
+    display: &mut display::PoweredDisplay<'_, DisplayInterface<'_>, DisplayReset>,
+    frontend: &mut Frontend<AdcSpi<'_>, AdcDrdy, AdcReset, TouchDetect>,
+) -> AppState {
+    todo!()
+}
+
+async fn menu(
     display: &mut display::PoweredDisplay<'_, DisplayInterface<'_>, DisplayReset>,
     frontend: &mut Frontend<AdcSpi<'_>, AdcDrdy, AdcReset, TouchDetect>,
 ) -> AppState {
