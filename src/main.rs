@@ -347,23 +347,19 @@ fn draw_startup_progress_bar(
 
     // Progress filler - we could use the whole filler area but
     // let's resize to avoid unnecessary drawing
-    filler_area
-        .resized(
-            Size::new(remaining_width, filler_area.size.height),
-            AnchorPoint::TopLeft,
-        )
+    let progress_filler = filler_area.resized(
+        Size::new(remaining_width, filler_area.size.height),
+        AnchorPoint::TopLeft,
+    );
+
+    progress_filler
         .into_styled(PrimitiveStyle::with_fill(BinaryColor::On))
         .draw(display)
         .unwrap();
 
-    // Invert the area right to the progress filler so we can display text on both portions
+    // Invert the area on top of the progress filler so we can display text on both portions
     // of the progress bar with one draw call
-    let inverted_area = filler_area.resized(
-        Size::new(empty_area_width, filler_area.size.height),
-        AnchorPoint::TopRight,
-    );
-
-    let mut draw_area = display.invert_area(&inverted_area);
+    let mut draw_area = display.invert_area(&progress_filler);
 
     let textbox_style = TextBoxStyleBuilder::new()
         .height_mode(HeightMode::ShrinkToText(VerticalOverdraw::FullRowsOnly))
@@ -377,7 +373,7 @@ fn draw_startup_progress_bar(
         progress_bar,
         MonoTextStyleBuilder::new()
             .font(&FONT_6X10)
-            .text_color(BinaryColor::Off) // Off on normally-On background
+            .text_color(BinaryColor::On) // On on normally-Off background
             .build(),
         textbox_style,
     )
