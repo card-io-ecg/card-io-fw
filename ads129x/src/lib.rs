@@ -4,7 +4,10 @@
 
 use byteorder::{BigEndian, ByteOrder};
 use device_descriptor::{Proxy, ReadOnlyRegister, Register};
-use embedded_hal::spi::{Operation, SpiDevice};
+use embedded_hal::{
+    digital::OutputPin,
+    spi::{Operation, SpiDevice},
+};
 use embedded_hal_async::spi::SpiDevice as AsyncSpiDevice;
 use register_access::{AsyncRegisterAccess, RegisterAccess};
 
@@ -169,6 +172,11 @@ where
 }
 
 impl<SPI> Ads129x<SPI> {
+    // t_mod = 1/128kHz
+    const MIN_T_POR: u32 = 32; // >= 4096 * t_mod >= 1/32s
+    const MIN_T_RST: u32 = 1; // >= 1 * t_mod >= 8us
+    const MIN_RST_WAIT: u32 = 1; // >= 18 * t_mod >= 140us
+
     pub const fn new(spi: SPI) -> Self {
         Self { spi }
     }
@@ -179,6 +187,10 @@ impl<SPI> Ads129x<SPI> {
 
     fn start_read_command<R: ReadOnlyRegister<u8>>(buf: &[u8]) -> Command {
         Command::RREG(R::ADDRESS, buf.len() as u8)
+    }
+
+    pub fn inner_mut(&mut self) -> &mut SPI {
+        &mut self.spi
     }
 
     pub fn into_inner(self) -> SPI {
@@ -227,6 +239,18 @@ where
     ) -> Result<(), Error<SPI::Error>> {
         config.apply(self)
     }
+
+    pub fn reset<RESET>(&self, reset: &mut RESET, delay: &mut impl embedded_hal::delay::DelayUs)
+    where
+        RESET: OutputPin,
+    {
+        reset.set_high().unwrap();
+        delay.delay_ms(Self::MIN_T_POR);
+        reset.set_low().unwrap();
+        delay.delay_ms(Self::MIN_T_RST);
+        reset.set_high().unwrap();
+        delay.delay_ms(Self::MIN_RST_WAIT);
+    }
 }
 
 impl<SPI> Ads129x<SPI>
@@ -272,6 +296,21 @@ where
         config: &ConfigRegisters,
     ) -> Result<(), Error<SPI::Error>> {
         config.apply_async(self).await
+    }
+
+    pub async fn reset_async<RESET>(
+        &self,
+        reset: &mut RESET,
+        delay: &mut impl embedded_hal_async::delay::DelayUs,
+    ) where
+        RESET: OutputPin,
+    {
+        reset.set_high().unwrap();
+        delay.delay_ms(Self::MIN_T_POR).await;
+        reset.set_low().unwrap();
+        delay.delay_ms(Self::MIN_T_RST).await;
+        reset.set_high().unwrap();
+        delay.delay_ms(Self::MIN_RST_WAIT).await;
     }
 }
 

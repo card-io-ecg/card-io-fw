@@ -1,4 +1,6 @@
-use ads129x::{Ads129x, Error, Sample};
+use ads129x::{descriptors::*, *};
+use device_descriptor::Register;
+use embassy_time::Delay;
 use embedded_hal::digital::{InputPin, OutputPin};
 use embedded_hal_async::{digital::Wait, spi::SpiDevice as AsyncSpiDevice};
 
@@ -24,14 +26,124 @@ where
         }
     }
 
-    pub async fn enable(&mut self) -> PoweredFrontend<'_, S, DRDY, RESET, TOUCH> {
-        self.reset.set_high().unwrap();
-        // TODO wait and configure
+    fn config(&self) -> ConfigRegisters {
+        ConfigRegisters {
+            config1: Config1::new(|r| {
+                r.data_rate()
+                    .write(DataRate::_1ksps)
+                    .sampling()
+                    .write(Sampling::Continuous)
+            }),
 
-        PoweredFrontend {
+            config2: Config2::new(|r| {
+                r.pdb_loff_comp()
+                    .write(Buffer::Enabled)
+                    .ref_voltage()
+                    .write(ReferenceVoltage::_2_42V)
+                    .clock_pin()
+                    .write(ClockPin::Disabled)
+                    .test_signal()
+                    .write(TestSignal::Disabled)
+            }),
+
+            loff: Loff::new(|r| {
+                r.comp_th()
+                    .write(ComparatorThreshold::_95)
+                    .leadoff_current()
+                    .write(LeadOffCurrent::_6nA)
+                    .leadoff_frequency()
+                    .write(LeadOffFrequency::DC)
+            }),
+
+            ch1set: Ch1Set::new(|r| {
+                r.enabled()
+                    .write(Channel::Enabled)
+                    .gain()
+                    .write(Gain::x6)
+                    .mux()
+                    .write(Ch1Mux::Normal)
+            }),
+
+            ch2set: Ch2Set::new(|r| {
+                r.enabled()
+                    .write(Channel::PowerDown)
+                    .gain()
+                    .write(Gain::x1)
+                    .mux()
+                    .write(Ch2Mux::Shorted)
+            }),
+
+            rldsens: RldSens::new(|r| {
+                r.chop()
+                    .write(ChopFrequency::Fmod2)
+                    .pdb_rld()
+                    .write(Buffer::Enabled)
+                    .loff_sense()
+                    .write(Input::NotConnected)
+                    .rld2n()
+                    .write(Input::NotConnected)
+                    .rld2p()
+                    .write(Input::NotConnected)
+                    .rld1n()
+                    .write(Input::Connected)
+                    .rld1p()
+                    .write(Input::Connected)
+            }),
+
+            loffsens: LoffSens::new(|r| {
+                r.flip2()
+                    .write(CurrentDirection::Normal)
+                    .flip1()
+                    .write(CurrentDirection::Normal)
+                    .loff2n()
+                    .write(Input::NotConnected)
+                    .loff2p()
+                    .write(Input::NotConnected)
+                    .loff1n()
+                    .write(Input::Connected)
+                    .loff1p()
+                    .write(Input::NotConnected)
+            }),
+
+            loffstat: LoffStat::new(|r| {
+                // TODO support internal 512kHz
+                r.clk_div().write(ClockDivider::External2MHz)
+            }),
+            resp1: Resp1::default(),
+
+            resp2: Resp2::new(|r| r.rld_reference().write(RldReference::MidSupply)),
+
+            gpio: Gpio::new(|r| {
+                r.c2()
+                    .write(PinDirection::Input)
+                    .c1()
+                    .write(PinDirection::Output)
+                    .d1()
+                    .write(PinState::High) // disable touch detector circuitry
+            }),
+        }
+    }
+
+    pub fn spi_mut(&mut self) -> &mut S {
+        self.adc.inner_mut()
+    }
+
+    pub async fn enable_async(
+        &mut self,
+    ) -> Result<PoweredFrontend<'_, S, DRDY, RESET, TOUCH>, Error<S::Error>>
+    where
+        S: AsyncSpiDevice,
+    {
+        self.adc.reset_async(&mut self.reset, &mut Delay).await;
+
+        let config = self.config();
+
+        self.adc.apply_configuration_async(&config).await?;
+
+        Ok(PoweredFrontend {
             frontend: self,
             touched: true,
-        }
+        })
     }
 
     pub fn is_touched(&self) -> bool {
@@ -49,6 +161,17 @@ where
 {
     frontend: &'a mut Frontend<S, DRDY, RESET, TOUCH>,
     touched: bool,
+}
+
+impl<'a, S, DRDY, RESET, TOUCH> PoweredFrontend<'a, S, DRDY, RESET, TOUCH>
+where
+    DRDY: InputPin,
+    TOUCH: InputPin,
+    RESET: OutputPin,
+{
+    pub fn spi_mut(&mut self) -> &mut S {
+        self.frontend.spi_mut()
+    }
 }
 
 impl<'a, S, DRDY, RESET, TOUCH> PoweredFrontend<'a, S, DRDY, RESET, TOUCH>
