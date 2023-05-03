@@ -10,7 +10,18 @@ extern crate alloc;
 
 use embassy_executor::{Executor, _export::StaticCell};
 use embassy_time::{Duration, Instant, Ticker};
-use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget};
+use embedded_graphics::{
+    mono_font::{ascii::FONT_6X10, MonoTextStyleBuilder},
+    pixelcolor::BinaryColor,
+    prelude::{DrawTarget, Point, Size},
+    primitives::{Primitive, PrimitiveStyle, Rectangle},
+    Drawable,
+};
+use embedded_text::{
+    alignment::{HorizontalAlignment, VerticalAlignment},
+    style::{HeightMode, TextBoxStyleBuilder, VerticalOverdraw},
+    TextBox,
+};
 use esp_backtrace as _;
 
 #[cfg(feature = "esp32s2")]
@@ -260,14 +271,13 @@ async fn main_task(mut resources: Resources) {
 }
 
 const MIN_FRAME_TIME: Duration = Duration::from_millis(10);
+const INIT_TIME: Duration = Duration::from_secs(20);
+const MENU_THRESHOLD: Duration = Duration::from_secs(10);
 
 async fn initialize(
     display: &mut display::PoweredDisplay<'_, DisplayInterface<'_>, DisplayReset>,
     frontend: &mut Frontend<AdcSpi<'_>, AdcDrdy, AdcReset, TouchDetect>,
 ) -> AppState {
-    const INIT_TIME: Duration = Duration::from_secs(20);
-    const MENU_THRESHOLD: Duration = Duration::from_secs(10);
-
     let entered = Instant::now();
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     while let elapsed = entered.elapsed() && elapsed <= INIT_TIME {
@@ -295,7 +305,45 @@ fn display_init_screen(
 ) {
     display.clear(BinaryColor::Off).unwrap();
 
+    if elapsed > MENU_THRESHOLD {
+        draw_startup_progress_bar(display, "Release to menu");
+    } else {
+        draw_startup_progress_bar(display, "Release to shutdown");
+    }
+
     todo!("Based on elapsed, display a message and a progress bar")
+}
+
+fn draw_startup_progress_bar(
+    display: &mut impl DrawTarget<Color = BinaryColor, Error: Debug>,
+    label: &str,
+) {
+    let progress_bar = Rectangle::new(Point::new(0, 51), Size::new(128, 13));
+
+    progress_bar
+        .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
+        .draw(display)
+        .unwrap();
+
+    let textbox_style = TextBoxStyleBuilder::new()
+        .height_mode(HeightMode::ShrinkToText(VerticalOverdraw::FullRowsOnly))
+        .alignment(HorizontalAlignment::Center)
+        .vertical_alignment(VerticalAlignment::Middle)
+        .build();
+
+    // using embedded-text because I'm lazy to position the label vertically
+    TextBox::with_textbox_style(
+        label,
+        progress_bar,
+        MonoTextStyleBuilder::new()
+            .font(&FONT_6X10)
+            .background_color(BinaryColor::Off)
+            .text_color(BinaryColor::On)
+            .build(),
+        textbox_style,
+    )
+    .draw(display)
+    .unwrap();
 }
 
 async fn measure(
