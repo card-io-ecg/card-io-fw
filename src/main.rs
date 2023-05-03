@@ -273,17 +273,18 @@ async fn main_task(mut resources: Resources) {
 }
 
 const MIN_FRAME_TIME: Duration = Duration::from_millis(10);
-const INIT_TIME: Duration = Duration::from_secs(20);
-const MENU_THRESHOLD: Duration = Duration::from_secs(10);
 
 async fn initialize(
     display: &mut display::PoweredDisplay<'_, DisplayInterface<'_>, DisplayReset>,
     frontend: &mut Frontend<AdcSpi<'_>, AdcDrdy, AdcReset, TouchDetect>,
 ) -> AppState {
+    const INIT_TIME: Duration = Duration::from_secs(20);
+    const MENU_THRESHOLD: Duration = Duration::from_secs(10);
+
     let entered = Instant::now();
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     while let elapsed = entered.elapsed() && elapsed <= INIT_TIME {
-        display_init_screen(display, elapsed, INIT_TIME);
+        display_init_screen(display, elapsed, MENU_THRESHOLD, INIT_TIME);
 
         display.flush().await.unwrap();
 
@@ -304,6 +305,7 @@ async fn initialize(
 fn display_init_screen(
     display: &mut impl DrawTarget<Color = BinaryColor, Error: Debug>,
     elapsed: Duration,
+    menu_threshold: Duration,
     max: Duration,
 ) {
     display.clear(BinaryColor::Off).unwrap();
@@ -314,13 +316,13 @@ fn display_init_screen(
     let max_progress = 255;
     let progress = (elapsed_secs * max_progress) / max_secs;
 
-    if elapsed > MENU_THRESHOLD {
-        draw_startup_progress_bar("Release to menu", display, progress, max_progress);
+    let label = if elapsed > menu_threshold {
+        "Release to menu"
     } else {
-        draw_startup_progress_bar("Release to shutdown", display, progress, max_progress);
-    }
+        "Release to shutdown"
+    };
 
-    todo!("Based on elapsed, display a message and a progress bar")
+    draw_startup_progress_bar(label, display, progress, max_progress);
 }
 
 fn draw_startup_progress_bar(

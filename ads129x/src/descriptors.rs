@@ -17,9 +17,9 @@ pub enum Command {
     WREG(u8, u8),
 }
 
-impl Into<([u8; 2], usize)> for Command {
-    fn into(self) -> ([u8; 2], usize) {
-        match self {
+impl From<Command> for ([u8; 2], usize) {
+    fn from(val: Command) -> Self {
+        match val {
             Command::WAKEUP => ([0x02, 0], 1),
             Command::STANDBY => ([0x04, 0], 1),
             Command::RESET => ([0x06, 0], 1),

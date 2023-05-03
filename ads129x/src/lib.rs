@@ -39,7 +39,7 @@ pub struct ConfigRegisters {
 }
 
 impl ConfigRegisters {
-    fn into_raw(&self) -> [u8; 11] {
+    fn into_raw(self) -> [u8; 11] {
         [
             self.config1.bits(),
             self.config2.bits(),
