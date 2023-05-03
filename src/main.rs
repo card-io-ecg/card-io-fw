@@ -7,7 +7,7 @@
 extern crate alloc;
 
 use embassy_executor::{Executor, _export::StaticCell};
-use embassy_time::{Duration, Instant};
+use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget};
 use esp_backtrace as _;
 
@@ -251,6 +251,7 @@ async fn initialize(
     frontend: &mut Frontend<AdcSpi<'_>, AdcDrdy, AdcReset, TouchDetect>,
 ) -> AppState {
     let entered = Instant::now();
+    let mut ticker = Ticker::every(Duration::from_millis(10));
     while let elapsed = entered.elapsed() && elapsed <= Duration::from_secs(20) {
         display_init_screen(display, elapsed);
 
@@ -263,6 +264,8 @@ async fn initialize(
                 AppState::Shutdown
             };
         }
+
+        ticker.next().await;
     }
 
     AppState::Measure
