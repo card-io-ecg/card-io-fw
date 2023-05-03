@@ -169,7 +169,7 @@ where
 }
 
 impl<SPI> Ads129x<SPI> {
-    pub fn new(spi: SPI) -> Self {
+    pub const fn new(spi: SPI) -> Self {
         Self { spi }
     }
 

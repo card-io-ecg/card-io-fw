@@ -4,7 +4,6 @@
 
 extern crate alloc;
 
-use ads129x::Ads129x;
 use embassy_executor::{Executor, _export::StaticCell};
 use embassy_time::{Duration, Ticker};
 use esp_backtrace as _;
@@ -24,12 +23,12 @@ use hal::{
     embassy,
     gdma::{Gdma, *},
     gpio::{
-        Bank0GpioRegisterAccess, GpioPin, InputOutputAnalogPinType, Output, PushPull,
-        SingleCoreInteruptStatusRegisterAccessBank0,
+        Bank0GpioRegisterAccess, Floating, GpioPin, Input, InputOutputAnalogPinType, Output,
+        PushPull, SingleCoreInteruptStatusRegisterAccessBank0,
     },
     peripherals::Peripherals,
     prelude::*,
-    soc::gpio::{Gpio10Signals, Gpio13Signals},
+    soc::gpio::{Gpio10Signals, Gpio13Signals, Gpio1Signals, Gpio2Signals, Gpio4Signals},
     spi::{dma::SpiDma, FullDuplexMode, SpiMode},
     timer::TimerGroup,
     Rtc, Spi, IO,
@@ -38,9 +37,10 @@ use ssd1306::{
     mode::BufferedGraphicsMode, rotation::DisplayRotation, size::DisplaySize128x64, Ssd1306,
 };
 
+mod frontend;
 mod heap;
 
-use crate::heap::init_heap;
+use crate::{frontend::Frontend, heap::init_heap};
 
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 
@@ -76,11 +76,35 @@ type Display<'a> = Ssd1306<
     BufferedGraphicsMode<DisplaySize128x64>,
 >;
 
-type Adc<'a> = Ads129x<Spi<'a, hal::peripherals::SPI3, FullDuplexMode>>;
+type AdcDrdy = GpioPin<
+    Input<Floating>,
+    Bank0GpioRegisterAccess,
+    SingleCoreInteruptStatusRegisterAccessBank0,
+    InputOutputAnalogPinType,
+    Gpio4Signals,
+    4,
+>;
+type AdcReset = GpioPin<
+    Output<PushPull>,
+    Bank0GpioRegisterAccess,
+    SingleCoreInteruptStatusRegisterAccessBank0,
+    InputOutputAnalogPinType,
+    Gpio2Signals,
+    2,
+>;
+type TouchDetect = GpioPin<
+    Input<Floating>,
+    Bank0GpioRegisterAccess,
+    SingleCoreInteruptStatusRegisterAccessBank0,
+    InputOutputAnalogPinType,
+    Gpio1Signals,
+    1,
+>;
+type AdcSpi<'a> = Spi<'a, hal::peripherals::SPI3, FullDuplexMode>;
 
 struct Resources {
     display: Display<'static>,
-    adc: Adc<'static>,
+    frontend: Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>,
 }
 
 #[entry]
@@ -151,19 +175,31 @@ fn main() -> ! {
     let adc_miso = io.pins.gpio5;
     let adc_cs = io.pins.gpio18;
 
-    let adc = Ads129x::new(Spi::new(
-        peripherals.SPI3,
-        adc_sclk,
-        adc_mosi,
-        adc_miso,
-        adc_cs,
-        500u32.kHz(),
-        SpiMode::Mode0,
-        &mut system.peripheral_clock_control,
-        &clocks,
-    ));
+    let adc_drdy = io.pins.gpio4.into_floating_input();
+    let adc_reset = io.pins.gpio2.into_push_pull_output();
+    let touch_detect = io.pins.gpio1.into_floating_input();
 
-    let resources = Resources { display, adc };
+    let adc = Frontend::new(
+        Spi::new(
+            peripherals.SPI3,
+            adc_sclk,
+            adc_mosi,
+            adc_miso,
+            adc_cs,
+            500u32.kHz(),
+            SpiMode::Mode0,
+            &mut system.peripheral_clock_control,
+            &clocks,
+        ),
+        adc_drdy,
+        adc_reset,
+        touch_detect,
+    );
+
+    let resources = Resources {
+        display,
+        frontend: adc,
+    };
 
     let executor = EXECUTOR.init(Executor::new());
     executor.run(move |spawner| {
