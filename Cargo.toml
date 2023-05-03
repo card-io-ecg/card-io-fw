@@ -9,7 +9,7 @@ license = "MIT"
 [dependencies]
 embassy-futures = { version = "0.1.0" }
 embassy-executor  = { version = "0.2.0", features = ["nightly", "arch-xtensa", "integrated-timers", "executor-thread"] }
-embassy-time = { version = "0.1.0", features = ["nightly"] }
+embassy-time = { version = "0.1.0", features = ["nightly", "unstable-traits"] }
 
 embedded-hal = { version = "1.0.0-alpha.10" }
 embedded-hal-async = { version = "0.2.0-alpha.1" }
@@ -20,6 +20,7 @@ esp-backtrace = { version = "0.7.0", features = ["panic-handler", "exception-han
 esp-println = { version = "0.5.0", default-features = false, features = ["critical-section", "colors", "log"] }
 esp-alloc = { version = "0.3.0" }
 
+display-interface = { git = "https://github.com/bugadani/display-interface.git", branch = "async", features = ["async"] }
 display-interface-spi-async = { git = "https://github.com/bugadani/display-interface.git", branch = "async" }
 ssd1306 = { git = "https://github.com/bugadani/ssd1306.git", branch = "async", features = ["async"] }
 

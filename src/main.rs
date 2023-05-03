@@ -28,19 +28,17 @@ use hal::{
     },
     peripherals::Peripherals,
     prelude::*,
-    soc::gpio::{Gpio10Signals, Gpio13Signals, Gpio1Signals, Gpio2Signals, Gpio4Signals},
+    soc::gpio::*,
     spi::{dma::SpiDma, FullDuplexMode, SpiMode},
     timer::TimerGroup,
     Rtc, Spi, IO,
 };
-use ssd1306::{
-    mode::BufferedGraphicsMode, rotation::DisplayRotation, size::DisplaySize128x64, Ssd1306,
-};
 
+mod display;
 mod frontend;
 mod heap;
 
-use crate::{frontend::Frontend, heap::init_heap};
+use crate::{display::Display, frontend::Frontend, heap::init_heap};
 
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 
@@ -69,12 +67,16 @@ type DisplayChipSelect = GpioPin<
     Gpio10Signals,
     10,
 >;
-
-type Display<'a> = Ssd1306<
-    SPIInterface<DisplaySpi<'a>, DisplayDataCommand, DisplayChipSelect>,
-    DisplaySize128x64,
-    BufferedGraphicsMode<DisplaySize128x64>,
+type DisplayReset = GpioPin<
+    Output<PushPull>,
+    Bank0GpioRegisterAccess,
+    SingleCoreInteruptStatusRegisterAccessBank0,
+    InputOutputAnalogPinType,
+    Gpio9Signals,
+    9,
 >;
+
+type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommand, DisplayChipSelect>;
 
 type AdcDrdy = GpioPin<
     Input<Floating>,
@@ -103,7 +105,7 @@ type TouchDetect = GpioPin<
 type AdcSpi<'a> = Spi<'a, hal::peripherals::SPI3, FullDuplexMode>;
 
 struct Resources {
-    display: Display<'static>,
+    display: Display<DisplayInterface<'static>, DisplayReset>,
     frontend: Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>,
 }
 
@@ -133,7 +135,7 @@ fn main() -> ! {
     let display_dma_channel = dma.channel0;
 
     // Display
-    let _display_reset = io.pins.gpio9.into_push_pull_output();
+    let display_reset = io.pins.gpio9.into_push_pull_output();
     let display_dc = io.pins.gpio13.into_push_pull_output();
 
     let mut display_cs = io.pins.gpio10.into_push_pull_output();
@@ -162,12 +164,10 @@ fn main() -> ! {
         DmaPriority::Priority0,
     ));
 
-    let display = Ssd1306::new(
+    let display = Display::new(
         SPIInterface::new(display_spi, display_dc, display_cs),
-        DisplaySize128x64,
-        DisplayRotation::Rotate0,
-    )
-    .into_buffered_graphics_mode();
+        display_reset,
+    );
 
     // ADC
     let adc_sclk = io.pins.gpio6;
@@ -203,12 +203,15 @@ fn main() -> ! {
 
     let executor = EXECUTOR.init(Executor::new());
     executor.run(move |spawner| {
-        spawner.spawn(ticker_task(resources)).ok();
+        spawner.spawn(main_task(resources)).ok();
     });
 }
 
 #[embassy_executor::task]
-async fn ticker_task(mut resources: Resources) {
+async fn main_task(mut resources: Resources) {
+    // If the device is awake, the display should be enabled.
+    let mut display = resources.display.enable().await;
+
     let mut ticker = Ticker::every(Duration::from_millis(500));
     loop {
         ticker.next().await;
