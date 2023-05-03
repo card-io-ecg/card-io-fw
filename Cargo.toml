@@ -23,6 +23,7 @@ esp-alloc = { version = "0.3.0" }
 display-interface-spi-async = { git = "https://github.com/bugadani/display-interface.git", branch = "async" }
 ssd1306 = { git = "https://github.com/bugadani/ssd1306.git", branch = "async", features = ["async"] }
 
+ads129x = { path = "ads129x" }
 log = "0.4.17"
 
 [features]
@@ -34,3 +35,11 @@ esp32s3 = ["dep:esp32s3-hal", "esp-backtrace/esp32s3", "esp-println/esp32s3"]
 
 # Print options
 jtag_serial = ["esp-backtrace/print-jtag-serial", "esp-println/jtag_serial"]
+
+[workspace]
+members = [
+    ".",
+    "ads129x",
+    "device-descriptor",
+    "register-access"
+]
