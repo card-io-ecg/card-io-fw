@@ -11,6 +11,3 @@ embedded-text = "0.5"
 
 [dev-dependencies]
 embedded-graphics-simulator = "0.4.1"
-
-[[example]]
-name = "demo"
