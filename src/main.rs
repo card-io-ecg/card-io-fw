@@ -40,7 +40,10 @@ use hal::{
     peripherals::Peripherals,
     prelude::*,
     soc::gpio::*,
-    spi::{dma::SpiDma, FullDuplexMode, SpiMode},
+    spi::{
+        dma::{SpiDma, WithDmaSpi2, WithDmaSpi3},
+        FullDuplexMode, SpiMode,
+    },
     timer::TimerGroup,
     Rtc, Spi, IO,
 };
@@ -122,7 +125,17 @@ type AdcChipSelect = GpioPin<
     Gpio18Signals,
     18,
 >;
-type AdcSpi<'a> = SpiDeviceWrapper<Spi<'a, hal::peripherals::SPI3, FullDuplexMode>, AdcChipSelect>;
+type AdcSpi<'d> = SpiDeviceWrapper<
+    SpiDma<
+        'd,
+        hal::peripherals::SPI3,
+        ChannelTx<'d, Channel1TxImpl, Channel1>,
+        ChannelRx<'d, Channel1RxImpl, Channel1>,
+        SuitablePeripheral1,
+        FullDuplexMode,
+    >,
+    AdcChipSelect,
+>;
 
 struct Resources {
     display: Display<DisplayInterface<'static>, DisplayReset>,
@@ -190,6 +203,7 @@ fn main() -> ! {
     );
 
     // ADC
+    let adc_dma_channel = dma.channel1;
     let adc_sclk = io.pins.gpio6;
     let adc_mosi = io.pins.gpio7;
     let adc_miso = io.pins.gpio5;
@@ -199,6 +213,8 @@ fn main() -> ! {
     let adc_reset = io.pins.gpio2.into_push_pull_output();
     let touch_detect = io.pins.gpio1.into_floating_input();
 
+    static mut ADC_SPI_DESCRIPTORS: [u32; 24] = [0u32; 8 * 3];
+    static mut ADC_SPI_RX_DESCRIPTORS: [u32; 24] = [0u32; 8 * 3];
     let adc = Frontend::new(
         SpiDeviceWrapper {
             spi: Spi::new_no_cs(
@@ -210,7 +226,13 @@ fn main() -> ! {
                 SpiMode::Mode0,
                 &mut system.peripheral_clock_control,
                 &clocks,
-            ),
+            )
+            .with_dma(adc_dma_channel.configure(
+                false,
+                unsafe { &mut ADC_SPI_DESCRIPTORS },
+                unsafe { &mut ADC_SPI_RX_DESCRIPTORS },
+                DmaPriority::Priority0,
+            )),
             chip_select: adc_cs,
         },
         adc_drdy,
@@ -318,7 +340,7 @@ async fn measure(
     display: &mut display::PoweredDisplay<'_, DisplayInterface<'_>, DisplayReset>,
     frontend: &mut Frontend<AdcSpi<'_>, AdcDrdy, AdcReset, TouchDetect>,
 ) -> AppState {
-    // let frontend = frontend.enable_async().await.unwrap();
+    let frontend = frontend.enable_async().await.unwrap();
 
     todo!()
 }

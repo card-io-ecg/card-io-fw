@@ -15,7 +15,7 @@ embedded-hal = { version = "1.0.0-alpha.10" }
 embedded-hal-async = { version = "0.2.0-alpha.1" }
 
 esp32s2-hal = { version = "0.9.0", optional = true, features = ["rt", "async", "embassy", "embassy-time-timg0", "eh1"] }
-esp32s3-hal = { version = "0.9.0", optional = true, features = ["rt", "async", "embassy", "embassy-time-timg0", "eh1"] }
+esp32s3-hal = { git = "https://github.com/esp-rs/esp-hal", optional = true, features = ["rt", "async", "embassy", "embassy-time-timg0", "eh1"] }
 esp32s2 = { version = "0.14.0", optional = true }
 esp32s3 = { version = "0.18.0", optional = true }
 esp-backtrace = { version = "0.7.0", features = ["panic-handler", "exception-handler"] }
