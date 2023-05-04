@@ -23,7 +23,7 @@ pub fn draw_startup_progress_bar<DT: DrawTarget<Color = BinaryColor>>(
     progress: u32,
     max_progress: u32,
 ) -> Result<(), DT::Error> {
-    let progress_bar = Rectangle::new(Point::new(0, 49), Size::new(128, 15));
+    let progress_bar = Rectangle::new(Point::new(0, 51), Size::new(128, 13));
     let filler_area = progress_bar.offset(-2); // 1px gap between border and fill
 
     // Border
@@ -52,7 +52,7 @@ pub fn draw_startup_progress_bar<DT: DrawTarget<Color = BinaryColor>>(
     let mut draw_area = display.invert_area(&progress_filler);
 
     let textbox_style = TextBoxStyleBuilder::new()
-        .height_mode(HeightMode::ShrinkToText(VerticalOverdraw::FullRowsOnly))
+        .height_mode(HeightMode::Exact(VerticalOverdraw::FullRowsOnly))
         .alignment(HorizontalAlignment::Center)
         .vertical_alignment(VerticalAlignment::Middle)
         .build();
@@ -67,6 +67,7 @@ pub fn draw_startup_progress_bar<DT: DrawTarget<Color = BinaryColor>>(
             .build(),
         textbox_style,
     )
+    .set_vertical_offset(1) // Slight adjustment
     .draw(&mut draw_area)?;
 
     Ok(())
