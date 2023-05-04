@@ -7,6 +7,7 @@ use embedded_graphics::{
 use embedded_graphics_simulator::{
     BinaryColorTheme, OutputSettingsBuilder, SimulatorDisplay, SimulatorEvent, Window,
 };
+use gui::screens::init::StartupScreen;
 
 fn main() -> Result<(), Infallible> {
     let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(128, 64));
@@ -22,16 +23,16 @@ fn main() -> Result<(), Infallible> {
     'running: loop {
         display.clear(BinaryColor::Off).unwrap();
 
-        gui::draw_startup_progress_bar(
-            "Release to shutdown",
-            &mut display,
-            if progress > 255 {
+        StartupScreen {
+            label: "Release to shutdown",
+            progress: if progress > 255 {
                 510 - progress
             } else {
                 progress
             },
-            255,
-        )
+            max_progress: 255,
+        }
+        .draw(&mut display)
         .unwrap();
 
         progress = (progress + 1) % 510;

@@ -27,6 +27,7 @@ pub use esp32s3 as pac;
 use esp_println::logger::init_logger;
 
 use display_interface_spi_async::SPIInterface;
+use gui::screens::init::StartupScreen;
 use hal::{
     clock::{ClockControl, CpuClock},
     dma::{ChannelRx, ChannelTx, DmaPriority},
@@ -301,13 +302,16 @@ fn display_init_screen<DT: DrawTarget<Color = BinaryColor>>(
     let max_progress = 255;
     let progress = (elapsed_secs * max_progress) / max_secs;
 
-    let label = if elapsed > menu_threshold {
-        "Release to menu"
-    } else {
-        "Release to shutdown"
-    };
-
-    gui::draw_startup_progress_bar(label, display, progress, max_progress)
+    StartupScreen {
+        label: if elapsed > menu_threshold {
+            "Release to menu"
+        } else {
+            "Release to shutdown"
+        },
+        progress,
+        max_progress,
+    }
+    .draw(display)
 }
 
 async fn measure(
