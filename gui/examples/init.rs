@@ -15,6 +15,7 @@ fn main() -> Result<(), Infallible> {
     // Uncomment one of the `theme` lines to use a different theme.
     let output_settings = OutputSettingsBuilder::new()
         .theme(BinaryColorTheme::OledBlue)
+        .max_fps(100)
         .build();
 
     let mut window = Window::new("Init screen", &output_settings);

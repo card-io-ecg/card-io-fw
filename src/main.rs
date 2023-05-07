@@ -9,7 +9,7 @@ extern crate alloc;
 
 use embassy_executor::{Executor, _export::StaticCell};
 use embassy_time::{Duration, Instant, Ticker};
-use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget};
+use embedded_graphics::{pixelcolor::BinaryColor, prelude::*};
 use esp_backtrace as _;
 
 #[cfg(feature = "esp32s2")]
@@ -27,7 +27,11 @@ pub use esp32s3 as pac;
 use esp_println::logger::init_logger;
 
 use display_interface_spi_async::SPIInterface;
-use gui::screens::init::StartupScreen;
+use gui::screens::{
+    init::StartupScreen,
+    main_menu::{MainMenu, MainMenuEvents},
+    MENU_STYLE,
+};
 use hal::{
     clock::{ClockControl, CpuClock},
     dma::{ChannelRx, ChannelTx, DmaPriority},
@@ -254,7 +258,7 @@ fn main() -> ! {
 enum AppState {
     Initialize,
     Measure,
-    Menu,
+    MainMenu,
     Shutdown,
 }
 
@@ -269,7 +273,7 @@ async fn main_task(mut resources: Resources) {
         state = match state {
             AppState::Initialize => initialize(&mut display, &mut resources.frontend).await,
             AppState::Measure => measure(&mut display, &mut resources.frontend).await,
-            AppState::Menu => menu(&mut display, &mut resources.frontend).await,
+            AppState::MainMenu => main_menu(&mut display, &mut resources.frontend).await,
             AppState::Shutdown => {
                 display.shut_down();
 
@@ -298,7 +302,7 @@ async fn initialize(
 
         if !frontend.is_touched() {
             return if elapsed > MENU_THRESHOLD {
-                AppState::Menu
+                AppState::MainMenu
             } else {
                 AppState::Shutdown
             };
@@ -345,11 +349,27 @@ async fn measure(
     todo!()
 }
 
-async fn menu(
+async fn main_menu(
     display: &mut display::PoweredDisplay<'_, DisplayInterface<'_>, DisplayReset>,
     frontend: &mut Frontend<AdcSpi<'_>, AdcDrdy, AdcReset, TouchDetect>,
 ) -> AppState {
-    todo!()
+    let mut menu = MainMenu {}.create_menu_with_style(MENU_STYLE);
+
+    let mut ticker = Ticker::every(MIN_FRAME_TIME);
+    loop {
+        display.clear(BinaryColor::Off).unwrap();
+
+        if let Some(event) = menu.interact(frontend.is_touched()) {
+            return match event {
+                MainMenuEvents::Shutdown => AppState::Shutdown,
+            };
+        }
+
+        menu.update(display);
+        menu.draw(display).unwrap();
+
+        ticker.next().await;
+    }
 }
 
 fn enter_deep_sleep(wakeup_pin: TouchDetect) -> ! {
