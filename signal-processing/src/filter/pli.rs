@@ -38,7 +38,7 @@ pub struct FilterCore {
 
 impl FilterCore {
     fn new(fs: f32, frequency: f32) -> Self {
-        let angular_frequency = (frequency / fs).into();
+        let angular_frequency = frequency / fs;
         let amplitude_filter = SIGNATURE_FILTER;
         let phase_filter = SIGNATURE_FILTER;
         let gamma = 2.0 / amplitude_filter.transfer_coeff_at(angular_frequency).norm();
@@ -199,7 +199,7 @@ impl Constants {
     fn new(fs: f32) -> Self {
         Self {
             k_a: Self::K_A / fs,
-            theta_dw_update_threshold: (4.0 / fs).into(),
+            theta_dw_update_threshold: 4.0 / fs,
         }
     }
 }
