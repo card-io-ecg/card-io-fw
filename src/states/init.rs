@@ -18,6 +18,14 @@ pub async fn initialize(
     let entered = Instant::now();
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     while let elapsed = entered.elapsed() && elapsed <= INIT_TIME {
+        if !frontend.is_touched() {
+            return if elapsed > MENU_THRESHOLD {
+                AppState::MainMenu
+            } else {
+                AppState::Shutdown
+            };
+        }
+
         display
             .frame(|display| {
                 let elapsed_secs = elapsed.as_secs() as u32;
@@ -39,14 +47,6 @@ pub async fn initialize(
             })
             .await
             .unwrap();
-
-        if !frontend.is_touched() {
-            return if elapsed > MENU_THRESHOLD {
-                AppState::MainMenu
-            } else {
-                AppState::Shutdown
-            };
-        }
 
         ticker.next().await;
     }
