@@ -1,4 +1,4 @@
-use embedded_menu_macros::Menu;
+use embedded_menu::Menu;
 
 #[derive(Clone, Copy)]
 pub enum MainMenuEvents {
