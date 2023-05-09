@@ -7,35 +7,32 @@ use embedded_graphics::{
     Drawable,
 };
 use embedded_layout::prelude::{horizontal, vertical, Align};
+use signal_processing::sliding::SlidingWindow;
 
 pub struct EcgScreen {
-    buffer: [f32; 128],
-    n: usize,
-    full: bool,
+    buffer: SlidingWindow<128>,
 }
 
 impl EcgScreen {
     pub fn new() -> Self {
         Self {
-            buffer: [0.0; 128],
-            n: 0,
-            full: false,
+            buffer: SlidingWindow::new(),
         }
     }
 
     pub fn push(&mut self, sample: f32) {
-        self.buffer[self.n] = sample;
-        self.n = (self.n + 1) % self.buffer.len();
-        if self.n == 0 {
-            self.full = true;
-        }
+        self.buffer.push(sample)
     }
 
     fn limits(&self) -> (f32, f32) {
-        let mut min = self.buffer[0];
-        let mut max = self.buffer[0];
+        let mut samples = self.buffer.iter();
 
-        for sample in self.buffer[1..].iter().copied() {
+        let Some(first) = samples.next() else { return (0.0, 0.0); };
+
+        let mut min = first;
+        let mut max = first;
+
+        for sample in samples {
             if sample > max {
                 max = sample;
             }
@@ -45,12 +42,6 @@ impl EcgScreen {
         }
 
         (min, max)
-    }
-
-    fn iter_points(&self) -> impl Iterator<Item = f32> + Clone + '_ {
-        (self.n..self.buffer.len())
-            .chain(0..self.n)
-            .map(|i| self.buffer[i])
     }
 }
 
@@ -88,7 +79,7 @@ impl Drawable for EcgScreen {
     type Output = ();
 
     fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
-        if !self.full {
+        if !self.buffer.is_full() {
             let text_style = MonoTextStyleBuilder::new()
                 .font(&FONT_6X10)
                 .text_color(BinaryColor::On)
@@ -113,7 +104,8 @@ impl Drawable for EcgScreen {
         };
 
         let points = self
-            .iter_points()
+            .buffer
+            .iter()
             .enumerate()
             .map(|(x, y)| Point::new(x as i32, scaler.map(y) as i32));
 

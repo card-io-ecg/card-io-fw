@@ -11,6 +11,7 @@ embedded-text = "0.5"
 embedded-layout = "0.2"
 
 embedded-menu = { git = "https://github.com/bugadani/embedded-menu.git" }
+signal-processing = { path = "../signal-processing" }
 
 [dev-dependencies]
 embedded-graphics-simulator = "0.4.1"
