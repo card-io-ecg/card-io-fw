@@ -17,7 +17,15 @@ use embassy_time::Ticker;
 use embedded_graphics::Drawable;
 use gui::screens::measure::EcgScreen;
 use object_chain::{Chain, ChainElement};
-use signal_processing::filter::{downsample::DownSampler, Filter};
+use signal_processing::{
+    filter::{
+        downsample::DownSampler,
+        iir::precomputed::HIGH_PASS_CUTOFF_1_59HZ,
+        pli::{adaptation_blocking::AdaptationBlocking, PowerLineFilter},
+        Filter,
+    },
+    moving::sum::Sum,
+};
 
 type EcgFrontend = PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>;
 
@@ -40,21 +48,28 @@ pub async fn measure(board: &mut Board) -> AppState {
 
         spawner.must_spawn(reader_task(queue.sender(), frontend));
 
-        let mut screen = EcgScreen::new();
-
-        let mut ticker = Ticker::every(MIN_FRAME_TIME);
-
         // Downsample by 8 to display around 1 second
-        let mut downsampler = Chain::new(DownSampler::new())
+        let downsampler = Chain::new(DownSampler::new())
             .append(DownSampler::new())
             .append(DownSampler::new());
 
+        // PLI filtering algo is probably overkill for displaying, but it's fancy
+        let mut filter = Chain::new(HIGH_PASS_CUTOFF_1_59HZ)
+            .append(
+                // this is a huge amount of data to block adaptation, but exact summation gives
+                // better result than estimation
+                PowerLineFilter::<AdaptationBlocking<Sum<1200>, 50, 20>, 1>::new(1000.0, [50.0]),
+            )
+            .append(downsampler);
+
+        let mut screen = EcgScreen::new();
+        let mut ticker = Ticker::every(MIN_FRAME_TIME);
         loop {
             while let Ok(message) = queue.try_recv() {
                 match message {
                     Message::Sample(sample) => {
                         // TODO: store in raw buffer
-                        if let Some(downsampled) = downsampler.update(sample.voltage()) {
+                        if let Some(downsampled) = filter.update(sample.voltage()) {
                             screen.push(downsampled);
                         }
                     }

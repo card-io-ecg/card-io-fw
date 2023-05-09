@@ -19,7 +19,7 @@ pub mod precomputed {
     );
 
     /// designfilt('highpassiir', 'FilterOrder', 2, 'PassbandFrequency', 1.59, 'PassbandRipple', 1, 'SampleRate', 1000)
-    pub const HIGH_PASS_1_59HZ: Iir<'static, HighPass, 2> = Iir::new(
+    pub const HIGH_PASS_CUTOFF_1_59HZ: Iir<'static, HighPass, 2> = Iir::new(
         &[0.886_820_26, -1.773_640_5, 0.886_820_26],
         &[-1.990_012_3, 0.990_102_35],
     );
