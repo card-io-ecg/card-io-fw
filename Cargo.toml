@@ -27,7 +27,6 @@ display-interface-spi-async = { git = "https://github.com/bugadani/display-inter
 ssd1306 = { git = "https://github.com/bugadani/ssd1306.git", branch = "async", features = ["async", "graphics"] }
 
 embedded-graphics = "0.7.1"
-embedded-menu = { git = "https://github.com/bugadani/embedded-menu.git" }
 
 device-descriptor = { path = "device-descriptor" }
 gui = { path = "gui" }
