@@ -9,6 +9,7 @@ use embedded_graphics::{
 use embedded_layout::prelude::{horizontal, vertical, Align};
 use signal_processing::sliding::SlidingWindow;
 
+#[derive(Default)]
 pub struct EcgScreen {
     buffer: SlidingWindow<128>,
 }

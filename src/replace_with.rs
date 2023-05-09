@@ -42,5 +42,5 @@ pub async fn replace_with_or_abort_and_return_async<T, U, F: Future<Output = (U,
     dest: &mut T,
     f: impl FnOnce(T) -> F,
 ) -> U {
-    replace_with_and_return_async(dest, || loop {}, f).await
+    replace_with_and_return_async(dest, || panic!(), f).await
 }

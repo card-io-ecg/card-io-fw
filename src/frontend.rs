@@ -163,7 +163,7 @@ where
     touched: bool,
 }
 
-impl<'a, S, DRDY, RESET, TOUCH> PoweredFrontend<S, DRDY, RESET, TOUCH>
+impl<S, DRDY, RESET, TOUCH> PoweredFrontend<S, DRDY, RESET, TOUCH>
 where
     DRDY: InputPin,
     TOUCH: InputPin,
@@ -174,7 +174,7 @@ where
     }
 }
 
-impl<'a, S, DRDY, RESET, TOUCH> PoweredFrontend<S, DRDY, RESET, TOUCH>
+impl<S, DRDY, RESET, TOUCH> PoweredFrontend<S, DRDY, RESET, TOUCH>
 where
     RESET: OutputPin,
     DRDY: InputPin + Wait,

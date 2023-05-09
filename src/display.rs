@@ -53,7 +53,7 @@ where
     display: Display<S, RESET>,
 }
 
-impl<'a, S, RESET> Dimensions for PoweredDisplay<S, RESET>
+impl<S, RESET> Dimensions for PoweredDisplay<S, RESET>
 where
     RESET: OutputPin,
 {
@@ -62,7 +62,7 @@ where
     }
 }
 
-impl<'a, S, RESET> DrawTarget for PoweredDisplay<S, RESET>
+impl<S, RESET> DrawTarget for PoweredDisplay<S, RESET>
 where
     RESET: OutputPin,
 {
@@ -77,7 +77,7 @@ where
     }
 }
 
-impl<'a, S, RESET> PoweredDisplay<S, RESET>
+impl<S, RESET> PoweredDisplay<S, RESET>
 where
     RESET: OutputPin,
     S: AsyncWriteOnlyDataCommand,

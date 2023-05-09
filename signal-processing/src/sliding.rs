@@ -6,8 +6,14 @@ pub struct SlidingWindow<const N: usize> {
     full: bool,
 }
 
+impl<const N: usize> Default for SlidingWindow<N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<const N: usize> SlidingWindow<N> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             buffer: [0.0; N],
             idx: 0,
