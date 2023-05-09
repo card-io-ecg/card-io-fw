@@ -31,6 +31,8 @@ pub async fn main_menu(
         menu.update(display);
         menu.draw(display).unwrap();
 
+        display.flush().await.unwrap();
+
         ticker.next().await;
     }
 }
