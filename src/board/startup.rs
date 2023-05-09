@@ -1,128 +1,37 @@
-use esp_backtrace as _;
-
-#[cfg(feature = "esp32s2")]
-pub use esp32s2_hal as hal;
-
-#[cfg(feature = "esp32s3")]
-pub use esp32s3_hal as hal;
-
-#[cfg(feature = "esp32s2")]
-pub use esp32s2 as pac;
-
-#[cfg(feature = "esp32s3")]
-pub use esp32s3 as pac;
-
-use crate::{display::Display, frontend::Frontend, heap::init_heap, spi_device::SpiDeviceWrapper};
+use crate::{
+    board::{
+        hal::{
+            clock::{ClockControl, Clocks, CpuClock},
+            dma::DmaPriority,
+            embassy,
+            gdma::Gdma,
+            peripherals::Peripherals,
+            prelude::*,
+            spi::{
+                dma::{WithDmaSpi2, WithDmaSpi3},
+                SpiMode,
+            },
+            timer::TimerGroup,
+            Rtc, Spi, IO,
+        },
+        AdcDrdy, AdcReset, AdcSpi, DisplayInterface, DisplayReset, TouchDetect,
+    },
+    display::Display,
+    frontend::Frontend,
+    heap::init_heap,
+    spi_device::SpiDeviceWrapper,
+};
 use display_interface_spi_async::SPIInterface;
 use esp_println::logger::init_logger;
-use hal::{
-    clock::{ClockControl, Clocks, CpuClock},
-    dma::{ChannelRx, ChannelTx, DmaPriority},
-    embassy,
-    gdma::{Gdma, *},
-    gpio::{
-        Bank0GpioRegisterAccess, Floating, GpioPin, Input, InputOutputAnalogPinType, Output,
-        PushPull, SingleCoreInteruptStatusRegisterAccessBank0,
-    },
-    peripherals::Peripherals,
-    prelude::*,
-    soc::gpio::*,
-    spi::{
-        dma::{SpiDma, WithDmaSpi2, WithDmaSpi3},
-        FullDuplexMode, SpiMode,
-    },
-    timer::TimerGroup,
-    Rtc, Spi, IO,
-};
 
-pub type DisplaySpi<'d> = SpiDma<
-    'd,
-    hal::peripherals::SPI2,
-    ChannelTx<'d, Channel0TxImpl, Channel0>,
-    ChannelRx<'d, Channel0RxImpl, Channel0>,
-    SuitablePeripheral0,
-    FullDuplexMode,
->;
-
-pub type DisplayDataCommand = GpioPin<
-    Output<PushPull>,
-    Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
-    InputOutputAnalogPinType,
-    Gpio13Signals,
-    13,
->;
-pub type DisplayChipSelect = GpioPin<
-    Output<PushPull>,
-    Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
-    InputOutputAnalogPinType,
-    Gpio10Signals,
-    10,
->;
-pub type DisplayReset = GpioPin<
-    Output<PushPull>,
-    Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
-    InputOutputAnalogPinType,
-    Gpio9Signals,
-    9,
->;
-
-pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommand, DisplayChipSelect>;
-
-pub type AdcDrdy = GpioPin<
-    Input<Floating>,
-    Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
-    InputOutputAnalogPinType,
-    Gpio4Signals,
-    4,
->;
-pub type AdcReset = GpioPin<
-    Output<PushPull>,
-    Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
-    InputOutputAnalogPinType,
-    Gpio2Signals,
-    2,
->;
-pub type TouchDetect = GpioPin<
-    Input<Floating>,
-    Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
-    InputOutputAnalogPinType,
-    Gpio1Signals,
-    1,
->;
-pub type AdcChipSelect = GpioPin<
-    Output<PushPull>,
-    Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
-    InputOutputAnalogPinType,
-    Gpio18Signals,
-    18,
->;
-pub type AdcSpi<'d> = SpiDeviceWrapper<
-    SpiDma<
-        'd,
-        hal::peripherals::SPI3,
-        ChannelTx<'d, Channel1TxImpl, Channel1>,
-        ChannelRx<'d, Channel1RxImpl, Channel1>,
-        SuitablePeripheral1,
-        FullDuplexMode,
-    >,
-    AdcChipSelect,
->;
-
-pub struct Board {
+pub struct StartupResources {
     pub display: Display<DisplayInterface<'static>, DisplayReset>,
     pub frontend: Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>,
     pub clocks: Clocks<'static>,
 }
 
-impl Board {
-    pub fn initialize() -> Board {
+impl StartupResources {
+    pub fn initialize() -> StartupResources {
         init_heap();
         init_logger(log::LevelFilter::Info);
 
@@ -219,7 +128,7 @@ impl Board {
             touch_detect,
         );
 
-        Board {
+        StartupResources {
             display,
             frontend: adc,
             clocks,

@@ -29,7 +29,7 @@ where
         }
     }
 
-    pub async fn enable(&mut self) -> Result<PoweredDisplay<'_, DI, RESET>, DisplayError>
+    pub async fn enable(mut self) -> Result<PoweredDisplay<DI, RESET>, DisplayError>
     where
         DI: AsyncWriteOnlyDataCommand,
     {
@@ -46,14 +46,14 @@ where
     }
 }
 
-pub struct PoweredDisplay<'a, S, RESET>
+pub struct PoweredDisplay<S, RESET>
 where
     RESET: OutputPin,
 {
-    display: &'a mut Display<S, RESET>,
+    display: Display<S, RESET>,
 }
 
-impl<'a, S, RESET> Dimensions for PoweredDisplay<'a, S, RESET>
+impl<'a, S, RESET> Dimensions for PoweredDisplay<S, RESET>
 where
     RESET: OutputPin,
 {
@@ -62,7 +62,7 @@ where
     }
 }
 
-impl<'a, S, RESET> DrawTarget for PoweredDisplay<'a, S, RESET>
+impl<'a, S, RESET> DrawTarget for PoweredDisplay<S, RESET>
 where
     RESET: OutputPin,
 {
@@ -77,7 +77,7 @@ where
     }
 }
 
-impl<'a, S, RESET> PoweredDisplay<'a, S, RESET>
+impl<'a, S, RESET> PoweredDisplay<S, RESET>
 where
     RESET: OutputPin,
     S: AsyncWriteOnlyDataCommand,
@@ -97,16 +97,8 @@ where
         self.display.display.flush_async().await
     }
 
-    pub fn shut_down(self) {
-        // Implemented in Drop
-    }
-}
-
-impl<'a, S, RESET> Drop for PoweredDisplay<'a, S, RESET>
-where
-    RESET: OutputPin,
-{
-    fn drop(&mut self) {
+    pub fn shut_down(mut self) -> Display<S, RESET> {
         self.display.reset.set_low().unwrap();
+        self.display
     }
 }

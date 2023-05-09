@@ -10,7 +10,7 @@ extern crate alloc;
 use embassy_executor::{Executor, _export::StaticCell};
 
 use crate::{
-    board::{hal::entry, Board},
+    board::{hal::entry, initialized::Board, startup::StartupResources},
     sleep::enter_deep_sleep,
     states::{initialize, main_menu, measure},
 };
@@ -28,7 +28,7 @@ static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 #[entry]
 fn main() -> ! {
     // Board::initialize initialized embassy so it must be called first.
-    let resources = Board::initialize();
+    let resources = StartupResources::initialize();
 
     let executor = EXECUTOR.init(Executor::new());
     executor.run(move |spawner| {
@@ -44,21 +44,21 @@ pub enum AppState {
 }
 
 #[embassy_executor::task]
-async fn main_task(mut resources: Board) {
+async fn main_task(resources: StartupResources) {
     // If the device is awake, the display should be enabled.
-    let mut display = resources.display.enable().await.unwrap();
+    let mut board = Board::initialize(resources).await;
 
     let mut state = AppState::Initialize;
 
     loop {
         state = match state {
-            AppState::Initialize => initialize(&mut display, &mut resources.frontend).await,
-            AppState::Measure => measure(&mut display, &mut resources.frontend).await,
-            AppState::MainMenu => main_menu(&mut display, &mut resources.frontend).await,
+            AppState::Initialize => initialize(&mut board).await,
+            AppState::Measure => measure(&mut board).await,
+            AppState::MainMenu => main_menu(&mut board).await,
             AppState::Shutdown => {
-                display.shut_down();
+                board.display.shut_down();
 
-                let (_, _, _, touch) = resources.frontend.split();
+                let (_, _, _, touch) = board.frontend.split();
                 enter_deep_sleep(touch);
             }
         };
