@@ -180,7 +180,7 @@ where
     DRDY: InputPin + Wait,
     S: AsyncSpiDevice,
 {
-    pub async fn read(&mut self) -> Result<Sample, Error<S::Error>> {
+    pub async fn read(&mut self) -> Result<AdsData, Error<S::Error>> {
         self.frontend.drdy.wait_for_high().await.unwrap();
         let sample = self.frontend.adc.read_data_1ch_async().await?;
 

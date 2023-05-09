@@ -10,6 +10,7 @@ license = "MIT"
 embassy-futures = { version = "0.1.0" }
 embassy-executor  = { version = "0.2.0", features = ["nightly", "arch-xtensa", "integrated-timers", "executor-thread"] }
 embassy-time = { version = "0.1.0", features = ["nightly", "unstable-traits"] }
+embassy-sync = { version = "0.2.0" }
 
 embedded-hal = { version = "1.0.0-alpha.10" }
 embedded-hal-async = { version = "0.2.0-alpha.1" }

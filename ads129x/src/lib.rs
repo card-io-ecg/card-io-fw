@@ -202,19 +202,19 @@ impl<SPI> Ads129x<SPI>
 where
     SPI: SpiDevice,
 {
-    pub fn read_data_1ch(&mut self) -> Result<Sample, Error<SPI::Error>> {
+    pub fn read_data_1ch(&mut self) -> Result<AdsData, Error<SPI::Error>> {
         let mut sample: [u8; 6] = [0; 6];
         self.spi
             .read(&mut sample)
-            .map(|_| Sample::new_single_channel(sample))
+            .map(|_| AdsData::new_single_channel(sample))
             .map_err(Error::Transfer)
     }
 
-    pub fn read_data_2ch(&mut self) -> Result<Sample, Error<SPI::Error>> {
+    pub fn read_data_2ch(&mut self) -> Result<AdsData, Error<SPI::Error>> {
         let mut sample: [u8; 9] = [0; 9];
         self.spi
             .read(&mut sample)
-            .map(|_| Sample::new(sample))
+            .map(|_| AdsData::new(sample))
             .map_err(Error::Transfer)
     }
 
@@ -257,21 +257,21 @@ impl<SPI> Ads129x<SPI>
 where
     SPI: AsyncSpiDevice,
 {
-    pub async fn read_data_1ch_async(&mut self) -> Result<Sample, Error<SPI::Error>> {
+    pub async fn read_data_1ch_async(&mut self) -> Result<AdsData, Error<SPI::Error>> {
         let mut sample: [u8; 6] = [0; 6];
         self.spi
             .read(&mut sample)
             .await
-            .map(|_| Sample::new_single_channel(sample))
+            .map(|_| AdsData::new_single_channel(sample))
             .map_err(Error::Transfer)
     }
 
-    pub async fn read_data_2ch_async(&mut self) -> Result<Sample, Error<SPI::Error>> {
+    pub async fn read_data_2ch_async(&mut self) -> Result<AdsData, Error<SPI::Error>> {
         let mut sample: [u8; 9] = [0; 9];
         self.spi
             .read(&mut sample)
             .await
-            .map(|_| Sample::new(sample))
+            .map(|_| AdsData::new(sample))
             .map_err(Error::Transfer)
     }
 
@@ -314,21 +314,38 @@ where
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Sample {
-    status: LoffStat,
-    ch1: i32,
-    ch2: i32,
+    sample: i32,
 }
 
 impl Sample {
     pub const VOLTS_PER_LSB: f32 = 2.42 / (1 << 23) as f32;
 
+    pub fn voltage(self) -> f32 {
+        (self.sample as f32) * Self::VOLTS_PER_LSB
+    }
+
+    pub fn raw(self) -> i32 {
+        self.sample
+    }
+}
+
+pub struct AdsData {
+    status: LoffStat,
+    ch1: Sample,
+    ch2: Sample,
+}
+
+impl AdsData {
     fn read_status(buffer: [u8; 3]) -> LoffStat {
         LoffStat::from_bits((buffer[0] << 1 | buffer[1] >> 7) & 0x1F)
     }
 
-    fn read_channel(buffer: [u8; 3]) -> i32 {
-        BigEndian::read_i24(&buffer)
+    fn read_channel(buffer: [u8; 3]) -> Sample {
+        Sample {
+            sample: BigEndian::read_i24(&buffer),
+        }
     }
 
     fn new(buffer: [u8; 9]) -> Self {
@@ -343,7 +360,7 @@ impl Sample {
         Self {
             status: Self::read_status(buffer[0..3].try_into().unwrap()),
             ch1: Self::read_channel(buffer[3..6].try_into().unwrap()),
-            ch2: 0,
+            ch2: Sample { sample: 0 },
         }
     }
 
@@ -357,19 +374,11 @@ impl Sample {
             && self.status.in2p().read() == Some(LeadStatus::Connected)
     }
 
-    pub fn ch1_sample(&self) -> i32 {
+    pub fn ch1_sample(&self) -> Sample {
         self.ch1
     }
 
-    pub fn ch2_sample(&self) -> i32 {
+    pub fn ch2_sample(&self) -> Sample {
         self.ch2
-    }
-
-    pub fn ch1_voltage(&self) -> f32 {
-        (self.ch1 as f32) * Self::VOLTS_PER_LSB
-    }
-
-    pub fn ch2_voltage(&self) -> f32 {
-        (self.ch2 as f32) * Self::VOLTS_PER_LSB
     }
 }
