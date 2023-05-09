@@ -16,6 +16,8 @@ use embassy_sync::{
 use embassy_time::Ticker;
 use embedded_graphics::Drawable;
 use gui::screens::measure::EcgScreen;
+use object_chain::{Chain, ChainElement};
+use signal_processing::filter::{downsample::DownSampler, Filter};
 
 type EcgFrontend = PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>;
 
@@ -41,13 +43,20 @@ pub async fn measure(board: &mut Board) -> AppState {
         let mut screen = EcgScreen::new();
 
         let mut ticker = Ticker::every(MIN_FRAME_TIME);
+
+        // Downsample by 8 to display around 1 second
+        let mut downsampler = Chain::new(DownSampler::new())
+            .append(DownSampler::new())
+            .append(DownSampler::new());
+
         loop {
             while let Ok(message) = queue.try_recv() {
                 match message {
                     Message::Sample(sample) => {
-                        // filter and downsample for display
-                        // store in raw buffer
-                        screen.process_sample(sample.voltage());
+                        // TODO: store in raw buffer
+                        if let Some(downsampled) = downsampler.update(sample.voltage()) {
+                            screen.push(downsampled);
+                        }
                     }
                     Message::End(frontend, _result) => {
                         board.frontend = frontend.shut_down();

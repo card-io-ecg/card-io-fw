@@ -39,7 +39,7 @@ fn main() -> Result<(), Infallible> {
         let sample1 = wt.sin();
         let sample2 = wt2.sin();
 
-        screen.process_sample(sample1 * sample2);
+        screen.push(sample1 * sample2);
 
         screen.draw(&mut display).unwrap();
 

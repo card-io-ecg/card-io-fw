@@ -23,7 +23,7 @@ impl EcgScreen {
         }
     }
 
-    pub fn process_sample(&mut self, sample: f32) {
+    pub fn push(&mut self, sample: f32) {
         self.buffer[self.n] = sample;
         self.n = (self.n + 1) % self.buffer.len();
         if self.n == 0 {
