@@ -8,250 +8,27 @@
 extern crate alloc;
 
 use embassy_executor::{Executor, _export::StaticCell};
-use embassy_time::{Duration, Instant, Ticker};
-use embedded_graphics::{pixelcolor::BinaryColor, prelude::*};
-use esp_backtrace as _;
 
-#[cfg(feature = "esp32s2")]
-pub use esp32s2_hal as hal;
-
-#[cfg(feature = "esp32s3")]
-pub use esp32s3_hal as hal;
-
-#[cfg(feature = "esp32s2")]
-pub use esp32s2 as pac;
-
-#[cfg(feature = "esp32s3")]
-pub use esp32s3 as pac;
-
-use esp_println::logger::init_logger;
-
-use display_interface_spi_async::SPIInterface;
-use gui::screens::{
-    init::StartupScreen,
-    main_menu::{MainMenu, MainMenuEvents},
-    MENU_STYLE,
-};
-use hal::{
-    clock::{ClockControl, CpuClock},
-    dma::{ChannelRx, ChannelTx, DmaPriority},
-    embassy,
-    gdma::{Gdma, *},
-    gpio::{
-        Bank0GpioRegisterAccess, Floating, GpioPin, Input, InputOutputAnalogPinType, Output,
-        PushPull, SingleCoreInteruptStatusRegisterAccessBank0,
-    },
-    peripherals::Peripherals,
-    prelude::*,
-    soc::gpio::*,
-    spi::{
-        dma::{SpiDma, WithDmaSpi2, WithDmaSpi3},
-        FullDuplexMode, SpiMode,
-    },
-    timer::TimerGroup,
-    Rtc, Spi, IO,
+use crate::{
+    board::{hal::entry, Board},
+    sleep::enter_deep_sleep,
+    states::{initialize, main_menu, measure},
 };
 
+mod board;
 mod display;
 mod frontend;
 mod heap;
 mod sleep;
 mod spi_device;
-
-use crate::{
-    display::Display, frontend::Frontend, heap::init_heap, sleep::enter_deep_sleep,
-    spi_device::SpiDeviceWrapper,
-};
+mod states;
 
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 
-type DisplaySpi<'d> = SpiDma<
-    'd,
-    hal::peripherals::SPI2,
-    ChannelTx<'d, Channel0TxImpl, Channel0>,
-    ChannelRx<'d, Channel0RxImpl, Channel0>,
-    SuitablePeripheral0,
-    FullDuplexMode,
->;
-
-type DisplayDataCommand = GpioPin<
-    Output<PushPull>,
-    Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
-    InputOutputAnalogPinType,
-    Gpio13Signals,
-    13,
->;
-type DisplayChipSelect = GpioPin<
-    Output<PushPull>,
-    Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
-    InputOutputAnalogPinType,
-    Gpio10Signals,
-    10,
->;
-type DisplayReset = GpioPin<
-    Output<PushPull>,
-    Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
-    InputOutputAnalogPinType,
-    Gpio9Signals,
-    9,
->;
-
-type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommand, DisplayChipSelect>;
-
-type AdcDrdy = GpioPin<
-    Input<Floating>,
-    Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
-    InputOutputAnalogPinType,
-    Gpio4Signals,
-    4,
->;
-type AdcReset = GpioPin<
-    Output<PushPull>,
-    Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
-    InputOutputAnalogPinType,
-    Gpio2Signals,
-    2,
->;
-type TouchDetect = GpioPin<
-    Input<Floating>,
-    Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
-    InputOutputAnalogPinType,
-    Gpio1Signals,
-    1,
->;
-type AdcChipSelect = GpioPin<
-    Output<PushPull>,
-    Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
-    InputOutputAnalogPinType,
-    Gpio18Signals,
-    18,
->;
-type AdcSpi<'d> = SpiDeviceWrapper<
-    SpiDma<
-        'd,
-        hal::peripherals::SPI3,
-        ChannelTx<'d, Channel1TxImpl, Channel1>,
-        ChannelRx<'d, Channel1RxImpl, Channel1>,
-        SuitablePeripheral1,
-        FullDuplexMode,
-    >,
-    AdcChipSelect,
->;
-
-struct Resources {
-    display: Display<DisplayInterface<'static>, DisplayReset>,
-    frontend: Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>,
-}
-
 #[entry]
 fn main() -> ! {
-    init_heap();
-    init_logger(log::LevelFilter::Info);
-
-    let peripherals = Peripherals::take();
-
-    let mut system = peripherals.SYSTEM.split();
-    let clocks = ClockControl::configure(system.clock_control, CpuClock::Clock240MHz).freeze();
-
-    let mut rtc = Rtc::new(peripherals.RTC_CNTL);
-    rtc.rwdt.disable();
-
-    let timer_group0 = TimerGroup::new(
-        peripherals.TIMG0,
-        &clocks,
-        &mut system.peripheral_clock_control,
-    );
-    embassy::init(&clocks, timer_group0.timer0);
-
-    let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
-
-    let dma = Gdma::new(peripherals.DMA, &mut system.peripheral_clock_control);
-    let display_dma_channel = dma.channel0;
-
-    // Display
-    let display_reset = io.pins.gpio9.into_push_pull_output();
-    let display_dc = io.pins.gpio13.into_push_pull_output();
-
-    let mut display_cs = io.pins.gpio10.into_push_pull_output();
-    let display_sclk = io.pins.gpio12;
-    let display_mosi = io.pins.gpio11;
-
-    let display_spi = peripherals.SPI2;
-
-    display_cs.connect_peripheral_to_output(display_spi.cs_signal());
-
-    static mut DISPLAY_SPI_DESCRIPTORS: [u32; 24] = [0u32; 8 * 3];
-    static mut DISPLAY_SPI_RX_DESCRIPTORS: [u32; 24] = [0u32; 8 * 3];
-    let display_spi = Spi::new_no_cs_no_miso(
-        display_spi,
-        display_sclk,
-        display_mosi,
-        10u32.MHz(),
-        SpiMode::Mode0,
-        &mut system.peripheral_clock_control,
-        &clocks,
-    )
-    .with_dma(display_dma_channel.configure(
-        false,
-        unsafe { &mut DISPLAY_SPI_DESCRIPTORS },
-        unsafe { &mut DISPLAY_SPI_RX_DESCRIPTORS },
-        DmaPriority::Priority0,
-    ));
-
-    let display = Display::new(
-        SPIInterface::new(display_spi, display_dc, display_cs),
-        display_reset,
-    );
-
-    // ADC
-    let adc_dma_channel = dma.channel1;
-    let adc_sclk = io.pins.gpio6;
-    let adc_mosi = io.pins.gpio7;
-    let adc_miso = io.pins.gpio5;
-
-    let adc_cs = io.pins.gpio18.into_push_pull_output();
-    let adc_drdy = io.pins.gpio4.into_floating_input();
-    let adc_reset = io.pins.gpio2.into_push_pull_output();
-    let touch_detect = io.pins.gpio1.into_floating_input();
-
-    static mut ADC_SPI_DESCRIPTORS: [u32; 24] = [0u32; 8 * 3];
-    static mut ADC_SPI_RX_DESCRIPTORS: [u32; 24] = [0u32; 8 * 3];
-    let adc = Frontend::new(
-        SpiDeviceWrapper {
-            spi: Spi::new_no_cs(
-                peripherals.SPI3,
-                adc_sclk,
-                adc_mosi,
-                adc_miso,
-                500u32.kHz(),
-                SpiMode::Mode0,
-                &mut system.peripheral_clock_control,
-                &clocks,
-            )
-            .with_dma(adc_dma_channel.configure(
-                false,
-                unsafe { &mut ADC_SPI_DESCRIPTORS },
-                unsafe { &mut ADC_SPI_RX_DESCRIPTORS },
-                DmaPriority::Priority0,
-            )),
-            chip_select: adc_cs,
-        },
-        adc_drdy,
-        adc_reset,
-        touch_detect,
-    );
-
-    let resources = Resources {
-        display,
-        frontend: adc,
-    };
+    // Board::initialize initialized embassy so it must be called first.
+    let resources = Board::initialize();
 
     let executor = EXECUTOR.init(Executor::new());
     executor.run(move |spawner| {
@@ -259,7 +36,7 @@ fn main() -> ! {
     });
 }
 
-enum AppState {
+pub enum AppState {
     Initialize,
     Measure,
     MainMenu,
@@ -267,7 +44,7 @@ enum AppState {
 }
 
 #[embassy_executor::task]
-async fn main_task(mut resources: Resources) {
+async fn main_task(mut resources: Board) {
     // If the device is awake, the display should be enabled.
     let mut display = resources.display.enable().await.unwrap();
 
@@ -285,93 +62,5 @@ async fn main_task(mut resources: Resources) {
                 enter_deep_sleep(touch);
             }
         };
-    }
-}
-
-const MIN_FRAME_TIME: Duration = Duration::from_millis(10);
-
-async fn initialize(
-    display: &mut display::PoweredDisplay<'_, DisplayInterface<'_>, DisplayReset>,
-    frontend: &mut Frontend<AdcSpi<'_>, AdcDrdy, AdcReset, TouchDetect>,
-) -> AppState {
-    const INIT_TIME: Duration = Duration::from_secs(20);
-    const MENU_THRESHOLD: Duration = Duration::from_secs(10);
-
-    let entered = Instant::now();
-    let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    while let elapsed = entered.elapsed() && elapsed <= INIT_TIME {
-        display_init_screen(display, elapsed, MENU_THRESHOLD, INIT_TIME).unwrap();
-
-        display.flush().await.unwrap();
-
-        if !frontend.is_touched() {
-            return if elapsed > MENU_THRESHOLD {
-                AppState::MainMenu
-            } else {
-                AppState::Shutdown
-            };
-        }
-
-        ticker.next().await;
-    }
-
-    AppState::Measure
-}
-
-fn display_init_screen<DT: DrawTarget<Color = BinaryColor>>(
-    display: &mut DT,
-    elapsed: Duration,
-    menu_threshold: Duration,
-    max: Duration,
-) -> Result<(), DT::Error> {
-    display.clear(BinaryColor::Off)?;
-
-    let elapsed_secs = elapsed.as_secs() as u32;
-    let max_secs = (max.as_secs() as u32).min(elapsed_secs);
-
-    let max_progress = 255;
-    let progress = (elapsed_secs * max_progress) / max_secs;
-
-    StartupScreen {
-        label: if elapsed > menu_threshold {
-            "Release to menu"
-        } else {
-            "Release to shutdown"
-        },
-        progress,
-        max_progress,
-    }
-    .draw(display)
-}
-
-async fn measure(
-    display: &mut display::PoweredDisplay<'_, DisplayInterface<'_>, DisplayReset>,
-    frontend: &mut Frontend<AdcSpi<'_>, AdcDrdy, AdcReset, TouchDetect>,
-) -> AppState {
-    let frontend = frontend.enable_async().await.unwrap();
-
-    todo!()
-}
-
-async fn main_menu(
-    display: &mut display::PoweredDisplay<'_, DisplayInterface<'_>, DisplayReset>,
-    frontend: &mut Frontend<AdcSpi<'_>, AdcDrdy, AdcReset, TouchDetect>,
-) -> AppState {
-    let mut menu = MainMenu {}.create_menu_with_style(MENU_STYLE);
-
-    let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    loop {
-        display.clear(BinaryColor::Off).unwrap();
-
-        if let Some(event) = menu.interact(frontend.is_touched()) {
-            return match event {
-                MainMenuEvents::Shutdown => AppState::Shutdown,
-            };
-        }
-
-        menu.update(display);
-        menu.draw(display).unwrap();
-
-        ticker.next().await;
     }
 }
