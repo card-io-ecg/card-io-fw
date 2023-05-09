@@ -118,7 +118,7 @@ pub type AdcSpi<'d> = SpiDeviceWrapper<
 pub struct Board {
     pub display: Display<DisplayInterface<'static>, DisplayReset>,
     pub frontend: Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>,
-    clocks: Clocks<'static>,
+    pub clocks: Clocks<'static>,
 }
 
 impl Board {

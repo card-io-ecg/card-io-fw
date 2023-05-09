@@ -82,6 +82,17 @@ where
     RESET: OutputPin,
     S: AsyncWriteOnlyDataCommand,
 {
+    pub async fn frame(
+        &mut self,
+        render: impl FnOnce(&mut Self) -> Result<(), DisplayError>,
+    ) -> Result<(), DisplayError> {
+        self.clear(BinaryColor::Off)?;
+
+        render(self)?;
+
+        self.flush().await
+    }
+
     pub async fn flush(&mut self) -> Result<(), DisplayError> {
         self.display.display.flush_async().await
     }
