@@ -2,7 +2,8 @@ use display_interface::{AsyncWriteOnlyDataCommand, DisplayError};
 use embassy_time::Delay;
 use embedded_graphics::{
     pixelcolor::BinaryColor,
-    prelude::{DrawTarget, OriginDimensions, Size},
+    prelude::{Dimensions, DrawTarget},
+    primitives::Rectangle,
     Pixel,
 };
 use embedded_hal::digital::OutputPin;
@@ -52,12 +53,12 @@ where
     display: &'a mut Display<S, RESET>,
 }
 
-impl<'a, S, RESET> OriginDimensions for PoweredDisplay<'a, S, RESET>
+impl<'a, S, RESET> Dimensions for PoweredDisplay<'a, S, RESET>
 where
     RESET: OutputPin,
 {
-    fn size(&self) -> Size {
-        self.display.display.size()
+    fn bounding_box(&self) -> Rectangle {
+        self.display.display.bounding_box()
     }
 }
 
