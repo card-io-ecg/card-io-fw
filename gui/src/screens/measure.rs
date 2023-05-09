@@ -7,7 +7,10 @@ use embedded_graphics::{
     Drawable,
 };
 use embedded_layout::prelude::{horizontal, vertical, Align};
-use signal_processing::sliding::SlidingWindow;
+use signal_processing::{
+    lerp::{Interval, Lerp},
+    sliding::SlidingWindow,
+};
 
 #[derive(Default)]
 pub struct EcgScreen {
@@ -43,35 +46,6 @@ impl EcgScreen {
         }
 
         (min, max)
-    }
-}
-
-pub struct Interval {
-    min: f32,
-    width: f32,
-}
-
-impl Interval {
-    pub fn new(min: f32, max: f32) -> Self {
-        Self {
-            min,
-            width: max - min,
-        }
-    }
-}
-
-pub struct Lerp {
-    pub from: Interval,
-    pub to: Interval,
-}
-
-impl Lerp {
-    pub fn map(&self, value: f32) -> f32 {
-        if self.from.width == 0.0 {
-            self.to.min
-        } else {
-            (value - self.from.min) * (self.to.width / self.from.width) + self.to.min
-        }
     }
 }
 
