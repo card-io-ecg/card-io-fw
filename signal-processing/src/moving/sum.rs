@@ -60,12 +60,12 @@ impl<const N: usize> MovingSum for EstimatedSum<N> {
     }
 
     fn update(&mut self, sample: f32) -> Option<f32> {
-        self.current += sample;
-
         if self.samples == N {
             self.current *= (N as f32 - 1.0) / (N as f32);
+            self.current += sample;
             Some(self.current)
         } else {
+            self.current += sample;
             self.samples += 1;
             None
         }
