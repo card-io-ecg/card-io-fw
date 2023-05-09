@@ -55,9 +55,13 @@ use hal::{
 mod display;
 mod frontend;
 mod heap;
+mod sleep;
 mod spi_device;
 
-use crate::{display::Display, frontend::Frontend, heap::init_heap, spi_device::SpiDeviceWrapper};
+use crate::{
+    display::Display, frontend::Frontend, heap::init_heap, sleep::enter_deep_sleep,
+    spi_device::SpiDeviceWrapper,
+};
 
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 
@@ -370,10 +374,4 @@ async fn main_menu(
 
         ticker.next().await;
     }
-}
-
-fn enter_deep_sleep(wakeup_pin: TouchDetect) -> ! {
-    let rtc = unsafe { &*pac::RTC_CNTL::PTR };
-
-    todo!()
 }
