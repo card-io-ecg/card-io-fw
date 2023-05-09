@@ -84,11 +84,11 @@ where
         let mut den = Complex::new(1.0, 0.0);
 
         for (k, coeff) in self.num_coeffs.iter().skip(1).enumerate() {
-            num += coeff * e_j_theta(k + 1)
+            num += coeff * e_j_theta(k + 1);
         }
 
         for (k, coeff) in self.denom_coeffs.iter().enumerate() {
-            den += coeff * e_j_theta(k + 1)
+            den += coeff * e_j_theta(k + 1);
         }
 
         num / den

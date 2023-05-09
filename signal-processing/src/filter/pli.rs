@@ -16,15 +16,16 @@ use crate::{
 };
 use micromath::F32Ext;
 
-pub struct FilterCore {
+struct FilterCore {
+    // constants
     frequency: f32,
+    gamma: f32, // error filter attenuation
 
     phase_filter: Iir<'static, HighPass, 2>,
     amplitude_filter: Iir<'static, HighPass, 2>,
 
-    // amplitude correction factors
+    // amplitude correction factor
     alpha: f32,
-    gamma: f32, // error filter attenuation
 
     // estimated signal parameters
     theta_phi: f32,
@@ -38,18 +39,16 @@ pub struct FilterCore {
 
 impl FilterCore {
     fn new(fs: f32, frequency: f32) -> Self {
-        let angular_frequency = frequency / fs;
-        let amplitude_filter = SIGNATURE_FILTER;
-        let phase_filter = SIGNATURE_FILTER;
-        let gamma = 2.0 / amplitude_filter.transfer_coeff_at(angular_frequency).norm();
+        let frequency = frequency / fs;
 
         Self {
-            frequency: angular_frequency,
-            phase_filter,
-            amplitude_filter,
+            frequency,
+            gamma: 2.0 / SIGNATURE_FILTER.transfer_coeff_at(frequency).norm(),
+
+            phase_filter: SIGNATURE_FILTER,
+            amplitude_filter: SIGNATURE_FILTER,
 
             alpha: 1.0,
-            gamma,
 
             theta_phi: 0.0,
             theta_a: 0.0,
@@ -121,13 +120,14 @@ pub mod adaptation_blocking {
     };
     use micromath::F32Ext;
 
-    pub trait AdaptationBlockingTrait {
-        fn new() -> Self;
+    pub trait AdaptationBlockingTrait: Default {
         fn update(&mut self, sample: f32) -> Option<(f32, bool)>;
         fn clear(&mut self);
     }
 
+    #[derive(Default)]
     pub struct NoAdaptationBlocking;
+
     pub struct AdaptationBlocking<V, const L: usize, const C: usize>
     where
         V: MovingSum,
@@ -139,21 +139,17 @@ pub mod adaptation_blocking {
     }
 
     impl AdaptationBlockingTrait for NoAdaptationBlocking {
-        fn new() -> Self {
-            Self {}
-        }
-
         fn update(&mut self, sample: f32) -> Option<(f32, bool)> {
             Some((sample, false))
         }
         fn clear(&mut self) {}
     }
 
-    impl<V, const L: usize, const C: usize> AdaptationBlockingTrait for AdaptationBlocking<V, L, C>
+    impl<V, const L: usize, const C: usize> Default for AdaptationBlocking<V, L, C>
     where
         V: MovingSum,
     {
-        fn new() -> Self {
+        fn default() -> Self {
             Self {
                 delay: SlidingWindow::new(),
                 comb_filter: CombFilter::new(),
@@ -161,17 +157,22 @@ pub mod adaptation_blocking {
                 delay_cnt: 0,
             }
         }
+    }
 
+    impl<V, const L: usize, const C: usize> AdaptationBlockingTrait for AdaptationBlocking<V, L, C>
+    where
+        V: MovingSum,
+    {
         fn update(&mut self, sample: f32) -> Option<(f32, bool)> {
             let delayed_sample = self.delay.push(sample)?;
             let comb_filtered = self.comb_filter.update(sample)?;
             let variance = self.variance.update(comb_filtered)?;
 
-            if comb_filtered.abs() > (2.0 * variance).sqrt() {
-                self.delay_cnt = 2 * L;
+            self.delay_cnt = if comb_filtered.abs() > (2.0 * variance).sqrt() {
+                2 * L
             } else {
-                self.delay_cnt = self.delay_cnt.saturating_sub(1);
-            }
+                self.delay_cnt.saturating_sub(1)
+            };
 
             Some((delayed_sample, self.delay_cnt > 0))
         }
@@ -224,7 +225,7 @@ where
         Self {
             consts: Constants::new(fs),
             cores: frequencies.map(|f| FilterCore::new(fs, f)),
-            adaptation_blocking: ADB::new(),
+            adaptation_blocking: ADB::default(),
             error_filter: ERROR_FILTER,
             sample_idx: 0,
         }
@@ -236,7 +237,7 @@ where
     ADB: adaptation_blocking::AdaptationBlockingTrait,
 {
     fn clear(&mut self) {
-        self.cores.iter_mut().for_each(|core| core.clear());
+        self.cores.iter_mut().for_each(FilterCore::clear);
         self.sample_idx = 0;
         self.error_filter.clear();
         self.adaptation_blocking.clear();
@@ -245,18 +246,21 @@ where
     fn update(&mut self, sample: f32) -> Option<f32> {
         let (delayed_sample, adapt_blocked) = self.adaptation_blocking.update(sample)?;
 
-        let idx = self.sample_idx;
-        self.sample_idx += 1;
+        let x_est = self
+            .cores
+            .iter_mut()
+            .map(|core| core.estimate(self.sample_idx))
+            .sum::<f32>();
 
-        let x_est: f32 = self.cores.iter_mut().map(|core| core.estimate(idx)).sum();
+        self.sample_idx += 1;
 
         let error = delayed_sample - x_est;
         let filtered_error = self.error_filter.update(error)?;
 
         if !adapt_blocked {
-            for core in self.cores.iter_mut() {
-                core.adapt(&self.consts, filtered_error);
-            }
+            self.cores
+                .iter_mut()
+                .for_each(|core| core.adapt(&self.consts, filtered_error));
         }
 
         Some(error)
