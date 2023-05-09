@@ -129,8 +129,8 @@ where
     }
 
     pub async fn enable_async(
-        &mut self,
-    ) -> Result<PoweredFrontend<'_, S, DRDY, RESET, TOUCH>, Error<S::Error>>
+        mut self,
+    ) -> Result<PoweredFrontend<S, DRDY, RESET, TOUCH>, Error<S::Error>>
     where
         S: AsyncSpiDevice,
     {
@@ -155,15 +155,15 @@ where
     }
 }
 
-pub struct PoweredFrontend<'a, S, DRDY, RESET, TOUCH>
+pub struct PoweredFrontend<S, DRDY, RESET, TOUCH>
 where
     RESET: OutputPin,
 {
-    frontend: &'a mut Frontend<S, DRDY, RESET, TOUCH>,
+    frontend: Frontend<S, DRDY, RESET, TOUCH>,
     touched: bool,
 }
 
-impl<'a, S, DRDY, RESET, TOUCH> PoweredFrontend<'a, S, DRDY, RESET, TOUCH>
+impl<'a, S, DRDY, RESET, TOUCH> PoweredFrontend<S, DRDY, RESET, TOUCH>
 where
     DRDY: InputPin,
     TOUCH: InputPin,
@@ -174,7 +174,7 @@ where
     }
 }
 
-impl<'a, S, DRDY, RESET, TOUCH> PoweredFrontend<'a, S, DRDY, RESET, TOUCH>
+impl<'a, S, DRDY, RESET, TOUCH> PoweredFrontend<S, DRDY, RESET, TOUCH>
 where
     RESET: OutputPin,
     DRDY: InputPin + Wait,
@@ -193,16 +193,8 @@ where
         self.touched
     }
 
-    pub fn shut_down(self) {
-        // Implemented in Drop
-    }
-}
-
-impl<'a, S, DRDY, RESET, TOUCH> Drop for PoweredFrontend<'a, S, DRDY, RESET, TOUCH>
-where
-    RESET: OutputPin,
-{
-    fn drop(&mut self) {
+    pub fn shut_down(mut self) -> Frontend<S, DRDY, RESET, TOUCH> {
         self.frontend.reset.set_low().unwrap();
+        self.frontend
     }
 }

@@ -19,6 +19,7 @@ mod board;
 mod display;
 mod frontend;
 mod heap;
+mod replace_with;
 mod sleep;
 mod spi_device;
 mod states;
