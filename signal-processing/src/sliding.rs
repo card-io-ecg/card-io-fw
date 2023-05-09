@@ -50,12 +50,16 @@ impl<const N: usize> SlidingWindow<N> {
         self.full
     }
 
-    pub fn push(&mut self, sample: f32) {
+    pub fn push(&mut self, sample: f32) -> Option<f32> {
+        let old = self.full.then_some(self.buffer[self.idx]);
+
         self.buffer[self.idx] = sample;
         self.idx = (self.idx + 1) % self.buffer.len();
         if self.idx == 0 {
             self.full = true;
         }
+
+        old
     }
 
     pub fn iter(&self) -> impl Iterator<Item = f32> + Clone + '_ {

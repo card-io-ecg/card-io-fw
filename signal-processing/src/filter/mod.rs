@@ -1,7 +1,10 @@
 use object_chain::{Chain, ChainElement, Link};
 
+pub mod comb;
 pub mod downsample;
 pub mod fir;
+pub mod iir;
+pub mod pli;
 
 pub trait Filter {
     fn update(&mut self, sample: f32) -> Option<f32>;

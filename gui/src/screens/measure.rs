@@ -25,7 +25,7 @@ impl EcgScreen {
     }
 
     pub fn push(&mut self, sample: f32) {
-        self.buffer.push(sample)
+        self.buffer.push(sample);
     }
 
     fn limits(&self) -> (f32, f32) {
