@@ -16,13 +16,12 @@ use gui::screens::{
 fn main() -> Result<(), Infallible> {
     let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(128, 64));
 
-    // Uncomment one of the `theme` lines to use a different theme.
     let output_settings = OutputSettingsBuilder::new()
         .theme(BinaryColorTheme::OledBlue)
         .max_fps(100)
         .build();
 
-    let mut window = Window::new("Init screen", &output_settings);
+    let mut window = Window::new("Main menu screen", &output_settings);
 
     let mut menu = MainMenu {}.create_menu_with_style(MENU_STYLE);
     let mut pressed = false;

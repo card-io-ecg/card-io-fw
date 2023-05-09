@@ -14,7 +14,6 @@ use gui::widgets::battery::Battery;
 fn main() -> Result<(), Infallible> {
     let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(128, 64));
 
-    // Uncomment one of the `theme` lines to use a different theme.
     let output_settings = OutputSettingsBuilder::new()
         .theme(BinaryColorTheme::OledBlue)
         .max_fps(100)

@@ -7,6 +7,7 @@ use embedded_menu::{
 
 pub mod init;
 pub mod main_menu;
+pub mod measure;
 
 pub const MENU_STYLE: MenuStyle<BinaryColor, AnimatedTriangle, SingleTouch, AnimatedPosition> =
     MenuStyle::new(BinaryColor::On)

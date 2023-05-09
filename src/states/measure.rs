@@ -14,6 +14,8 @@ use embassy_sync::{
     channel::{Channel, Sender},
 };
 use embassy_time::Ticker;
+use embedded_graphics::Drawable;
+use gui::screens::measure::EcgScreen;
 
 type EcgFrontend = PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>;
 
@@ -36,6 +38,8 @@ pub async fn measure(board: &mut Board) -> AppState {
 
         spawner.must_spawn(reader_task(queue.sender(), frontend));
 
+        let mut screen = EcgScreen::new();
+
         let mut ticker = Ticker::every(MIN_FRAME_TIME);
         loop {
             while let Ok(message) = queue.try_recv() {
@@ -43,6 +47,7 @@ pub async fn measure(board: &mut Board) -> AppState {
                     Message::Sample(sample) => {
                         // filter and downsample for display
                         // store in raw buffer
+                        screen.process_sample(sample.voltage());
                     }
                     Message::End(frontend, _result) => {
                         board.frontend = frontend.shut_down();
@@ -54,9 +59,7 @@ pub async fn measure(board: &mut Board) -> AppState {
 
             board
                 .display
-                .frame(|display| {
-                    todo!();
-                })
+                .frame(|display| screen.draw(display))
                 .await
                 .unwrap();
 

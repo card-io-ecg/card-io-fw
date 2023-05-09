@@ -20,11 +20,11 @@ pub struct StartupScreen<'a> {
     pub max_progress: u32,
 }
 
-impl StartupScreen<'_> {
-    pub fn draw<DT: DrawTarget<Color = BinaryColor>>(
-        &self,
-        display: &mut DT,
-    ) -> Result<(), DT::Error> {
+impl Drawable for StartupScreen<'_> {
+    type Color = BinaryColor;
+    type Output = ();
+
+    fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
         let progress_bar = Rectangle::new(Point::new(0, 51), Size::new(128, 13));
         let filler_area = progress_bar.offset(-2); // 1px gap between border and fill
 
