@@ -40,7 +40,7 @@ impl StartupResources {
         let peripherals = Peripherals::take();
 
         let mut system = peripherals.SYSTEM.split();
-        let clocks = ClockControl::configure(system.clock_control, CpuClock::Clock240MHz).freeze();
+        let clocks = ClockControl::configure(system.clock_control, CpuClock::Clock80MHz).freeze();
 
         let mut rtc = Rtc::new(peripherals.RTC_CNTL);
         rtc.rwdt.disable();
