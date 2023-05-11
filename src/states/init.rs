@@ -4,8 +4,8 @@ use embedded_graphics::Drawable;
 use gui::screens::init::StartupScreen;
 
 pub async fn initialize(board: &mut Board) -> AppState {
-    const INIT_TIME: Duration = Duration::from_secs(20);
-    const MENU_THRESHOLD: Duration = Duration::from_secs(10);
+    const INIT_TIME: Duration = Duration::from_secs(4);
+    const MENU_THRESHOLD: Duration = Duration::from_secs(2);
 
     let entered = Instant::now();
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
