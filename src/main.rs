@@ -71,6 +71,7 @@ async fn main_task(resources: StartupResources) {
             AppState::Shutdown => {
                 let display = board.display.shut_down();
 
+                board.frontend.wait_for_release().await;
                 board.frontend.wait_for_touch().await;
 
                 board.display = display.enable().await.unwrap();
