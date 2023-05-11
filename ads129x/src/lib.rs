@@ -65,11 +65,7 @@ impl ConfigRegisters {
         driver.write_sequential::<Config1>(&mut config_bytes)?;
         driver.read_sequential::<Config1>(&mut readback)?;
 
-        if Self::verify_readback(&mut config_bytes, &mut readback) {
-            Ok(())
-        } else {
-            Err(Error::Verification)
-        }
+        Self::verify_config(config_bytes, readback)
     }
 
     pub async fn apply_async<SPI>(&self, driver: &mut Ads129x<SPI>) -> Result<(), Error<SPI::Error>>
@@ -86,14 +82,13 @@ impl ConfigRegisters {
             .read_sequential_async::<Config1>(&mut readback)
             .await?;
 
-        if Self::verify_readback(&mut config_bytes, &mut readback) {
-            Ok(())
-        } else {
-            Err(Error::Verification)
-        }
+        Self::verify_config(config_bytes, readback)
     }
 
-    fn verify_readback(config_bytes: &mut [u8; 11], readback: &mut [u8; 11]) -> bool {
+    fn verify_config<E>(
+        mut config_bytes: [u8; 11],
+        mut readback: [u8; 11],
+    ) -> Result<(), Error<E>> {
         // equal chances, mask input bits
         config_bytes[7] &= 0xE0;
         config_bytes[10] &= 0x0C;
@@ -101,7 +96,16 @@ impl ConfigRegisters {
         readback[7] &= 0xE0;
         readback[10] &= 0x0C;
 
-        config_bytes == readback
+        if config_bytes == readback {
+            Ok(())
+        } else {
+            log::warn!(
+                "Verification failed: received: {:?}, expected: {:?}",
+                readback,
+                config_bytes
+            );
+            Err(Error::Verification)
+        }
     }
 }
 

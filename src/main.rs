@@ -48,7 +48,7 @@ pub enum AppState {
 
 #[embassy_executor::task]
 async fn main_task(resources: StartupResources) {
-    println!("Hello, world!");
+    log::info!("Hello, world!");
 
     // If the device is awake, the display should be enabled.
     let mut board = Board::initialize(resources).await;
@@ -56,7 +56,7 @@ async fn main_task(resources: StartupResources) {
     let mut state = AppState::Initialize;
 
     loop {
-        println!("New app state: {state:?}");
+        log::info!("New app state: {state:?}");
         state = match state {
             AppState::Initialize => initialize(&mut board).await,
             AppState::Measure => measure(&mut board).await,
