@@ -42,6 +42,9 @@ where
             .init_with_addr_mode_async(AddrMode::Page)
             .await?;
 
+        self.display.clear();
+        self.display.flush_async().await?;
+
         Ok(PoweredDisplay { display: self })
     }
 }
