@@ -20,8 +20,8 @@ pub async fn initialize(board: &mut Board) -> AppState {
 
         board.display
             .frame(|display| {
-                let elapsed_secs = elapsed.as_secs() as u32;
-                let max_secs = (INIT_TIME.as_secs() as u32).max(elapsed_secs);
+                let elapsed_secs = elapsed.as_millis() as u32;
+                let max_secs = (INIT_TIME.as_millis() as u32).max(elapsed_secs);
 
                 let max_progress = 255;
                 let progress = (elapsed_secs * max_progress) / max_secs;
