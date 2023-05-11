@@ -48,7 +48,7 @@ pub enum AppState {
 
 #[embassy_executor::task]
 async fn main_task(resources: StartupResources) {
-    println!("Hello, wolrd!");
+    println!("Hello, world!");
 
     // If the device is awake, the display should be enabled.
     let mut board = Board::initialize(resources).await;
@@ -62,10 +62,15 @@ async fn main_task(resources: StartupResources) {
             AppState::Measure => measure(&mut board).await,
             AppState::MainMenu => main_menu(&mut board).await,
             AppState::Shutdown => {
-                board.display.shut_down();
+                let display = board.display.shut_down();
 
-                let (_, _, _, touch) = board.frontend.split();
-                enter_deep_sleep(touch);
+                board.frontend.wait_for_touch().await;
+
+                board.display = display.enable().await.unwrap();
+                AppState::Initialize
+
+                // let (_, _, _, touch) = board.frontend.split();
+                // enter_deep_sleep(touch);
             }
         };
     }

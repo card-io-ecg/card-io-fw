@@ -1,7 +1,8 @@
 use crate::{
     board::{
-        hal::clock::Clocks, startup::StartupResources, AdcDrdy, AdcReset, AdcSpi, DisplayInterface,
-        DisplayReset, TouchDetect,
+        hal::{self, clock::Clocks},
+        startup::StartupResources,
+        AdcDrdy, AdcReset, AdcSpi, DisplayInterface, DisplayReset, TouchDetect,
     },
     display::PoweredDisplay,
     frontend::Frontend,
@@ -15,6 +16,12 @@ pub struct Board {
 
 impl Board {
     pub async fn initialize(board: StartupResources) -> Self {
+        hal::interrupt::enable(
+            hal::peripherals::Interrupt::GPIO,
+            hal::interrupt::Priority::Priority1,
+        )
+        .unwrap();
+
         Self {
             display: board.display.enable().await.unwrap(),
             frontend: board.frontend,
