@@ -46,14 +46,14 @@ where
     }
 }
 
-pub struct PoweredDisplay<S, RESET>
+pub struct PoweredDisplay<DI, RESET>
 where
     RESET: OutputPin,
 {
-    display: Display<S, RESET>,
+    display: Display<DI, RESET>,
 }
 
-impl<S, RESET> Dimensions for PoweredDisplay<S, RESET>
+impl<DI, RESET> Dimensions for PoweredDisplay<DI, RESET>
 where
     RESET: OutputPin,
 {
@@ -62,7 +62,7 @@ where
     }
 }
 
-impl<S, RESET> DrawTarget for PoweredDisplay<S, RESET>
+impl<DI, RESET> DrawTarget for PoweredDisplay<DI, RESET>
 where
     RESET: OutputPin,
 {
@@ -77,10 +77,10 @@ where
     }
 }
 
-impl<S, RESET> PoweredDisplay<S, RESET>
+impl<DI, RESET> PoweredDisplay<DI, RESET>
 where
     RESET: OutputPin,
-    S: AsyncWriteOnlyDataCommand,
+    DI: AsyncWriteOnlyDataCommand,
 {
     pub async fn frame(
         &mut self,
@@ -97,7 +97,7 @@ where
         self.display.display.flush_async().await
     }
 
-    pub fn shut_down(mut self) -> Display<S, RESET> {
+    pub fn shut_down(mut self) -> Display<DI, RESET> {
         self.display.reset.set_low().unwrap();
         self.display
     }
