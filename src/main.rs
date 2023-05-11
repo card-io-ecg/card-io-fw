@@ -8,6 +8,7 @@
 extern crate alloc;
 
 use embassy_executor::{Executor, _export::StaticCell};
+use esp_println::println;
 
 use crate::{
     board::{hal::entry, initialized::Board, startup::StartupResources},
@@ -37,6 +38,7 @@ fn main() -> ! {
     });
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AppState {
     Initialize,
     Measure,
@@ -46,12 +48,15 @@ pub enum AppState {
 
 #[embassy_executor::task]
 async fn main_task(resources: StartupResources) {
+    println!("Hello, wolrd!");
+
     // If the device is awake, the display should be enabled.
     let mut board = Board::initialize(resources).await;
 
     let mut state = AppState::Initialize;
 
     loop {
+        println!("New app state: {state:?}");
         state = match state {
             AppState::Initialize => initialize(&mut board).await,
             AppState::Measure => measure(&mut board).await,
