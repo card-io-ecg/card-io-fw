@@ -11,6 +11,7 @@ use crate::{
                 dma::{WithDmaSpi2, WithDmaSpi3},
                 SpiMode,
             },
+            systimer::SystemTimer,
             timer::TimerGroup,
             Rtc, Spi, IO,
         },
@@ -48,7 +49,7 @@ impl StartupResources {
             &clocks,
             &mut system.peripheral_clock_control,
         );
-        embassy::init(&clocks, timer_group0.timer0);
+        embassy::init(&clocks, SystemTimer::new(peripherals.SYSTIMER));
 
         let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
 
