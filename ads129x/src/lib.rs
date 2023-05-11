@@ -89,12 +89,15 @@ impl ConfigRegisters {
         mut config_bytes: [u8; 11],
         mut readback: [u8; 11],
     ) -> Result<(), Error<E>> {
-        // equal chances, mask input bits
-        config_bytes[7] &= 0xE0;
-        config_bytes[10] &= 0x0C;
+        fn mask_config(config: &mut [u8; 11]) {
+            // equal chances, mask input bits
 
-        readback[7] &= 0xE0;
-        readback[10] &= 0x0C;
+            config[7] &= 0xE0; // Lead-off status
+            config[10] &= 0x0C; // GPIO data
+        }
+
+        mask_config(&mut readback);
+        mask_config(&mut config_bytes);
 
         if config_bytes == readback {
             Ok(())
