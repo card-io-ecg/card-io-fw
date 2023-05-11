@@ -1,6 +1,7 @@
 use crate::{
     board::{
         hal::{
+            self,
             clock::{ClockControl, Clocks, CpuClock},
             dma::DmaPriority,
             embassy,
@@ -54,9 +55,20 @@ impl StartupResources {
         let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
 
         let dma = Gdma::new(peripherals.DMA, &mut system.peripheral_clock_control);
-        let display_dma_channel = dma.channel0;
 
         // Display
+        let display_dma_channel = dma.channel0;
+        hal::interrupt::enable(
+            hal::peripherals::Interrupt::DMA_IN_CH0,
+            hal::interrupt::Priority::Priority1,
+        )
+        .unwrap();
+        hal::interrupt::enable(
+            hal::peripherals::Interrupt::DMA_OUT_CH0,
+            hal::interrupt::Priority::Priority1,
+        )
+        .unwrap();
+
         let display_reset = io.pins.gpio9.into_push_pull_output();
         let display_dc = io.pins.gpio13.into_push_pull_output();
 
@@ -93,6 +105,17 @@ impl StartupResources {
 
         // ADC
         let adc_dma_channel = dma.channel1;
+        hal::interrupt::enable(
+            hal::peripherals::Interrupt::DMA_IN_CH1,
+            hal::interrupt::Priority::Priority1,
+        )
+        .unwrap();
+        hal::interrupt::enable(
+            hal::peripherals::Interrupt::DMA_OUT_CH1,
+            hal::interrupt::Priority::Priority1,
+        )
+        .unwrap();
+
         let adc_sclk = io.pins.gpio6;
         let adc_mosi = io.pins.gpio7;
         let adc_miso = io.pins.gpio5;
