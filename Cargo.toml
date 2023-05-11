@@ -47,6 +47,10 @@ esp32s3 = ["dep:esp32s3", "dep:esp32s3-hal", "esp-backtrace/esp32s3", "esp-print
 jtag_serial = ["esp-backtrace/print-jtag-serial", "esp-println/jtag_serial"]
 rtt = ["esp-backtrace/print-rtt", "esp-println/rtt"]
 
+[package.metadata.espflash]
+partition_table = "partitions.csv"
+format          = "esp-bootloader"
+
 [workspace]
 members = [
     ".",

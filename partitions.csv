@@ -1,0 +1,5 @@
+# Name,   Type, SubType, Offset,  Size, Flags
+otadata,  data, ota,     ,        0x2000,
+ota_0,    app,  ota_0,   ,        2M,
+ota_1,    app,  ota_1,   ,        2M,
+storage,  data, undefined,,       4032K,
