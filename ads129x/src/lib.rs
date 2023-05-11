@@ -298,6 +298,20 @@ where
             .map_err(Error::Transfer)
     }
 
+    pub async fn read_device_id_async(&mut self) -> Result<DeviceId, Error<SPI::Error>> {
+        let read_result = self.read_register_async::<Id>().await?.id();
+        match read_result.read() {
+            Some(id) => Ok(id),
+            None => {
+                log::warn!(
+                    "Read unknown device id: {:?}",
+                    read_result.read_field_bits()
+                );
+                Err(Error::UnexpectedDeviceId)
+            }
+        }
+    }
+
     pub async fn apply_configuration_async(
         &mut self,
         config: &ConfigRegisters,

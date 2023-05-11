@@ -79,7 +79,7 @@ where
     }
 
     #[inline(always)]
-    fn read_field_bits(&self) -> RWT {
+    pub fn read_field_bits(&self) -> RWT {
         RWT::from_32((self.reg.bits().to_32() >> POS as u32) & (1 << WIDTH))
     }
 

@@ -138,6 +138,9 @@ where
 
         let config = self.config();
 
+        let device_id = self.adc.read_device_id_async().await?;
+        log::info!("ADC device id: {:?}", device_id);
+
         self.adc.apply_configuration_async(&config).await?;
 
         Ok(PoweredFrontend {
