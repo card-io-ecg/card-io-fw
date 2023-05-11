@@ -1,9 +1,11 @@
+mod error;
 mod init;
 mod measure;
 mod menu;
 
 use embassy_time::Duration;
 
+pub use error::app_error;
 pub use init::initialize;
 pub use measure::measure;
 pub use menu::main_menu;

@@ -13,7 +13,7 @@ use esp_println::println;
 use crate::{
     board::{hal::entry, initialized::Board, startup::StartupResources},
     sleep::enter_deep_sleep,
-    states::{initialize, main_menu, measure},
+    states::{app_error, initialize, main_menu, measure},
 };
 
 mod board;
@@ -39,10 +39,16 @@ fn main() -> ! {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub enum AppError {
+    Adc,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AppState {
     Initialize,
     Measure,
     MainMenu,
+    Error(AppError),
     Shutdown,
 }
 
@@ -61,6 +67,7 @@ async fn main_task(resources: StartupResources) {
             AppState::Initialize => initialize(&mut board).await,
             AppState::Measure => measure(&mut board).await,
             AppState::MainMenu => main_menu(&mut board).await,
+            AppState::Error(error) => app_error(&mut board, error).await,
             AppState::Shutdown => {
                 let display = board.display.shut_down();
 

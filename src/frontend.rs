@@ -130,7 +130,7 @@ where
 
     pub async fn enable_async(
         mut self,
-    ) -> Result<PoweredFrontend<S, DRDY, RESET, TOUCH>, Error<S::Error>>
+    ) -> Result<PoweredFrontend<S, DRDY, RESET, TOUCH>, (Self, Error<S::Error>)>
     where
         S: AsyncSpiDevice,
     {
@@ -138,10 +138,16 @@ where
 
         let config = self.config();
 
-        let device_id = self.adc.read_device_id_async().await?;
+        let device_id = match self.adc.read_device_id_async().await {
+            Ok(device_id) => device_id,
+            Err(err) => return Err((self, err)),
+        };
+
         log::info!("ADC device id: {:?}", device_id);
 
-        self.adc.apply_configuration_async(&config).await?;
+        if let Err(err) = self.adc.apply_configuration_async(&config).await {
+            return Err((self, err));
+        }
 
         Ok(PoweredFrontend {
             frontend: self,

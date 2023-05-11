@@ -5,6 +5,7 @@ use embedded_menu::{
     MenuStyle,
 };
 
+pub mod error;
 pub mod init;
 pub mod main_menu;
 pub mod measure;

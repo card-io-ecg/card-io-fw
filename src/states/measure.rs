@@ -5,7 +5,7 @@ use crate::{
     frontend::PoweredFrontend,
     replace_with::replace_with_or_abort_and_return_async,
     states::MIN_FRAME_TIME,
-    AppState,
+    AppError, AppState,
 };
 use ads129x::{Error, Sample};
 use embassy_executor::{Spawner, _export::StaticCell};
@@ -41,7 +41,14 @@ enum Message {
 
 pub async fn measure(board: &mut Board) -> AppState {
     replace_with_or_abort_and_return_async(board, |mut board| async {
-        let frontend = board.frontend.enable_async().await.unwrap();
+        let frontend = match board.frontend.enable_async().await {
+            Ok(frontend) => frontend,
+            Err((fe, _err)) => {
+                board.frontend = fe;
+                return (AppState::Error(AppError::Adc), board);
+            }
+        };
+
         let spawner = Spawner::for_current_executor().await;
 
         let queue = CHANNEL.init(MessageQueue::new());
