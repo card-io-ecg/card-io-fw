@@ -39,9 +39,8 @@ where
             .unwrap();
 
         self.display
-            .init_with_addr_mode_async(AddrMode::Page)
+            .init_with_addr_mode_async(AddrMode::Horizontal)
             .await?;
-
         self.display.clear();
         self.display.flush_async().await?;
 
