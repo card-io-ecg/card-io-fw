@@ -1,13 +1,15 @@
 use crate::{
     board::{
-        hal::spi::Error as SpiError, initialized::Board, AdcDrdy, AdcReset, AdcSpi, TouchDetect,
+        hal::{prelude::*, spi::Error as SpiError},
+        initialized::Board,
+        AdcDrdy, AdcReset, AdcSpi, TouchDetect,
     },
     frontend::PoweredFrontend,
     replace_with::replace_with_or_abort_and_return_async,
     states::MIN_FRAME_TIME,
     AppError, AppState,
 };
-use ads129x::{Error, Sample};
+use ads129x::{descriptors::PinState, Error, Sample};
 use embassy_executor::{Spawner, _export::StaticCell};
 use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
@@ -41,7 +43,7 @@ enum Message {
 
 pub async fn measure(board: &mut Board) -> AppState {
     replace_with_or_abort_and_return_async(board, |mut board| async {
-        let frontend = match board.frontend.enable_async().await {
+        let mut frontend = match board.frontend.enable_async().await {
             Ok(frontend) => frontend,
             Err((fe, _err)) => {
                 board.frontend = fe;
@@ -49,6 +51,20 @@ pub async fn measure(board: &mut Board) -> AppState {
             }
         };
 
+        let ret = match frontend.read_clksel().await {
+            Ok(PinState::Low) => frontend.enable_fast_clock().await,
+            Ok(PinState::High) => Ok(()),
+            Err(e) => Err(e),
+        };
+
+        if let Err(err) = ret {
+            board.frontend = frontend.shut_down();
+            return (AppState::Error(AppError::Adc), board);
+        }
+        frontend
+            .spi_mut()
+            .spi
+            .change_bus_frequency(4u32.MHz(), &board.clocks);
         let spawner = Spawner::for_current_executor().await;
 
         let queue = CHANNEL.init(MessageQueue::new());

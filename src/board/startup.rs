@@ -134,7 +134,7 @@ impl StartupResources {
                     adc_sclk,
                     adc_mosi,
                     adc_miso,
-                    500u32.kHz(),
+                    1u32.MHz(),
                     SpiMode::Mode1,
                     &mut system.peripheral_clock_control,
                     &clocks,

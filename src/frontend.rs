@@ -3,6 +3,7 @@ use device_descriptor::Register;
 use embassy_time::Delay;
 use embedded_hal::digital::{InputPin, OutputPin};
 use embedded_hal_async::{digital::Wait, spi::SpiDevice as AsyncSpiDevice};
+use register_access::AsyncRegisterAccess;
 
 pub struct Frontend<S, DRDY, RESET, TOUCH> {
     adc: Ads129x<S>,
@@ -105,10 +106,7 @@ where
                     .write(Input::NotConnected)
             }),
 
-            loffstat: LoffStat::new(|r| {
-                // TODO support internal 512kHz
-                r.clk_div().write(ClockDivider::External2MHz)
-            }),
+            loffstat: LoffStat::new(|r| r.clk_div().write(ClockDivider::External512kHz)),
             resp1: Resp1::default(),
 
             resp2: Resp2::new(|r| r.rld_reference().write(RldReference::MidSupply)),
@@ -149,10 +147,11 @@ where
             return Err((self, err));
         }
 
-        Ok(PoweredFrontend {
+        let mut powered = PoweredFrontend {
             frontend: self,
             touched: true,
-        })
+        };
+        Ok(powered)
     }
 
     pub fn is_touched(&self) -> bool {
@@ -200,10 +199,27 @@ where
 impl<S, DRDY, RESET, TOUCH> PoweredFrontend<S, DRDY, RESET, TOUCH>
 where
     RESET: OutputPin,
-    DRDY: InputPin + Wait,
+    DRDY: InputPin,
     S: AsyncSpiDevice,
 {
-    pub async fn read(&mut self) -> Result<AdsData, Error<S::Error>> {
+    pub async fn read_clksel(&mut self) -> Result<PinState, Error<S::Error>> {
+        let register = self.frontend.adc.read_register_async::<Gpio>().await?;
+        Ok(register.d2().read().unwrap())
+    }
+
+    pub async fn enable_fast_clock(&mut self) -> Result<(), Error<S::Error>> {
+        self.frontend
+            .adc
+            .write_register_async::<LoffStat>(LoffStat::new(|r| {
+                r.clk_div().write(ClockDivider::External2MHz)
+            }))
+            .await
+    }
+
+    pub async fn read(&mut self) -> Result<AdsData, Error<S::Error>>
+    where
+        DRDY: Wait,
+    {
         self.frontend.drdy.wait_for_high().await.unwrap();
         let sample = self.frontend.adc.read_data_1ch_async().await?;
 
