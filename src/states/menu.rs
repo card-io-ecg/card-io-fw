@@ -1,5 +1,5 @@
 use crate::{board::initialized::Board, states::MIN_FRAME_TIME, AppState};
-use embassy_time::Ticker;
+use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::prelude::*;
 use gui::screens::{
     main_menu::{MainMenu, MainMenuEvents},
@@ -7,11 +7,19 @@ use gui::screens::{
 };
 
 pub async fn main_menu(board: &mut Board) -> AppState {
+    const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
+
     let mut menu = MainMenu {}.create_menu_with_style(MENU_STYLE);
 
+    let mut last_interaction = Instant::now();
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    loop {
-        if let Some(event) = menu.interact(board.frontend.is_touched()) {
+
+    while last_interaction.elapsed() < MENU_IDLE_DURATION {
+        let is_touched = board.frontend.is_touched();
+        if is_touched {
+            last_interaction = Instant::now();
+        }
+        if let Some(event) = menu.interact(is_touched) {
             return match event {
                 MainMenuEvents::Shutdown => AppState::Shutdown,
             };
@@ -28,4 +36,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
 
         ticker.next().await;
     }
+
+    log::info!("Menu timeout");
+    AppState::Shutdown
 }
