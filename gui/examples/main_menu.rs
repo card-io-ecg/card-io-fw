@@ -51,6 +51,7 @@ fn main() -> Result<(), Infallible> {
 
         if let Some(event) = menu.interact(pressed) {
             match event {
+                MainMenuEvents::WifiSetup => {}
                 MainMenuEvents::Shutdown => break 'running,
             }
         }

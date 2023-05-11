@@ -20,8 +20,9 @@ pub async fn main_menu(board: &mut Board) -> AppState {
             last_interaction = Instant::now();
         }
         if let Some(event) = menu.interact(is_touched) {
-            return match event {
-                MainMenuEvents::Shutdown => AppState::Shutdown,
+            match event {
+                MainMenuEvents::WifiSetup => {}
+                MainMenuEvents::Shutdown => return AppState::Shutdown,
             };
         }
 
