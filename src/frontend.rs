@@ -164,6 +164,24 @@ where
             return Err((frontend.shut_down(), err));
         }
 
+        if let Err(err) = frontend
+            .frontend
+            .adc
+            .write_command_async(Command::START, &mut [])
+            .await
+        {
+            return Err((frontend.shut_down(), err));
+        };
+
+        if let Err(err) = frontend
+            .frontend
+            .adc
+            .write_command_async(Command::RDATAC, &mut [])
+            .await
+        {
+            return Err((frontend.shut_down(), err));
+        };
+
         Ok(frontend)
     }
 
