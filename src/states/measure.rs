@@ -139,10 +139,10 @@ async fn read_ecg(
     loop {
         match frontend.read().await {
             Ok(sample) => {
-                // if !frontend.is_touched() {
-                //     log::info!("Not touched, stopping");
-                //     return Ok(());
-                // }
+                if !frontend.is_touched() {
+                    log::info!("Not touched, stopping");
+                    return Ok(());
+                }
 
                 if queue
                     .try_send(Message::Sample(sample.ch1_sample()))

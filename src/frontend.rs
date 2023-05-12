@@ -95,7 +95,7 @@ where
                 r
                 .c2().write(PinDirection::Input)
                 .c1().write(PinDirection::Output)
-                .d1().write(PinState::High) // disable touch detector circuitry
+                .d1().write(PinState::Low) // disable touch detector circuitry
             }),
         }
     }
@@ -195,6 +195,7 @@ impl<S, DRDY, RESET, TOUCH> PoweredFrontend<S, DRDY, RESET, TOUCH>
 where
     RESET: OutputPin,
     DRDY: InputPin,
+    TOUCH: InputPin,
     S: AsyncSpiDevice,
 {
     pub async fn read_clksel(&mut self) -> Result<PinState, Error<S::Error>> {
@@ -224,7 +225,7 @@ where
     }
 
     pub fn is_touched(&self) -> bool {
-        self.touched
+        self.frontend.is_touched()
     }
 
     pub async fn shut_down(mut self) -> Frontend<S, DRDY, RESET, TOUCH> {
