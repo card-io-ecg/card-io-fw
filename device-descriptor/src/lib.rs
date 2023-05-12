@@ -80,7 +80,7 @@ where
 
     #[inline(always)]
     pub fn read_field_bits(&self) -> RWT {
-        RWT::from_32((self.reg.bits().to_32() >> POS as u32) & (1 << WIDTH))
+        RWT::from_32((self.reg.bits().to_32() >> POS as u32) & ((1 << WIDTH) - 1))
     }
 
     #[inline(always)]
@@ -98,9 +98,9 @@ where
     #[inline(always)]
     fn write_field(data: RWT, value: RWT) -> RWT {
         // make sure value fits into field
-        debug_assert!(value.to_32() <= (1 << WIDTH));
+        debug_assert!(value.to_32() <= ((1 << WIDTH) - 1));
 
-        let shifted_mask = (1 << WIDTH) << POS;
+        let shifted_mask = ((1 << WIDTH) - 1) << POS;
         let masked_field = data.to_32() & !shifted_mask;
 
         RWT::from_32(masked_field | (value.to_32() << POS as u32))
