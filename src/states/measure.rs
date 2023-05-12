@@ -71,9 +71,10 @@ pub async fn measure(board: &mut Board) -> AppState {
         };
 
         if ret.is_err() {
-            board.frontend = frontend.shut_down();
+            board.frontend = frontend.shut_down().await;
             return (AppState::Error(AppError::Adc), board);
         }
+
         let spawner = Spawner::for_current_executor().await;
 
         let queue = CHANNEL.init(MessageQueue::new());
@@ -106,7 +107,7 @@ pub async fn measure(board: &mut Board) -> AppState {
                         }
                     }
                     Message::End(frontend, _result) => {
-                        board.frontend = frontend.shut_down();
+                        board.frontend = frontend.shut_down().await;
 
                         return (AppState::Shutdown, board);
                     }

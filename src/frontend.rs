@@ -1,6 +1,6 @@
 use ads129x::{descriptors::*, *};
 use device_descriptor::Register;
-use embassy_time::Delay;
+use embassy_time::{Delay, Duration, Timer};
 use embedded_hal::digital::{InputPin, OutputPin};
 use embedded_hal_async::{digital::Wait, spi::SpiDevice as AsyncSpiDevice};
 use register_access::AsyncRegisterAccess;
@@ -143,14 +143,14 @@ where
             .reset_async(&mut frontend.frontend.reset, &mut Delay)
             .await
         {
-            return Err((frontend.shut_down(), err));
+            return Err((frontend.shut_down().await, err));
         };
 
         let config = frontend.frontend.config();
 
         let device_id = match frontend.frontend.adc.read_device_id_async().await {
             Ok(device_id) => device_id,
-            Err(err) => return Err((frontend.shut_down(), err)),
+            Err(err) => return Err((frontend.shut_down().await, err)),
         };
 
         log::info!("ADC device id: {:?}", device_id);
@@ -161,7 +161,7 @@ where
             .apply_configuration_async(&config)
             .await
         {
-            return Err((frontend.shut_down(), err));
+            return Err((frontend.shut_down().await, err));
         }
 
         if let Err(err) = frontend
@@ -170,7 +170,7 @@ where
             .write_command_async(Command::START, &mut [])
             .await
         {
-            return Err((frontend.shut_down(), err));
+            return Err((frontend.shut_down().await, err));
         };
 
         if let Err(err) = frontend
@@ -179,7 +179,7 @@ where
             .write_command_async(Command::RDATAC, &mut [])
             .await
         {
-            return Err((frontend.shut_down(), err));
+            return Err((frontend.shut_down().await, err));
         };
 
         Ok(frontend)
@@ -263,7 +263,13 @@ where
         self.touched
     }
 
-    pub fn shut_down(mut self) -> Frontend<S, DRDY, RESET, TOUCH> {
+    pub async fn shut_down(mut self) -> Frontend<S, DRDY, RESET, TOUCH> {
+        let _ = self
+            .frontend
+            .adc
+            .write_command_async(Command::RESET, &mut [])
+            .await;
+        Timer::after(Duration::from_millis(1)).await;
         self.frontend.reset.set_low().unwrap();
         self.frontend
     }
