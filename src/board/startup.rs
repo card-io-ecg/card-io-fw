@@ -137,7 +137,7 @@ impl StartupResources {
                     false,
                     unsafe { &mut ADC_SPI_DESCRIPTORS },
                     unsafe { &mut ADC_SPI_RX_DESCRIPTORS },
-                    DmaPriority::Priority0,
+                    DmaPriority::Priority1,
                 )),
                 chip_select: adc_cs,
             },
