@@ -137,11 +137,14 @@ where
             touched: true,
         };
 
-        frontend
+        if let Err(err) = frontend
             .frontend
             .adc
             .reset_async(&mut frontend.frontend.reset, &mut Delay)
-            .await;
+            .await
+        {
+            return Err((frontend.shut_down(), err));
+        };
 
         let config = frontend.frontend.config();
 

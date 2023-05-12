@@ -320,10 +320,11 @@ where
     }
 
     pub async fn reset_async<RESET>(
-        &self,
+        &mut self,
         reset: &mut RESET,
         delay: &mut impl embedded_hal_async::delay::DelayUs,
-    ) where
+    ) -> Result<(), Error<SPI::Error>>
+    where
         RESET: OutputPin,
     {
         reset.set_high().unwrap();
@@ -332,6 +333,8 @@ where
         delay.delay_ms(Self::MIN_T_RST).await;
         reset.set_high().unwrap();
         delay.delay_ms(Self::MIN_RST_WAIT).await;
+
+        self.write_command_async(Command::SDATAC, &mut []).await
     }
 }
 
