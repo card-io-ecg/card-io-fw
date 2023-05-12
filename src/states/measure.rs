@@ -31,8 +31,8 @@ use signal_processing::{
 
 type EcgFrontend = PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>;
 
-type MessageQueue = Channel<NoopRawMutex, Message, 16>;
-type MessageSender = Sender<'static, NoopRawMutex, Message, 16>;
+type MessageQueue = Channel<NoopRawMutex, Message, 32>;
+type MessageSender = Sender<'static, NoopRawMutex, Message, 32>;
 
 static CHANNEL: StaticCell<MessageQueue> = StaticCell::new();
 
@@ -139,11 +139,17 @@ async fn read_ecg(
     loop {
         match frontend.read().await {
             Ok(sample) => {
-                if !frontend.is_touched() {
-                    return Ok(());
-                }
+                // if !frontend.is_touched() {
+                //     log::info!("Not touched, stopping");
+                //     return Ok(());
+                // }
 
-                queue.send(Message::Sample(sample.ch1_sample())).await;
+                if queue
+                    .try_send(Message::Sample(sample.ch1_sample()))
+                    .is_err()
+                {
+                    log::warn!("Sample lost");
+                }
             }
             Err(e) => return Err(e),
         }
