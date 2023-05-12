@@ -127,30 +127,41 @@ where
     }
 
     pub async fn enable_async(
-        mut self,
+        self,
     ) -> Result<PoweredFrontend<S, DRDY, RESET, TOUCH>, (Self, Error<S::Error>)>
     where
         S: AsyncSpiDevice,
     {
-        self.adc.reset_async(&mut self.reset, &mut Delay).await;
+        let mut frontend = PoweredFrontend {
+            frontend: self,
+            touched: true,
+        };
 
-        let config = self.config();
+        frontend
+            .frontend
+            .adc
+            .reset_async(&mut frontend.frontend.reset, &mut Delay)
+            .await;
 
-        let device_id = match self.adc.read_device_id_async().await {
+        let config = frontend.frontend.config();
+
+        let device_id = match frontend.frontend.adc.read_device_id_async().await {
             Ok(device_id) => device_id,
-            Err(err) => return Err((self, err)),
+            Err(err) => return Err((frontend.shut_down(), err)),
         };
 
         log::info!("ADC device id: {:?}", device_id);
 
-        if let Err(err) = self.adc.apply_configuration_async(&config).await {
-            return Err((self, err));
+        if let Err(err) = frontend
+            .frontend
+            .adc
+            .apply_configuration_async(&config)
+            .await
+        {
+            return Err((frontend.shut_down(), err));
         }
 
-        Ok(PoweredFrontend {
-            frontend: self,
-            touched: true,
-        })
+        Ok(frontend)
     }
 
     pub fn is_touched(&self) -> bool {
