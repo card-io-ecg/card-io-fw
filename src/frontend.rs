@@ -27,97 +27,75 @@ where
         }
     }
 
+    #[rustfmt::skip]
     fn config(&self) -> ConfigRegisters {
         ConfigRegisters {
             config1: Config1::new(|r| {
-                r.data_rate()
-                    .write(DataRate::_1ksps)
-                    .sampling()
-                    .write(Sampling::Continuous)
+                r
+                .data_rate().write(DataRate::_1ksps)
+                .sampling().write(Sampling::Continuous)
             }),
 
             config2: Config2::new(|r| {
-                r.pdb_loff_comp()
-                    .write(Buffer::Enabled)
-                    .ref_voltage()
-                    .write(ReferenceVoltage::_2_42V)
-                    .clock_pin()
-                    .write(ClockPin::Disabled)
-                    .test_signal()
-                    .write(TestSignal::Disabled)
+                r
+                .pdb_loff_comp().write(Buffer::Enabled)
+                .ref_voltage().write(ReferenceVoltage::_2_42V)
+                .clock_pin().write(ClockPin::Disabled)
+                .test_signal().write(TestSignal::Disabled)
             }),
 
             loff: Loff::new(|r| {
-                r.comp_th()
-                    .write(ComparatorThreshold::_95)
-                    .leadoff_current()
-                    .write(LeadOffCurrent::_6nA)
-                    .leadoff_frequency()
-                    .write(LeadOffFrequency::DC)
+                r
+                .comp_th().write(ComparatorThreshold::_95)
+                .leadoff_current().write(LeadOffCurrent::_6nA)
+                .leadoff_frequency().write(LeadOffFrequency::DC)
             }),
 
             ch1set: Ch1Set::new(|r| {
-                r.enabled()
-                    .write(Channel::Enabled)
-                    .gain()
-                    .write(Gain::x6)
-                    .mux()
-                    .write(Ch1Mux::Normal)
+                r
+                .enabled().write(Channel::Enabled)
+                .gain().write(Gain::x6)
+                .mux().write(Ch1Mux::Normal)
             }),
 
             ch2set: Ch2Set::new(|r| {
-                r.enabled()
-                    .write(Channel::PowerDown)
-                    .gain()
-                    .write(Gain::x1)
-                    .mux()
-                    .write(Ch2Mux::Shorted)
+                r
+                .enabled().write(Channel::PowerDown)
+                .gain().write(Gain::x1)
+                .mux().write(Ch2Mux::Shorted)
             }),
 
             rldsens: RldSens::new(|r| {
-                r.chop()
-                    .write(ChopFrequency::Fmod2)
-                    .pdb_rld()
-                    .write(Buffer::Enabled)
-                    .loff_sense()
-                    .write(Input::NotConnected)
-                    .rld2n()
-                    .write(Input::NotConnected)
-                    .rld2p()
-                    .write(Input::NotConnected)
-                    .rld1n()
-                    .write(Input::Connected)
-                    .rld1p()
-                    .write(Input::Connected)
+                r
+                .chop().write(ChopFrequency::Fmod2)
+                .pdb_rld().write(Buffer::Enabled)
+                .loff_sense().write(Input::NotConnected)
+                .rld2n().write(Input::NotConnected)
+                .rld2p().write(Input::NotConnected)
+                .rld1n().write(Input::Connected)
+                .rld1p().write(Input::Connected)
             }),
 
             loffsens: LoffSens::new(|r| {
-                r.flip2()
-                    .write(CurrentDirection::Normal)
-                    .flip1()
-                    .write(CurrentDirection::Normal)
-                    .loff2n()
-                    .write(Input::NotConnected)
-                    .loff2p()
-                    .write(Input::NotConnected)
-                    .loff1n()
-                    .write(Input::Connected)
-                    .loff1p()
-                    .write(Input::NotConnected)
+                r
+                .flip2().write(CurrentDirection::Normal)
+                .flip1().write(CurrentDirection::Normal)
+                .loff2n().write(Input::NotConnected)
+                .loff2p().write(Input::NotConnected)
+                .loff1n().write(Input::Connected)
+                .loff1p().write(Input::NotConnected)
             }),
 
             loffstat: LoffStat::new(|r| r.clk_div().write(ClockDivider::External512kHz)),
-            resp1: Resp1::default(),
 
+            resp1: Resp1::default(),
             resp2: Resp2::new(|r| r.rld_reference().write(RldReference::MidSupply)),
 
             gpio: Gpio::new(|r| {
-                r.c2()
-                    .write(PinDirection::Input)
-                    .c1()
-                    .write(PinDirection::Output)
-                    .d1()
-                    .write(PinState::High) // disable touch detector circuitry
+                r
+                .c2().write(PinDirection::Input)
+                .c1().write(PinDirection::Output)
+                .d1().write(PinState::High) // disable touch detector circuitry
             }),
         }
     }
