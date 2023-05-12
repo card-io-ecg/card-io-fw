@@ -369,7 +369,7 @@ impl AdsData {
         }
     }
 
-    fn new(buffer: [u8; 9]) -> Self {
+    pub fn new(buffer: [u8; 9]) -> Self {
         Self {
             status: Self::read_status(buffer[0..3].try_into().unwrap()),
             ch1: Self::read_channel(buffer[3..6].try_into().unwrap()),
@@ -377,7 +377,7 @@ impl AdsData {
         }
     }
 
-    fn new_single_channel(buffer: [u8; 6]) -> Self {
+    pub fn new_single_channel(buffer: [u8; 6]) -> Self {
         Self {
             status: Self::read_status(buffer[0..3].try_into().unwrap()),
             ch1: Self::read_channel(buffer[3..6].try_into().unwrap()),
