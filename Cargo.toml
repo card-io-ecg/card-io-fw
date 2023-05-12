@@ -61,3 +61,6 @@ members = [
     "register-access",
     "signal-processing"
 ]
+
+[profile.release]
+lto = true
