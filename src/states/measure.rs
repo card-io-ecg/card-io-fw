@@ -52,7 +52,20 @@ pub async fn measure(board: &mut Board) -> AppState {
         };
 
         let ret = match frontend.read_clksel().await {
-            Ok(PinState::Low) => frontend.enable_fast_clock().await,
+            Ok(PinState::Low) => {
+                log::info!("CLKSEL low, enabling faster clock speeds");
+                let result = frontend.enable_fast_clock().await;
+
+                if result.is_ok() {
+                    frontend
+                        .spi_mut()
+                        .spi
+                        .change_bus_frequency(4u32.MHz(), &board.clocks);
+                }
+
+                result
+            }
+
             Ok(PinState::High) => Ok(()),
             Err(e) => Err(e),
         };
@@ -61,10 +74,6 @@ pub async fn measure(board: &mut Board) -> AppState {
             board.frontend = frontend.shut_down();
             return (AppState::Error(AppError::Adc), board);
         }
-        frontend
-            .spi_mut()
-            .spi
-            .change_bus_frequency(4u32.MHz(), &board.clocks);
         let spawner = Spawner::for_current_executor().await;
 
         let queue = CHANNEL.init(MessageQueue::new());
