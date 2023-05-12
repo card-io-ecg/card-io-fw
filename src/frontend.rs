@@ -82,7 +82,7 @@ where
                 .flip1().write(CurrentDirection::Normal)
                 .loff2n().write(Input::NotConnected)
                 .loff2p().write(Input::NotConnected)
-                .loff1n().write(Input::Connected)
+                .loff1n().write(Input::NotConnected)
                 .loff1p().write(Input::NotConnected)
             }),
 
