@@ -189,20 +189,6 @@ where
         self.touch.is_low().unwrap()
     }
 
-    pub async fn wait_for_touch(&mut self) -> Result<(), TOUCH::Error>
-    where
-        TOUCH: Wait,
-    {
-        self.touch.wait_for_low().await
-    }
-
-    pub async fn wait_for_release(&mut self) -> Result<(), TOUCH::Error>
-    where
-        TOUCH: Wait,
-    {
-        self.touch.wait_for_high().await
-    }
-
     pub fn split(self) -> (S, DRDY, RESET, TOUCH) {
         (self.adc.into_inner(), self.drdy, self.reset, self.touch)
     }
