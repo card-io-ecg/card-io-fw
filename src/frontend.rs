@@ -72,8 +72,8 @@ where
                 .loff_sense().write(Input::NotConnected)
                 .rld2n().write(Input::NotConnected)
                 .rld2p().write(Input::NotConnected)
-                .rld1n().write(Input::Connected)
-                .rld1p().write(Input::Connected)
+                .rld1n().write(Input::NotConnected)
+                .rld1p().write(Input::NotConnected)
             }),
 
             loffsens: LoffSens::new(|r| {
