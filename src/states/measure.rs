@@ -57,7 +57,7 @@ pub async fn measure(board: &mut Board) -> AppState {
             Err(e) => Err(e),
         };
 
-        if let Err(err) = ret {
+        if ret.is_err() {
             board.frontend = frontend.shut_down();
             return (AppState::Error(AppError::Adc), board);
         }

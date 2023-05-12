@@ -13,7 +13,6 @@ use crate::{
                 SpiMode,
             },
             systimer::SystemTimer,
-            timer::TimerGroup,
             Rtc, Spi, IO,
         },
         AdcDrdy, AdcReset, AdcSpi, DisplayInterface, DisplayReset, TouchDetect,
@@ -45,11 +44,6 @@ impl StartupResources {
         let mut rtc = Rtc::new(peripherals.RTC_CNTL);
         rtc.rwdt.disable();
 
-        let timer_group0 = TimerGroup::new(
-            peripherals.TIMG0,
-            &clocks,
-            &mut system.peripheral_clock_control,
-        );
         embassy::init(&clocks, SystemTimer::new(peripherals.SYSTIMER));
 
         let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);

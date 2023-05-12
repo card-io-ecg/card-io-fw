@@ -147,29 +147,28 @@ where
             return Err((self, err));
         }
 
-        let mut powered = PoweredFrontend {
+        Ok(PoweredFrontend {
             frontend: self,
             touched: true,
-        };
-        Ok(powered)
+        })
     }
 
     pub fn is_touched(&self) -> bool {
         self.touch.is_low().unwrap()
     }
 
-    pub async fn wait_for_touch(&mut self)
+    pub async fn wait_for_touch(&mut self) -> Result<(), TOUCH::Error>
     where
         TOUCH: Wait,
     {
-        self.touch.wait_for_low().await;
+        self.touch.wait_for_low().await
     }
 
-    pub async fn wait_for_release(&mut self)
+    pub async fn wait_for_release(&mut self) -> Result<(), TOUCH::Error>
     where
         TOUCH: Wait,
     {
-        self.touch.wait_for_high().await;
+        self.touch.wait_for_high().await
     }
 
     pub fn split(self) -> (S, DRDY, RESET, TOUCH) {

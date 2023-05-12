@@ -8,11 +8,9 @@
 extern crate alloc;
 
 use embassy_executor::{Executor, _export::StaticCell};
-use esp_println::println;
 
 use crate::{
     board::{hal::entry, initialized::Board, startup::StartupResources},
-    sleep::enter_deep_sleep,
     states::{app_error, initialize, main_menu, measure},
 };
 
@@ -71,8 +69,8 @@ async fn main_task(resources: StartupResources) {
             AppState::Shutdown => {
                 let display = board.display.shut_down();
 
-                board.frontend.wait_for_release().await;
-                board.frontend.wait_for_touch().await;
+                board.frontend.wait_for_release().await.unwrap();
+                board.frontend.wait_for_touch().await.unwrap();
 
                 board.display = display.enable().await.unwrap();
                 AppState::Initialize
