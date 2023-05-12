@@ -60,12 +60,11 @@ impl ConfigRegisters {
         SPI: SpiDevice,
     {
         let mut config_bytes = self.into_raw();
-        let mut readback = [0; 11];
 
         driver.write_sequential::<Config1>(&mut config_bytes)?;
-        driver.read_sequential::<Config1>(&mut readback)?;
+        driver.read_sequential::<Config1>(&mut config_bytes)?;
 
-        Self::verify_config(config_bytes, readback)
+        self.verify_config(config_bytes)
     }
 
     pub async fn apply_async<SPI>(&self, driver: &mut Ads129x<SPI>) -> Result<(), Error<SPI::Error>>
@@ -73,22 +72,20 @@ impl ConfigRegisters {
         SPI: AsyncSpiDevice,
     {
         let mut config_bytes = self.into_raw();
-        let mut readback = [0; 11];
 
         driver
             .write_sequential_async::<Config1>(&mut config_bytes)
             .await?;
         driver
-            .read_sequential_async::<Config1>(&mut readback)
+            .read_sequential_async::<Config1>(&mut config_bytes)
             .await?;
 
-        Self::verify_config(config_bytes, readback)
+        self.verify_config(config_bytes)
     }
 
-    fn verify_config<E>(
-        mut config_bytes: [u8; 11],
-        mut readback: [u8; 11],
-    ) -> Result<(), Error<E>> {
+    fn verify_config<E>(&self, mut readback: [u8; 11]) -> Result<(), Error<E>> {
+        let mut config_bytes = self.into_raw();
+
         fn mask_config(config: &mut [u8; 11]) {
             // equal chances, mask input bits
 
