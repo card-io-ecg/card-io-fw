@@ -88,14 +88,6 @@ pub type TouchDetect = GpioPin<
     Gpio1Signals,
     1,
 >;
-pub type AdcChipSelect = GpioPin<
-    Output<PushPull>,
-    Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
-    InputOutputAnalogPinType,
-    Gpio18Signals,
-    18,
->;
 pub type AdcSpi<'d> = SpiDeviceWrapper<
     SpiDma<
         'd,
@@ -105,5 +97,4 @@ pub type AdcSpi<'d> = SpiDeviceWrapper<
         SuitablePeripheral1,
         FullDuplexMode,
     >,
-    AdcChipSelect,
 >;

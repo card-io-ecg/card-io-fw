@@ -114,7 +114,10 @@ impl StartupResources {
         let adc_mosi = io.pins.gpio7;
         let adc_miso = io.pins.gpio5;
 
-        let adc_cs = io.pins.gpio18.into_push_pull_output();
+        let mut adc_cs = io.pins.gpio18.into_push_pull_output();
+
+        adc_cs.set_low().unwrap();
+
         let adc_drdy = io.pins.gpio4.into_floating_input();
         let adc_reset = io.pins.gpio2.into_push_pull_output();
         let touch_detect = io.pins.gpio1.into_floating_input();
@@ -139,7 +142,6 @@ impl StartupResources {
                     unsafe { &mut ADC_SPI_RX_DESCRIPTORS },
                     DmaPriority::Priority1,
                 )),
-                chip_select: adc_cs,
             },
             adc_drdy,
             adc_reset,
