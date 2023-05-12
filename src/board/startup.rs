@@ -101,12 +101,12 @@ impl StartupResources {
         let adc_dma_channel = dma.channel1;
         hal::interrupt::enable(
             hal::peripherals::Interrupt::DMA_IN_CH1,
-            hal::interrupt::Priority::Priority1,
+            hal::interrupt::Priority::Priority2,
         )
         .unwrap();
         hal::interrupt::enable(
             hal::peripherals::Interrupt::DMA_OUT_CH1,
-            hal::interrupt::Priority::Priority1,
+            hal::interrupt::Priority::Priority2,
         )
         .unwrap();
 

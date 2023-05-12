@@ -18,7 +18,7 @@ impl Board {
     pub async fn initialize(board: StartupResources) -> Self {
         hal::interrupt::enable(
             hal::peripherals::Interrupt::GPIO,
-            hal::interrupt::Priority::Priority1,
+            hal::interrupt::Priority::Priority3,
         )
         .unwrap();
 
