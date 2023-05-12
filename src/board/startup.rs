@@ -80,7 +80,7 @@ impl StartupResources {
             display_spi,
             display_sclk,
             display_mosi,
-            20u32.MHz(),
+            40u32.MHz(),
             SpiMode::Mode0,
             &mut system.peripheral_clock_control,
             &clocks,
