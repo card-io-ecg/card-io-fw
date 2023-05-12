@@ -39,7 +39,7 @@ impl StartupResources {
         let peripherals = Peripherals::take();
 
         let mut system = peripherals.SYSTEM.split();
-        let clocks = ClockControl::configure(system.clock_control, CpuClock::Clock80MHz).freeze();
+        let clocks = ClockControl::configure(system.clock_control, CpuClock::Clock240MHz).freeze();
 
         let mut rtc = Rtc::new(peripherals.RTC_CNTL);
         rtc.rwdt.disable();
@@ -80,7 +80,7 @@ impl StartupResources {
             display_spi,
             display_sclk,
             display_mosi,
-            10u32.MHz(),
+            20u32.MHz(),
             SpiMode::Mode0,
             &mut system.peripheral_clock_control,
             &clocks,
