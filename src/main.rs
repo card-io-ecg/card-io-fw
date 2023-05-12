@@ -8,6 +8,7 @@
 extern crate alloc;
 
 use embassy_executor::{Executor, _export::StaticCell};
+use embassy_time::{Duration, Ticker};
 
 use crate::{
     board::{hal::entry, initialized::Board, startup::StartupResources},
@@ -34,6 +35,7 @@ fn main() -> ! {
     let executor = EXECUTOR.init(Executor::new());
     executor.run(move |spawner| {
         spawner.spawn(main_task(resources)).ok();
+        spawner.spawn(ticker_task()).ok();
     });
 }
 
@@ -72,5 +74,18 @@ async fn main_task(resources: StartupResources) {
                 enter_deep_sleep(touch).await
             }
         };
+    }
+}
+
+// Debug task, to be removed
+#[embassy_executor::task]
+async fn ticker_task() {
+    let mut timer = Ticker::every(Duration::from_secs(1));
+
+    loop {
+        timer.next().await;
+        log::debug!("Tick");
+        timer.next().await;
+        log::debug!("Tock");
     }
 }

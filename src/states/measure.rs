@@ -15,7 +15,7 @@ use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
     channel::{Channel, Sender},
 };
-use embassy_time::Ticker;
+use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
 use gui::screens::measure::EcgScreen;
 use object_chain::{Chain, ChainElement};
@@ -97,10 +97,14 @@ pub async fn measure(board: &mut Board) -> AppState {
 
         let mut screen = EcgScreen::new();
         let mut ticker = Ticker::every(MIN_FRAME_TIME);
+
+        let mut samples = 0; // Counter and 1s timer to debug perf issues
+        let mut started = Instant::now();
         loop {
             while let Ok(message) = queue.try_recv() {
                 match message {
                     Message::Sample(sample) => {
+                        samples += 1;
                         // TODO: store in raw buffer
                         if let Some(downsampled) = filter.update(sample.voltage()) {
                             screen.push(downsampled);
@@ -112,6 +116,13 @@ pub async fn measure(board: &mut Board) -> AppState {
                         return (AppState::Shutdown, board);
                     }
                 }
+            }
+
+            let now = Instant::now();
+            if now - started > Duration::from_secs(1) {
+                log::debug!("Collected {} samples", samples);
+                samples = 0;
+                started = now;
             }
 
             board
