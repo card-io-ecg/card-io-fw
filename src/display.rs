@@ -8,7 +8,7 @@ use embedded_graphics::{
 };
 use embedded_hal::digital::OutputPin;
 use ssd1306::{
-    command::AddrMode, mode::BufferedGraphicsMode, rotation::DisplayRotation,
+    command::AddrMode, mode::BufferedGraphicsMode, prelude::Brightness, rotation::DisplayRotation,
     size::DisplaySize128x64, Ssd1306,
 };
 
@@ -102,5 +102,12 @@ where
     pub fn shut_down(mut self) -> Display<DI, RESET> {
         self.display.reset.set_low().unwrap();
         self.display
+    }
+
+    pub async fn update_brightness_async(
+        &mut self,
+        brightness: Brightness,
+    ) -> Result<(), DisplayError> {
+        self.display.display.set_brightness_async(brightness).await
     }
 }
