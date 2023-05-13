@@ -18,8 +18,10 @@ use hal::{
     dma::{ChannelRx, ChannelTx},
     gdma::*,
     gpio::{
-        Bank0GpioRegisterAccess, Floating, GpioPin, Input, InputOutputAnalogPinType, Output,
-        PushPull, SingleCoreInteruptStatusRegisterAccessBank0,
+        Bank0GpioRegisterAccess, Bank1GpioRegisterAccess, Floating, GpioPin, Input,
+        InputOutputAnalogPinType, InputOutputPinType, Output, PushPull,
+        SingleCoreInteruptStatusRegisterAccessBank0, SingleCoreInteruptStatusRegisterAccessBank1,
+        Unknown,
     },
     soc::gpio::*,
     spi::{dma::SpiDma, FullDuplexMode},
@@ -98,3 +100,52 @@ pub type AdcSpi<'d> = SpiDeviceWrapper<
         FullDuplexMode,
     >,
 >;
+
+pub type BatteryAdcInput = GpioPin<
+    Unknown,
+    Bank0GpioRegisterAccess,
+    SingleCoreInteruptStatusRegisterAccessBank0,
+    InputOutputAnalogPinType,
+    Gpio17Signals,
+    17,
+>;
+pub type BatteryAdcEnable = GpioPin<
+    Unknown,
+    Bank0GpioRegisterAccess,
+    SingleCoreInteruptStatusRegisterAccessBank0,
+    InputOutputAnalogPinType,
+    Gpio8Signals,
+    8,
+>;
+pub type VbusDetect = GpioPin<
+    Unknown,
+    Bank1GpioRegisterAccess,
+    SingleCoreInteruptStatusRegisterAccessBank1,
+    InputOutputPinType,
+    Gpio33Signals,
+    33,
+>;
+pub type ChargeCurrentInput = GpioPin<
+    Unknown,
+    Bank0GpioRegisterAccess,
+    SingleCoreInteruptStatusRegisterAccessBank0,
+    InputOutputAnalogPinType,
+    Gpio14Signals,
+    14,
+>;
+pub type ChargerStatus = GpioPin<
+    Unknown,
+    Bank0GpioRegisterAccess,
+    SingleCoreInteruptStatusRegisterAccessBank0,
+    InputOutputAnalogPinType,
+    Gpio21Signals,
+    21,
+>;
+
+pub struct MiscPins {
+    pub batt_adc_in: BatteryAdcInput,
+    pub batt_adc_en: BatteryAdcEnable,
+    pub vbus_detect: VbusDetect,
+    pub chg_current: ChargeCurrentInput,
+    pub chg_status: ChargerStatus,
+}

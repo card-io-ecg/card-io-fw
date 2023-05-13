@@ -14,7 +14,7 @@ use crate::{
             },
             Rtc, Spi, IO,
         },
-        AdcDrdy, AdcReset, AdcSpi, DisplayInterface, DisplayReset, TouchDetect,
+        *,
     },
     display::Display,
     frontend::Frontend,
@@ -29,6 +29,7 @@ pub struct StartupResources {
     pub display: Display<DisplayInterface<'static>, DisplayReset>,
     pub frontend: Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>,
     pub clocks: Clocks<'static>,
+    pub misc_pins: MiscPins,
 }
 
 impl StartupResources {
@@ -155,10 +156,26 @@ impl StartupResources {
             touch_detect,
         );
 
+        // Battery measurement
+        let batt_adc_in = io.pins.gpio17;
+        let batt_adc_en = io.pins.gpio8;
+
+        // Charger
+        let vbus_detect = io.pins.gpio33;
+        let chg_current = io.pins.gpio14;
+        let chg_status = io.pins.gpio21;
+
         StartupResources {
             display,
             frontend: adc,
             clocks,
+            misc_pins: MiscPins {
+                batt_adc_in,
+                batt_adc_en,
+                vbus_detect,
+                chg_current,
+                chg_status,
+            },
         }
     }
 }
