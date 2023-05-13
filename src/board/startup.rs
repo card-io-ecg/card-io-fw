@@ -157,13 +157,13 @@ impl StartupResources {
         );
 
         // Battery measurement
-        let batt_adc_in = io.pins.gpio17;
-        let batt_adc_en = io.pins.gpio8;
+        let batt_adc_in = io.pins.gpio17.into_analog();
+        let batt_adc_en = io.pins.gpio8.into_push_pull_output();
 
         // Charger
-        let vbus_detect = io.pins.gpio33;
-        let chg_current = io.pins.gpio14;
-        let chg_status = io.pins.gpio21;
+        let vbus_detect = io.pins.gpio33.into_floating_input();
+        let chg_current = io.pins.gpio14.into_analog();
+        let chg_status = io.pins.gpio21.into_pull_up_input();
 
         StartupResources {
             display,

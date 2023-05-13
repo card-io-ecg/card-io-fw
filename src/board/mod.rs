@@ -18,10 +18,9 @@ use hal::{
     dma::{ChannelRx, ChannelTx},
     gdma::*,
     gpio::{
-        Bank0GpioRegisterAccess, Bank1GpioRegisterAccess, Floating, GpioPin, Input,
-        InputOutputAnalogPinType, InputOutputPinType, Output, PushPull,
+        Analog, Bank0GpioRegisterAccess, Bank1GpioRegisterAccess, Floating, GpioPin, Input,
+        InputOutputAnalogPinType, InputOutputPinType, Output, PullUp, PushPull,
         SingleCoreInteruptStatusRegisterAccessBank0, SingleCoreInteruptStatusRegisterAccessBank1,
-        Unknown,
     },
     soc::gpio::*,
     spi::{dma::SpiDma, FullDuplexMode},
@@ -102,7 +101,7 @@ pub type AdcSpi<'d> = SpiDeviceWrapper<
 >;
 
 pub type BatteryAdcInput = GpioPin<
-    Unknown,
+    Analog,
     Bank0GpioRegisterAccess,
     SingleCoreInteruptStatusRegisterAccessBank0,
     InputOutputAnalogPinType,
@@ -110,7 +109,7 @@ pub type BatteryAdcInput = GpioPin<
     17,
 >;
 pub type BatteryAdcEnable = GpioPin<
-    Unknown,
+    Output<PushPull>,
     Bank0GpioRegisterAccess,
     SingleCoreInteruptStatusRegisterAccessBank0,
     InputOutputAnalogPinType,
@@ -118,7 +117,7 @@ pub type BatteryAdcEnable = GpioPin<
     8,
 >;
 pub type VbusDetect = GpioPin<
-    Unknown,
+    Input<Floating>,
     Bank1GpioRegisterAccess,
     SingleCoreInteruptStatusRegisterAccessBank1,
     InputOutputPinType,
@@ -126,7 +125,7 @@ pub type VbusDetect = GpioPin<
     33,
 >;
 pub type ChargeCurrentInput = GpioPin<
-    Unknown,
+    Analog,
     Bank0GpioRegisterAccess,
     SingleCoreInteruptStatusRegisterAccessBank0,
     InputOutputAnalogPinType,
@@ -134,7 +133,7 @@ pub type ChargeCurrentInput = GpioPin<
     14,
 >;
 pub type ChargerStatus = GpioPin<
-    Unknown,
+    Input<PullUp>,
     Bank0GpioRegisterAccess,
     SingleCoreInteruptStatusRegisterAccessBank0,
     InputOutputAnalogPinType,
