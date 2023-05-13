@@ -30,25 +30,26 @@ pub async fn main_menu(board: &mut Board) -> AppState {
                 MainMenuEvents::WifiSetup => {}
                 MainMenuEvents::Shutdown => return AppState::Shutdown,
             };
+        }
 
-            if &menu_values != menu.data() {
-                let new = *menu.data();
-                if menu_values.brightness != new.brightness {
-                    // TODO: store on exit (note: 2 exit sites)
-                    let _ = board
-                        .display
-                        .update_brightness_async(match new.brightness {
-                            DisplayBrightness::Dimmest => Brightness::DIMMEST,
-                            DisplayBrightness::Dim => Brightness::DIM,
-                            DisplayBrightness::Normal => Brightness::NORMAL,
-                            DisplayBrightness::Bright => Brightness::BRIGHT,
-                            DisplayBrightness::Brightest => Brightness::BRIGHTEST,
-                        })
-                        .await;
-                }
-
-                menu_values = new;
+        if &menu_values != menu.data() {
+            log::debug!("Settings changed");
+            let new = *menu.data();
+            if menu_values.brightness != new.brightness {
+                // TODO: store on exit (note: 2 exit sites)
+                let _ = board
+                    .display
+                    .update_brightness_async(match new.brightness {
+                        DisplayBrightness::Dimmest => Brightness::DIMMEST,
+                        DisplayBrightness::Dim => Brightness::DIM,
+                        DisplayBrightness::Normal => Brightness::NORMAL,
+                        DisplayBrightness::Bright => Brightness::BRIGHT,
+                        DisplayBrightness::Brightest => Brightness::BRIGHTEST,
+                    })
+                    .await;
             }
+
+            menu_values = new;
         }
 
         board
