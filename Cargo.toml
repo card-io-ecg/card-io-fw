@@ -27,7 +27,7 @@ display-interface = { git = "https://github.com/bugadani/display-interface.git",
 display-interface-spi-async = { git = "https://github.com/bugadani/display-interface.git", branch = "async" }
 ssd1306 = { git = "https://github.com/bugadani/ssd1306.git", branch = "async", features = ["async", "graphics"] }
 
-embedded-graphics = "0.7.1"
+embedded-graphics = "0.8.0"
 
 device-descriptor = { path = "device-descriptor" }
 register-access = { path = "register-access" }

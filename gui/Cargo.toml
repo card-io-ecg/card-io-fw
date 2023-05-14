@@ -6,14 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-embedded-graphics = "0.7.1"
-embedded-text = "0.5"
-embedded-layout = "0.2"
+embedded-graphics = "0.8.0"
+embedded-text = "0.6"
+embedded-layout = "0.3"
 
 embassy-futures = "0.1"
 
-embedded-menu = { git = "https://github.com/bugadani/embedded-menu.git" }
+embedded-menu = "0.1"
 signal-processing = { path = "../signal-processing" }
 
 [dev-dependencies]
-embedded-graphics-simulator = "0.4.1"
+embedded-graphics-simulator = "0.5.0"
