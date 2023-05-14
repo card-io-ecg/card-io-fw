@@ -95,7 +95,7 @@ where
                 r
                 .c2().write(PinDirection::Input)
                 .c1().write(PinDirection::Output)
-                .d1().write(PinState::Low) // disable touch detector circuitry
+                .d1().write(PinState::High) // disable touch detector circuitry
             }),
         }
     }
@@ -151,15 +151,6 @@ where
             return Err((frontend.shut_down().await, err));
         };
 
-        if let Err(err) = frontend
-            .frontend
-            .adc
-            .write_command_async(Command::RDATAC, &mut [])
-            .await
-        {
-            return Err((frontend.shut_down().await, err));
-        };
-
         Ok(frontend)
     }
 
@@ -198,6 +189,13 @@ where
     TOUCH: InputPin,
     S: AsyncSpiDevice,
 {
+    pub async fn enable_rdatac(&mut self) -> Result<(), Error<S::Error>> {
+        self.frontend
+            .adc
+            .write_command_async(Command::RDATAC, &mut [])
+            .await
+    }
+
     pub async fn read_clksel(&mut self) -> Result<PinState, Error<S::Error>> {
         let register = self.frontend.adc.read_register_async::<Gpio>().await?;
         Ok(register.d2().read().unwrap())
@@ -216,7 +214,7 @@ where
     where
         DRDY: Wait,
     {
-        self.frontend.drdy.wait_for_falling_edge().await.unwrap();
+        self.frontend.drdy.wait_for_low().await.unwrap();
 
         let sample = self.frontend.adc.read_data_1ch_async().await?;
         self.touched = sample.ch1_leads_connected();

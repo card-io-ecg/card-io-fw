@@ -261,7 +261,7 @@ impl<SPI> Ads129x<SPI>
 where
     SPI: AsyncSpiDevice,
 {
-    pub async fn read_data_1ch_async(&mut self) -> Result<AdsData, Error<SPI::Error>> {
+    pub async fn read_data_1ch_async_rdatac(&mut self) -> Result<AdsData, Error<SPI::Error>> {
         let mut sample: [u8; 6] = [0; 6];
         self.spi
             .read(&mut sample)
@@ -270,13 +270,29 @@ where
             .map_err(Error::Transfer)
     }
 
-    pub async fn read_data_2ch_async(&mut self) -> Result<AdsData, Error<SPI::Error>> {
+    pub async fn read_data_1ch_async(&mut self) -> Result<AdsData, Error<SPI::Error>> {
+        let mut sample: [u8; 6] = [0; 6];
+        self.write_command_async(Command::RDATA, &mut sample)
+            .await?;
+
+        Ok(AdsData::new_single_channel(sample))
+    }
+
+    pub async fn read_data_2ch_async_rdatac(&mut self) -> Result<AdsData, Error<SPI::Error>> {
         let mut sample: [u8; 9] = [0; 9];
         self.spi
             .read(&mut sample)
             .await
             .map(|_| AdsData::new(sample))
             .map_err(Error::Transfer)
+    }
+
+    pub async fn read_data_2ch_async(&mut self) -> Result<AdsData, Error<SPI::Error>> {
+        let mut sample: [u8; 9] = [0; 9];
+        self.write_command_async(Command::RDATA, &mut sample)
+            .await?;
+
+        Ok(AdsData::new(sample))
     }
 
     pub async fn write_command_async(
