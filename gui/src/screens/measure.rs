@@ -15,16 +15,22 @@ use signal_processing::{
 #[derive(Default)]
 pub struct EcgScreen {
     buffer: SlidingWindow<128>,
+    discard: usize,
 }
 
 impl EcgScreen {
-    pub fn new() -> Self {
+    pub fn new(discarded_samples: usize) -> Self {
         Self {
             buffer: SlidingWindow::new(),
+            discard: discarded_samples,
         }
     }
 
     pub fn push(&mut self, sample: f32) {
+        if self.discard > 0 {
+            self.discard -= 1;
+            return;
+        }
         self.buffer.push(sample);
     }
 

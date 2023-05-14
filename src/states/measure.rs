@@ -96,7 +96,7 @@ pub async fn measure(board: &mut Board) -> AppState {
             )
             .append(downsampler);
 
-        let mut screen = EcgScreen::new();
+        let mut screen = EcgScreen::new(96); // discard transient
         let mut ticker = Ticker::every(MIN_FRAME_TIME);
 
         let mut samples = 0; // Counter and 1s timer to debug perf issues
