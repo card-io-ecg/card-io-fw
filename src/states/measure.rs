@@ -16,7 +16,7 @@ use embassy_sync::{
     channel::{Channel, Sender},
 };
 use embassy_time::{Duration, Instant, Ticker};
-use embedded_graphics::Drawable;
+use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
 use gui::screens::measure::EcgScreen;
 use object_chain::{Chain, ChainElement};
 use signal_processing::{
@@ -120,16 +120,21 @@ pub async fn measure(board: &mut Board) -> AppState {
 
             let now = Instant::now();
             if now - started > Duration::from_secs(1) {
-                log::debug!("Collected {} samples", samples);
+                log::debug!(
+                    "Collected {} samples in {}ms",
+                    samples,
+                    (now - started).as_millis()
+                );
                 samples = 0;
                 started = now;
             }
 
-            board
-                .display
-                .frame(|display| screen.draw(display))
-                .await
-                .unwrap();
+            // Yield after filtering as it may take some time
+            embassy_futures::yield_now().await;
+            board.display.clear(BinaryColor::Off).unwrap();
+            embassy_futures::yield_now().await;
+            screen.draw_async(&mut board.display).await.unwrap();
+            board.display.flush().await.unwrap();
 
             ticker.next().await;
         }
