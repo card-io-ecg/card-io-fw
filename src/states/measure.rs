@@ -152,6 +152,7 @@ async fn read_ecg(
     queue: &MessageSender,
     frontend: &mut EcgFrontend,
 ) -> Result<(), Error<SpiError>> {
+    let started = Instant::now();
     loop {
         match frontend.read().await {
             Ok(sample) => {
@@ -165,6 +166,10 @@ async fn read_ecg(
                     .is_err()
                 {
                     log::warn!("Sample lost");
+                }
+
+                if started.elapsed() > Duration::from_secs(30) {
+                    return Ok(());
                 }
             }
             Err(e) => return Err(e),
