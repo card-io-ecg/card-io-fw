@@ -48,26 +48,17 @@ where
     }
 }
 
-pub struct PoweredDisplay<DI, RESET>
-where
-    RESET: OutputPin,
-{
+pub struct PoweredDisplay<DI, RESET> {
     display: Display<DI, RESET>,
 }
 
-impl<DI, RESET> Dimensions for PoweredDisplay<DI, RESET>
-where
-    RESET: OutputPin,
-{
+impl<DI, RESET> Dimensions for PoweredDisplay<DI, RESET> {
     fn bounding_box(&self) -> Rectangle {
         self.display.display.bounding_box()
     }
 }
 
-impl<DI, RESET> DrawTarget for PoweredDisplay<DI, RESET>
-where
-    RESET: OutputPin,
-{
+impl<DI, RESET> DrawTarget for PoweredDisplay<DI, RESET> {
     type Color = BinaryColor;
     type Error = DisplayError;
 
@@ -81,7 +72,6 @@ where
 
 impl<DI, RESET> PoweredDisplay<DI, RESET>
 where
-    RESET: OutputPin,
     DI: AsyncWriteOnlyDataCommand,
 {
     pub async fn frame(
@@ -99,15 +89,20 @@ where
         self.display.display.flush_async().await
     }
 
-    pub fn shut_down(mut self) -> Display<DI, RESET> {
-        self.display.reset.set_low().unwrap();
-        self.display
-    }
-
     pub async fn update_brightness_async(
         &mut self,
         brightness: Brightness,
     ) -> Result<(), DisplayError> {
         self.display.display.set_brightness_async(brightness).await
+    }
+}
+
+impl<DI, RESET> PoweredDisplay<DI, RESET>
+where
+    RESET: OutputPin,
+{
+    pub fn shut_down(mut self) -> Display<DI, RESET> {
+        self.display.reset.set_low().unwrap();
+        self.display
     }
 }
