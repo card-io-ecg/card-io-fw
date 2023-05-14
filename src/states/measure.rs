@@ -16,7 +16,7 @@ use embassy_sync::{
     channel::{Channel, Sender},
 };
 use embassy_time::{Duration, Instant, Ticker};
-use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
+use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget};
 use gui::screens::measure::EcgScreen;
 use object_chain::{Chain, ChainElement};
 use signal_processing::{
@@ -81,8 +81,9 @@ pub async fn measure(board: &mut Board) -> AppState {
 
         spawner.must_spawn(reader_task(queue.sender(), frontend));
 
-        // Downsample by 8 to display around 1 second
+        // Downsample by 16 to display around 2 seconds
         let downsampler = Chain::new(DownSampler::new())
+            .append(DownSampler::new())
             .append(DownSampler::new())
             .append(DownSampler::new());
 

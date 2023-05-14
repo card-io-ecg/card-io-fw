@@ -189,6 +189,7 @@ where
     TOUCH: InputPin,
     S: AsyncSpiDevice,
 {
+    #[allow(unused)]
     pub async fn enable_rdatac(&mut self) -> Result<(), Error<S::Error>> {
         self.frontend
             .adc
