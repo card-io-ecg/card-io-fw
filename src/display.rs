@@ -68,6 +68,11 @@ impl<DI, RESET> DrawTarget for PoweredDisplay<DI, RESET> {
     {
         self.display.display.draw_iter(pixels)
     }
+
+    fn clear(&mut self, _color: Self::Color) -> Result<(), Self::Error> {
+        self.display.display.clear();
+        Ok(())
+    }
 }
 
 impl<DI, RESET> PoweredDisplay<DI, RESET>
