@@ -215,7 +215,7 @@ where
     where
         DRDY: Wait,
     {
-        self.frontend.drdy.wait_for_low().await.unwrap();
+        self.frontend.drdy.wait_for_falling_edge().await.unwrap();
 
         let sample = self.frontend.adc.read_data_1ch_async().await?;
         self.touched = sample.ch1_leads_connected();

@@ -16,7 +16,7 @@ use embassy_sync::{
     channel::{Channel, Sender},
 };
 use embassy_time::{Duration, Instant, Ticker};
-use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget};
+use embedded_graphics::Drawable;
 use gui::screens::measure::EcgScreen;
 use object_chain::{Chain, ChainElement};
 use signal_processing::{
@@ -93,9 +93,8 @@ pub async fn measure(board: &mut Board) -> AppState {
                 frontend,
             }));
 
-        // Downsample by 16 to display around 2 seconds
+        // Downsample by 8 to display around 1 second
         let downsampler = Chain::new(DownSampler::new())
-            .append(DownSampler::new())
             .append(DownSampler::new())
             .append(DownSampler::new());
 
@@ -103,10 +102,9 @@ pub async fn measure(board: &mut Board) -> AppState {
         // this is a huge amount of data to block adaptation, but exact summation gives
         // better result than estimation (TODO: revisit later, as estimated sum had a bug)
         let mut filter = Chain::new(HIGH_PASS_CUTOFF_1_59HZ)
-            // FIXME: Disabled while we can't reliably sample the ADC
-            //.append(
-            //    PowerLineFilter::<AdaptationBlocking<Sum<1200>, 50, 20>, 1>::new(1000.0, [50.0]),
-            //)
+            .append(
+                PowerLineFilter::<AdaptationBlocking<Sum<1200>, 50, 20>, 1>::new(1000.0, [50.0]),
+            )
             .append(downsampler);
 
         let mut screen = EcgScreen::new(96); // discard transient
@@ -143,12 +141,11 @@ pub async fn measure(board: &mut Board) -> AppState {
                 started = now;
             }
 
-            // Yield after filtering as it may take some time
-            embassy_futures::yield_now().await;
-            board.display.clear(BinaryColor::Off).unwrap();
-            embassy_futures::yield_now().await;
-            screen.draw_async(&mut board.display).await.unwrap();
-            board.display.flush().await.unwrap();
+            board
+                .display
+                .frame(|display| screen.draw(display))
+                .await
+                .unwrap();
 
             ticker.next().await;
         }

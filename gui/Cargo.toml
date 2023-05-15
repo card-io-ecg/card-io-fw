@@ -10,8 +10,6 @@ embedded-graphics = "0.8.0"
 embedded-text = "0.6"
 embedded-layout = "0.3"
 
-embassy-futures = "0.1"
-
 embedded-menu = "0.1"
 signal-processing = { path = "../signal-processing" }
 
