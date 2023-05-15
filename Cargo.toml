@@ -8,7 +8,7 @@ license = "MIT"
 
 [dependencies]
 embassy-futures = { version = "0.1.0" }
-embassy-executor  = { version = "0.2.0", git = "https://github.com/bugadani/embassy.git", branch = "deadlock", features = ["nightly", "arch-xtensa", "integrated-timers", "executor-thread", "pender-callback"] }
+embassy-executor  = { version = "0.2.0", git = "https://github.com/embassy-rs/embassy.git", features = ["nightly", "arch-xtensa", "integrated-timers", "executor-thread", "pender-callback"] }
 embassy-time = { version = "0.1.0", features = ["nightly", "unstable-traits"] }
 embassy-sync = { version = "0.2.0" }
 
