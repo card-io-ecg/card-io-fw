@@ -88,12 +88,13 @@ pub async fn measure(board: &mut Board) -> AppState {
             .append(DownSampler::new());
 
         // PLI filtering algo is probably overkill for displaying, but it's fancy
+        // this is a huge amount of data to block adaptation, but exact summation gives
+        // better result than estimation (TODO: revisit later, as estimated sum had a bug)
         let mut filter = Chain::new(HIGH_PASS_CUTOFF_1_59HZ)
-            .append(
-                // this is a huge amount of data to block adaptation, but exact summation gives
-                // better result than estimation
-                PowerLineFilter::<AdaptationBlocking<Sum<1200>, 50, 20>, 1>::new(1000.0, [50.0]),
-            )
+            // FIXME: Disabled while we can't reliably sample the ADC
+            //.append(
+            //    PowerLineFilter::<AdaptationBlocking<Sum<1200>, 50, 20>, 1>::new(1000.0, [50.0]),
+            //)
             .append(downsampler);
 
         let mut screen = EcgScreen::new(96); // discard transient
