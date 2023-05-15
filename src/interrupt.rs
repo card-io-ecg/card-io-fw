@@ -11,7 +11,6 @@ type SystemPeripheral = peripherals::SYSTEM;
 use crate::board::hal::{interrupt, peripherals};
 
 pub trait SwInterrupt {
-    // All cores should enable the interrupt
     fn enable();
     fn pend(ctxt: *mut ());
     fn clear();
@@ -123,6 +122,8 @@ where
                     ptr::null_mut(),
                 )))
         }
+
+        SWI::enable();
 
         let executor = unsafe { (&*self.executor.get()).assume_init_ref() };
         executor.spawner().make_send()

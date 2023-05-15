@@ -170,8 +170,6 @@ impl StartupResources {
         let chg_status = io.pins.gpio21.into_pull_up_input();
 
         let high_prio_spawner = INT_EXECUTOR.start();
-        // TODO: enable on all cores
-        SwInterrupt0::enable();
 
         StartupResources {
             display,
