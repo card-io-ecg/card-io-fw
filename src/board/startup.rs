@@ -6,6 +6,7 @@ use crate::{
             dma::DmaPriority,
             embassy,
             gdma::Gdma,
+            interrupt, peripherals,
             peripherals::Peripherals,
             prelude::*,
             spi::{
@@ -19,17 +20,27 @@ use crate::{
     display::Display,
     frontend::Frontend,
     heap::init_heap,
+    interrupt::{InterruptExecutor, SwInterrupt, SwInterrupt0},
     spi_device::SpiDeviceWrapper,
 };
 use display_interface_spi_async::SPIInterface;
+use embassy_executor::SendSpawner;
 use esp_println::logger::init_logger;
-use hal::timer::TimerGroup;
+use hal::systimer::SystemTimer;
+
+static INT_EXECUTOR: InterruptExecutor<SwInterrupt0> = InterruptExecutor::new();
+
+#[interrupt]
+fn FROM_CPU_INTR0() {
+    unsafe { INT_EXECUTOR.on_interrupt() }
+}
 
 pub struct StartupResources {
     pub display: Display<DisplayInterface<'static>, DisplayReset>,
     pub frontend: Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>,
     pub clocks: Clocks<'static>,
     pub misc_pins: MiscPins,
+    pub high_prio_spawner: SendSpawner,
 }
 
 impl StartupResources {
@@ -45,14 +56,7 @@ impl StartupResources {
         let mut rtc = Rtc::new(peripherals.RTC_CNTL);
         rtc.rwdt.disable();
 
-        let timer_group0 = TimerGroup::new(
-            peripherals.TIMG0,
-            &clocks,
-            &mut system.peripheral_clock_control,
-        );
-        let mut wdt0 = timer_group0.wdt;
-        wdt0.disable();
-        embassy::init(&clocks, timer_group0.timer0);
+        embassy::init(&clocks, SystemTimer::new(peripherals.SYSTIMER));
 
         let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
 
@@ -60,14 +64,14 @@ impl StartupResources {
 
         // Display
         let display_dma_channel = dma.channel0;
-        hal::interrupt::enable(
-            hal::peripherals::Interrupt::DMA_IN_CH0,
-            hal::interrupt::Priority::Priority1,
+        interrupt::enable(
+            peripherals::Interrupt::DMA_IN_CH0,
+            interrupt::Priority::Priority1,
         )
         .unwrap();
-        hal::interrupt::enable(
-            hal::peripherals::Interrupt::DMA_OUT_CH0,
-            hal::interrupt::Priority::Priority1,
+        interrupt::enable(
+            peripherals::Interrupt::DMA_OUT_CH0,
+            interrupt::Priority::Priority1,
         )
         .unwrap();
 
@@ -107,14 +111,14 @@ impl StartupResources {
 
         // ADC
         let adc_dma_channel = dma.channel1;
-        hal::interrupt::enable(
-            hal::peripherals::Interrupt::DMA_IN_CH1,
-            hal::interrupt::Priority::Priority2,
+        interrupt::enable(
+            peripherals::Interrupt::DMA_IN_CH1,
+            interrupt::Priority::Priority2,
         )
         .unwrap();
-        hal::interrupt::enable(
-            hal::peripherals::Interrupt::DMA_OUT_CH1,
-            hal::interrupt::Priority::Priority2,
+        interrupt::enable(
+            peripherals::Interrupt::DMA_OUT_CH1,
+            interrupt::Priority::Priority2,
         )
         .unwrap();
 
@@ -165,10 +169,16 @@ impl StartupResources {
         let chg_current = io.pins.gpio14.into_analog();
         let chg_status = io.pins.gpio21.into_pull_up_input();
 
+        let high_prio_spawner = INT_EXECUTOR.start();
+        // TODO: enable on all cores
+        SwInterrupt0::enable();
+
         StartupResources {
             display,
             frontend: adc,
             clocks,
+            high_prio_spawner,
+
             misc_pins: MiscPins {
                 batt_adc_in,
                 batt_adc_en,

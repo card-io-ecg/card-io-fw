@@ -10,13 +10,13 @@ use crate::{
     AppError, AppState,
 };
 use ads129x::{descriptors::PinState, Error, Sample};
-use embassy_executor::{Spawner, _export::StaticCell};
+use embassy_executor::_export::StaticCell;
 use embassy_sync::{
-    blocking_mutex::raw::NoopRawMutex,
+    blocking_mutex::raw::CriticalSectionRawMutex,
     channel::{Channel, Sender},
 };
 use embassy_time::{Duration, Instant, Ticker};
-use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget};
+use embedded_graphics::Drawable;
 use gui::screens::measure::EcgScreen;
 use object_chain::{Chain, ChainElement};
 use signal_processing::{
@@ -31,8 +31,8 @@ use signal_processing::{
 
 type EcgFrontend = PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>;
 
-type MessageQueue = Channel<NoopRawMutex, Message, 32>;
-type MessageSender = Sender<'static, NoopRawMutex, Message, 32>;
+type MessageQueue = Channel<CriticalSectionRawMutex, Message, 32>;
+type MessageSender = Sender<'static, CriticalSectionRawMutex, Message, 32>;
 
 static CHANNEL: StaticCell<MessageQueue> = StaticCell::new();
 
@@ -40,6 +40,15 @@ enum Message {
     Sample(Sample),
     End(EcgFrontend, Result<(), Error<SpiError>>),
 }
+
+unsafe impl Send for Message {} // SAFETY: yolo
+
+struct EcgTaskParams {
+    frontend: EcgFrontend,
+    sender: MessageSender,
+}
+
+unsafe impl Send for EcgTaskParams {} // SAFETY: yolo
 
 pub async fn measure(board: &mut Board) -> AppState {
     replace_with_or_abort_and_return_async(board, |mut board| async {
@@ -75,15 +84,17 @@ pub async fn measure(board: &mut Board) -> AppState {
             return (AppState::Error(AppError::Adc), board);
         }
 
-        let spawner = Spawner::for_current_executor().await;
-
         let queue = CHANNEL.init(MessageQueue::new());
 
-        spawner.must_spawn(reader_task(queue.sender(), frontend));
+        board
+            .high_prio_spawner
+            .must_spawn(reader_task(EcgTaskParams {
+                sender: queue.sender(),
+                frontend,
+            }));
 
-        // Downsample by 16 to display around 2 seconds
+        // Downsample by 8 to display around 1 second
         let downsampler = Chain::new(DownSampler::new())
-            .append(DownSampler::new())
             .append(DownSampler::new())
             .append(DownSampler::new());
 
@@ -91,10 +102,9 @@ pub async fn measure(board: &mut Board) -> AppState {
         // this is a huge amount of data to block adaptation, but exact summation gives
         // better result than estimation (TODO: revisit later, as estimated sum had a bug)
         let mut filter = Chain::new(HIGH_PASS_CUTOFF_1_59HZ)
-            // FIXME: Disabled while we can't reliably sample the ADC
-            //.append(
-            //    PowerLineFilter::<AdaptationBlocking<Sum<1200>, 50, 20>, 1>::new(1000.0, [50.0]),
-            //)
+            .append(
+                PowerLineFilter::<AdaptationBlocking<Sum<1200>, 50, 20>, 1>::new(1000.0, [50.0]),
+            )
             .append(downsampler);
 
         let mut screen = EcgScreen::new(96); // discard transient
@@ -131,12 +141,11 @@ pub async fn measure(board: &mut Board) -> AppState {
                 started = now;
             }
 
-            // Yield after filtering as it may take some time
-            embassy_futures::yield_now().await;
-            board.display.clear(BinaryColor::Off).unwrap();
-            embassy_futures::yield_now().await;
-            screen.draw_async(&mut board.display).await.unwrap();
-            board.display.flush().await.unwrap();
+            board
+                .display
+                .frame(|display| screen.draw(display))
+                .await
+                .unwrap();
 
             ticker.next().await;
         }
@@ -145,9 +154,14 @@ pub async fn measure(board: &mut Board) -> AppState {
 }
 
 #[embassy_executor::task]
-async fn reader_task(queue: MessageSender, mut frontend: EcgFrontend) {
-    let result = read_ecg(&queue, &mut frontend).await;
-    queue.send(Message::End(frontend, result)).await;
+async fn reader_task(params: EcgTaskParams) {
+    let EcgTaskParams {
+        sender,
+        mut frontend,
+    } = params;
+
+    let result = read_ecg(&sender, &mut frontend).await;
+    sender.send(Message::End(frontend, result)).await;
 }
 
 async fn read_ecg(

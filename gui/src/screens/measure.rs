@@ -53,11 +53,13 @@ impl EcgScreen {
 
         (min, max)
     }
+}
 
-    pub async fn draw_async<DT: DrawTarget<Color = BinaryColor>>(
-        &self,
-        display: &mut DT,
-    ) -> Result<(), DT::Error> {
+impl Drawable for EcgScreen {
+    type Color = BinaryColor;
+    type Output = ();
+
+    fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
         if !self.buffer.is_full() {
             let text_style = MonoTextStyleBuilder::new()
                 .font(&FONT_6X10)
@@ -92,16 +94,8 @@ impl EcgScreen {
             Line::new(from, to).into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
         });
 
-        const YIELD_EVERY: usize = 16;
-        let mut yield_after = YIELD_EVERY;
         for line in line_segments {
             line.draw(display)?;
-
-            yield_after -= 1;
-            if yield_after == 0 {
-                yield_after = YIELD_EVERY;
-                embassy_futures::yield_now().await;
-            }
         }
 
         Ok(())
