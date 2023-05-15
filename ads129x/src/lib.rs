@@ -271,11 +271,18 @@ where
     }
 
     pub async fn read_data_1ch_async(&mut self) -> Result<AdsData, Error<SPI::Error>> {
-        let mut sample: [u8; 6] = [0; 6];
-        self.write_command_async(Command::RDATA, &mut sample)
-            .await?;
+        let mut buffer: [u8; 8] = [0; 8];
+        let (command, bytes) = <([u8; 2], usize)>::from(Command::RDATA);
+        buffer[0..bytes].copy_from_slice(&command[0..bytes]);
 
-        Ok(AdsData::new_single_channel(sample))
+        self.spi
+            .transaction(&mut [Operation::TransferInPlace(&mut buffer)])
+            .await
+            .map_err(Error::Transfer)?;
+
+        Ok(AdsData::new_single_channel(
+            buffer[bytes..bytes + 6].try_into().unwrap(),
+        ))
     }
 
     pub async fn read_data_2ch_async_rdatac(&mut self) -> Result<AdsData, Error<SPI::Error>> {
@@ -288,11 +295,16 @@ where
     }
 
     pub async fn read_data_2ch_async(&mut self) -> Result<AdsData, Error<SPI::Error>> {
-        let mut sample: [u8; 9] = [0; 9];
-        self.write_command_async(Command::RDATA, &mut sample)
-            .await?;
+        let mut buffer: [u8; 11] = [0; 11];
+        let (command, bytes) = <([u8; 2], usize)>::from(Command::RDATA);
+        buffer[0..bytes].copy_from_slice(&command[0..bytes]);
 
-        Ok(AdsData::new(sample))
+        self.spi
+            .transaction(&mut [Operation::TransferInPlace(&mut buffer)])
+            .await
+            .map_err(Error::Transfer)?;
+
+        Ok(AdsData::new(buffer[bytes..bytes + 9].try_into().unwrap()))
     }
 
     pub async fn write_command_async(

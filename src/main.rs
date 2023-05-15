@@ -20,11 +20,11 @@ mod board;
 mod display;
 mod frontend;
 mod heap;
+mod interrupt;
 mod replace_with;
 mod sleep;
 mod spi_device;
 mod states;
-mod interrupt;
 
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 
