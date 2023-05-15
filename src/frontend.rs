@@ -47,14 +47,14 @@ where
             loff: Loff::new(|r| {
                 r
                 .comp_th().write(ComparatorThreshold::_95)
-                .leadoff_current().write(LeadOffCurrent::_6nA)
+                .leadoff_current().write(LeadOffCurrent::_6uA)
                 .leadoff_frequency().write(LeadOffFrequency::DC)
             }),
 
             ch1set: Ch1Set::new(|r| {
                 r
                 .enabled().write(Channel::Enabled)
-                .gain().write(Gain::x6)
+                .gain().write(Gain::x1)
                 .mux().write(Ch1Mux::Normal)
             }),
 
@@ -82,8 +82,8 @@ where
                 .flip1().write(CurrentDirection::Normal)
                 .loff2n().write(Input::NotConnected)
                 .loff2p().write(Input::NotConnected)
-                .loff1n().write(Input::NotConnected)
-                .loff1p().write(Input::NotConnected)
+                .loff1n().write(Input::Connected)
+                .loff1p().write(Input::Connected)
             }),
 
             loffstat: LoffStat::new(|r| r.clk_div().write(ClockDivider::External512kHz)),
@@ -224,7 +224,7 @@ where
     }
 
     pub fn is_touched(&self) -> bool {
-        self.frontend.is_touched()
+        self.touched
     }
 
     pub async fn shut_down(mut self) -> Frontend<S, DRDY, RESET, TOUCH> {
