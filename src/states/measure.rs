@@ -10,9 +10,9 @@ use crate::{
     AppError, AppState,
 };
 use ads129x::{descriptors::PinState, Error, Sample};
-use embassy_executor::{Spawner, _export::StaticCell};
+use embassy_executor::_export::StaticCell;
 use embassy_sync::{
-    blocking_mutex::raw::NoopRawMutex,
+    blocking_mutex::raw::CriticalSectionRawMutex,
     channel::{Channel, Sender},
 };
 use embassy_time::{Duration, Instant, Ticker};
@@ -31,8 +31,8 @@ use signal_processing::{
 
 type EcgFrontend = PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>;
 
-type MessageQueue = Channel<NoopRawMutex, Message, 32>;
-type MessageSender = Sender<'static, NoopRawMutex, Message, 32>;
+type MessageQueue = Channel<CriticalSectionRawMutex, Message, 32>;
+type MessageSender = Sender<'static, CriticalSectionRawMutex, Message, 32>;
 
 static CHANNEL: StaticCell<MessageQueue> = StaticCell::new();
 
@@ -40,6 +40,15 @@ enum Message {
     Sample(Sample),
     End(EcgFrontend, Result<(), Error<SpiError>>),
 }
+
+unsafe impl Send for Message {} // SAFETY: yolo
+
+struct EcgTaskParams {
+    frontend: EcgFrontend,
+    sender: MessageSender,
+}
+
+unsafe impl Send for EcgTaskParams {} // SAFETY: yolo
 
 pub async fn measure(board: &mut Board) -> AppState {
     replace_with_or_abort_and_return_async(board, |mut board| async {
@@ -75,11 +84,14 @@ pub async fn measure(board: &mut Board) -> AppState {
             return (AppState::Error(AppError::Adc), board);
         }
 
-        let spawner = Spawner::for_current_executor().await;
-
         let queue = CHANNEL.init(MessageQueue::new());
 
-        spawner.must_spawn(reader_task(queue.sender(), frontend));
+        board
+            .high_prio_spawner
+            .must_spawn(reader_task(EcgTaskParams {
+                sender: queue.sender(),
+                frontend,
+            }));
 
         // Downsample by 16 to display around 2 seconds
         let downsampler = Chain::new(DownSampler::new())
@@ -145,9 +157,14 @@ pub async fn measure(board: &mut Board) -> AppState {
 }
 
 #[embassy_executor::task]
-async fn reader_task(queue: MessageSender, mut frontend: EcgFrontend) {
-    let result = read_ecg(&queue, &mut frontend).await;
-    queue.send(Message::End(frontend, result)).await;
+async fn reader_task(params: EcgTaskParams) {
+    let EcgTaskParams {
+        sender,
+        mut frontend,
+    } = params;
+
+    let result = read_ecg(&sender, &mut frontend).await;
+    sender.send(Message::End(frontend, result)).await;
 }
 
 async fn read_ecg(
