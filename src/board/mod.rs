@@ -13,7 +13,7 @@ pub use esp32s2 as pac;
 pub use esp32s3 as pac;
 
 use crate::spi_device::SpiDeviceWrapper;
-use display_interface_spi_async::SPIInterface;
+use display_interface_spi::SPIInterface;
 use hal::{
     dma::{ChannelRx, ChannelTx},
     gdma::*,

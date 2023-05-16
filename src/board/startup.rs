@@ -23,7 +23,7 @@ use crate::{
     interrupt::{InterruptExecutor, SwInterrupt0},
     spi_device::SpiDeviceWrapper,
 };
-use display_interface_spi_async::SPIInterface;
+use display_interface_spi::SPIInterface;
 use embassy_executor::SendSpawner;
 use esp_println::logger::init_logger;
 use hal::systimer::SystemTimer;
