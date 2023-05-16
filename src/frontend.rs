@@ -115,42 +115,10 @@ where
             touched: true,
         };
 
-        if let Err(err) = frontend
-            .frontend
-            .adc
-            .reset_async(&mut frontend.frontend.reset, &mut Delay)
-            .await
-        {
-            return Err((frontend.shut_down().await, err));
-        };
-
-        let device_id = match frontend.frontend.adc.read_device_id_async().await {
-            Ok(device_id) => device_id,
-            Err(err) => return Err((frontend.shut_down().await, err)),
-        };
-
-        log::info!("ADC device id: {:?}", device_id);
-
-        let config = frontend.frontend.config();
-        if let Err(err) = frontend
-            .frontend
-            .adc
-            .apply_configuration_async(&config)
-            .await
-        {
-            return Err((frontend.shut_down().await, err));
+        match frontend.enable().await {
+            Ok(_) => Ok(frontend),
+            Err(err) => Err((frontend.shut_down().await, err)),
         }
-
-        if let Err(err) = frontend
-            .frontend
-            .adc
-            .write_command_async(Command::START, &mut [])
-            .await
-        {
-            return Err((frontend.shut_down().await, err));
-        };
-
-        Ok(frontend)
     }
 
     pub fn is_touched(&self) -> bool {
@@ -188,6 +156,27 @@ where
     TOUCH: InputPin,
     S: AsyncSpiDevice,
 {
+    async fn enable(&mut self) -> Result<(), Error<S::Error>> {
+        self.frontend
+            .adc
+            .reset_async(&mut self.frontend.reset, &mut Delay)
+            .await?;
+
+        let device_id = self.frontend.adc.read_device_id_async().await?;
+
+        log::info!("ADC device id: {:?}", device_id);
+
+        let config = self.frontend.config();
+        self.frontend.adc.apply_configuration_async(&config).await?;
+
+        self.frontend
+            .adc
+            .write_command_async(Command::START, &mut [])
+            .await?;
+
+        Ok(())
+    }
+
     #[allow(unused)]
     pub async fn enable_rdatac(&mut self) -> Result<(), Error<S::Error>> {
         self.frontend
