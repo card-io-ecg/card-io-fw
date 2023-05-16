@@ -17,8 +17,6 @@ use crate::{
 };
 
 mod board;
-mod display;
-mod frontend;
 mod heap;
 mod interrupt;
 mod replace_with;

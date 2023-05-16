@@ -1,3 +1,7 @@
+pub mod drivers;
+pub mod initialized;
+pub mod startup;
+
 use esp_backtrace as _;
 
 #[cfg(feature = "esp32s2")]
@@ -12,12 +16,12 @@ pub use esp32s2 as pac;
 #[cfg(feature = "esp32s3")]
 pub use esp32s3 as pac;
 
-use crate::{
+use crate::spi_device::SpiDeviceWrapper;
+use display_interface_spi::SPIInterface;
+use drivers::{
     display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
     frontend::{Frontend, PoweredFrontend},
-    spi_device::SpiDeviceWrapper,
 };
-use display_interface_spi::SPIInterface;
 use hal::{
     dma::{ChannelRx, ChannelTx},
     gdma::*,
@@ -29,9 +33,6 @@ use hal::{
     soc::gpio::*,
     spi::{dma::SpiDma, FullDuplexMode},
 };
-
-pub mod initialized;
-pub mod startup;
 
 pub type DisplaySpi<'d> = SpiDma<
     'd,
