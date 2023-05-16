@@ -2,7 +2,7 @@ use crate::{
     board::{
         hal::{prelude::*, spi::Error as SpiError},
         initialized::Board,
-        AdcDrdy, AdcReset, AdcSpi, TouchDetect,
+        AdcChipSelect, AdcDrdy, AdcReset, AdcSpi, TouchDetect,
     },
     frontend::PoweredFrontend,
     replace_with::replace_with_or_abort_and_return_async,
@@ -29,7 +29,7 @@ use signal_processing::{
     moving::sum::Sum,
 };
 
-type EcgFrontend = PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>;
+type EcgFrontend = PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect, AdcChipSelect>;
 
 type MessageQueue = Channel<CriticalSectionRawMutex, Message, 32>;
 type MessageSender = Sender<'static, CriticalSectionRawMutex, Message, 32>;

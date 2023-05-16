@@ -4,7 +4,7 @@ use crate::{
     board::{
         hal::{self, clock::Clocks},
         startup::StartupResources,
-        AdcDrdy, AdcReset, AdcSpi, DisplayInterface, DisplayReset, TouchDetect,
+        AdcChipSelect, AdcDrdy, AdcReset, AdcSpi, DisplayInterface, DisplayReset, TouchDetect,
     },
     display::PoweredDisplay,
     frontend::Frontend,
@@ -12,7 +12,7 @@ use crate::{
 
 pub struct Board {
     pub display: PoweredDisplay<DisplayInterface<'static>, DisplayReset>,
-    pub frontend: Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>,
+    pub frontend: Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect, AdcChipSelect>,
     pub clocks: Clocks<'static>,
     pub high_prio_spawner: SendSpawner,
 }

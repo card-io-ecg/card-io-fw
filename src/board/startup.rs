@@ -37,7 +37,7 @@ fn FROM_CPU_INTR0() {
 
 pub struct StartupResources {
     pub display: Display<DisplayInterface<'static>, DisplayReset>,
-    pub frontend: Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>,
+    pub frontend: Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect, AdcChipSelect>,
     pub clocks: Clocks<'static>,
     pub misc_pins: MiscPins,
     pub high_prio_spawner: SendSpawner,
@@ -126,13 +126,12 @@ impl StartupResources {
         let adc_mosi = io.pins.gpio7;
         let adc_miso = io.pins.gpio5;
 
-        let mut adc_cs = io.pins.gpio18.into_push_pull_output();
-
-        adc_cs.set_low().unwrap();
-
         let adc_drdy = io.pins.gpio4.into_floating_input();
         let adc_reset = io.pins.gpio2.into_push_pull_output();
         let touch_detect = io.pins.gpio1.into_floating_input();
+        let mut adc_cs = io.pins.gpio18.into_push_pull_output();
+
+        adc_cs.set_high().unwrap();
 
         static mut ADC_SPI_DESCRIPTORS: [u32; 24] = [0u32; 8 * 3];
         static mut ADC_SPI_RX_DESCRIPTORS: [u32; 24] = [0u32; 8 * 3];
@@ -158,6 +157,7 @@ impl StartupResources {
             adc_drdy,
             adc_reset,
             touch_detect,
+            adc_cs,
         );
 
         // Battery measurement
