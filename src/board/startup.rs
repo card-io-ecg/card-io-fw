@@ -20,7 +20,7 @@ use crate::{
     display::Display,
     frontend::Frontend,
     heap::init_heap,
-    interrupt::{InterruptExecutor, SwInterrupt, SwInterrupt0},
+    interrupt::{InterruptExecutor, SwInterrupt0},
     spi_device::SpiDeviceWrapper,
 };
 use display_interface_spi_async::SPIInterface;
