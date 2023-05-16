@@ -79,7 +79,7 @@ where
     /// You MUST call this from the interrupt handler, and from nowhere else.
     pub unsafe fn on_interrupt(&'static self) {
         SWI::clear();
-        let executor = unsafe { (&*self.executor.get()).assume_init_ref() };
+        let executor = unsafe { (*self.executor.get()).assume_init_ref() };
         executor.poll();
     }
 
@@ -115,7 +115,7 @@ where
         }
 
         unsafe {
-            (&mut *self.executor.get())
+            (*self.executor.get())
                 .as_mut_ptr()
                 .write(raw::Executor::new(Pender::new_from_callback(
                     SWI::pend,
@@ -125,7 +125,7 @@ where
 
         SWI::enable();
 
-        let executor = unsafe { (&*self.executor.get()).assume_init_ref() };
+        let executor = unsafe { (*self.executor.get()).assume_init_ref() };
         executor.spawner().make_send()
     }
 }
