@@ -12,7 +12,11 @@ pub use esp32s2 as pac;
 #[cfg(feature = "esp32s3")]
 pub use esp32s3 as pac;
 
-use crate::spi_device::SpiDeviceWrapper;
+use crate::{
+    display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
+    frontend::{Frontend, PoweredFrontend},
+    spi_device::SpiDeviceWrapper,
+};
 use display_interface_spi::SPIInterface;
 use hal::{
     dma::{ChannelRx, ChannelTx},
@@ -148,6 +152,13 @@ pub type ChargerStatus = GpioPin<
     Gpio21Signals,
     21,
 >;
+
+pub type EcgFrontend = Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect, AdcChipSelect>;
+pub type PoweredEcgFrontend =
+    PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect, AdcChipSelect>;
+
+pub type Display = DisplayType<DisplayInterface<'static>, DisplayReset>;
+pub type PoweredDisplay = PoweredDisplayType<DisplayInterface<'static>, DisplayReset>;
 
 pub struct MiscPins {
     pub batt_adc_in: BatteryAdcInput,

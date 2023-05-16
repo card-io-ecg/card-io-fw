@@ -1,18 +1,14 @@
 use embassy_executor::SendSpawner;
 
-use crate::{
-    board::{
-        hal::{self, clock::Clocks},
-        startup::StartupResources,
-        AdcChipSelect, AdcDrdy, AdcReset, AdcSpi, DisplayInterface, DisplayReset, TouchDetect,
-    },
-    display::PoweredDisplay,
-    frontend::Frontend,
+use crate::board::{
+    hal::{self, clock::Clocks},
+    startup::StartupResources,
+    EcgFrontend, PoweredDisplay,
 };
 
 pub struct Board {
-    pub display: PoweredDisplay<DisplayInterface<'static>, DisplayReset>,
-    pub frontend: Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect, AdcChipSelect>,
+    pub display: PoweredDisplay,
+    pub frontend: EcgFrontend,
     pub clocks: Clocks<'static>,
     pub high_prio_spawner: SendSpawner,
 }

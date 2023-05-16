@@ -17,7 +17,6 @@ use crate::{
         },
         *,
     },
-    display::Display,
     frontend::Frontend,
     heap::init_heap,
     interrupt::{InterruptExecutor, SwInterrupt0},
@@ -36,8 +35,8 @@ fn FROM_CPU_INTR0() {
 }
 
 pub struct StartupResources {
-    pub display: Display<DisplayInterface<'static>, DisplayReset>,
-    pub frontend: Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect, AdcChipSelect>,
+    pub display: Display,
+    pub frontend: EcgFrontend,
     pub clocks: Clocks<'static>,
     pub misc_pins: MiscPins,
     pub high_prio_spawner: SendSpawner,

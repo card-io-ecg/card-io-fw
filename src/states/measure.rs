@@ -2,9 +2,8 @@ use crate::{
     board::{
         hal::{prelude::*, spi::Error as SpiError},
         initialized::Board,
-        AdcChipSelect, AdcDrdy, AdcReset, AdcSpi, TouchDetect,
+        PoweredEcgFrontend,
     },
-    frontend::PoweredFrontend,
     replace_with::replace_with_or_abort_and_return_async,
     states::MIN_FRAME_TIME,
     AppError, AppState,
@@ -29,8 +28,6 @@ use signal_processing::{
     moving::sum::Sum,
 };
 
-type EcgFrontend = PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect, AdcChipSelect>;
-
 type MessageQueue = Channel<CriticalSectionRawMutex, Message, 32>;
 type MessageSender = Sender<'static, CriticalSectionRawMutex, Message, 32>;
 
@@ -38,13 +35,13 @@ static CHANNEL: StaticCell<MessageQueue> = StaticCell::new();
 
 enum Message {
     Sample(Sample),
-    End(EcgFrontend, Result<(), Error<SpiError>>),
+    End(PoweredEcgFrontend, Result<(), Error<SpiError>>),
 }
 
 unsafe impl Send for Message {} // SAFETY: yolo
 
 struct EcgTaskParams {
-    frontend: EcgFrontend,
+    frontend: PoweredEcgFrontend,
     sender: MessageSender,
 }
 
@@ -166,7 +163,7 @@ async fn reader_task(params: EcgTaskParams) {
 
 async fn read_ecg(
     queue: &MessageSender,
-    frontend: &mut EcgFrontend,
+    frontend: &mut PoweredEcgFrontend,
 ) -> Result<(), Error<SpiError>> {
     loop {
         match frontend.read().await {
