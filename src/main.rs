@@ -7,11 +7,17 @@
 
 extern crate alloc;
 
-use embassy_executor::{Executor, _export::StaticCell};
+use embassy_executor::{Executor, Spawner, _export::StaticCell};
 use embassy_time::{Duration, Ticker};
+use embedded_hal::digital::OutputPin;
 
 use crate::{
-    board::{hal::entry, initialized::Board, startup::StartupResources},
+    board::{
+        hal::{self, entry},
+        initialized::Board,
+        startup::StartupResources,
+        BatteryAdc,
+    },
     sleep::enter_deep_sleep,
     states::{adc_setup, app_error, display_menu, initialize, main_menu, measure},
 };
@@ -32,8 +38,7 @@ fn main() -> ! {
 
     let executor = EXECUTOR.init(Executor::new());
     executor.run(move |spawner| {
-        spawner.spawn(main_task(resources)).ok();
-        spawner.spawn(ticker_task()).ok();
+        spawner.spawn(main_task(spawner, resources)).ok();
     });
 }
 
@@ -54,9 +59,22 @@ pub enum AppState {
 }
 
 #[embassy_executor::task]
-async fn main_task(resources: StartupResources) {
-    // If the device is awake, the display should be enabled.
-    let mut board = Board::initialize(resources).await;
+async fn main_task(spawner: Spawner, resources: StartupResources) {
+    spawner.spawn(ticker_task(resources.battery_adc)).ok();
+
+    hal::interrupt::enable(
+        hal::peripherals::Interrupt::GPIO,
+        hal::interrupt::Priority::Priority3,
+    )
+    .unwrap();
+
+    let mut board = Board {
+        // If the device is awake, the display should be enabled.
+        display: resources.display.enable().await.unwrap(),
+        frontend: resources.frontend,
+        clocks: resources.clocks,
+        high_prio_spawner: resources.high_prio_spawner,
+    };
 
     let mut state = AppState::Initialize;
 
@@ -81,13 +99,18 @@ async fn main_task(resources: StartupResources) {
 
 // Debug task, to be removed
 #[embassy_executor::task]
-async fn ticker_task() {
+async fn ticker_task(mut battery: BatteryAdc) {
     let mut timer = Ticker::every(Duration::from_secs(1));
 
+    battery.enable.set_high().unwrap();
+
     loop {
+        let voltage = battery.read_battery_voltage().await;
+        let current = battery.read_charge_current().await;
+
+        log::debug!("Voltage = {voltage:?}");
+        log::debug!("Current = {current:?}");
+
         timer.next().await;
-        log::debug!("Tick");
-        timer.next().await;
-        log::debug!("Tock");
     }
 }

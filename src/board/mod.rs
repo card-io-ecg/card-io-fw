@@ -19,10 +19,12 @@ pub use esp32s3 as pac;
 
 use display_interface_spi::SPIInterface;
 use drivers::{
+    battery_adc::BatteryAdc as BatteryAdcType,
     display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
     frontend::{Frontend, PoweredFrontend},
 };
 use hal::{
+    adc::ADC2,
     dma::{ChannelRx, ChannelTx},
     gdma::*,
     gpio::{
@@ -165,10 +167,9 @@ pub type PoweredEcgFrontend = PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset
 pub type Display = DisplayType<DisplayInterface<'static>, DisplayReset>;
 pub type PoweredDisplay = PoweredDisplayType<DisplayInterface<'static>, DisplayReset>;
 
+pub type BatteryAdc = BatteryAdcType<BatteryAdcInput, ChargeCurrentInput, BatteryAdcEnable, ADC2>;
+
 pub struct MiscPins {
-    pub batt_adc_in: BatteryAdcInput,
-    pub batt_adc_en: BatteryAdcEnable,
     pub vbus_detect: VbusDetect,
-    pub chg_current: ChargeCurrentInput,
     pub chg_status: ChargerStatus,
 }

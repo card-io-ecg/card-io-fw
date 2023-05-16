@@ -12,6 +12,7 @@ embassy-executor  = { version = "0.2.0", git = "https://github.com/embassy-rs/em
 embassy-time = { version = "0.1.0", features = ["nightly", "unstable-traits"] }
 embassy-sync = { version = "0.2.0" }
 
+embedded-hal-old = { package = "embedded-hal", version = "0.2.7" }
 embedded-hal = { version = "1.0.0-alpha.10" }
 embedded-hal-async = { version = "0.2.0-alpha.1" }
 
