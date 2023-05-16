@@ -124,8 +124,6 @@ where
             return Err((frontend.shut_down().await, err));
         };
 
-        let config = frontend.frontend.config();
-
         let device_id = match frontend.frontend.adc.read_device_id_async().await {
             Ok(device_id) => device_id,
             Err(err) => return Err((frontend.shut_down().await, err)),
@@ -133,6 +131,7 @@ where
 
         log::info!("ADC device id: {:?}", device_id);
 
+        let config = frontend.frontend.config();
         if let Err(err) = frontend
             .frontend
             .adc
@@ -231,9 +230,17 @@ where
         let _ = self
             .frontend
             .adc
+            .write_command_async(Command::STOP, &mut [])
+            .await;
+
+        let _ = self
+            .frontend
+            .adc
             .write_command_async(Command::RESET, &mut [])
             .await;
+
         Timer::after(Duration::from_millis(1)).await;
+
         self.frontend.reset.set_low().unwrap();
         self.frontend
     }
