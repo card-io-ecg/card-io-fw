@@ -19,8 +19,8 @@ use hal::{
     gdma::*,
     gpio::{
         Analog, Bank0GpioRegisterAccess, Bank1GpioRegisterAccess, Floating, GpioPin, Input,
-        InputOutputAnalogPinType, InputOutputPinType, Output, PullUp, PushPull,
-        SingleCoreInteruptStatusRegisterAccessBank0, SingleCoreInteruptStatusRegisterAccessBank1,
+        InputOutputAnalogPinType, InputOutputPinType, InteruptStatusRegisterAccessBank0,
+        InteruptStatusRegisterAccessBank1, Output, PullUp, PushPull,
     },
     soc::gpio::*,
     spi::{dma::SpiDma, FullDuplexMode},
@@ -41,7 +41,7 @@ pub type DisplaySpi<'d> = SpiDma<
 pub type DisplayDataCommand = GpioPin<
     Output<PushPull>,
     Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
+    InteruptStatusRegisterAccessBank0,
     InputOutputAnalogPinType,
     Gpio13Signals,
     13,
@@ -49,7 +49,7 @@ pub type DisplayDataCommand = GpioPin<
 pub type DisplayChipSelect = GpioPin<
     Output<PushPull>,
     Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
+    InteruptStatusRegisterAccessBank0,
     InputOutputAnalogPinType,
     Gpio10Signals,
     10,
@@ -57,7 +57,7 @@ pub type DisplayChipSelect = GpioPin<
 pub type DisplayReset = GpioPin<
     Output<PushPull>,
     Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
+    InteruptStatusRegisterAccessBank0,
     InputOutputAnalogPinType,
     Gpio9Signals,
     9,
@@ -68,7 +68,7 @@ pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommand,
 pub type AdcDrdy = GpioPin<
     Input<Floating>,
     Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
+    InteruptStatusRegisterAccessBank0,
     InputOutputAnalogPinType,
     Gpio4Signals,
     4,
@@ -76,7 +76,7 @@ pub type AdcDrdy = GpioPin<
 pub type AdcReset = GpioPin<
     Output<PushPull>,
     Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
+    InteruptStatusRegisterAccessBank0,
     InputOutputAnalogPinType,
     Gpio2Signals,
     2,
@@ -84,7 +84,7 @@ pub type AdcReset = GpioPin<
 pub type TouchDetect = GpioPin<
     Input<Floating>,
     Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
+    InteruptStatusRegisterAccessBank0,
     InputOutputAnalogPinType,
     Gpio1Signals,
     1,
@@ -92,7 +92,7 @@ pub type TouchDetect = GpioPin<
 pub type AdcChipSelect = GpioPin<
     Output<PushPull>,
     Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
+    InteruptStatusRegisterAccessBank0,
     InputOutputAnalogPinType,
     Gpio18Signals,
     18,
@@ -111,7 +111,7 @@ pub type AdcSpi<'d> = SpiDeviceWrapper<
 pub type BatteryAdcInput = GpioPin<
     Analog,
     Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
+    InteruptStatusRegisterAccessBank0,
     InputOutputAnalogPinType,
     Gpio17Signals,
     17,
@@ -119,7 +119,7 @@ pub type BatteryAdcInput = GpioPin<
 pub type BatteryAdcEnable = GpioPin<
     Output<PushPull>,
     Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
+    InteruptStatusRegisterAccessBank0,
     InputOutputAnalogPinType,
     Gpio8Signals,
     8,
@@ -127,7 +127,7 @@ pub type BatteryAdcEnable = GpioPin<
 pub type VbusDetect = GpioPin<
     Input<Floating>,
     Bank1GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank1,
+    InteruptStatusRegisterAccessBank1,
     InputOutputPinType,
     Gpio33Signals,
     33,
@@ -135,7 +135,7 @@ pub type VbusDetect = GpioPin<
 pub type ChargeCurrentInput = GpioPin<
     Analog,
     Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
+    InteruptStatusRegisterAccessBank0,
     InputOutputAnalogPinType,
     Gpio14Signals,
     14,
@@ -143,7 +143,7 @@ pub type ChargeCurrentInput = GpioPin<
 pub type ChargerStatus = GpioPin<
     Input<PullUp>,
     Bank0GpioRegisterAccess,
-    SingleCoreInteruptStatusRegisterAccessBank0,
+    InteruptStatusRegisterAccessBank0,
     InputOutputAnalogPinType,
     Gpio21Signals,
     21,
