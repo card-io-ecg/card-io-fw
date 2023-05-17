@@ -8,7 +8,7 @@ use embedded_graphics::{
 use embedded_graphics_simulator::{
     BinaryColorTheme, OutputSettingsBuilder, SimulatorDisplay, SimulatorEvent, Window,
 };
-use gui::screens::init::StartupScreen;
+use gui::screens::{init::StartupScreen, BatteryInfo};
 
 fn main() -> Result<(), Infallible> {
     let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(128, 64));
@@ -32,7 +32,10 @@ fn main() -> Result<(), Infallible> {
                 progress
             },
             max_progress: 255,
-            battery_voltage: Some(3650),
+            battery_data: Some(BatteryInfo {
+                voltage: 3650,
+                charge_current: Some(100),
+            }),
         }
         .draw(&mut display)
         .unwrap();

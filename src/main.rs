@@ -15,7 +15,7 @@ use embedded_hal::digital::OutputPin;
 use crate::{
     board::{
         hal::{self, entry},
-        initialized::Board,
+        initialized::{BatteryMonitor, Board},
         startup::StartupResources,
         BatteryAdc,
     },
@@ -90,7 +90,10 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         frontend: resources.frontend,
         clocks: resources.clocks,
         high_prio_spawner: resources.high_prio_spawner,
-        battery_state,
+        battery_monitor: BatteryMonitor {
+            battery_state,
+            vbus_detect: resources.misc_pins.vbus_detect,
+        },
     };
 
     let mut state = AppState::Initialize;

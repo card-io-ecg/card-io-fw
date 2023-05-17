@@ -149,7 +149,7 @@ pub async fn measure(board: &mut Board) -> AppState {
                 started = now;
             }
 
-            screen.battery_voltage = board.battery_state.lock().await.battery_voltage;
+            screen.battery_data = board.battery_monitor.battery_data().await;
 
             board
                 .display

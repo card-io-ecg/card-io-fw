@@ -24,6 +24,10 @@ fn main() -> Result<(), Infallible> {
 
     screen.update_heart_rate(67);
     screen.battery_voltage = Some(3650);
+    screen.battery_data = Some(BatteryInfo {
+        voltage: 3650,
+        charge_current: None,
+    });
 
     let mut progress = 0;
     'running: loop {

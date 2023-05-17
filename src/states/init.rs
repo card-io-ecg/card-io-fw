@@ -18,7 +18,7 @@ pub async fn initialize(board: &mut Board) -> AppState {
             };
         }
 
-        let battery_voltage = board.battery_state.lock().await.battery_voltage;
+        let battery_data = board.battery_monitor.battery_data().await;
 
         board.display
             .frame(|display| {
@@ -36,7 +36,7 @@ pub async fn initialize(board: &mut Board) -> AppState {
                     },
                     progress,
                     max_progress,
-                    battery_voltage
+                    battery_data
                 }
                 .draw(display)
             })

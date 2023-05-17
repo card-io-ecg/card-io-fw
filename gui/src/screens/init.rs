@@ -14,6 +14,7 @@ use embedded_text::{
 };
 
 use crate::{
+    screens::BatteryInfo,
     utils::BinaryColorDrawTargetExt,
     widgets::battery_small::{Battery, BatteryStyle},
 };
@@ -22,7 +23,7 @@ pub struct StartupScreen<'a> {
     pub label: &'a str,
     pub progress: u32,
     pub max_progress: u32,
-    pub battery_voltage: Option<u16>,
+    pub battery_data: Option<BatteryInfo>,
 }
 
 impl Drawable for StartupScreen<'_> {
@@ -77,9 +78,9 @@ impl Drawable for StartupScreen<'_> {
         .set_vertical_offset(1) // Slight adjustment
         .draw(&mut draw_area)?;
 
-        if let Some(battery_voltage) = self.battery_voltage {
+        if let Some(data) = self.battery_data {
             Battery {
-                voltage: battery_voltage,
+                data,
                 style: BatteryStyle::MilliVolts,
                 top_left: Point::zero(),
             }
