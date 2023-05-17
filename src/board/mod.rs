@@ -16,6 +16,7 @@ pub use esp32s2 as pac;
 
 #[cfg(feature = "esp32s3")]
 pub use esp32s3 as pac;
+use signal_processing::battery::BatteryModel;
 
 use display_interface_spi::SPIInterface;
 use drivers::{
@@ -173,3 +174,8 @@ pub struct MiscPins {
     pub vbus_detect: VbusDetect,
     pub chg_status: ChargerStatus,
 }
+
+pub const BATTERY_MODEL: BatteryModel = BatteryModel {
+    voltage: (2750, 4200),
+    charge_current: (0, 1000),
+};
