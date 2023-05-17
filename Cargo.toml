@@ -25,7 +25,7 @@ esp-alloc = { version = "0.3.0" }
 
 display-interface = { git = "https://github.com/bugadani/display-interface.git", branch = "async", features = ["async"] }
 display-interface-spi = { git = "https://github.com/bugadani/display-interface.git", branch = "async", features = ["async"] }
-ssd1306 = { git = "https://github.com/bugadani/ssd1306.git", branch = "async", features = ["async", "graphics"] }
+ssd1306 = { git = "https://github.com/bugadani/ssd1306.git", branch = "async", features = ["async", "graphics", "nightly"] }
 
 embedded-graphics = "0.8.0"
 
