@@ -134,8 +134,8 @@ pub type VbusDetect = GpioPin<
     Bank1GpioRegisterAccess,
     InteruptStatusRegisterAccessBank1,
     InputOutputPinType,
-    Gpio33Signals,
-    33,
+    Gpio47Signals,
+    47,
 >;
 pub type ChargeCurrentInput = GpioPin<
     Analog,

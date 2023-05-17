@@ -163,7 +163,7 @@ impl StartupResources {
         let batt_adc_en = io.pins.gpio8.into_push_pull_output();
 
         // Charger
-        let vbus_detect = io.pins.gpio33.into_floating_input();
+        let vbus_detect = io.pins.gpio47.into_floating_input();
         let chg_current = io.pins.gpio14.into_analog();
         let chg_status = io.pins.gpio21.into_pull_up_input();
 
