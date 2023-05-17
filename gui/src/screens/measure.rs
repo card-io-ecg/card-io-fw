@@ -1,5 +1,6 @@
 use core::{cell::RefCell, fmt::Write, num::NonZeroU8};
 
+use crate::widgets::battery_small::{Battery, BatteryStyle};
 use embedded_graphics::{
     geometry::AnchorPoint,
     image::{Image, ImageRaw},
@@ -101,6 +102,7 @@ pub struct EcgScreen {
     discard: usize,
     pub heart_rate: Option<NonZeroU8>,
     camera: RefCell<Camera>,
+    pub battery_voltage: Option<u16>,
 }
 
 impl EcgScreen {
@@ -117,6 +119,7 @@ impl EcgScreen {
                     shrink_delay: 60,
                 },
             }),
+            battery_voltage: None,
         }
     }
 
@@ -228,6 +231,16 @@ impl Drawable for EcgScreen {
 
         for line in line_segments {
             line.draw(display)?;
+        }
+
+        if let Some(battery_voltage) = self.battery_voltage {
+            Battery {
+                voltage: battery_voltage,
+                style: BatteryStyle::MilliVolts,
+                top_left: Point::zero(),
+            }
+            .align_to_mut(&display.bounding_box(), horizontal::Right, vertical::Top)
+            .draw(display)?;
         }
 
         Ok(())

@@ -23,6 +23,7 @@ fn main() -> Result<(), Infallible> {
     let mut screen = EcgScreen::new(96);
 
     screen.update_heart_rate(67);
+    screen.battery_voltage = Some(3650);
 
     let mut progress = 0;
     'running: loop {

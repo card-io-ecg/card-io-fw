@@ -6,18 +6,23 @@ use embedded_graphics::{
     primitives::{Primitive, PrimitiveStyle, Rectangle},
     Drawable,
 };
+use embedded_layout::prelude::{horizontal, vertical, Align};
 use embedded_text::{
     alignment::{HorizontalAlignment, VerticalAlignment},
     style::{HeightMode, TextBoxStyleBuilder, VerticalOverdraw},
     TextBox,
 };
 
-use crate::utils::BinaryColorDrawTargetExt;
+use crate::{
+    utils::BinaryColorDrawTargetExt,
+    widgets::battery_small::{Battery, BatteryStyle},
+};
 
 pub struct StartupScreen<'a> {
     pub label: &'a str,
     pub progress: u32,
     pub max_progress: u32,
+    pub battery_voltage: Option<u16>,
 }
 
 impl Drawable for StartupScreen<'_> {
@@ -71,6 +76,16 @@ impl Drawable for StartupScreen<'_> {
         )
         .set_vertical_offset(1) // Slight adjustment
         .draw(&mut draw_area)?;
+
+        if let Some(battery_voltage) = self.battery_voltage {
+            Battery {
+                voltage: battery_voltage,
+                style: BatteryStyle::MilliVolts,
+                top_left: Point::zero(),
+            }
+            .align_to_mut(&display.bounding_box(), horizontal::Right, vertical::Top)
+            .draw(display)?;
+        }
 
         Ok(())
     }

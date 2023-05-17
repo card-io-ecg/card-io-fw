@@ -8,6 +8,7 @@
 extern crate alloc;
 
 use embassy_executor::{Executor, Spawner, _export::StaticCell};
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
 use embassy_time::{Duration, Ticker};
 use embedded_hal::digital::OutputPin;
 
@@ -29,19 +30,6 @@ mod replace_with;
 mod sleep;
 mod states;
 
-static EXECUTOR: StaticCell<Executor> = StaticCell::new();
-
-#[entry]
-fn main() -> ! {
-    // Board::initialize initialized embassy so it must be called first.
-    let resources = StartupResources::initialize();
-
-    let executor = EXECUTOR.init(Executor::new());
-    executor.run(move |spawner| {
-        spawner.spawn(main_task(spawner, resources)).ok();
-    });
-}
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AppError {
     Adc,
@@ -58,9 +46,37 @@ pub enum AppState {
     Shutdown,
 }
 
+pub struct BatteryState {
+    pub charging_current: Option<u16>,
+    pub battery_voltage: Option<u16>,
+}
+
+pub type SharedBatteryState = Mutex<NoopRawMutex, BatteryState>;
+
+static EXECUTOR: StaticCell<Executor> = StaticCell::new();
+static BATTERY_STATE: StaticCell<SharedBatteryState> = StaticCell::new();
+
+#[entry]
+fn main() -> ! {
+    // Board::initialize initialized embassy so it must be called first.
+    let resources = StartupResources::initialize();
+
+    let executor = EXECUTOR.init(Executor::new());
+    executor.run(move |spawner| {
+        spawner.spawn(main_task(spawner, resources)).ok();
+    });
+}
+
 #[embassy_executor::task]
 async fn main_task(spawner: Spawner, resources: StartupResources) {
-    spawner.spawn(ticker_task(resources.battery_adc)).ok();
+    let battery_state = BATTERY_STATE.init(Mutex::new(BatteryState {
+        charging_current: None,
+        battery_voltage: None,
+    }));
+
+    spawner
+        .spawn(monitor_task(resources.battery_adc, battery_state))
+        .ok();
 
     hal::interrupt::enable(
         hal::peripherals::Interrupt::GPIO,
@@ -74,6 +90,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         frontend: resources.frontend,
         clocks: resources.clocks,
         high_prio_spawner: resources.high_prio_spawner,
+        battery_state,
     };
 
     let mut state = AppState::Initialize;
@@ -99,7 +116,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
 
 // Debug task, to be removed
 #[embassy_executor::task]
-async fn ticker_task(mut battery: BatteryAdc) {
+async fn monitor_task(mut battery: BatteryAdc, battery_state: &'static SharedBatteryState) {
     let mut timer = Ticker::every(Duration::from_secs(1));
 
     battery.enable.set_high().unwrap();
@@ -110,6 +127,12 @@ async fn ticker_task(mut battery: BatteryAdc) {
 
         log::debug!("Voltage = {voltage:?}");
         log::debug!("Current = {current:?}");
+
+        {
+            let mut state = battery_state.lock().await;
+            state.battery_voltage = voltage.ok();
+            state.charging_current = current.ok();
+        }
 
         timer.next().await;
     }

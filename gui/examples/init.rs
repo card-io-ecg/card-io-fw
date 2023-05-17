@@ -32,6 +32,7 @@ fn main() -> Result<(), Infallible> {
                 progress
             },
             max_progress: 255,
+            battery_voltage: Some(3650),
         }
         .draw(&mut display)
         .unwrap();

@@ -18,6 +18,8 @@ pub async fn initialize(board: &mut Board) -> AppState {
             };
         }
 
+        let battery_voltage = board.battery_state.lock().await.battery_voltage;
+
         board.display
             .frame(|display| {
                 let elapsed_secs = elapsed.as_millis() as u32;
@@ -34,6 +36,7 @@ pub async fn initialize(board: &mut Board) -> AppState {
                     },
                     progress,
                     max_progress,
+                    battery_voltage
                 }
                 .draw(display)
             })
