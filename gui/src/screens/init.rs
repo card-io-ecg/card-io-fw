@@ -24,6 +24,7 @@ pub struct StartupScreen<'a> {
     pub progress: u32,
     pub max_progress: u32,
     pub battery_data: Option<BatteryInfo>,
+    pub battery_style: BatteryStyle,
 }
 
 impl Drawable for StartupScreen<'_> {
@@ -81,7 +82,7 @@ impl Drawable for StartupScreen<'_> {
         if let Some(data) = self.battery_data {
             Battery {
                 data,
-                style: BatteryStyle::MilliVolts,
+                style: self.battery_style,
                 top_left: Point::zero(),
             }
             .align_to_mut(&display.bounding_box(), horizontal::Right, vertical::Top)

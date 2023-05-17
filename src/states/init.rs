@@ -1,7 +1,8 @@
 use crate::{board::initialized::Board, states::MIN_FRAME_TIME, AppState};
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
-use gui::screens::init::StartupScreen;
+use gui::{screens::init::StartupScreen, widgets::battery_small::BatteryStyle};
+use signal_processing::battery::BatteryModel;
 
 pub async fn initialize(board: &mut Board) -> AppState {
     const INIT_TIME: Duration = Duration::from_secs(4);
@@ -36,7 +37,8 @@ pub async fn initialize(board: &mut Board) -> AppState {
                     },
                     progress,
                     max_progress,
-                    battery_data
+                    battery_data,
+                    battery_style: BatteryStyle::Percentage(BatteryModel { voltage: (2750, 4200), charge_current: (0, 1000) })
                 }
                 .draw(display)
             })

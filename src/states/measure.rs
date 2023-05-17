@@ -16,9 +16,10 @@ use embassy_sync::{
 };
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
-use gui::screens::measure::EcgScreen;
+use gui::{screens::measure::EcgScreen, widgets::battery_small::BatteryStyle};
 use object_chain::{Chain, ChainElement};
 use signal_processing::{
+    battery::BatteryModel,
     filter::{
         downsample::DownSampler,
         iir::precomputed::HIGH_PASS_CUTOFF_1_59HZ,
@@ -107,6 +108,11 @@ pub async fn measure(board: &mut Board) -> AppState {
         let mut heart_rate_calculator = HeartRateCalculator::new(1000.0);
 
         let mut screen = EcgScreen::new(96); // discard transient
+        screen.battery_style = BatteryStyle::Percentage(BatteryModel {
+            voltage: (2750, 4200),
+            charge_current: (0, 1000),
+        });
+
         let mut ticker = Ticker::every(MIN_FRAME_TIME);
 
         let mut samples = 0; // Counter and 1s timer to debug perf issues
@@ -150,7 +156,6 @@ pub async fn measure(board: &mut Board) -> AppState {
             }
 
             screen.battery_data = board.battery_monitor.battery_data().await;
-
             board
                 .display
                 .frame(|display| screen.draw(display))

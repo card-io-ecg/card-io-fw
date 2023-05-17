@@ -107,6 +107,7 @@ pub struct EcgScreen {
     camera: RefCell<Camera>,
     pub battery_voltage: Option<u16>,
     pub battery_data: Option<BatteryInfo>,
+    pub battery_style: BatteryStyle,
 }
 
 impl EcgScreen {
@@ -125,6 +126,7 @@ impl EcgScreen {
             }),
             battery_voltage: None,
             battery_data: None,
+            battery_style: BatteryStyle::MilliVolts,
         }
     }
 
@@ -173,7 +175,7 @@ impl Drawable for EcgScreen {
         if let Some(data) = self.battery_data {
             Battery {
                 data,
-                style: BatteryStyle::MilliVolts,
+                style: self.battery_style,
                 top_left: Point::zero(),
             }
             .align_to_mut(&display.bounding_box(), horizontal::Right, vertical::Top)

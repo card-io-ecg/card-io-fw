@@ -10,11 +10,14 @@ use embedded_graphics::{
     Drawable,
 };
 use embedded_layout::prelude::*;
+use signal_processing::battery::BatteryModel;
 
 use crate::screens::BatteryInfo;
 
+#[derive(Clone, Copy)]
 pub enum BatteryStyle {
     MilliVolts,
+    Percentage(BatteryModel),
 }
 
 impl BatteryStyle {
@@ -33,6 +36,12 @@ impl BatteryStyle {
                     .bounding_box
                     .size
             }
+            BatteryStyle::Percentage(_) => {
+                Self::text_style()
+                    .measure_string("C000%", Point::zero(), Baseline::Top)
+                    .bounding_box
+                    .size
+            }
         }
     }
 
@@ -41,7 +50,7 @@ impl BatteryStyle {
         target: &mut D,
         data: BatteryInfo,
     ) -> Result<(), D::Error> {
-        match self {
+        let width = match self {
             BatteryStyle::MilliVolts => {
                 let mut string = heapless::String::<8>::new();
 
@@ -60,27 +69,58 @@ impl BatteryStyle {
                 )
                 .draw(target)?;
 
-                if data.charge_current.is_some() {
-                    #[rustfmt::skip]
-                    const DATA: &[u8] = &[
-                        0b00000000,
-                        0b01010000,
-                        0b01010000,
-                        0b11111000,
-                        0b01110000,
-                        0b01110000,
-                        0b00100000,
-                        0b00100000,
-                        0b01000000,
-                    ];
-                    let raw_image = ImageRaw::<BinaryColor>::new(DATA, 6);
-                    let image = Image::new(&raw_image, Point::zero());
-                    image.draw(target)?;
-                }
-
-                Ok(())
+                Self::text_style()
+                    .measure_string(&string, Point::zero(), Baseline::Top)
+                    .bounding_box
+                    .size
+                    .width
             }
+            BatteryStyle::Percentage(estimator) => {
+                let mut string = heapless::String::<4>::new();
+
+                let percentage = estimator.estimate(data.voltage, data.charge_current);
+                write!(&mut string, "{percentage}%").ok();
+
+                Text::with_text_style(
+                    &string,
+                    Point::new(target.bounding_box().size.width as i32 - 1, 0),
+                    Self::text_style(),
+                    TextStyleBuilder::new()
+                        .baseline(Baseline::Top)
+                        .alignment(Alignment::Right)
+                        .build(),
+                )
+                .draw(target)?;
+
+                Self::text_style()
+                    .measure_string(&string, Point::zero(), Baseline::Top)
+                    .bounding_box
+                    .size
+                    .width
+            }
+        };
+
+        if data.charge_current.is_some() {
+            #[rustfmt::skip]
+            const DATA: &[u8] = &[
+                0b01010000,
+                0b01010000,
+                0b11111000,
+                0b01110000,
+                0b01110000,
+                0b00100000,
+                0b00100000,
+                0b01000000,
+            ];
+            let raw_image = ImageRaw::<BinaryColor>::new(DATA, 6);
+            let image = Image::new(
+                &raw_image,
+                Point::new((target.bounding_box().size.width - width - 6) as i32, 0),
+            );
+            image.draw(target)?;
         }
+
+        Ok(())
     }
 }
 
