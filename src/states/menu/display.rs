@@ -2,7 +2,7 @@ use crate::{board::initialized::Board, states::MIN_FRAME_TIME, AppState};
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::prelude::*;
 use gui::screens::{
-    display_menu::{DisplayBrightness, DisplayMenu, DisplayMenuEvents},
+    display_menu::{BatteryDisplayStyle, DisplayBrightness, DisplayMenu, DisplayMenuEvents},
     MENU_STYLE,
 };
 use ssd1306::prelude::Brightness;
@@ -13,6 +13,7 @@ pub async fn display_menu(board: &mut Board) -> AppState {
     let mut menu_values = DisplayMenu {
         // TODO: read from some storage
         brightness: DisplayBrightness::Normal,
+        battery_display: BatteryDisplayStyle::MilliVolts,
     };
 
     let mut menu = menu_values.create_menu_with_style(MENU_STYLE);
