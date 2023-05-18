@@ -9,7 +9,7 @@ use embedded_graphics_simulator::{
     Window,
 };
 use gui::screens::{
-    main_menu::{MainMenu, MainMenuEvents},
+    display_menu::{DisplayBrightness, DisplayMenu, DisplayMenuEvents},
     MENU_STYLE,
 };
 
@@ -21,9 +21,12 @@ fn main() -> Result<(), Infallible> {
         .max_fps(100)
         .build();
 
-    let mut window = Window::new("Main menu screen", &output_settings);
+    let mut window = Window::new("Display menu screen", &output_settings);
 
-    let mut menu = MainMenu {}.create_menu_with_style(MENU_STYLE);
+    let mut menu = DisplayMenu {
+        brightness: DisplayBrightness::Normal,
+    }
+    .create_menu_with_style(MENU_STYLE);
     let mut pressed = false;
 
     'running: loop {
@@ -51,9 +54,7 @@ fn main() -> Result<(), Infallible> {
 
         if let Some(event) = menu.interact(pressed) {
             match event {
-                MainMenuEvents::WifiSetup => {}
-                MainMenuEvents::Display => {}
-                MainMenuEvents::Shutdown => break 'running,
+                DisplayMenuEvents::Back => break 'running,
             }
         }
     }

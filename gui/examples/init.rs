@@ -3,6 +3,7 @@ use std::convert::Infallible;
 use embedded_graphics::{
     pixelcolor::BinaryColor,
     prelude::{DrawTarget, Size},
+    Drawable,
 };
 use embedded_graphics_simulator::{
     BinaryColorTheme, OutputSettingsBuilder, SimulatorDisplay, SimulatorEvent, Window,

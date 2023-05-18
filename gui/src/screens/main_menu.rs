@@ -1,18 +1,10 @@
-use embedded_menu::{Menu, SelectValue};
+use embedded_menu::Menu;
 
 #[derive(Clone, Copy)]
 pub enum MainMenuEvents {
+    Display,
     WifiSetup,
     Shutdown,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue)]
-pub enum DisplayBrightness {
-    Dimmest,
-    Dim,
-    Normal,
-    Bright,
-    Brightest,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Menu)]
@@ -20,11 +12,9 @@ pub enum DisplayBrightness {
     title = "Main menu",
     navigation(events = MainMenuEvents),
     items = [
-        data(label = "Display brightness", field = brightness),
+        navigation(label = "Display settings", event = MainMenuEvents::Display),
         navigation(label = "Wifi setup", event = MainMenuEvents::WifiSetup),
         navigation(label = "Shutdown", event = MainMenuEvents::Shutdown)
     ]
 )]
-pub struct MainMenu {
-    pub brightness: DisplayBrightness,
-}
+pub struct MainMenu {}

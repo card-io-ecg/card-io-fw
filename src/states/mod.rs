@@ -8,6 +8,7 @@ use embassy_time::Duration;
 pub use error::app_error;
 pub use init::initialize;
 pub use measure::measure;
-pub use menu::main_menu;
+pub use menu::display::display_menu;
+pub use menu::main::main_menu;
 
 const MIN_FRAME_TIME: Duration = Duration::from_millis(10);

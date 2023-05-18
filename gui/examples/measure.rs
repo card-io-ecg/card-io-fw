@@ -20,7 +20,7 @@ fn main() -> Result<(), Infallible> {
 
     let mut window = Window::new("Measurement screen", &output_settings);
 
-    let mut screen = EcgScreen::new();
+    let mut screen = EcgScreen::new(96);
 
     let mut progress = 0;
     'running: loop {
