@@ -1,5 +1,5 @@
 use crate::{
-    board::{initialized::Board, BATTERY_MODEL},
+    board::{initialized::Board, BATTERY_MODEL, DEFAULT_BATTERY_DISPLAY_STYLE},
     states::MIN_FRAME_TIME,
     AppState,
 };
@@ -41,7 +41,7 @@ pub async fn initialize(board: &mut Board) -> AppState {
                     progress,
                     max_progress,
                     battery_data,
-                    battery_style: BatteryStyle::Icon(BATTERY_MODEL)
+                    battery_style: BatteryStyle::new(DEFAULT_BATTERY_DISPLAY_STYLE, BATTERY_MODEL)
                 }
                 .draw(display)
             })

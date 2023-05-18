@@ -2,7 +2,7 @@ use crate::{
     board::{
         hal::{prelude::*, spi::Error as SpiError},
         initialized::Board,
-        PoweredEcgFrontend, BATTERY_MODEL,
+        PoweredEcgFrontend, BATTERY_MODEL, DEFAULT_BATTERY_DISPLAY_STYLE,
     },
     replace_with::replace_with_or_abort_and_return_async,
     states::MIN_FRAME_TIME,
@@ -107,7 +107,7 @@ pub async fn measure(board: &mut Board) -> AppState {
         let mut heart_rate_calculator = HeartRateCalculator::new(1000.0);
 
         let mut screen = EcgScreen::new(96); // discard transient
-        screen.battery_style = BatteryStyle::Icon(BATTERY_MODEL);
+        screen.battery_style = BatteryStyle::new(DEFAULT_BATTERY_DISPLAY_STYLE, BATTERY_MODEL);
 
         let mut ticker = Ticker::every(MIN_FRAME_TIME);
 

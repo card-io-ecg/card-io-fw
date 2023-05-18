@@ -1,5 +1,5 @@
 use crate::{
-    board::{initialized::Board, BATTERY_MODEL},
+    board::{initialized::Board, BATTERY_MODEL, DEFAULT_BATTERY_DISPLAY_STYLE},
     states::MIN_FRAME_TIME,
     AppState,
 };
@@ -7,10 +7,7 @@ use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::prelude::*;
 use gui::{
     screens::{
-        display_menu::{
-            BatteryDisplayStyle, DisplayBrightness, DisplayMenu, DisplayMenuEvents,
-            DisplayMenuScreen,
-        },
+        display_menu::{DisplayBrightness, DisplayMenu, DisplayMenuEvents, DisplayMenuScreen},
         MENU_STYLE,
     },
     widgets::battery_small::BatteryStyle,
@@ -23,14 +20,14 @@ pub async fn display_menu(board: &mut Board) -> AppState {
     let mut menu_values = DisplayMenu {
         // TODO: read from some storage
         brightness: DisplayBrightness::Normal,
-        battery_display: BatteryDisplayStyle::MilliVolts,
+        battery_display: DEFAULT_BATTERY_DISPLAY_STYLE,
     };
 
     let mut menu_screen = DisplayMenuScreen {
         menu: menu_values.create_menu_with_style(MENU_STYLE),
 
         battery_data: board.battery_monitor.battery_data().await,
-        battery_style: BatteryStyle::Icon(BATTERY_MODEL),
+        battery_style: BatteryStyle::new(DEFAULT_BATTERY_DISPLAY_STYLE, BATTERY_MODEL),
     };
 
     let mut last_interaction = Instant::now();
