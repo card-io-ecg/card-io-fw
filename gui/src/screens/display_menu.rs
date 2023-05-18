@@ -1,4 +1,22 @@
-use embedded_menu::{Menu, SelectValue};
+use embedded_graphics::{
+    pixelcolor::BinaryColor,
+    prelude::{DrawTarget, Point},
+    Drawable,
+};
+use embedded_layout::{
+    prelude::{horizontal, vertical, Align},
+    View,
+};
+use embedded_menu::{
+    interaction::single_touch::SingleTouch,
+    selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
+    Menu, SelectValue,
+};
+
+use crate::{
+    screens::BatteryInfo,
+    widgets::battery_small::{Battery, BatteryStyle},
+};
 
 #[derive(Clone, Copy)]
 pub enum DisplayMenuEvents {
@@ -36,4 +54,32 @@ pub enum BatteryDisplayStyle {
 pub struct DisplayMenu {
     pub brightness: DisplayBrightness,
     pub battery_display: BatteryDisplayStyle,
+}
+
+pub struct DisplayMenuScreen {
+    pub menu: DisplayMenuMenuWrapper<SingleTouch, AnimatedPosition, AnimatedTriangle>,
+    pub battery_data: Option<BatteryInfo>,
+    pub battery_style: BatteryStyle,
+}
+
+impl Drawable for DisplayMenuScreen {
+    type Color = BinaryColor;
+    type Output = ();
+
+    fn draw<D>(&self, display: &mut D) -> Result<Self::Output, D::Error>
+    where
+        D: DrawTarget<Color = Self::Color>,
+    {
+        if let Some(data) = self.battery_data {
+            Battery {
+                data,
+                style: self.battery_style,
+                top_left: Point::zero(),
+            }
+            .align_to(&display.bounding_box(), horizontal::Right, vertical::Top)
+            .draw(display)?;
+        }
+
+        self.menu.draw(display)
+    }
 }

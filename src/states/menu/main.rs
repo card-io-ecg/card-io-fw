@@ -1,9 +1,16 @@
-use crate::{board::initialized::Board, states::MIN_FRAME_TIME, AppState};
+use crate::{
+    board::{initialized::Board, BATTERY_MODEL},
+    states::MIN_FRAME_TIME,
+    AppState,
+};
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::prelude::*;
-use gui::screens::{
-    main_menu::{MainMenu, MainMenuEvents},
-    MENU_STYLE,
+use gui::{
+    screens::{
+        main_menu::{MainMenu, MainMenuEvents, MainMenuScreen},
+        MENU_STYLE,
+    },
+    widgets::battery_small::BatteryStyle,
 };
 
 pub async fn main_menu(board: &mut Board) -> AppState {
@@ -11,7 +18,11 @@ pub async fn main_menu(board: &mut Board) -> AppState {
 
     let menu_values = MainMenu {};
 
-    let mut menu = menu_values.create_menu_with_style(MENU_STYLE);
+    let mut menu_screen = MainMenuScreen {
+        menu: menu_values.create_menu_with_style(MENU_STYLE),
+        battery_data: board.battery_monitor.battery_data().await,
+        battery_style: BatteryStyle::Icon(BATTERY_MODEL),
+    };
 
     let mut last_interaction = Instant::now();
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
@@ -21,7 +32,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
         if is_touched {
             last_interaction = Instant::now();
         }
-        if let Some(event) = menu.interact(is_touched) {
+        if let Some(event) = menu_screen.menu.interact(is_touched) {
             match event {
                 MainMenuEvents::Display => return AppState::DisplayMenu,
                 MainMenuEvents::WifiSetup => {}
@@ -29,11 +40,13 @@ pub async fn main_menu(board: &mut Board) -> AppState {
             };
         }
 
+        menu_screen.battery_data = board.battery_monitor.battery_data().await;
+
         board
             .display
             .frame(|display| {
-                menu.update(display);
-                menu.draw(display)
+                menu_screen.menu.update(display);
+                menu_screen.draw(display)
             })
             .await
             .unwrap();

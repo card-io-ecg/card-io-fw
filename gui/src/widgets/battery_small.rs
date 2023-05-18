@@ -13,7 +13,7 @@ use embedded_graphics::{
 use embedded_layout::prelude::*;
 use signal_processing::battery::BatteryModel;
 
-use crate::screens::BatteryInfo;
+use crate::screens::{display_menu::BatteryDisplayStyle, BatteryInfo};
 
 #[derive(Clone, Copy)]
 pub enum BatteryStyle {
@@ -24,6 +24,15 @@ pub enum BatteryStyle {
 }
 
 impl BatteryStyle {
+    pub fn new(style: BatteryDisplayStyle, model: BatteryModel) -> Self {
+        match style {
+            BatteryDisplayStyle::MilliVolts => Self::MilliVolts,
+            BatteryDisplayStyle::Percentage => Self::Percentage(model),
+            BatteryDisplayStyle::Icon => Self::Icon(model),
+            BatteryDisplayStyle::Indicator => Self::LowIndicator(model),
+        }
+    }
+
     fn text_style() -> MonoTextStyle<'static, BinaryColor> {
         MonoTextStyleBuilder::new()
             .font(&FONT_6X10)
