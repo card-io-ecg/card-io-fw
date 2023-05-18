@@ -56,7 +56,7 @@ where
             loff: Loff::new(|r| {
                 r
                 .comp_th().write(ComparatorThreshold::_95)
-                .leadoff_current().write(LeadOffCurrent::_6uA)
+                .leadoff_current().write(LeadOffCurrent::_22nA)
                 .leadoff_frequency().write(LeadOffFrequency::DC)
             }),
 
@@ -77,7 +77,7 @@ where
             rldsens: RldSens::new(|r| {
                 r
                 .chop().write(ChopFrequency::Fmod2)
-                .pdb_rld().write(Buffer::Enabled)
+                .pdb_rld().write(Buffer::PowerDown)
                 .loff_sense().write(Input::NotConnected)
                 .rld2n().write(Input::NotConnected)
                 .rld2p().write(Input::NotConnected)
