@@ -1,9 +1,13 @@
+use core::{fmt::Write, num::NonZeroU8};
+
 use embedded_graphics::{
-    mono_font::{ascii::FONT_6X10, MonoTextStyleBuilder},
+    geometry::AnchorPoint,
+    image::{Image, ImageRaw},
+    mono_font::{ascii::FONT_6X10, MonoTextStyle, MonoTextStyleBuilder},
     pixelcolor::BinaryColor,
-    prelude::{DrawTarget, Point},
+    prelude::{Dimensions, DrawTarget, Point},
     primitives::{Line, Primitive, PrimitiveStyle},
-    text::Text,
+    text::{Baseline, Text},
     Drawable,
 };
 use embedded_layout::prelude::{horizontal, vertical, Align};
@@ -16,6 +20,7 @@ use signal_processing::{
 pub struct EcgScreen {
     buffer: SlidingWindow<128>,
     discard: usize,
+    pub heart_rate: Option<NonZeroU8>,
 }
 
 impl EcgScreen {
@@ -23,6 +28,7 @@ impl EcgScreen {
         Self {
             buffer: SlidingWindow::new(),
             discard: discarded_samples,
+            heart_rate: None,
         }
     }
 
@@ -53,6 +59,14 @@ impl EcgScreen {
 
         (min, max)
     }
+
+    pub fn update_heart_rate(&mut self, hr: u8) {
+        self.heart_rate = NonZeroU8::new(hr);
+    }
+
+    pub fn clear_heart_rate(&mut self) {
+        self.heart_rate = None;
+    }
 }
 
 impl Drawable for EcgScreen {
@@ -75,6 +89,39 @@ impl Drawable for EcgScreen {
                 .draw(display)?;
 
             return Ok(());
+        }
+
+        if let Some(hr) = self.heart_rate {
+            #[rustfmt::skip]
+            const HEART: &[u8] = &[
+                0b00000000,
+                0b01101100,
+                0b11111110,
+                0b11111110,
+                0b11111110,
+                0b01111100,
+                0b00111000,
+                0b00010000,
+            ];
+            const IMAGE_WIDTH: u32 = 8;
+
+            let top_left = display.bounding_box().top_left;
+
+            let raw_image = ImageRaw::<BinaryColor>::new(HEART, IMAGE_WIDTH);
+            let image = Image::new(&raw_image, top_left);
+
+            image.draw(display)?;
+
+            let mut hr_string = heapless::String::<3>::new();
+            write!(&mut hr_string, "{hr}").ok();
+
+            Text::with_baseline(
+                &hr_string,
+                image.bounding_box().anchor_point(AnchorPoint::TopRight) + Point::new(1, 0),
+                MonoTextStyle::new(&FONT_6X10, BinaryColor::On),
+                Baseline::Top,
+            )
+            .draw(display)?;
         }
 
         let (min, max) = self.limits();
