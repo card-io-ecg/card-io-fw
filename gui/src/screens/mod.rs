@@ -1,4 +1,4 @@
-use embedded_graphics::{mono_font::ascii::FONT_8X13_BOLD, pixelcolor::BinaryColor};
+use embedded_graphics::{mono_font::ascii::FONT_7X13_BOLD, pixelcolor::BinaryColor};
 use embedded_menu::{
     interaction::single_touch::SingleTouch,
     selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
@@ -16,4 +16,4 @@ pub const MENU_STYLE: MenuStyle<BinaryColor, AnimatedTriangle, SingleTouch, Anim
         .with_details_delay(300)
         .with_selection_indicator(AnimatedTriangle::new(200))
         .with_interaction_controller(SingleTouch::new(15, 100))
-        .with_title_font(&FONT_8X13_BOLD);
+        .with_title_font(&FONT_7X13_BOLD);
