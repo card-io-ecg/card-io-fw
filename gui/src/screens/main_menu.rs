@@ -3,10 +3,7 @@ use embedded_graphics::{
     prelude::{DrawTarget, Point},
     Drawable,
 };
-use embedded_layout::{
-    prelude::{horizontal, vertical, Align},
-    View,
-};
+use embedded_layout::prelude::{horizontal, vertical, Align};
 use embedded_menu::{
     interaction::single_touch::SingleTouch,
     selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},

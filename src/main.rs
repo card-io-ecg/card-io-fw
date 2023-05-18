@@ -20,7 +20,7 @@ use crate::{
         BatteryAdc,
     },
     sleep::enter_deep_sleep,
-    states::{adc_setup, app_error, display_menu, initialize, main_menu, measure},
+    states::{adc_setup, app_error, charging, display_menu, initialize, main_menu, measure},
 };
 
 mod board;
@@ -40,6 +40,7 @@ pub enum AppState {
     AdcSetup,
     Initialize,
     Measure,
+    Charging,
     MainMenu,
     DisplayMenu,
     Error(AppError),
@@ -93,16 +94,18 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         battery_monitor: BatteryMonitor {
             battery_state,
             vbus_detect: resources.misc_pins.vbus_detect,
+            charger_status: resources.misc_pins.chg_status,
         },
     };
 
-    let mut state = AppState::Initialize;
+    let mut state = AppState::AdcSetup;
 
     loop {
         log::info!("New app state: {state:?}");
         state = match state {
             AppState::AdcSetup => adc_setup(&mut board).await,
             AppState::Initialize => initialize(&mut board).await,
+            AppState::Charging => charging(&mut board).await,
             AppState::Measure => measure(&mut board).await,
             AppState::MainMenu => main_menu(&mut board).await,
             AppState::DisplayMenu => display_menu(&mut board).await,
