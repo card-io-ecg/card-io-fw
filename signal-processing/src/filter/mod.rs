@@ -4,6 +4,7 @@ pub mod comb;
 pub mod downsample;
 pub mod fir;
 pub mod iir;
+pub mod median;
 pub mod pli;
 
 pub trait Filter {

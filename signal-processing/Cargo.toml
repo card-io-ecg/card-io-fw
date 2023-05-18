@@ -7,3 +7,4 @@ edition = "2021"
 object-chain = "0.1.3"
 micromath = "2.0.0"
 num-complex = { version = "0.4.3", default-features = false }
+qrs_detector = { git = "https://github.com/bugadani/QrsDetector.git" }
