@@ -1,6 +1,7 @@
 #![no_std]
 
 pub mod filter;
+pub mod heart_rate;
 pub mod lerp;
 pub mod moving;
 pub mod sliding;

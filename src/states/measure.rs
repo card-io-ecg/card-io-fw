@@ -25,6 +25,7 @@ use signal_processing::{
         pli::{adaptation_blocking::AdaptationBlocking, PowerLineFilter},
         Filter,
     },
+    heart_rate::HeartRateCalculator,
     moving::sum::Sum,
 };
 
@@ -91,7 +92,7 @@ pub async fn measure(board: &mut Board) -> AppState {
             }));
 
         // Downsample by 8 to display around 1 second
-        let downsampler = Chain::new(DownSampler::new())
+        let mut downsampler = Chain::new(DownSampler::new())
             .append(DownSampler::new())
             .append(DownSampler::new());
 
@@ -101,8 +102,9 @@ pub async fn measure(board: &mut Board) -> AppState {
         let mut filter = Chain::new(HIGH_PASS_CUTOFF_1_59HZ)
             .append(
                 PowerLineFilter::<AdaptationBlocking<Sum<1200>, 50, 20>, 1>::new(1000.0, [50.0]),
-            )
-            .append(downsampler);
+            );
+
+        let mut heart_rate_calculator = HeartRateCalculator::new(1000.0);
 
         let mut screen = EcgScreen::new(96); // discard transient
         let mut ticker = Ticker::every(MIN_FRAME_TIME);
@@ -115,8 +117,11 @@ pub async fn measure(board: &mut Board) -> AppState {
                     Message::Sample(sample) => {
                         samples += 1;
                         // TODO: store in raw buffer
-                        if let Some(downsampled) = filter.update(sample.voltage()) {
-                            screen.push(downsampled);
+                        if let Some(filtered) = filter.update(sample.voltage()) {
+                            heart_rate_calculator.update(filtered);
+                            if let Some(downsampled) = downsampler.update(filtered) {
+                                screen.push(downsampled);
+                            }
                         }
                     }
                     Message::End(frontend, _result) => {
@@ -125,6 +130,12 @@ pub async fn measure(board: &mut Board) -> AppState {
                         return (AppState::Shutdown, board);
                     }
                 }
+            }
+
+            if let Some(hr) = heart_rate_calculator.current_hr() {
+                screen.update_heart_rate(hr);
+            } else {
+                screen.clear_heart_rate();
             }
 
             let now = Instant::now();
