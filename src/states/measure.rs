@@ -107,7 +107,7 @@ pub async fn measure(board: &mut Board) -> AppState {
         let mut heart_rate_calculator = HeartRateCalculator::new(1000.0);
 
         let mut screen = EcgScreen::new(96); // discard transient
-        screen.battery_style = BatteryStyle::Percentage(BATTERY_MODEL);
+        screen.battery_style = BatteryStyle::Icon(BATTERY_MODEL);
 
         let mut ticker = Ticker::every(MIN_FRAME_TIME);
 

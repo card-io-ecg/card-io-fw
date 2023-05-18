@@ -9,7 +9,7 @@ use embedded_graphics_simulator::{
     Window,
 };
 use gui::screens::{
-    display_menu::{DisplayBrightness, DisplayMenu, DisplayMenuEvents},
+    display_menu::{BatteryDisplayStyle, DisplayBrightness, DisplayMenu, DisplayMenuEvents},
     MENU_STYLE,
 };
 
@@ -25,6 +25,7 @@ fn main() -> Result<(), Infallible> {
 
     let mut menu = DisplayMenu {
         brightness: DisplayBrightness::Normal,
+        battery_display: BatteryDisplayStyle::MilliVolts,
     }
     .create_menu_with_style(MENU_STYLE);
     let mut pressed = false;

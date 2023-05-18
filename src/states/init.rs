@@ -41,7 +41,7 @@ pub async fn initialize(board: &mut Board) -> AppState {
                     progress,
                     max_progress,
                     battery_data,
-                    battery_style: BatteryStyle::Percentage(BATTERY_MODEL)
+                    battery_style: BatteryStyle::Icon(BATTERY_MODEL)
                 }
                 .draw(display)
             })

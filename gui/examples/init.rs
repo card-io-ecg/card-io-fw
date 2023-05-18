@@ -40,7 +40,7 @@ fn main() -> Result<(), Infallible> {
                 voltage: 4200,
                 charge_current: Some(100),
             }),
-            battery_style: BatteryStyle::Percentage(BatteryModel {
+            battery_style: BatteryStyle::Icon(BatteryModel {
                 voltage: (3300, 4200),
                 charge_current: (0, 1000),
             }),

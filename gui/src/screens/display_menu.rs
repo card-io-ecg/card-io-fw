@@ -18,8 +18,9 @@ pub enum DisplayBrightness {
 pub enum BatteryDisplayStyle {
     #[display_as("Voltage")]
     MilliVolts,
-    #[display_as("Percentage")]
     Percentage,
+    Icon,
+    Indicator,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Menu)]
