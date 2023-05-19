@@ -2,7 +2,7 @@ use crate::{
     board::{
         hal::{prelude::*, spi::Error as SpiError},
         initialized::Board,
-        PoweredEcgFrontend, BATTERY_MODEL, DEFAULT_BATTERY_DISPLAY_STYLE,
+        PoweredEcgFrontend, BATTERY_MODEL, DEFAULT_BATTERY_DISPLAY_STYLE, LOW_BATTERY_VOLTAGE,
     },
     replace_with::replace_with_or_abort_and_return_async,
     states::MIN_FRAME_TIME,
@@ -13,6 +13,7 @@ use embassy_executor::_export::StaticCell;
 use embassy_sync::{
     blocking_mutex::raw::CriticalSectionRawMutex,
     channel::{Channel, Sender},
+    signal::Signal,
 };
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
@@ -33,6 +34,7 @@ type MessageQueue = Channel<CriticalSectionRawMutex, Message, 32>;
 type MessageSender = Sender<'static, CriticalSectionRawMutex, Message, 32>;
 
 static CHANNEL: StaticCell<MessageQueue> = StaticCell::new();
+static THREAD_CONTROL: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 
 enum Message {
     Sample(Sample),
@@ -151,7 +153,14 @@ pub async fn measure(board: &mut Board) -> AppState {
                 started = now;
             }
 
-            screen.battery_data = board.battery_monitor.battery_data().await;
+            let battery_data = board.battery_monitor.battery_data().await;
+
+            if let Some(battery) = battery_data {
+                if battery.voltage < LOW_BATTERY_VOLTAGE {
+                    THREAD_CONTROL.signal(());
+                }
+            }
+            screen.battery_data = battery_data;
             board
                 .display
                 .frame(|display| screen.draw(display))
@@ -179,7 +188,7 @@ async fn read_ecg(
     queue: &MessageSender,
     frontend: &mut PoweredEcgFrontend,
 ) -> Result<(), Error<SpiError>> {
-    loop {
+    while !THREAD_CONTROL.signaled() {
         match frontend.read().await {
             Ok(sample) => {
                 if !frontend.is_touched() {
@@ -197,4 +206,7 @@ async fn read_ecg(
             Err(e) => return Err(e),
         }
     }
+
+    log::info!("Stop requested, stopping");
+    return Ok(());
 }

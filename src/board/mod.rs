@@ -181,4 +181,6 @@ pub const BATTERY_MODEL: BatteryModel = BatteryModel {
     charge_current: (0, 1000),
 };
 
+pub const LOW_BATTERY_VOLTAGE: u16 = 3300;
+
 pub const DEFAULT_BATTERY_DISPLAY_STYLE: BatteryDisplayStyle = BatteryDisplayStyle::Indicator;

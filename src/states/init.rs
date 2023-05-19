@@ -1,5 +1,7 @@
 use crate::{
-    board::{initialized::Board, BATTERY_MODEL, DEFAULT_BATTERY_DISPLAY_STYLE},
+    board::{
+        initialized::Board, BATTERY_MODEL, DEFAULT_BATTERY_DISPLAY_STYLE, LOW_BATTERY_VOLTAGE,
+    },
     states::MIN_FRAME_TIME,
     AppState,
 };
@@ -23,6 +25,12 @@ pub async fn initialize(board: &mut Board) -> AppState {
         }
 
         let battery_data = board.battery_monitor.battery_data().await;
+
+        if let Some(battery) = battery_data {
+            if battery.voltage < LOW_BATTERY_VOLTAGE {
+                return AppState::Shutdown;
+            }
+        }
 
         board.display
             .frame(|display| {

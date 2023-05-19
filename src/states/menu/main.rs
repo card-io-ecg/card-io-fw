@@ -1,5 +1,7 @@
 use crate::{
-    board::{initialized::Board, BATTERY_MODEL, DEFAULT_BATTERY_DISPLAY_STYLE},
+    board::{
+        initialized::Board, BATTERY_MODEL, DEFAULT_BATTERY_DISPLAY_STYLE, LOW_BATTERY_VOLTAGE,
+    },
     states::MIN_FRAME_TIME,
     AppState,
 };
@@ -18,9 +20,16 @@ pub async fn main_menu(board: &mut Board) -> AppState {
 
     let menu_values = MainMenu {};
 
+    let battery_data = board.battery_monitor.battery_data().await;
+
+    if let Some(battery) = battery_data {
+        if battery.voltage < LOW_BATTERY_VOLTAGE {
+            return AppState::Shutdown;
+        }
+    }
     let mut menu_screen = MainMenuScreen {
         menu: menu_values.create_menu_with_style(MENU_STYLE),
-        battery_data: board.battery_monitor.battery_data().await,
+        battery_data,
         battery_style: BatteryStyle::new(DEFAULT_BATTERY_DISPLAY_STYLE, BATTERY_MODEL),
     };
 

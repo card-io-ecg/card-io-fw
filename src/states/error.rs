@@ -2,13 +2,24 @@ use embassy_time::Ticker;
 use embedded_graphics::Drawable;
 use gui::screens::error::ErrorScreen;
 
-use crate::{board::initialized::Board, AppError, AppState};
+use crate::{
+    board::{initialized::Board, LOW_BATTERY_VOLTAGE},
+    AppError, AppState,
+};
 
 use super::MIN_FRAME_TIME;
 
 pub async fn app_error(board: &mut Board, error: AppError) -> AppState {
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     while board.frontend.is_touched() {
+        let battery_data = board.battery_monitor.battery_data().await;
+
+        if let Some(battery) = battery_data {
+            if battery.voltage < LOW_BATTERY_VOLTAGE {
+                return AppState::Shutdown;
+            }
+        }
+
         board
             .display
             .frame(|display| {

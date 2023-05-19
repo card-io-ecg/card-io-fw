@@ -1,5 +1,7 @@
 use crate::{
-    board::{initialized::Board, BATTERY_MODEL, DEFAULT_BATTERY_DISPLAY_STYLE},
+    board::{
+        initialized::Board, BATTERY_MODEL, DEFAULT_BATTERY_DISPLAY_STYLE, LOW_BATTERY_VOLTAGE,
+    },
     states::MIN_FRAME_TIME,
     AppState,
 };
@@ -17,6 +19,13 @@ use ssd1306::prelude::Brightness;
 pub async fn display_menu(board: &mut Board) -> AppState {
     const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
 
+    let battery_data = board.battery_monitor.battery_data().await;
+
+    if let Some(battery) = battery_data {
+        if battery.voltage < LOW_BATTERY_VOLTAGE {
+            return AppState::Shutdown;
+        }
+    }
     let mut menu_values = DisplayMenu {
         // TODO: read from some storage
         brightness: DisplayBrightness::Normal,
@@ -26,7 +35,7 @@ pub async fn display_menu(board: &mut Board) -> AppState {
     let mut menu_screen = DisplayMenuScreen {
         menu: menu_values.create_menu_with_style(MENU_STYLE),
 
-        battery_data: board.battery_monitor.battery_data().await,
+        battery_data,
         battery_style: BatteryStyle::new(DEFAULT_BATTERY_DISPLAY_STYLE, BATTERY_MODEL),
     };
 
