@@ -8,7 +8,7 @@
 extern crate alloc;
 
 use embassy_executor::{Executor, Spawner, _export::StaticCell};
-use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex, signal::Signal};
 use embassy_time::{Duration, Ticker};
 use embedded_hal::digital::OutputPin;
 
@@ -56,6 +56,7 @@ pub type SharedBatteryState = Mutex<NoopRawMutex, BatteryState>;
 
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static BATTERY_STATE: StaticCell<SharedBatteryState> = StaticCell::new();
+static TASK_CONTROL: StaticCell<Signal<NoopRawMutex, ()>> = StaticCell::new();
 
 #[entry]
 fn main() -> ! {
@@ -70,13 +71,19 @@ fn main() -> ! {
 
 #[embassy_executor::task]
 async fn main_task(spawner: Spawner, resources: StartupResources) {
+    let task_control = &*TASK_CONTROL.init_with(Signal::new);
+
     let battery_state = BATTERY_STATE.init(Mutex::new(BatteryState {
         charging_current: None,
         battery_voltage: None,
     }));
 
     spawner
-        .spawn(monitor_task(resources.battery_adc, battery_state))
+        .spawn(monitor_task(
+            resources.battery_adc,
+            battery_state,
+            task_control.clone(),
+        ))
         .ok();
 
     hal::interrupt::enable(
@@ -113,8 +120,12 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             AppState::Shutdown => {
                 let _ = board.display.shut_down();
 
+                task_control.signal(());
+
                 let (_, _, _, touch) = board.frontend.split();
-                enter_deep_sleep(touch).await
+                let charger_pin = board.battery_monitor.charger_status;
+
+                enter_deep_sleep(touch, charger_pin).await
             }
         };
     }
@@ -122,12 +133,16 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
 
 // Debug task, to be removed
 #[embassy_executor::task]
-async fn monitor_task(mut battery: BatteryAdc, battery_state: &'static SharedBatteryState) {
+async fn monitor_task(
+    mut battery: BatteryAdc,
+    battery_state: &'static SharedBatteryState,
+    task_control: &'static Signal<NoopRawMutex, ()>,
+) {
     let mut timer = Ticker::every(Duration::from_secs(1));
 
     battery.enable.set_high().unwrap();
 
-    loop {
+    while !task_control.signaled() {
         let voltage = battery.read_battery_voltage().await;
         let current = battery.read_charge_current().await;
 
@@ -142,4 +157,6 @@ async fn monitor_task(mut battery: BatteryAdc, battery_state: &'static SharedBat
 
         timer.next().await;
     }
+
+    log::debug!("Monitor exited");
 }
