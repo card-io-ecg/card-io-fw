@@ -75,7 +75,7 @@ impl StartupResources {
         let display_reset = io.pins.gpio9.into_push_pull_output();
         let display_dc = io.pins.gpio13.into_push_pull_output();
 
-        let mut display_cs = io.pins.gpio10.into_push_pull_output();
+        let mut display_cs: DisplayChipSelect = io.pins.gpio10.into_push_pull_output();
         let display_sclk = io.pins.gpio12;
         let display_mosi = io.pins.gpio11;
 
