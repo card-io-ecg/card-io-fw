@@ -19,7 +19,6 @@ use crate::{
     },
     heap::init_heap,
     interrupt::{InterruptExecutor, SwInterrupt0},
-    spi_device::SpiDeviceWrapper,
 };
 use display_interface_spi::SPIInterface;
 use embassy_executor::SendSpawner;
@@ -103,7 +102,10 @@ impl StartupResources {
         ));
 
         let display = Display::new(
-            SPIInterface::new(display_spi, display_dc, display_cs),
+            SPIInterface::new(
+                SpiDeviceWrapper::new(display_spi, DummyOutputPin),
+                display_dc,
+            ),
             display_reset,
         );
 
@@ -134,8 +136,8 @@ impl StartupResources {
         static mut ADC_SPI_DESCRIPTORS: [u32; 24] = [0u32; 8 * 3];
         static mut ADC_SPI_RX_DESCRIPTORS: [u32; 24] = [0u32; 8 * 3];
         let adc = Frontend::new(
-            SpiDeviceWrapper {
-                spi: Spi::new_no_cs(
+            SpiDeviceWrapper::new(
+                Spi::new_no_cs(
                     peripherals.SPI3,
                     adc_sclk,
                     adc_mosi,
@@ -151,11 +153,11 @@ impl StartupResources {
                     unsafe { &mut ADC_SPI_RX_DESCRIPTORS },
                     DmaPriority::Priority1,
                 )),
-            },
+                adc_cs,
+            ),
             adc_drdy,
             adc_reset,
             touch_detect,
-            adc_cs,
         );
 
         // Battery measurement

@@ -1,6 +1,7 @@
 pub mod drivers;
 pub mod initialized;
 pub mod startup;
+pub mod utils;
 
 use esp_backtrace as _;
 
@@ -16,7 +17,6 @@ pub use esp32s2 as pac;
 #[cfg(feature = "esp32s3")]
 pub use esp32s3 as pac;
 
-use crate::spi_device::SpiDeviceWrapper;
 use display_interface_spi::SPIInterface;
 use drivers::{
     display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
@@ -33,14 +33,18 @@ use hal::{
     soc::gpio::*,
     spi::{dma::SpiDma, FullDuplexMode},
 };
+use utils::{DummyOutputPin, SpiDeviceWrapper};
 
-pub type DisplaySpi<'d> = SpiDma<
-    'd,
-    hal::peripherals::SPI2,
-    ChannelTx<'d, Channel0TxImpl, Channel0>,
-    ChannelRx<'d, Channel0RxImpl, Channel0>,
-    SuitablePeripheral0,
-    FullDuplexMode,
+pub type DisplaySpi<'d> = SpiDeviceWrapper<
+    SpiDma<
+        'd,
+        hal::peripherals::SPI2,
+        ChannelTx<'d, Channel0TxImpl, Channel0>,
+        ChannelRx<'d, Channel0RxImpl, Channel0>,
+        SuitablePeripheral0,
+        FullDuplexMode,
+    >,
+    DummyOutputPin,
 >;
 
 pub type DisplayDataCommand = GpioPin<
@@ -68,7 +72,7 @@ pub type DisplayReset = GpioPin<
     9,
 >;
 
-pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommand, DisplayChipSelect>;
+pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommand>;
 
 pub type AdcDrdy = GpioPin<
     Input<Floating>,
@@ -111,6 +115,7 @@ pub type AdcSpi<'d> = SpiDeviceWrapper<
         SuitablePeripheral1,
         FullDuplexMode,
     >,
+    AdcChipSelect,
 >;
 
 pub type BatteryAdcInput = GpioPin<
@@ -154,9 +159,8 @@ pub type ChargerStatus = GpioPin<
     21,
 >;
 
-pub type EcgFrontend = Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect, AdcChipSelect>;
-pub type PoweredEcgFrontend =
-    PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect, AdcChipSelect>;
+pub type EcgFrontend = Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>;
+pub type PoweredEcgFrontend = PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>;
 
 pub type Display = DisplayType<DisplayInterface<'static>, DisplayReset>;
 pub type PoweredDisplay = PoweredDisplayType<DisplayInterface<'static>, DisplayReset>;

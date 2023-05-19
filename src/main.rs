@@ -21,7 +21,6 @@ mod heap;
 mod interrupt;
 mod replace_with;
 mod sleep;
-mod spi_device;
 mod states;
 
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
