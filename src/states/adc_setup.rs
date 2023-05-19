@@ -1,0 +1,22 @@
+use crate::{
+    board::initialized::Board, replace_with::replace_with_or_abort_and_return_async, AppError,
+    AppState,
+};
+
+/// Ensures that the ADC does not keep the touch detector circuit disabled.
+/// This state is expected to go away once the ADC can be properly placed into powerdown mode.
+pub async fn adc_setup(board: &mut Board) -> AppState {
+    replace_with_or_abort_and_return_async(board, |mut board| async {
+        match board.frontend.enable_async().await {
+            Ok(frontend) => {
+                board.frontend = frontend.shut_down().await;
+                (AppState::Initialize, board)
+            }
+            Err((fe, _err)) => {
+                board.frontend = fe;
+                (AppState::Error(AppError::Adc), board)
+            }
+        }
+    })
+    .await
+}

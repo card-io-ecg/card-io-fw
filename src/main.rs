@@ -13,7 +13,7 @@ use embassy_time::{Duration, Ticker};
 use crate::{
     board::{hal::entry, initialized::Board, startup::StartupResources},
     sleep::enter_deep_sleep,
-    states::{app_error, display_menu, initialize, main_menu, measure},
+    states::{adc_setup, app_error, display_menu, initialize, main_menu, measure},
 };
 
 mod board;
@@ -44,6 +44,7 @@ pub enum AppError {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AppState {
+    AdcSetup,
     Initialize,
     Measure,
     MainMenu,
@@ -62,6 +63,7 @@ async fn main_task(resources: StartupResources) {
     loop {
         log::info!("New app state: {state:?}");
         state = match state {
+            AppState::AdcSetup => adc_setup(&mut board).await,
             AppState::Initialize => initialize(&mut board).await,
             AppState::Measure => measure(&mut board).await,
             AppState::MainMenu => main_menu(&mut board).await,
