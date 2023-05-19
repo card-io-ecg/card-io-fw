@@ -9,7 +9,7 @@ pub async fn enter_deep_sleep(mut wakeup_pin: TouchDetect) -> ! {
 
     // TODO: this is a stupid simulation of sleeping
     Timer::after(Duration::from_millis(100)).await;
-    wakeup_pin.wait_for_rising_edge().await.unwrap();
+    wakeup_pin.wait_for_high().await.unwrap();
     wakeup_pin.wait_for_falling_edge().await.unwrap();
 
     software_reset();
