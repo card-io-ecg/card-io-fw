@@ -178,14 +178,7 @@ impl StartupResources {
         // Battery ADC
         let analog = peripherals.SENS.split();
 
-        let mut adc2_config = AdcConfig::new();
-
-        let battery_adc = BatteryAdc {
-            voltage_in: adc2_config.enable_pin(batt_adc_in, Attenuation::Attenuation11dB),
-            current_in: adc2_config.enable_pin(chg_current, Attenuation::Attenuation11dB),
-            enable: batt_adc_en,
-            adc: ADC::adc(analog.adc2, adc2_config).unwrap(),
-        };
+        let battery_adc = BatteryAdc::new(analog.adc2, batt_adc_in, chg_current, batt_adc_en);
 
         StartupResources {
             display,
