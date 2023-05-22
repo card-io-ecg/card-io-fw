@@ -16,13 +16,17 @@ pub use esp32s2 as pac;
 
 #[cfg(feature = "esp32s3")]
 pub use esp32s3 as pac;
+use gui::screens::display_menu::BatteryDisplayStyle;
+use signal_processing::battery::BatteryModel;
 
 use display_interface_spi::SPIInterface;
 use drivers::{
+    battery_adc::BatteryAdc as BatteryAdcType,
     display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
     frontend::{Frontend, PoweredFrontend},
 };
 use hal::{
+    adc::ADC2,
     dma::{ChannelRx, ChannelTx},
     gdma::*,
     gpio::{
@@ -165,10 +169,18 @@ pub type PoweredEcgFrontend = PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset
 pub type Display = DisplayType<DisplayInterface<'static>, DisplayReset>;
 pub type PoweredDisplay = PoweredDisplayType<DisplayInterface<'static>, DisplayReset>;
 
+pub type BatteryAdc = BatteryAdcType<BatteryAdcInput, ChargeCurrentInput, BatteryAdcEnable, ADC2>;
+
 pub struct MiscPins {
-    pub batt_adc_in: BatteryAdcInput,
-    pub batt_adc_en: BatteryAdcEnable,
     pub vbus_detect: VbusDetect,
-    pub chg_current: ChargeCurrentInput,
     pub chg_status: ChargerStatus,
 }
+
+pub const BATTERY_MODEL: BatteryModel = BatteryModel {
+    voltage: (2750, 4200),
+    charge_current: (0, 1000),
+};
+
+pub const LOW_BATTERY_VOLTAGE: u16 = 3300;
+
+pub const DEFAULT_BATTERY_DISPLAY_STYLE: BatteryDisplayStyle = BatteryDisplayStyle::Indicator;

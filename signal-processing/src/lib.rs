@@ -1,5 +1,6 @@
 #![no_std]
 
+pub mod battery;
 pub mod filter;
 pub mod heart_rate;
 pub mod lerp;

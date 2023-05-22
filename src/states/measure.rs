@@ -2,7 +2,7 @@ use crate::{
     board::{
         hal::{prelude::*, spi::Error as SpiError},
         initialized::Board,
-        PoweredEcgFrontend,
+        PoweredEcgFrontend, BATTERY_MODEL, DEFAULT_BATTERY_DISPLAY_STYLE, LOW_BATTERY_VOLTAGE,
     },
     replace_with::replace_with_or_abort_and_return_async,
     states::MIN_FRAME_TIME,
@@ -13,10 +13,11 @@ use embassy_executor::_export::StaticCell;
 use embassy_sync::{
     blocking_mutex::raw::CriticalSectionRawMutex,
     channel::{Channel, Sender},
+    signal::Signal,
 };
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
-use gui::screens::measure::EcgScreen;
+use gui::{screens::measure::EcgScreen, widgets::battery_small::BatteryStyle};
 use object_chain::{Chain, ChainElement};
 use signal_processing::{
     filter::{
@@ -33,6 +34,7 @@ type MessageQueue = Channel<CriticalSectionRawMutex, Message, 32>;
 type MessageSender = Sender<'static, CriticalSectionRawMutex, Message, 32>;
 
 static CHANNEL: StaticCell<MessageQueue> = StaticCell::new();
+static THREAD_CONTROL: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 
 enum Message {
     Sample(Sample),
@@ -107,6 +109,8 @@ pub async fn measure(board: &mut Board) -> AppState {
         let mut heart_rate_calculator = HeartRateCalculator::new(1000.0);
 
         let mut screen = EcgScreen::new(96); // discard transient
+        screen.battery_style = BatteryStyle::new(DEFAULT_BATTERY_DISPLAY_STYLE, BATTERY_MODEL);
+
         let mut ticker = Ticker::every(MIN_FRAME_TIME);
 
         let mut samples = 0; // Counter and 1s timer to debug perf issues
@@ -149,6 +153,14 @@ pub async fn measure(board: &mut Board) -> AppState {
                 started = now;
             }
 
+            let battery_data = board.battery_monitor.battery_data().await;
+
+            if let Some(battery) = battery_data {
+                if battery.voltage < LOW_BATTERY_VOLTAGE {
+                    THREAD_CONTROL.signal(());
+                }
+            }
+            screen.battery_data = battery_data;
             board
                 .display
                 .frame(|display| screen.draw(display))
@@ -176,7 +188,7 @@ async fn read_ecg(
     queue: &MessageSender,
     frontend: &mut PoweredEcgFrontend,
 ) -> Result<(), Error<SpiError>> {
-    loop {
+    while !THREAD_CONTROL.signaled() {
         match frontend.read().await {
             Ok(sample) => {
                 if !frontend.is_touched() {
@@ -194,4 +206,7 @@ async fn read_ecg(
             Err(e) => return Err(e),
         }
     }
+
+    log::info!("Stop requested, stopping");
+    return Ok(());
 }

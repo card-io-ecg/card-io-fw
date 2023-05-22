@@ -1,5 +1,9 @@
 use core::{cell::RefCell, fmt::Write, num::NonZeroU8};
 
+use crate::{
+    screens::BatteryInfo,
+    widgets::battery_small::{Battery, BatteryStyle},
+};
 use embedded_graphics::{
     geometry::AnchorPoint,
     image::{Image, ImageRaw},
@@ -101,6 +105,9 @@ pub struct EcgScreen {
     discard: usize,
     pub heart_rate: Option<NonZeroU8>,
     camera: RefCell<Camera>,
+    pub battery_voltage: Option<u16>,
+    pub battery_data: Option<BatteryInfo>,
+    pub battery_style: BatteryStyle,
 }
 
 impl EcgScreen {
@@ -117,6 +124,9 @@ impl EcgScreen {
                     shrink_delay: 60,
                 },
             }),
+            battery_voltage: None,
+            battery_data: None,
+            battery_style: BatteryStyle::MilliVolts,
         }
     }
 
@@ -162,6 +172,16 @@ impl Drawable for EcgScreen {
     type Output = ();
 
     fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
+        if let Some(data) = self.battery_data {
+            Battery {
+                data,
+                style: self.battery_style,
+                top_left: Point::zero(),
+            }
+            .align_to_mut(&display.bounding_box(), horizontal::Right, vertical::Top)
+            .draw(display)?;
+        }
+
         if !self.buffer.is_full() {
             let text_style = MonoTextStyleBuilder::new()
                 .font(&FONT_6X10)

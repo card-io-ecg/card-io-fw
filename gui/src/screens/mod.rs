@@ -5,6 +5,7 @@ use embedded_menu::{
     MenuStyle,
 };
 
+pub mod charging;
 pub mod display_menu;
 pub mod error;
 pub mod init;
@@ -18,3 +19,9 @@ pub const MENU_STYLE: MenuStyle<BinaryColor, AnimatedTriangle, SingleTouch, Anim
         .with_selection_indicator(AnimatedTriangle::new(200))
         .with_interaction_controller(SingleTouch::new(15, 100))
         .with_title_font(&FONT_7X13_BOLD);
+
+#[derive(Clone, Copy, PartialEq)]
+pub struct BatteryInfo {
+    pub voltage: u16,
+    pub charge_current: Option<u16>,
+}

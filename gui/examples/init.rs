@@ -8,7 +8,11 @@ use embedded_graphics::{
 use embedded_graphics_simulator::{
     BinaryColorTheme, OutputSettingsBuilder, SimulatorDisplay, SimulatorEvent, Window,
 };
-use gui::screens::init::StartupScreen;
+use gui::{
+    screens::{init::StartupScreen, BatteryInfo},
+    widgets::battery_small::BatteryStyle,
+};
+use signal_processing::battery::BatteryModel;
 
 fn main() -> Result<(), Infallible> {
     let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(128, 64));
@@ -32,6 +36,14 @@ fn main() -> Result<(), Infallible> {
                 progress
             },
             max_progress: 255,
+            battery_data: Some(BatteryInfo {
+                voltage: 4200,
+                charge_current: Some(100),
+            }),
+            battery_style: BatteryStyle::Icon(BatteryModel {
+                voltage: (3300, 4200),
+                charge_current: (0, 1000),
+            }),
         }
         .draw(&mut display)
         .unwrap();

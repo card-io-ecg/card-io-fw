@@ -15,7 +15,7 @@ use crate::{
             },
             Rtc, Spi, IO,
         },
-        Frontend, *,
+        *,
     },
     heap::init_heap,
     interrupt::{InterruptExecutor, SwInterrupt0},
@@ -23,7 +23,10 @@ use crate::{
 use display_interface_spi::SPIInterface;
 use embassy_executor::SendSpawner;
 use esp_println::logger::init_logger;
-use hal::systimer::SystemTimer;
+use hal::{
+    adc::{AdcConfig, Attenuation, ADC},
+    systimer::SystemTimer,
+};
 
 static INT_EXECUTOR: InterruptExecutor<SwInterrupt0> = InterruptExecutor::new();
 
@@ -36,6 +39,7 @@ pub struct StartupResources {
     pub display: Display,
     pub frontend: EcgFrontend,
     pub clocks: Clocks<'static>,
+    pub battery_adc: BatteryAdc,
     pub misc_pins: MiscPins,
     pub high_prio_spawner: SendSpawner,
 }
@@ -171,17 +175,27 @@ impl StartupResources {
 
         let high_prio_spawner = INT_EXECUTOR.start();
 
+        // Battery ADC
+        let analog = peripherals.SENS.split();
+
+        let mut adc2_config = AdcConfig::new();
+
+        let battery_adc = BatteryAdc {
+            voltage_in: adc2_config.enable_pin(batt_adc_in, Attenuation::Attenuation11dB),
+            current_in: adc2_config.enable_pin(chg_current, Attenuation::Attenuation11dB),
+            enable: batt_adc_en,
+            adc: ADC::adc(analog.adc2, adc2_config).unwrap(),
+        };
+
         StartupResources {
             display,
             frontend: adc,
             clocks,
+            battery_adc,
             high_prio_spawner,
 
             misc_pins: MiscPins {
-                batt_adc_in,
-                batt_adc_en,
                 vbus_detect,
-                chg_current,
                 chg_status,
             },
         }

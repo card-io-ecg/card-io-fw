@@ -1,4 +1,5 @@
 mod adc_setup;
+mod charging;
 mod error;
 mod init;
 mod measure;
@@ -7,6 +8,7 @@ mod menu;
 use embassy_time::Duration;
 
 pub use adc_setup::adc_setup;
+pub use charging::charging;
 pub use error::app_error;
 pub use init::initialize;
 pub use measure::measure;
