@@ -15,7 +15,7 @@ use embassy_sync::{
     channel::{Channel, Sender},
     signal::Signal,
 };
-use embassy_time::{Duration, Instant, Ticker};
+use embassy_time::{Duration, Instant, Ticker, Timer};
 use embedded_graphics::Drawable;
 use gui::{screens::measure::EcgScreen, widgets::battery_small::BatteryStyle};
 use object_chain::{Chain, ChainElement};
@@ -179,6 +179,8 @@ async fn reader_task(params: EcgTaskParams) {
         sender,
         mut frontend,
     } = params;
+
+    Timer::after(Duration::from_millis(100)).await;
 
     let result = read_ecg(&sender, &mut frontend).await;
     sender.send(Message::End(frontend, result)).await;
