@@ -138,21 +138,41 @@ async fn monitor_task(
     battery_state: &'static SharedBatteryState,
     task_control: &'static Signal<NoopRawMutex, ()>,
 ) {
-    let mut timer = Ticker::every(Duration::from_secs(1));
+    let mut timer = Ticker::every(Duration::from_millis(10));
 
     battery.enable.set_high().unwrap();
+
+    let mut voltage_accumulator = 0;
+    let mut current_accumulator = 0;
+
+    let mut sample_count = 0;
+
+    const AVG_SAMPLE_COUNT: u32 = 128;
 
     while !task_control.signaled() {
         let voltage = battery.read_battery_voltage().await;
         let current = battery.read_charge_current().await;
 
-        log::debug!("Voltage = {voltage:?}");
-        log::debug!("Current = {current:?}");
+        voltage_accumulator += voltage.unwrap() as u32;
+        current_accumulator += current.unwrap() as u32;
 
-        {
+        if sample_count == AVG_SAMPLE_COUNT {
+            let voltage = (voltage_accumulator / AVG_SAMPLE_COUNT) as u16;
+            let current = (current_accumulator / AVG_SAMPLE_COUNT) as u16;
+
             let mut state = battery_state.lock().await;
-            state.battery_voltage = voltage.ok();
-            state.charging_current = current.ok();
+            state.battery_voltage = Some(voltage);
+            state.charging_current = Some(current);
+
+            log::debug!("Voltage = {voltage:?}");
+            log::debug!("Current = {current:?}");
+
+            sample_count = 0;
+
+            voltage_accumulator = 0;
+            current_accumulator = 0;
+        } else {
+            sample_count += 1;
         }
 
         timer.next().await;

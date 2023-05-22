@@ -4,13 +4,33 @@ use crate::board::hal::{
 };
 use embassy_futures::yield_now;
 use embedded_hal_old::adc::{Channel, OneShot};
-use esp32s3_hal::peripheral::Peripheral;
+use esp32s3_hal::{efuse::Efuse, peripheral::Peripheral};
+
+struct AdcCalibration {
+    // Assumption is that this is the ADC output @ 850mV
+    calibration_factor: u32,
+}
+
+impl AdcCalibration {
+    fn new(attenuation: Attenuation) -> Self {
+        let (d, _v) = Efuse::adc2_get_cal_voltage(attenuation);
+
+        Self {
+            calibration_factor: 100_000 * 925 / d,
+        }
+    }
+
+    fn raw_to_mv(&self, raw: u16) -> u16 {
+        ((raw as u32 * self.calibration_factor) / 100_000) as u16
+    }
+}
 
 pub struct BatteryAdc<V, A, EN, ADCI: 'static> {
     pub voltage_in: AdcPin<V, ADCI>,
     pub current_in: AdcPin<A, ADCI>,
     pub enable: EN,
     pub adc: ADC<'static, ADCI>,
+    calibration: AdcCalibration,
 }
 
 impl<V, A, EN, ADCI> BatteryAdc<V, A, EN, ADCI>
@@ -29,17 +49,18 @@ where
             current_in: adc_config.enable_pin(current_in, Attenuation::Attenuation11dB),
             enable,
             adc: ADC::adc(adc, adc_config).unwrap(),
+            calibration: AdcCalibration::new(Attenuation::Attenuation11dB),
         }
-    }
-
-    fn raw_to_mv(&self, raw: u16) -> u16 {
-        raw
     }
 
     pub async fn read_battery_voltage(&mut self) -> Result<u16, ()> {
         loop {
             match self.adc.read(&mut self.voltage_in) {
-                Ok(out) => return Ok(self.raw_to_mv(out * 2)), // 2x Voltage divider
+                Ok(out) => {
+                    return Ok(self
+                        .calibration
+                        .raw_to_mv(((out as u32 * 4200) / 2000) as u16)); // 2x Voltage divider + some weirdness
+                }
                 Err(nb::Error::Other(_e)) => return Err(()),
                 Err(nb::Error::WouldBlock) => yield_now().await,
             }
@@ -49,7 +70,7 @@ where
     pub async fn read_charge_current(&mut self) -> Result<u16, ()> {
         loop {
             match self.adc.read(&mut self.current_in) {
-                Ok(out) => return Ok(self.raw_to_mv(out)),
+                Ok(out) => return Ok(self.calibration.raw_to_mv(out)),
                 Err(nb::Error::Other(_e)) => return Err(()),
                 Err(nb::Error::WouldBlock) => yield_now().await,
             }
