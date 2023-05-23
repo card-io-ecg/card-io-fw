@@ -17,6 +17,8 @@ pub async fn enter_deep_sleep(mut wakeup_pin: TouchDetect, charger_pin: ChargerS
 }
 
 fn configure_wakeup_sources(wakeup_pin: TouchDetect, charger_pin: ChargerStatus) {
+    enable_gpio_pullup(&charger_pin);
+
     enable_gpio_wakeup(wakeup_pin);
     enable_gpio_wakeup(charger_pin);
 }
@@ -41,6 +43,19 @@ fn enable_gpio_wakeup<MODE, const PIN: u8>(_pin: GpioPin<MODE, PIN>) {
             .int_type()
             .variant(RtcioWakeupType::LowLevel as u8)
     });
+}
+
+fn enable_gpio_pullup<MODE, const PIN: u8>(_pin: &GpioPin<MODE, PIN>) {
+    let rtcio = unsafe { &*pac::RTC_IO::PTR };
+    let rtc_ctrl = unsafe { &*pac::RTC_CNTL::PTR };
+
+    match PIN {
+        21 => {
+            rtcio.rtc_pad21.modify(|_, w| w.rue().set_bit());
+            rtc_ctrl.pad_hold.modify(|_, w| w.pad21_hold().set_bit())
+        }
+        _ => {}
+    }
 }
 
 // Assumptions: S3, Quad Flash/PSRAM, 2nd core stopped
