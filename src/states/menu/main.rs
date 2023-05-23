@@ -1,18 +1,13 @@
 use crate::{
-    board::{
-        initialized::Board, BATTERY_MODEL, DEFAULT_BATTERY_DISPLAY_STYLE, LOW_BATTERY_VOLTAGE,
-    },
+    board::{initialized::Board, LOW_BATTERY_VOLTAGE},
     states::MIN_FRAME_TIME,
     AppState,
 };
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::prelude::*;
-use gui::{
-    screens::{
-        main_menu::{MainMenu, MainMenuEvents, MainMenuScreen},
-        MENU_STYLE,
-    },
-    widgets::battery_small::BatteryStyle,
+use gui::screens::{
+    main_menu::{MainMenu, MainMenuEvents, MainMenuScreen},
+    MENU_STYLE,
 };
 
 pub async fn main_menu(board: &mut Board) -> AppState {
@@ -30,7 +25,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
     let mut menu_screen = MainMenuScreen {
         menu: menu_values.create_menu_with_style(MENU_STYLE),
         battery_data,
-        battery_style: BatteryStyle::new(DEFAULT_BATTERY_DISPLAY_STYLE, BATTERY_MODEL),
+        battery_style: board.config.battery_style(),
     };
 
     let mut last_interaction = Instant::now();

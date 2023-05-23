@@ -16,7 +16,10 @@ pub use esp32s2 as pac;
 
 #[cfg(feature = "esp32s3")]
 pub use esp32s3 as pac;
-use gui::screens::display_menu::BatteryDisplayStyle;
+use gui::{
+    screens::display_menu::{BatteryDisplayStyle, DisplayBrightness},
+    widgets::battery_small::BatteryStyle,
+};
 use signal_processing::battery::BatteryModel;
 
 use display_interface_spi::SPIInterface;
@@ -32,6 +35,7 @@ use hal::{
     gpio::{Analog, Floating, GpioPin, Input, Output, PullUp, PushPull},
     spi::{dma::SpiDma, FullDuplexMode},
 };
+use ssd1306::prelude::Brightness;
 use utils::{DummyOutputPin, SpiDeviceWrapper};
 
 pub type DisplaySpi<'d> = SpiDeviceWrapper<
@@ -94,4 +98,32 @@ pub const BATTERY_MODEL: BatteryModel = BatteryModel {
 
 pub const LOW_BATTERY_VOLTAGE: u16 = 3300;
 
-pub const DEFAULT_BATTERY_DISPLAY_STYLE: BatteryDisplayStyle = BatteryDisplayStyle::Indicator;
+pub struct Config {
+    pub battery_display_style: BatteryDisplayStyle,
+    pub display_brightness: DisplayBrightness,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            battery_display_style: BatteryDisplayStyle::Indicator,
+            display_brightness: DisplayBrightness::Normal,
+        }
+    }
+}
+
+impl Config {
+    pub fn battery_style(&self) -> BatteryStyle {
+        BatteryStyle::new(self.battery_display_style, BATTERY_MODEL)
+    }
+
+    pub fn display_brightness(&self) -> Brightness {
+        match self.display_brightness {
+            DisplayBrightness::Dimmest => Brightness::DIMMEST,
+            DisplayBrightness::Dim => Brightness::DIM,
+            DisplayBrightness::Normal => Brightness::NORMAL,
+            DisplayBrightness::Bright => Brightness::BRIGHT,
+            DisplayBrightness::Brightest => Brightness::BRIGHTEST,
+        }
+    }
+}

@@ -2,7 +2,7 @@ use crate::{
     board::{
         hal::{prelude::*, spi::Error as SpiError},
         initialized::Board,
-        PoweredEcgFrontend, BATTERY_MODEL, DEFAULT_BATTERY_DISPLAY_STYLE, LOW_BATTERY_VOLTAGE,
+        PoweredEcgFrontend, LOW_BATTERY_VOLTAGE,
     },
     replace_with::replace_with_or_abort_and_return_async,
     states::MIN_FRAME_TIME,
@@ -17,7 +17,7 @@ use embassy_sync::{
 };
 use embassy_time::{Duration, Instant, Ticker, Timer};
 use embedded_graphics::Drawable;
-use gui::{screens::measure::EcgScreen, widgets::battery_small::BatteryStyle};
+use gui::screens::measure::EcgScreen;
 use object_chain::{Chain, ChainElement};
 use signal_processing::{
     filter::{
@@ -109,7 +109,7 @@ pub async fn measure(board: &mut Board) -> AppState {
         let mut heart_rate_calculator = HeartRateCalculator::new(1000.0);
 
         let mut screen = EcgScreen::new(96); // discard transient
-        screen.battery_style = BatteryStyle::new(DEFAULT_BATTERY_DISPLAY_STYLE, BATTERY_MODEL);
+        screen.battery_style = board.config.battery_style();
 
         let mut ticker = Ticker::every(MIN_FRAME_TIME);
 

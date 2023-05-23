@@ -17,7 +17,7 @@ use crate::{
         hal::{self, entry},
         initialized::{BatteryMonitor, Board},
         startup::StartupResources,
-        BatteryAdc,
+        BatteryAdc, Config,
     },
     sleep::enter_deep_sleep,
     states::{adc_setup, app_error, charging, display_menu, initialize, main_menu, measure},
@@ -103,7 +103,13 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             vbus_detect: resources.misc_pins.vbus_detect,
             charger_status: resources.misc_pins.chg_status,
         },
+        config: Config::default(), // TODO: load config
     };
+
+    let _ = board
+        .display
+        .update_brightness_async(board.config.display_brightness())
+        .await;
 
     let mut state = AppState::AdcSetup;
 

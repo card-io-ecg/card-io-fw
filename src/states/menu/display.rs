@@ -1,20 +1,14 @@
 use crate::{
-    board::{
-        initialized::Board, BATTERY_MODEL, DEFAULT_BATTERY_DISPLAY_STYLE, LOW_BATTERY_VOLTAGE,
-    },
+    board::{initialized::Board, LOW_BATTERY_VOLTAGE},
     states::MIN_FRAME_TIME,
     AppState,
 };
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::prelude::*;
-use gui::{
-    screens::{
-        display_menu::{DisplayBrightness, DisplayMenu, DisplayMenuEvents, DisplayMenuScreen},
-        MENU_STYLE,
-    },
-    widgets::battery_small::BatteryStyle,
+use gui::screens::{
+    display_menu::{DisplayBrightness, DisplayMenu, DisplayMenuEvents, DisplayMenuScreen},
+    MENU_STYLE,
 };
-use ssd1306::prelude::Brightness;
 
 pub async fn display_menu(board: &mut Board) -> AppState {
     const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
@@ -29,14 +23,14 @@ pub async fn display_menu(board: &mut Board) -> AppState {
     let mut menu_values = DisplayMenu {
         // TODO: read from some storage
         brightness: DisplayBrightness::Normal,
-        battery_display: DEFAULT_BATTERY_DISPLAY_STYLE,
+        battery_display: board.config.battery_display_style,
     };
 
     let mut menu_screen = DisplayMenuScreen {
         menu: menu_values.create_menu_with_style(MENU_STYLE),
 
         battery_data,
-        battery_style: BatteryStyle::new(DEFAULT_BATTERY_DISPLAY_STYLE, BATTERY_MODEL),
+        battery_style: board.config.battery_style(),
     };
 
     let mut last_interaction = Instant::now();
@@ -60,20 +54,16 @@ pub async fn display_menu(board: &mut Board) -> AppState {
             let new = *menu_screen.menu.data();
             if menu_values.brightness != new.brightness {
                 // TODO: store on exit (note: 2 exit sites)
+                board.config.display_brightness = new.brightness;
                 let _ = board
                     .display
-                    .update_brightness_async(match new.brightness {
-                        DisplayBrightness::Dimmest => Brightness::DIMMEST,
-                        DisplayBrightness::Dim => Brightness::DIM,
-                        DisplayBrightness::Normal => Brightness::NORMAL,
-                        DisplayBrightness::Bright => Brightness::BRIGHT,
-                        DisplayBrightness::Brightest => Brightness::BRIGHTEST,
-                    })
+                    .update_brightness_async(board.config.display_brightness())
                     .await;
             }
             if menu_values.battery_display != new.battery_display {
                 // TODO: store on exit (note: 2 exit sites)
-                menu_screen.battery_style = BatteryStyle::new(new.battery_display, BATTERY_MODEL);
+                board.config.battery_display_style = new.battery_display;
+                menu_screen.battery_style = board.config.battery_style();
             }
 
             menu_values = new;
