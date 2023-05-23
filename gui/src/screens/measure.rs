@@ -68,7 +68,7 @@ impl Limit {
                     self.current = value;
                 } else {
                     let delta = (value - self.current) / remaining_shrink_frames as f32;
-                    self.current = self.current + delta;
+                    self.current += delta;
                 }
             }
         }

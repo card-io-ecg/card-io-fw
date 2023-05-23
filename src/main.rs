@@ -82,7 +82,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         .spawn(monitor_task(
             resources.battery_adc,
             battery_state,
-            task_control.clone(),
+            task_control,
         ))
         .ok();
 
@@ -131,7 +131,10 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
                 let (_, _, _, touch) = board.frontend.split();
                 let charger_pin = board.battery_monitor.charger_status;
 
-                enter_deep_sleep(touch, charger_pin).await
+                enter_deep_sleep(touch, charger_pin).await;
+                // Shouldn't reach this. If we do, we just exit the task, which means the executor
+                // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
+                return;
             }
         };
     }

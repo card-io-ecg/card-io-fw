@@ -66,6 +66,7 @@ impl BatteryStyle {
         top_right: Point,
     ) -> Result<Point, D::Error> {
         #[rustfmt::skip]
+        #[allow(clippy::unusual_byte_groupings)]
         const DATA: &[u8] = &[
             0b00000000, 0b00000_000,
             0b11111111, 0b11110_000,
@@ -93,7 +94,7 @@ impl BatteryStyle {
         string: &str,
     ) -> Result<u32, D::Error> {
         Text::with_text_style(
-            &string,
+            string,
             Point::new(target.bounding_box().size.width as i32 - 1, 0),
             Self::text_style(),
             TextStyleBuilder::new()
@@ -104,7 +105,7 @@ impl BatteryStyle {
         .draw(target)?;
 
         Ok(Self::text_style()
-            .measure_string(&string, Point::zero(), Baseline::Top)
+            .measure_string(string, Point::zero(), Baseline::Top)
             .bounding_box
             .size
             .width)
@@ -116,6 +117,7 @@ impl BatteryStyle {
         battery_data_width: u32,
     ) -> Result<(), D::Error> {
         #[rustfmt::skip]
+        #[allow(clippy::unusual_byte_groupings)]
         const DATA: &[u8] = &[
             0b010100_00,
             0b010100_00,

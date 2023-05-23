@@ -210,5 +210,5 @@ async fn read_ecg(
     }
 
     log::info!("Stop requested, stopping");
-    return Ok(());
+    Ok(())
 }

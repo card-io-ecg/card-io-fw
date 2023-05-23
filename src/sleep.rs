@@ -4,7 +4,7 @@ use esp32s3_hal::gpio::GpioPin;
 
 use crate::board::{pac, ChargerStatus, TouchDetect};
 
-pub async fn enter_deep_sleep(mut wakeup_pin: TouchDetect, charger_pin: ChargerStatus) -> ! {
+pub async fn enter_deep_sleep(mut wakeup_pin: TouchDetect, charger_pin: ChargerStatus) {
     wakeup_pin.wait_for_high().await.unwrap();
     Timer::after(Duration::from_millis(100)).await;
 
@@ -49,6 +49,7 @@ fn enable_gpio_pullup<MODE, const PIN: u8>(_pin: &GpioPin<MODE, PIN>) {
     let rtcio = unsafe { &*pac::RTC_IO::PTR };
     let rtc_ctrl = unsafe { &*pac::RTC_CNTL::PTR };
 
+    #[allow(clippy::single_match)]
     match PIN {
         21 => {
             rtcio.rtc_pad21.modify(|_, w| w.rue().set_bit());
@@ -59,7 +60,7 @@ fn enable_gpio_pullup<MODE, const PIN: u8>(_pin: &GpioPin<MODE, PIN>) {
 }
 
 // Assumptions: S3, Quad Flash/PSRAM, 2nd core stopped
-fn start_deep_sleep() -> ! {
+fn start_deep_sleep() {
     // TODO: flush log buffers?
 
     let rtc_ctrl = unsafe { &*pac::RTC_CNTL::PTR };
@@ -85,6 +86,4 @@ fn start_deep_sleep() -> ! {
 
     /* Start entry into sleep mode */
     rtc_ctrl.state0.modify(|_, w| w.sleep_en().set_bit());
-
-    loop {}
 }
