@@ -23,10 +23,7 @@ use crate::{
 use display_interface_spi::SPIInterface;
 use embassy_executor::SendSpawner;
 use esp_println::logger::init_logger;
-use hal::{
-    adc::{AdcConfig, Attenuation, ADC},
-    systimer::SystemTimer,
-};
+use hal::systimer::SystemTimer;
 
 static INT_EXECUTOR: InterruptExecutor<SwInterrupt0> = InterruptExecutor::new();
 
