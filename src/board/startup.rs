@@ -23,7 +23,7 @@ use crate::{
 use display_interface_spi::SPIInterface;
 use embassy_executor::SendSpawner;
 use esp_println::logger::init_logger;
-use hal::systimer::SystemTimer;
+use hal::{radio::Wifi, systimer::SystemTimer, timer::TimerGroup, Rng};
 
 static INT_EXECUTOR: InterruptExecutor<SwInterrupt0> = InterruptExecutor::new();
 
@@ -39,6 +39,7 @@ pub struct StartupResources {
     pub battery_adc: BatteryAdc,
     pub misc_pins: MiscPins,
     pub high_prio_spawner: SendSpawner,
+    pub wifi: Wifi,
 }
 
 impl StartupResources {
@@ -177,6 +178,24 @@ impl StartupResources {
 
         let battery_adc = BatteryAdc::new(analog.adc2, batt_adc_in, chg_current, batt_adc_en);
 
+        // Wifi
+        let timer = TimerGroup::new(
+            peripherals.TIMG1,
+            &clocks,
+            &mut system.peripheral_clock_control,
+        )
+        .timer0;
+
+        esp_wifi::initialize(
+            timer,
+            Rng::new(peripherals.RNG),
+            system.radio_clock_control,
+            &clocks,
+        )
+        .unwrap();
+
+        let (wifi, _) = peripherals.RADIO.split();
+
         StartupResources {
             display,
             frontend: adc,
@@ -188,6 +207,8 @@ impl StartupResources {
                 vbus_detect,
                 chg_status,
             },
+
+            wifi,
         }
     }
 }

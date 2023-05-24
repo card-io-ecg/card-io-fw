@@ -3,7 +3,10 @@ use embedded_hal::digital::InputPin;
 use gui::screens::BatteryInfo;
 
 use crate::{
-    board::{hal::clock::Clocks, ChargerStatus, Config, EcgFrontend, PoweredDisplay, VbusDetect},
+    board::{
+        hal::{clock::Clocks, radio::Wifi},
+        ChargerStatus, Config, EcgFrontend, PoweredDisplay, VbusDetect,
+    },
     SharedBatteryState,
 };
 
@@ -42,5 +45,6 @@ pub struct Board {
     pub clocks: Clocks<'static>,
     pub high_prio_spawner: SendSpawner,
     pub battery_monitor: BatteryMonitor<VbusDetect, ChargerStatus>,
+    pub wifi: Wifi,
     pub config: Config,
 }
