@@ -39,7 +39,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
         if let Some(event) = menu_screen.menu.interact(is_touched) {
             match event {
                 MainMenuEvents::Display => return AppState::DisplayMenu,
-                MainMenuEvents::WifiSetup => {}
+                MainMenuEvents::WifiSetup => return AppState::WifiAP,
                 MainMenuEvents::Shutdown => return AppState::Shutdown,
             };
         }
