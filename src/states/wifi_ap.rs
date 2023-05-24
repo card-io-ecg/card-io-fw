@@ -1,8 +1,8 @@
 use embassy_net::{Config, Ipv4Address, Ipv4Cidr, Stack, StackResources, StaticConfig};
-use embassy_time::{Duration, Instant, Ticker};
+use embassy_time::Ticker;
 use embedded_graphics::Drawable;
 use esp_wifi::wifi::WifiMode;
-use gui::screens::wifi_ap::WifiApScreen;
+use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen};
 
 use crate::{
     board::{initialized::Board, LOW_BATTERY_VOLTAGE},
@@ -43,9 +43,13 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         1234,
     );
 
+    let mut screen = WifiApScreen::new(
+        board.battery_monitor.battery_data().await,
+        board.config.battery_style(),
+    );
+
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    let started = Instant::now();
-    while started.elapsed() < Duration::from_secs(10) {
+    loop {
         let battery_data = board.battery_monitor.battery_data().await;
 
         if let Some(battery) = battery_data {
@@ -54,10 +58,13 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
             }
         }
 
-        let screen = WifiApScreen {
-            battery_data,
-            battery_style: board.config.battery_style(),
-        };
+        screen.battery_data = battery_data;
+
+        if let Some(event) = screen.menu.interact(board.frontend.is_touched()) {
+            match event {
+                ApMenuEvents::Exit => break,
+            };
+        }
 
         board
             .display
