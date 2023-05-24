@@ -24,7 +24,9 @@ use crate::{
         disable_gpio_wakeup, enable_gpio_pullup, enable_gpio_wakeup, start_deep_sleep,
         RtcioWakeupType,
     },
-    states::{adc_setup, app_error, charging, display_menu, initialize, main_menu, measure},
+    states::{
+        adc_setup, app_error, charging, display_menu, initialize, main_menu, measure, wifi_ap,
+    },
 };
 
 mod board;
@@ -47,6 +49,7 @@ pub enum AppState {
     Charging,
     MainMenu,
     DisplayMenu,
+    WifiAP,
     Error(AppError),
     Shutdown,
     ShutdownCharging,
@@ -127,6 +130,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             AppState::Measure => measure(&mut board).await,
             AppState::MainMenu => main_menu(&mut board).await,
             AppState::DisplayMenu => display_menu(&mut board).await,
+            AppState::WifiAP => wifi_ap(&mut board).await,
             AppState::Error(error) => app_error(&mut board, error).await,
             AppState::Shutdown => {
                 let _ = board.display.shut_down();
