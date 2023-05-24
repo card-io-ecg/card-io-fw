@@ -2,6 +2,7 @@ pub mod drivers;
 pub mod initialized;
 pub mod startup;
 pub mod utils;
+pub mod wifi_driver;
 
 use esp_backtrace as _;
 

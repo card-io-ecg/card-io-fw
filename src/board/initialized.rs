@@ -1,11 +1,12 @@
 use embassy_executor::SendSpawner;
 use embedded_hal::digital::InputPin;
+use esp32s3_hal::system::PeripheralClockControl;
 use gui::screens::BatteryInfo;
 
 use crate::{
     board::{
-        hal::{clock::Clocks, radio::Wifi},
-        ChargerStatus, Config, EcgFrontend, PoweredDisplay, VbusDetect,
+        hal::clock::Clocks, wifi_driver::WifiDriver, ChargerStatus, Config, EcgFrontend,
+        PoweredDisplay, VbusDetect,
     },
     SharedBatteryState,
 };
@@ -43,8 +44,9 @@ pub struct Board {
     pub display: PoweredDisplay,
     pub frontend: EcgFrontend,
     pub clocks: Clocks<'static>,
+    pub peripheral_clock_control: PeripheralClockControl,
     pub high_prio_spawner: SendSpawner,
     pub battery_monitor: BatteryMonitor<VbusDetect, ChargerStatus>,
-    pub wifi: Wifi,
+    pub wifi: WifiDriver,
     pub config: Config,
 }

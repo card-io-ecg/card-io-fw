@@ -105,6 +105,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         display: resources.display.enable().await.unwrap(),
         frontend: resources.frontend,
         clocks: resources.clocks,
+        peripheral_clock_control: resources.peripheral_clock_control,
         high_prio_spawner: resources.high_prio_spawner,
         battery_monitor: BatteryMonitor {
             battery_state,
