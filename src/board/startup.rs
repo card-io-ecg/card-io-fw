@@ -55,6 +55,24 @@ impl StartupResources {
         let mut rtc = Rtc::new(peripherals.RTC_CNTL);
         rtc.rwdt.disable();
 
+        // Wifi
+        let timer = TimerGroup::new(
+            peripherals.TIMG1,
+            &clocks,
+            &mut system.peripheral_clock_control,
+        )
+        .timer0;
+
+        esp_wifi::initialize(
+            timer,
+            Rng::new(peripherals.RNG),
+            system.radio_clock_control,
+            &clocks,
+        )
+        .unwrap();
+
+        let (wifi, _) = peripherals.RADIO.split();
+
         embassy::init(&clocks, SystemTimer::new(peripherals.SYSTIMER));
 
         let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
@@ -177,24 +195,6 @@ impl StartupResources {
         let analog = peripherals.SENS.split();
 
         let battery_adc = BatteryAdc::new(analog.adc2, batt_adc_in, chg_current, batt_adc_en);
-
-        // Wifi
-        let timer = TimerGroup::new(
-            peripherals.TIMG1,
-            &clocks,
-            &mut system.peripheral_clock_control,
-        )
-        .timer0;
-
-        esp_wifi::initialize(
-            timer,
-            Rng::new(peripherals.RNG),
-            system.radio_clock_control,
-            &clocks,
-        )
-        .unwrap();
-
-        let (wifi, _) = peripherals.RADIO.split();
 
         StartupResources {
             display,
