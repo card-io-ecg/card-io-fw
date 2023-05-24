@@ -111,6 +111,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             vbus_detect: resources.misc_pins.vbus_detect,
             charger_status: resources.misc_pins.chg_status,
         },
+        wifi: resources.wifi,
         config: Config::default(), // TODO: load config
     };
 

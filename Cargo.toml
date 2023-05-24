@@ -41,6 +41,11 @@ log = "0.4.17"
 object-chain = "0.1.3"
 signal-processing = { path = "signal-processing" }
 
+[patch.crates-io]
+# needed because of esp-wifi
+esp-hal-common = { git = "https://github.com/bugadani/esp-hal.git", branch = "s3_adc_calibration" }
+esp32s3-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "s3_adc_calibration" }
+
 [features]
 default = ["esp32s3"]
 
