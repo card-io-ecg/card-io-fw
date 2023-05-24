@@ -19,8 +19,16 @@ unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
 }
 
 pub async fn wifi_ap(board: &mut Board) -> AppState {
-    let (mut wifi_interface, controller) =
-        esp_wifi::wifi::new_with_mode(unsafe { as_static_mut(&mut board.wifi) }, WifiMode::Ap);
+    let (mut wifi_interface, controller) = esp_wifi::wifi::new_with_mode(
+        unsafe {
+            as_static_mut(
+                board
+                    .wifi
+                    .driver_mut(&board.clocks, &mut board.peripheral_clock_control),
+            )
+        },
+        WifiMode::Ap,
+    );
 
     let config = Config::Static(StaticConfig {
         address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),

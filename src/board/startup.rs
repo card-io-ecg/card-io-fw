@@ -15,6 +15,7 @@ use crate::{
             },
             Rtc, Spi, IO,
         },
+        wifi_driver::WifiDriver,
         *,
     },
     heap::init_heap,
@@ -23,7 +24,7 @@ use crate::{
 use display_interface_spi::SPIInterface;
 use embassy_executor::SendSpawner;
 use esp_println::logger::init_logger;
-use hal::{radio::Wifi, systimer::SystemTimer, timer::TimerGroup, Rng};
+use hal::{system::PeripheralClockControl, systimer::SystemTimer};
 
 static INT_EXECUTOR: InterruptExecutor<SwInterrupt0> = InterruptExecutor::new();
 
@@ -36,10 +37,11 @@ pub struct StartupResources {
     pub display: Display,
     pub frontend: EcgFrontend,
     pub clocks: Clocks<'static>,
+    pub peripheral_clock_control: PeripheralClockControl,
     pub battery_adc: BatteryAdc,
     pub misc_pins: MiscPins,
     pub high_prio_spawner: SendSpawner,
-    pub wifi: Wifi,
+    pub wifi: WifiDriver,
 }
 
 impl StartupResources {
@@ -54,24 +56,6 @@ impl StartupResources {
 
         let mut rtc = Rtc::new(peripherals.RTC_CNTL);
         rtc.rwdt.disable();
-
-        // Wifi
-        let timer = TimerGroup::new(
-            peripherals.TIMG1,
-            &clocks,
-            &mut system.peripheral_clock_control,
-        )
-        .timer0;
-
-        esp_wifi::initialize(
-            timer,
-            Rng::new(peripherals.RNG),
-            system.radio_clock_control,
-            &clocks,
-        )
-        .unwrap();
-
-        let (wifi, _) = peripherals.RADIO.split();
 
         embassy::init(&clocks, SystemTimer::new(peripherals.SYSTIMER));
 
@@ -196,19 +180,27 @@ impl StartupResources {
 
         let battery_adc = BatteryAdc::new(analog.adc2, batt_adc_in, chg_current, batt_adc_en);
 
+        // Wifi
+        let (wifi, _) = peripherals.RADIO.split();
+
         StartupResources {
             display,
             frontend: adc,
-            clocks,
             battery_adc,
             high_prio_spawner,
+            wifi: WifiDriver::Uninitialized {
+                wifi,
+                timer: peripherals.TIMG1,
+                rng: peripherals.RNG,
+                rcc: system.radio_clock_control,
+            },
+            clocks,
+            peripheral_clock_control: system.peripheral_clock_control,
 
             misc_pins: MiscPins {
                 vbus_detect,
                 chg_status,
             },
-
-            wifi,
         }
     }
 }
