@@ -24,7 +24,7 @@ esp32s3 = { version = "0.18.0", optional = true }
 esp-backtrace = { version = "0.7.0", features = ["panic-handler", "exception-handler"] }
 esp-println = { version = "0.5.0", default-features = false, features = ["critical-section", "colors", "log"] }
 esp-alloc = { version = "0.3.0" }
-esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", features = ["esp32s3", "phy-enable-usb", "wifi", "embedded-svc"] }
+esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", features = ["esp32s3", "phy-enable-usb", "wifi", "embedded-svc", "async", "embassy-net"] }
 
 display-interface = { git = "https://github.com/bugadani/display-interface.git", branch = "async", features = ["async"] }
 display-interface-spi = { git = "https://github.com/bugadani/display-interface.git", branch = "async", features = ["async"] }
