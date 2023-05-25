@@ -2,6 +2,7 @@ use crate::{
     board::{initialized::Board, BATTERY_MODEL},
     AppState,
 };
+use embassy_futures::select::select;
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
 use gui::screens::charging::ChargingScreen;
@@ -46,13 +47,26 @@ pub async fn charging(board: &mut Board) -> AppState {
                 .unwrap();
 
             frames += 1;
+            ticker.next().await;
         } else if display_active {
             // Clear display
             board.display.frame(|_display| Ok(())).await.unwrap();
             display_active = false;
-        }
 
-        ticker.next().await;
+            log::debug!("Sleeping");
+            select(
+                board.battery_monitor.wait_for_unplugged(),
+                board.frontend.wait_for_touch(),
+            )
+            .await;
+            log::debug!("Wakeup");
+            ticker = Ticker::every(Duration::from_hz(FPS as u64));
+            if !display_active {
+                frames = 0;
+            }
+
+            display_started = Instant::now();
+        }
     }
 
     AppState::Shutdown
