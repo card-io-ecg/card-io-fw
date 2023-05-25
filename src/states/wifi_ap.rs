@@ -1,3 +1,5 @@
+use core::future::Future;
+
 use embassy_executor::Spawner;
 use embassy_futures::{join::join, select::select};
 use embassy_net::{
@@ -24,6 +26,15 @@ unsafe fn as_static_ref<T>(what: &T) -> &'static T {
 
 unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
     core::mem::transmute(what)
+}
+
+async fn cancellable(
+    future: impl Future,
+    cancellation: &'static Signal<NoopRawMutex, ()>,
+    join: &'static Signal<NoopRawMutex, ()>,
+) {
+    select(future, cancellation.wait()).await;
+    join.signal(())
 }
 
 pub async fn wifi_ap(board: &mut Board) -> AppState {
@@ -135,7 +146,7 @@ async fn connection_task(
     token: &'static Signal<NoopRawMutex, ()>,
     exited: &'static Signal<NoopRawMutex, ()>,
 ) {
-    select(
+    cancellable(
         async {
             log::debug!("start connection task");
             log::debug!("Device capabilities: {:?}", controller.get_capabilities());
@@ -165,10 +176,10 @@ async fn connection_task(
                 }
             }
         },
-        token.wait(),
+        token,
+        exited,
     )
     .await;
-    exited.signal(());
 }
 
 #[embassy_executor::task]
@@ -177,8 +188,7 @@ async fn net_task(
     token: &'static Signal<NoopRawMutex, ()>,
     exited: &'static Signal<NoopRawMutex, ()>,
 ) {
-    select(stack.run(), token.wait()).await;
-    exited.signal(());
+    cancellable(stack.run(), token, exited).await;
 }
 
 #[embassy_executor::task]
@@ -187,7 +197,7 @@ async fn webserver_task(
     token: &'static Signal<NoopRawMutex, ()>,
     exited: &'static Signal<NoopRawMutex, ()>,
 ) {
-    select(
+    cancellable(
         async {
             let mut rx_buffer = [0; 4096];
             let mut tx_buffer = [0; 4096];
@@ -266,9 +276,8 @@ async fn webserver_task(
                 socket.abort();
             }
         },
-        token.wait(),
+        token,
+        exited,
     )
     .await;
-
-    exited.signal(());
 }
