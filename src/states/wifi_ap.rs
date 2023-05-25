@@ -28,13 +28,28 @@ unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
     core::mem::transmute(what)
 }
 
-async fn cancellable(
-    future: impl Future,
-    cancellation: &'static Signal<NoopRawMutex, ()>,
-    join: &'static Signal<NoopRawMutex, ()>,
-) {
-    select(future, cancellation.wait()).await;
-    join.signal(())
+struct TaskController {
+    token: Signal<NoopRawMutex, ()>,
+    exited: Signal<NoopRawMutex, ()>,
+}
+
+impl TaskController {
+    fn new() -> Self {
+        Self {
+            token: Signal::new(),
+            exited: Signal::new(),
+        }
+    }
+
+    async fn stop_from_outside(&self) {
+        self.token.signal(());
+        self.exited.wait().await;
+    }
+
+    async fn run_cancellable(&self, future: impl Future) {
+        select(future, self.token.wait()).await;
+        self.exited.signal(())
+    }
 }
 
 pub async fn wifi_ap(board: &mut Board) -> AppState {
@@ -64,34 +79,27 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
     let spawner = Spawner::for_current_executor().await;
 
-    let connection_task_signal = Signal::<NoopRawMutex, ()>::new();
-    let net_task_signal = Signal::<NoopRawMutex, ()>::new();
-    let webserver_task_signal = Signal::<NoopRawMutex, ()>::new();
-
-    let connection_exited_signal = Signal::<NoopRawMutex, ()>::new();
-    let net_exited_signal = Signal::<NoopRawMutex, ()>::new();
-    let webserver_exited_signal = Signal::<NoopRawMutex, ()>::new();
+    let connection_task_control = TaskController::new();
+    let net_task_control = TaskController::new();
+    let webserver_task_control = TaskController::new();
 
     unsafe {
         spawner
             .spawn(connection_task(
                 controller,
-                as_static_ref(&connection_task_signal),
-                as_static_ref(&connection_exited_signal),
+                as_static_ref(&connection_task_control),
             ))
             .ok();
         spawner
             .spawn(net_task(
                 as_static_ref(&stack),
-                as_static_ref(&net_task_signal),
-                as_static_ref(&net_exited_signal),
+                as_static_ref(&net_task_control),
             ))
             .ok();
         spawner
             .spawn(webserver_task(
                 as_static_ref(&stack),
-                as_static_ref(&webserver_task_signal),
-                as_static_ref(&webserver_exited_signal),
+                as_static_ref(&webserver_task_control),
             ))
             .ok();
     }
@@ -129,13 +137,13 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         ticker.next().await;
     }
 
-    webserver_task_signal.signal(());
-    webserver_exited_signal.wait().await;
+    webserver_task_control.stop_from_outside().await;
 
-    connection_task_signal.signal(());
-    net_task_signal.signal(());
-
-    join(net_exited_signal.wait(), connection_exited_signal.wait()).await;
+    join(
+        connection_task_control.stop_from_outside(),
+        net_task_control.stop_from_outside(),
+    )
+    .await;
 
     AppState::MainMenu
 }
@@ -143,11 +151,10 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 #[embassy_executor::task]
 async fn connection_task(
     mut controller: WifiController<'static>,
-    token: &'static Signal<NoopRawMutex, ()>,
-    exited: &'static Signal<NoopRawMutex, ()>,
+    task_control: &'static TaskController,
 ) {
-    cancellable(
-        async {
+    task_control
+        .run_cancellable(async {
             log::debug!("start connection task");
             log::debug!("Device capabilities: {:?}", controller.get_capabilities());
 
@@ -175,30 +182,25 @@ async fn connection_task(
                     log::debug!("Wifi started!");
                 }
             }
-        },
-        token,
-        exited,
-    )
-    .await;
+        })
+        .await;
 }
 
 #[embassy_executor::task]
 async fn net_task(
     stack: &'static Stack<WifiDevice<'static>>,
-    token: &'static Signal<NoopRawMutex, ()>,
-    exited: &'static Signal<NoopRawMutex, ()>,
+    task_control: &'static TaskController,
 ) {
-    cancellable(stack.run(), token, exited).await;
+    task_control.run_cancellable(stack.run()).await;
 }
 
 #[embassy_executor::task]
 async fn webserver_task(
     stack: &'static Stack<WifiDevice<'static>>,
-    token: &'static Signal<NoopRawMutex, ()>,
-    exited: &'static Signal<NoopRawMutex, ()>,
+    task_control: &'static TaskController,
 ) {
-    cancellable(
-        async {
+    task_control
+        .run_cancellable(async {
             let mut rx_buffer = [0; 4096];
             let mut tx_buffer = [0; 4096];
 
@@ -275,9 +277,6 @@ async fn webserver_task(
                 socket.close();
                 socket.abort();
             }
-        },
-        token,
-        exited,
-    )
-    .await;
+        })
+        .await;
 }
