@@ -55,6 +55,7 @@ impl<'s, D: Driver> BadServer<'s, D> {
 
                 let mut headers = [httparse::EMPTY_HEADER; 20];
                 let mut req = httparse::Request::new(&mut headers);
+
                 let res = match req.parse(&buffer) {
                     Ok(res) => res,
                     Err(_) => {

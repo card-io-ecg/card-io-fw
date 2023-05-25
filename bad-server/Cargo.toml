@@ -8,5 +8,7 @@ edition = "2021"
 [dependencies]
 embassy-net = { git = "https://github.com/embassy-rs/embassy.git", rev = "fb27594", features = ["nightly", "tcp", "udp", "dhcpv4", "medium-ethernet"] }
 embedded-io = "0.4"
+embedded-svc = { version = "0.25", default-features = false, features = [] }
+heapless = "0.7"
 httparse = { version = "1.8", default-features = false }
 log = "0.4"
