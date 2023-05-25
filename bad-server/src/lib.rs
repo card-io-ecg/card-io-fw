@@ -36,52 +36,57 @@ impl<'s, D: Driver> BadServer<'s, D> {
 
             let mut buffer = [0u8; 1024];
             let mut pos = 0;
+
             loop {
-                match socket.read(&mut buffer).await {
+                let len = match socket.read(&mut buffer).await {
                     Ok(0) => {
                         log::info!("read EOF");
                         break;
                     }
-                    Ok(len) => {
-                        let to_print =
-                            unsafe { core::str::from_utf8_unchecked(&buffer[..(pos + len)]) };
-
-                        if to_print.contains("\r\n\r\n") {
-                            log::debug!("Received: {}", to_print);
-                            break;
-                        }
-
-                        pos += len;
-                    }
+                    Ok(len) => len,
                     Err(e) => {
                         log::warn!("read error: {:?}", e);
                         break;
                     }
                 };
+
+                pos += len;
+                log::info!("Buffer size: {pos}");
+
+                let mut headers = [httparse::EMPTY_HEADER; 20];
+                let mut req = httparse::Request::new(&mut headers);
+                let res = match req.parse(&buffer) {
+                    Ok(res) => res,
+                    Err(_) => {
+                        log::warn!("Parsing request failed");
+                        socket.close();
+                        continue;
+                    }
+                };
+                if res.is_complete() {
+                    let r = socket
+                        .write_all(
+                            b"HTTP/1.0 200 OK\r\n\r\n\
+                            <html>\
+                                <body>\
+                                    <h1>Hello Rust! Hello esp-wifi!</h1>\
+                                </body>\
+                            </html>\r\n\
+                            ",
+                        )
+                        .await;
+
+                    if let Err(e) = r {
+                        log::warn!("write error: {:?}", e);
+                    }
+
+                    if let Err(e) = socket.flush().await {
+                        log::warn!("flush error: {:?}", e);
+                    }
+
+                    pos = 0;
+                }
             }
-
-            let r = socket
-                .write_all(
-                    b"HTTP/1.0 200 OK\r\n\r\n\
-                    <html>\
-                        <body>\
-                            <h1>Hello Rust! Hello esp-wifi!</h1>\
-                        </body>\
-                    </html>\r\n\
-                    ",
-                )
-                .await;
-
-            if let Err(e) = r {
-                log::warn!("write error: {:?}", e);
-            }
-
-            if let Err(e) = socket.flush().await {
-                log::warn!("flush error: {:?}", e);
-            }
-
-            socket.close();
-            socket.abort();
         }
     }
 }
