@@ -15,4 +15,4 @@ pub use measure::measure;
 pub use menu::display::display_menu;
 pub use menu::main::main_menu;
 
-const MIN_FRAME_TIME: Duration = Duration::from_millis(10);
+const MIN_FRAME_TIME: Duration = Duration::from_hz(100);
