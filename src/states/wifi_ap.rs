@@ -84,24 +84,18 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     let webserver_task_control = TaskController::new();
 
     unsafe {
-        spawner
-            .spawn(connection_task(
-                controller,
-                as_static_ref(&connection_task_control),
-            ))
-            .ok();
-        spawner
-            .spawn(net_task(
-                as_static_ref(&stack),
-                as_static_ref(&net_task_control),
-            ))
-            .ok();
-        spawner
-            .spawn(webserver_task(
-                as_static_ref(&stack),
-                as_static_ref(&webserver_task_control),
-            ))
-            .ok();
+        spawner.must_spawn(connection_task(
+            controller,
+            as_static_ref(&connection_task_control),
+        ));
+        spawner.must_spawn(net_task(
+            as_static_ref(&stack),
+            as_static_ref(&net_task_control),
+        ));
+        spawner.must_spawn(webserver_task(
+            as_static_ref(&stack),
+            as_static_ref(&webserver_task_control),
+        ));
     }
 
     let mut screen = WifiApScreen::new(
