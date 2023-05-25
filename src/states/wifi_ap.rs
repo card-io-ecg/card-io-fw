@@ -1,5 +1,5 @@
 use embassy_executor::Spawner;
-use embassy_futures::select::select;
+use embassy_futures::{join::join, select::select};
 use embassy_net::{
     tcp::TcpSocket, Config, IpListenEndpoint, Ipv4Address, Ipv4Cidr, Stack, StackResources,
     StaticConfig,
@@ -57,21 +57,33 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     let net_task_signal = Signal::<NoopRawMutex, ()>::new();
     let webserver_task_signal = Signal::<NoopRawMutex, ()>::new();
 
-    spawner
-        .spawn(connection_task(controller, unsafe {
-            as_static_ref(&connection_task_signal)
-        }))
-        .ok();
-    spawner
-        .spawn(net_task(unsafe { as_static_ref(&stack) }, unsafe {
-            as_static_ref(&net_task_signal)
-        }))
-        .ok();
-    spawner
-        .spawn(webserver_task(unsafe { as_static_ref(&stack) }, unsafe {
-            as_static_ref(&webserver_task_signal)
-        }))
-        .ok();
+    let connection_exited_signal = Signal::<NoopRawMutex, ()>::new();
+    let net_exited_signal = Signal::<NoopRawMutex, ()>::new();
+    let webserver_exited_signal = Signal::<NoopRawMutex, ()>::new();
+
+    unsafe {
+        spawner
+            .spawn(connection_task(
+                controller,
+                as_static_ref(&connection_task_signal),
+                as_static_ref(&connection_exited_signal),
+            ))
+            .ok();
+        spawner
+            .spawn(net_task(
+                as_static_ref(&stack),
+                as_static_ref(&net_task_signal),
+                as_static_ref(&net_exited_signal),
+            ))
+            .ok();
+        spawner
+            .spawn(webserver_task(
+                as_static_ref(&stack),
+                as_static_ref(&webserver_task_signal),
+                as_static_ref(&webserver_exited_signal),
+            ))
+            .ok();
+    }
 
     let mut screen = WifiApScreen::new(
         board.battery_monitor.battery_data().await,
@@ -106,9 +118,13 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         ticker.next().await;
     }
 
+    webserver_task_signal.signal(());
+    webserver_exited_signal.wait().await;
+
     connection_task_signal.signal(());
     net_task_signal.signal(());
-    webserver_task_signal.signal(());
+
+    join(net_exited_signal.wait(), connection_exited_signal.wait()).await;
 
     AppState::MainMenu
 }
@@ -117,6 +133,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 async fn connection_task(
     mut controller: WifiController<'static>,
     token: &'static Signal<NoopRawMutex, ()>,
+    exited: &'static Signal<NoopRawMutex, ()>,
 ) {
     select(
         async {
@@ -151,20 +168,24 @@ async fn connection_task(
         token.wait(),
     )
     .await;
+    exited.signal(());
 }
 
 #[embassy_executor::task]
 async fn net_task(
     stack: &'static Stack<WifiDevice<'static>>,
     token: &'static Signal<NoopRawMutex, ()>,
+    exited: &'static Signal<NoopRawMutex, ()>,
 ) {
     select(stack.run(), token.wait()).await;
+    exited.signal(());
 }
 
 #[embassy_executor::task]
 async fn webserver_task(
     stack: &'static Stack<WifiDevice<'static>>,
     token: &'static Signal<NoopRawMutex, ()>,
+    exited: &'static Signal<NoopRawMutex, ()>,
 ) {
     select(
         async {
@@ -247,4 +268,6 @@ async fn webserver_task(
         token.wait(),
     )
     .await;
+
+    exited.signal(());
 }
