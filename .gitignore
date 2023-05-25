@@ -1,6 +1,5 @@
 target/
 Cargo.lock
-Cargo.toml
 .vscode/.cortex-debug.registers.state.json
 .vscode/esp32s3.base.svd
 .vscode/launch.json
