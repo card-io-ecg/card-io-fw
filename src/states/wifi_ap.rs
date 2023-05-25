@@ -1,15 +1,12 @@
 use core::future::Future;
 
+use bad_server::BadServer;
 use embassy_executor::Spawner;
 use embassy_futures::{join::join, select::select};
-use embassy_net::{
-    tcp::TcpSocket, Config, IpListenEndpoint, Ipv4Address, Ipv4Cidr, Stack, StackResources,
-    StaticConfig,
-};
+use embassy_net::{Config, Ipv4Address, Ipv4Cidr, Stack, StackResources, StaticConfig};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
-use embedded_io::asynch::Write;
 use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi};
 use esp_wifi::wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState};
 use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen};
@@ -202,75 +199,9 @@ async fn webserver_task(
                 Timer::after(Duration::from_millis(500)).await;
             }
 
-            let mut socket = TcpSocket::new(&stack, &mut rx_buffer, &mut tx_buffer);
-            socket.set_timeout(Some(embassy_net::SmolDuration::from_secs(10)));
-
-            loop {
-                log::info!("Wait for connection...");
-
-                let r = socket
-                    .accept(IpListenEndpoint {
-                        addr: None,
-                        port: 8080,
-                    })
-                    .await;
-
-                log::info!("Connected...");
-
-                if let Err(e) = r {
-                    log::warn!("connect error: {:?}", e);
-                    continue;
-                }
-
-                let mut buffer = [0u8; 1024];
-                let mut pos = 0;
-                loop {
-                    match socket.read(&mut buffer).await {
-                        Ok(0) => {
-                            log::info!("read EOF");
-                            break;
-                        }
-                        Ok(len) => {
-                            let to_print =
-                                unsafe { core::str::from_utf8_unchecked(&buffer[..(pos + len)]) };
-
-                            if to_print.contains("\r\n\r\n") {
-                                log::debug!("Received: {}", to_print);
-                                break;
-                            }
-
-                            pos += len;
-                        }
-                        Err(e) => {
-                            log::warn!("read error: {:?}", e);
-                            break;
-                        }
-                    };
-                }
-
-                let r = socket
-                    .write_all(
-                        b"HTTP/1.0 200 OK\r\n\r\n\
-                        <html>\
-                            <body>\
-                                <h1>Hello Rust! Hello esp-wifi!</h1>\
-                            </body>\
-                        </html>\r\n\
-                        ",
-                    )
-                    .await;
-
-                if let Err(e) = r {
-                    log::warn!("write error: {:?}", e);
-                }
-
-                if let Err(e) = socket.flush().await {
-                    log::warn!("flush error: {:?}", e);
-                }
-
-                socket.close();
-                socket.abort();
-            }
+            BadServer::build(stack, &mut rx_buffer, &mut tx_buffer)
+                .listen(8080)
+                .await;
         })
         .await;
 }
