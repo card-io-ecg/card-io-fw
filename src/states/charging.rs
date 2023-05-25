@@ -1,6 +1,5 @@
 use crate::{
     board::{initialized::Board, BATTERY_MODEL},
-    states::MIN_FRAME_TIME,
     AppState,
 };
 use embassy_time::{Duration, Instant, Ticker};
@@ -9,9 +8,10 @@ use gui::screens::charging::ChargingScreen;
 
 pub async fn charging(board: &mut Board) -> AppState {
     const DISPLAY_TIME: Duration = Duration::from_secs(10);
+    const FPS: u32 = 10;
 
     let mut display_started = Instant::now();
-    let mut ticker = Ticker::every(MIN_FRAME_TIME);
+    let mut ticker = Ticker::every(Duration::from_hz(FPS as u64));
 
     // Count displayed frames since last wakeup
     let mut frames = 0;
@@ -38,7 +38,7 @@ pub async fn charging(board: &mut Board) -> AppState {
                         model: BATTERY_MODEL,
                         is_charging: board.battery_monitor.is_charging(),
                         frames,
-                        fps: 100,
+                        fps: FPS,
                     }
                     .draw(display)
                 })
