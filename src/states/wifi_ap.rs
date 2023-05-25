@@ -263,6 +263,7 @@ async fn webserver_task(
                 }
 
                 socket.close();
+                socket.abort();
             }
         },
         token.wait(),
