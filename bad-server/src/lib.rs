@@ -2,7 +2,7 @@
 #![feature(async_fn_in_trait)]
 #![allow(incomplete_features)]
 
-use embassy_net::{driver::Driver, tcp::TcpSocket, IpListenEndpoint, Stack};
+use embassy_net::{tcp::TcpSocket, IpListenEndpoint};
 use embedded_io::asynch::Write;
 use object_chain::{Chain, ChainElement, Link};
 
@@ -11,64 +11,79 @@ use crate::handler::Handler;
 pub mod handler;
 pub mod method;
 
-pub struct BadServer<'s, D: Driver, H: Handler> {
-    stack: &'s Stack<D>,
-    rx_buffer: &'s mut [u8],
-    tx_buffer: &'s mut [u8],
+pub struct BadServer<'s, H: Handler, const REQUEST_BUFFER: usize> {
+    socket: TcpSocket<'s>,
     handler: H,
 }
 
-impl<'s, D: Driver> BadServer<'s, D, ()> {
-    pub fn new(stack: &'s Stack<D>, rx_buffer: &'s mut [u8], tx_buffer: &'s mut [u8]) -> Self {
+impl<'s> BadServer<'s, (), 1024> {
+    pub fn new(socket: TcpSocket<'s>) -> Self {
         Self {
-            stack,
-            rx_buffer,
-            tx_buffer,
+            socket,
             handler: (),
         }
     }
 
-    pub fn add_handler<H: Handler>(self, handler: H) -> BadServer<'s, D, Chain<H>> {
+    pub fn add_handler<H: Handler>(self, handler: H) -> BadServer<'s, Chain<H>, 1024> {
         BadServer {
-            stack: self.stack,
-            rx_buffer: self.rx_buffer,
-            tx_buffer: self.tx_buffer,
+            socket: self.socket,
             handler: Chain::new(handler),
         }
     }
 }
 
-impl<'s, D: Driver, H: Handler> BadServer<'s, D, Chain<H>> {
-    pub fn add_handler<H2: Handler>(self, handler: H2) -> BadServer<'s, D, Link<H2, Chain<H>>> {
+impl<'s, H, const REQUEST_BUFFER: usize> BadServer<'s, Chain<H>, REQUEST_BUFFER>
+where
+    H: Handler,
+{
+    pub fn add_handler<H2: Handler>(
+        self,
+        handler: H2,
+    ) -> BadServer<'s, Link<H2, Chain<H>>, REQUEST_BUFFER> {
         BadServer {
-            stack: self.stack,
-            rx_buffer: self.rx_buffer,
-            tx_buffer: self.tx_buffer,
+            socket: self.socket,
             handler: self.handler.append(handler),
         }
     }
 }
 
-impl<'s, D: Driver, H: Handler, P: ChainElement + Handler> BadServer<'s, D, Link<H, P>> {
-    pub fn add_handler<H2: Handler>(self, handler: H2) -> BadServer<'s, D, Link<H2, Link<H, P>>> {
+impl<'s, H, P, const REQUEST_BUFFER: usize> BadServer<'s, Link<H, P>, REQUEST_BUFFER>
+where
+    H: Handler,
+    P: ChainElement + Handler,
+{
+    pub fn add_handler<H2: Handler>(
+        self,
+        handler: H2,
+    ) -> BadServer<'s, Link<H2, Link<H, P>>, REQUEST_BUFFER> {
         BadServer {
-            stack: self.stack,
-            rx_buffer: self.rx_buffer,
-            tx_buffer: self.tx_buffer,
+            socket: self.socket,
             handler: self.handler.append(handler),
         }
     }
 }
 
-impl<'s, D: Driver, H: Handler> BadServer<'s, D, H> {
-    pub async fn listen(self, port: u16) {
-        let mut socket = TcpSocket::new(self.stack, self.rx_buffer, self.tx_buffer);
-        socket.set_timeout(Some(embassy_net::SmolDuration::from_secs(10)));
+impl<'s, H, const REQUEST_BUFFER: usize> BadServer<'s, H, REQUEST_BUFFER>
+where
+    H: Handler,
+{
+    pub fn with_buffer_size<const NEW_BUFFER_SIZE: usize>(
+        self,
+    ) -> BadServer<'s, H, NEW_BUFFER_SIZE> {
+        BadServer {
+            socket: self.socket,
+            handler: self.handler,
+        }
+    }
 
+    pub async fn listen(mut self, port: u16) {
         loop {
             log::info!("Wait for connection...");
 
-            let r = socket.accept(IpListenEndpoint { addr: None, port }).await;
+            let r = self
+                .socket
+                .accept(IpListenEndpoint { addr: None, port })
+                .await;
 
             log::info!("Connected...");
 
@@ -77,11 +92,11 @@ impl<'s, D: Driver, H: Handler> BadServer<'s, D, H> {
                 continue;
             }
 
-            let mut buffer = [0u8; 1024];
+            let mut buffer = [0u8; REQUEST_BUFFER];
             let mut pos = 0;
 
             loop {
-                let len = match socket.read(&mut buffer).await {
+                let len = match self.socket.read(&mut buffer).await {
                     Ok(0) => {
                         log::info!("read EOF");
                         break;
@@ -103,12 +118,13 @@ impl<'s, D: Driver, H: Handler> BadServer<'s, D, H> {
                     Ok(res) => res,
                     Err(_) => {
                         log::warn!("Parsing request failed");
-                        socket.close();
+                        self.socket.close();
                         continue;
                     }
                 };
                 if res.is_complete() {
-                    let r = socket
+                    let r = self
+                        .socket
                         .write_all(
                             b"HTTP/1.0 200 OK\r\n\r\n\
                             <html>\
@@ -124,7 +140,7 @@ impl<'s, D: Driver, H: Handler> BadServer<'s, D, H> {
                         log::warn!("write error: {:?}", e);
                     }
 
-                    if let Err(e) = socket.flush().await {
+                    if let Err(e) = self.socket.flush().await {
                         log::warn!("flush error: {:?}", e);
                     }
 
