@@ -12,3 +12,4 @@ embedded-svc = { version = "0.25", default-features = false, features = [] }
 heapless = "0.7"
 httparse = { version = "1.8", default-features = false }
 log = "0.4"
+object-chain = "0.1.3"

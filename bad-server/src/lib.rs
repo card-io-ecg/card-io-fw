@@ -1,23 +1,66 @@
 #![no_std]
+#![feature(async_fn_in_trait)]
+#![allow(incomplete_features)]
 
 use embassy_net::{driver::Driver, tcp::TcpSocket, IpListenEndpoint, Stack};
 use embedded_io::asynch::Write;
+use object_chain::{Chain, ChainElement, Link};
 
-pub struct BadServer<'s, D: Driver> {
+use crate::handler::Handler;
+
+pub mod handler;
+pub mod method;
+
+pub struct BadServer<'s, D: Driver, H: Handler> {
     stack: &'s Stack<D>,
     rx_buffer: &'s mut [u8],
     tx_buffer: &'s mut [u8],
+    handler: H,
 }
 
-impl<'s, D: Driver> BadServer<'s, D> {
-    pub fn build(stack: &'s Stack<D>, rx_buffer: &'s mut [u8], tx_buffer: &'s mut [u8]) -> Self {
+impl<'s, D: Driver> BadServer<'s, D, ()> {
+    pub fn new(stack: &'s Stack<D>, rx_buffer: &'s mut [u8], tx_buffer: &'s mut [u8]) -> Self {
         Self {
             stack,
             rx_buffer,
             tx_buffer,
+            handler: (),
         }
     }
 
+    pub fn add_handler<H: Handler>(self, handler: H) -> BadServer<'s, D, Chain<H>> {
+        BadServer {
+            stack: self.stack,
+            rx_buffer: self.rx_buffer,
+            tx_buffer: self.tx_buffer,
+            handler: Chain::new(handler),
+        }
+    }
+}
+
+impl<'s, D: Driver, H: Handler> BadServer<'s, D, Chain<H>> {
+    pub fn add_handler<H2: Handler>(self, handler: H2) -> BadServer<'s, D, Link<H2, Chain<H>>> {
+        BadServer {
+            stack: self.stack,
+            rx_buffer: self.rx_buffer,
+            tx_buffer: self.tx_buffer,
+            handler: self.handler.append(handler),
+        }
+    }
+}
+
+impl<'s, D: Driver, H: Handler, P: ChainElement + Handler> BadServer<'s, D, Link<H, P>> {
+    pub fn add_handler<H2: Handler>(self, handler: H2) -> BadServer<'s, D, Link<H2, Link<H, P>>> {
+        BadServer {
+            stack: self.stack,
+            rx_buffer: self.rx_buffer,
+            tx_buffer: self.tx_buffer,
+            handler: self.handler.append(handler),
+        }
+    }
+}
+
+impl<'s, D: Driver, H: Handler> BadServer<'s, D, H> {
     pub async fn listen(self, port: u16) {
         let mut socket = TcpSocket::new(self.stack, self.rx_buffer, self.tx_buffer);
         socket.set_timeout(Some(embassy_net::SmolDuration::from_secs(10)));
