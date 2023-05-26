@@ -19,7 +19,7 @@ use crate::{
         startup::StartupResources,
         BatteryAdc, Config,
     },
-    sleep::enter_deep_sleep,
+    sleep::{enter_deep_sleep, RtcioWakeupType},
     states::{adc_setup, app_error, charging, display_menu, initialize, main_menu, measure},
 };
 
@@ -45,6 +45,7 @@ pub enum AppState {
     DisplayMenu,
     Error(AppError),
     Shutdown,
+    ShutdownCharging,
 }
 
 pub struct BatteryState {
@@ -124,20 +125,37 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             AppState::DisplayMenu => display_menu(&mut board).await,
             AppState::Error(error) => app_error(&mut board, error).await,
             AppState::Shutdown => {
-                let _ = board.display.shut_down();
+                shutdown(board, task_control, RtcioWakeupType::LowLevel).await;
 
-                task_control.signal(());
+                // Shouldn't reach this. If we do, we just exit the task, which means the executor
+                // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
+                return;
+            }
+            AppState::ShutdownCharging => {
+                shutdown(board, task_control, RtcioWakeupType::HighLevel).await;
 
-                let (_, _, _, touch) = board.frontend.split();
-                let charger_pin = board.battery_monitor.charger_status;
-
-                enter_deep_sleep(touch, charger_pin).await;
                 // Shouldn't reach this. If we do, we just exit the task, which means the executor
                 // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
                 return;
             }
         };
     }
+}
+
+async fn shutdown(
+    board: Board,
+    task_control: &Signal<NoopRawMutex, ()>,
+    charger_trigger_level: RtcioWakeupType,
+) {
+    let _ = board.display.shut_down();
+
+    task_control.signal(());
+
+    let (_, _, _, touch) = board.frontend.split();
+    let charger_pin = board.battery_monitor.charger_status;
+
+    // Wake up momentarily when charger is disconnected
+    enter_deep_sleep(touch, charger_pin, charger_trigger_level).await;
 }
 
 // Debug task, to be removed

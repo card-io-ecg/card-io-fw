@@ -4,45 +4,49 @@ use esp32s3_hal::gpio::GpioPin;
 
 use crate::board::{pac, ChargerStatus, TouchDetect};
 
-pub async fn enter_deep_sleep(mut wakeup_pin: TouchDetect, charger_pin: ChargerStatus) {
+#[allow(unused)]
+pub enum RtcioWakeupType {
+    Disable = 0,
+    LowLevel = 4,
+    HighLevel = 5,
+}
+
+pub async fn enter_deep_sleep(
+    mut wakeup_pin: TouchDetect,
+    charger_pin: ChargerStatus,
+    charger_trigger_level: RtcioWakeupType,
+) {
     wakeup_pin.wait_for_high().await.unwrap();
     Timer::after(Duration::from_millis(100)).await;
 
     // TODO: S2: disable brownout detector
 
     critical_section::with(|_cs| {
-        configure_wakeup_sources(wakeup_pin, charger_pin);
+        configure_wakeup_sources(wakeup_pin, charger_pin, charger_trigger_level);
         start_deep_sleep();
     })
 }
 
-fn configure_wakeup_sources(wakeup_pin: TouchDetect, charger_pin: ChargerStatus) {
+fn configure_wakeup_sources(
+    wakeup_pin: TouchDetect,
+    charger_pin: ChargerStatus,
+    charger_trigger_level: RtcioWakeupType,
+) {
     enable_gpio_pullup(&charger_pin);
 
-    enable_gpio_wakeup(wakeup_pin);
-    enable_gpio_wakeup(charger_pin);
+    enable_gpio_wakeup(wakeup_pin, RtcioWakeupType::LowLevel);
+    enable_gpio_wakeup(charger_pin, charger_trigger_level);
 }
 
-fn enable_gpio_wakeup<MODE, const PIN: u8>(_pin: GpioPin<MODE, PIN>) {
+fn enable_gpio_wakeup<MODE, const PIN: u8>(_pin: GpioPin<MODE, PIN>, level: RtcioWakeupType) {
     let sens = unsafe { &*pac::SENS::PTR };
     sens.sar_peri_clk_gate_conf
         .modify(|_, w| w.iomux_clk_en().set_bit());
 
     let rtcio = unsafe { &*pac::RTC_IO::PTR };
 
-    #[allow(unused)]
-    enum RtcioWakeupType {
-        Disable = 0,
-        LowLevel = 4,
-        HighLevel = 5,
-    }
-
-    rtcio.pin[PIN as usize].modify(|_, w| {
-        w.wakeup_enable()
-            .set_bit()
-            .int_type()
-            .variant(RtcioWakeupType::LowLevel as u8)
-    });
+    rtcio.pin[PIN as usize]
+        .modify(|_, w| w.wakeup_enable().set_bit().int_type().variant(level as u8));
 }
 
 fn enable_gpio_pullup<MODE, const PIN: u8>(_pin: &GpioPin<MODE, PIN>) {

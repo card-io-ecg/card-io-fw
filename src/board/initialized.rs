@@ -1,6 +1,5 @@
 use embassy_executor::SendSpawner;
 use embedded_hal::digital::InputPin;
-use embedded_hal_async::digital::Wait;
 use gui::screens::BatteryInfo;
 
 use crate::{
@@ -34,13 +33,6 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
 
     pub fn is_charging(&self) -> bool {
         self.charger_status.is_low().unwrap()
-    }
-
-    pub async fn wait_for_unplugged(&mut self)
-    where
-        VBUS: Wait,
-    {
-        _ = self.vbus_detect.wait_for_low().await;
     }
 }
 
