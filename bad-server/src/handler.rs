@@ -4,23 +4,26 @@ use object_chain::{Chain, ChainElement, Link};
 
 use crate::method::Method;
 
-// TODO: create Request type
-pub struct Request;
+pub struct Request<'path, 'body> {
+    pub method: Method,
+    pub path: &'path str,
+    pub body: &'body [u8],
+}
 
 pub trait Handler {
     /// Returns `true` if this handler can handle the given request.
-    fn handles(&self, request: &Request) -> bool;
+    fn handles(&self, request: &Request<'_, '_>) -> bool;
 
     /// Handles the given request.
-    async fn handle(&self, request: Request);
+    async fn handle(&self, request: Request<'_, '_>);
 }
 
 impl Handler for () {
-    fn handles(&self, _request: &Request) -> bool {
+    fn handles(&self, _request: &Request<'_, '_>) -> bool {
         false
     }
 
-    async fn handle(&self, _request: Request) {}
+    async fn handle(&self, _request: Request<'_, '_>) {}
 }
 
 pub struct ClosureHandler<'a, F> {
@@ -56,11 +59,11 @@ where
     F: Fn(Request) -> FUT,
     FUT: Future<Output = ()>,
 {
-    fn handles(&self, _request: &Request) -> bool {
+    fn handles(&self, _request: &Request<'_, '_>) -> bool {
         todo!()
     }
 
-    async fn handle(&self, request: Request) {
+    async fn handle(&self, request: Request<'_, '_>) {
         (self.closure)(request).await
     }
 }
@@ -69,11 +72,11 @@ impl<H> Handler for Chain<H>
 where
     H: Handler,
 {
-    fn handles(&self, request: &Request) -> bool {
+    fn handles(&self, request: &Request<'_, '_>) -> bool {
         self.object.handles(request)
     }
 
-    async fn handle(&self, request: Request) {
+    async fn handle(&self, request: Request<'_, '_>) {
         self.object.handle(request).await
     }
 }
@@ -83,11 +86,11 @@ where
     V: Handler,
     C: ChainElement + Handler,
 {
-    fn handles(&self, request: &Request) -> bool {
+    fn handles(&self, request: &Request<'_, '_>) -> bool {
         self.object.handles(request) || self.parent.handles(request)
     }
 
-    async fn handle(&self, request: Request) {
+    async fn handle(&self, request: Request<'_, '_>) {
         if self.object.handles(&request) {
             self.object.handle(request).await
         } else {
