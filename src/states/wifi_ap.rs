@@ -194,19 +194,18 @@ async fn webserver_task(
 ) {
     task_control
         .run_cancellable(async {
-            let mut rx_buffer = [0; 4096];
-            let mut tx_buffer = [0; 4096];
-
             while !stack.is_link_up() {
                 Timer::after(Duration::from_millis(500)).await;
             }
 
+            let mut rx_buffer = [0; 4096];
+            let mut tx_buffer = [0; 4096];
             let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
             socket.set_timeout(Some(embassy_net::SmolDuration::from_secs(10)));
 
-            BadServer::new(socket)
+            BadServer::new()
                 .with_buffer_size::<2048>()
-                .listen(8080)
+                .listen(&mut socket, 8080)
                 .await;
         })
         .await;
