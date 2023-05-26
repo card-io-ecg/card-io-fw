@@ -199,7 +199,7 @@ async fn webserver_task(
                 Timer::after(Duration::from_millis(500)).await;
             }
 
-            BadServer::build(stack, &mut rx_buffer, &mut tx_buffer)
+            BadServer::new(stack, &mut rx_buffer, &mut tx_buffer)
                 .listen(8080)
                 .await;
         })
