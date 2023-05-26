@@ -6,7 +6,10 @@ use embassy_net::{tcp::TcpSocket, IpListenEndpoint};
 use embedded_io::asynch::Write;
 use object_chain::{Chain, ChainElement, Link};
 
-use crate::handler::Handler;
+use crate::{
+    handler::{Handler, Request},
+    method::Method,
+};
 
 pub mod handler;
 pub mod method;
@@ -116,6 +119,48 @@ where
                     continue;
                 }
             };
+
+            if let (Some(method), Some(path)) = (req.method, req.path) {
+                let Some(method) = Method::new(method) else {
+                    log::warn!("Unknown method {method}");
+                    // TODO: send a proper response
+                    socket.close();
+                    continue;
+                };
+
+                // we can send 404 early if none of our handlers match
+                let request = Request {
+                    method,
+                    path,
+                    body: b"",
+                };
+                if !self.handler.handles(&request) {
+                    // TODO: response builder
+                    let r = socket
+                        .write_all(
+                            b"HTTP/1.0 404 Not Found\r\n\r\n\
+                                <html>\
+                                    <body>\
+                                        <h1>404 Not Found</h1>\
+                                    </body>\
+                                </html>\r\n\
+                                ",
+                        )
+                        .await;
+
+                    if let Err(e) = r {
+                        log::warn!("write error: {:?}", e);
+                    }
+
+                    if let Err(e) = socket.flush().await {
+                        log::warn!("flush error: {:?}", e);
+                    }
+
+                    pos = 0;
+                    continue;
+                }
+            }
+
             if res.is_complete() {
                 let r = socket
                     .write_all(
