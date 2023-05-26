@@ -15,45 +15,31 @@ pub async fn charging(board: &mut Board) -> AppState {
 
     // Count displayed frames since last wakeup
     let mut frames = 0;
-    let mut display_active = false;
 
-    while board.battery_monitor.is_plugged() {
+    while board.battery_monitor.is_plugged() && display_started.elapsed() <= DISPLAY_TIME {
         if board.frontend.is_touched() {
-            if !display_active {
-                frames = 0;
-            }
-
             display_started = Instant::now();
         }
 
-        let elapsed = display_started.elapsed();
-        if elapsed <= DISPLAY_TIME {
-            display_active = true;
-            let battery_data = board.battery_monitor.battery_data().await;
-            board
-                .display
-                .frame(|display| {
-                    ChargingScreen {
-                        battery_data,
-                        model: BATTERY_MODEL,
-                        is_charging: board.battery_monitor.is_charging(),
-                        frames,
-                        fps: FPS,
-                    }
-                    .draw(display)
-                })
-                .await
-                .unwrap();
+        let battery_data = board.battery_monitor.battery_data().await;
+        board
+            .display
+            .frame(|display| {
+                ChargingScreen {
+                    battery_data,
+                    model: BATTERY_MODEL,
+                    is_charging: board.battery_monitor.is_charging(),
+                    frames,
+                    fps: FPS,
+                }
+                .draw(display)
+            })
+            .await
+            .unwrap();
 
-            frames += 1;
-        } else if display_active {
-            // Clear display
-            board.display.frame(|_display| Ok(())).await.unwrap();
-            display_active = false;
-        }
-
+        frames += 1;
         ticker.next().await;
     }
 
-    AppState::Shutdown
+    AppState::ShutdownCharging
 }
