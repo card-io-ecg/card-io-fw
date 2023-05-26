@@ -7,10 +7,7 @@ use embedded_io::asynch::Write;
 use httparse::Status;
 use object_chain::{Chain, ChainElement, Link};
 
-use crate::{
-    handler::{Handler, Request},
-    method::Method,
-};
+use crate::handler::{Handler, Request};
 
 pub mod handler;
 pub mod method;
@@ -147,41 +144,30 @@ where
 
         match self.load_headers(&mut buffer, socket).await {
             Ok((header_size, total_read)) => {
+                let (header_buf, body_buf) = buffer.split_at_mut(header_size);
+
                 let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
                 let mut req = httparse::Request::new(&mut headers);
-
-                let (header_buf, body_buf) = buffer.split_at_mut(header_size);
                 req.parse(header_buf).unwrap();
-
-                let Some(path) = req.path else {
-                    log::warn!("Path not set");
-                    // TODO: send a proper response
-                    socket.close();
-                    return;
-                };
-
-                let Some(method) = req.method.and_then(Method::new) else {
-                    log::warn!("Unknown method: {:?}", req.method);
-                    // TODO: send a proper response
-                    socket.close();
-                    return;
-                };
-
-                let request = Request {
-                    method,
-                    path,
-                    body: b"",
-                };
-                if !self.handler.handles(&request) {
-                    self.send_404(socket).await;
-                    return;
-                }
 
                 // TODO: create a body reader that uses the loaded bytes,
                 // and reads more from socket when needed.
                 let read_body = total_read - header_size;
-                let _buf = &body_buf[0..read_body];
-                self.handler.handle(request).await;
+                let body = &body_buf[0..read_body];
+
+                match Request::new(req, body, socket) {
+                    Ok(request) => {
+                        if self.handler.handles(&request) {
+                            self.handler.handle(request).await;
+                        } else {
+                            self.send_404(socket).await;
+                        }
+                    }
+                    Err(_) => {
+                        // TODO: send a proper response
+                        socket.close();
+                    }
+                };
             }
             Err(_) => todo!(),
         }
