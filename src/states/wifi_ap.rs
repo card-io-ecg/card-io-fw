@@ -3,7 +3,9 @@ use core::future::Future;
 use bad_server::BadServer;
 use embassy_executor::Spawner;
 use embassy_futures::{join::join, select::select};
-use embassy_net::{Config, Ipv4Address, Ipv4Cidr, Stack, StackResources, StaticConfig};
+use embassy_net::{
+    tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StackResources, StaticConfig,
+};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
@@ -199,7 +201,11 @@ async fn webserver_task(
                 Timer::after(Duration::from_millis(500)).await;
             }
 
-            BadServer::new(stack, &mut rx_buffer, &mut tx_buffer)
+            let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
+            socket.set_timeout(Some(embassy_net::SmolDuration::from_secs(10)));
+
+            BadServer::new(socket)
+                .with_buffer_size::<2048>()
                 .listen(8080)
                 .await;
         })
