@@ -11,43 +11,37 @@ use crate::handler::Handler;
 pub mod handler;
 pub mod method;
 
-pub struct BadServer<'s, H: Handler, const REQUEST_BUFFER: usize> {
-    socket: TcpSocket<'s>,
+pub struct BadServer<H: Handler, const REQUEST_BUFFER: usize> {
     handler: H,
 }
 
-impl<'s> BadServer<'s, (), 1024> {
-    pub fn new(socket: TcpSocket<'s>) -> Self {
-        Self {
-            socket,
-            handler: (),
-        }
+impl<'s> BadServer<(), 1024> {
+    pub fn new() -> Self {
+        Self { handler: () }
     }
 
-    pub fn add_handler<H: Handler>(self, handler: H) -> BadServer<'s, Chain<H>, 1024> {
+    pub fn add_handler<H: Handler>(self, handler: H) -> BadServer<Chain<H>, 1024> {
         BadServer {
-            socket: self.socket,
             handler: Chain::new(handler),
         }
     }
 }
 
-impl<'s, H, const REQUEST_BUFFER: usize> BadServer<'s, Chain<H>, REQUEST_BUFFER>
+impl<H, const REQUEST_BUFFER: usize> BadServer<Chain<H>, REQUEST_BUFFER>
 where
     H: Handler,
 {
     pub fn add_handler<H2: Handler>(
         self,
         handler: H2,
-    ) -> BadServer<'s, Link<H2, Chain<H>>, REQUEST_BUFFER> {
+    ) -> BadServer<Link<H2, Chain<H>>, REQUEST_BUFFER> {
         BadServer {
-            socket: self.socket,
             handler: self.handler.append(handler),
         }
     }
 }
 
-impl<'s, H, P, const REQUEST_BUFFER: usize> BadServer<'s, Link<H, P>, REQUEST_BUFFER>
+impl<H, P, const REQUEST_BUFFER: usize> BadServer<Link<H, P>, REQUEST_BUFFER>
 where
     H: Handler,
     P: ChainElement + Handler,
@@ -55,35 +49,28 @@ where
     pub fn add_handler<H2: Handler>(
         self,
         handler: H2,
-    ) -> BadServer<'s, Link<H2, Link<H, P>>, REQUEST_BUFFER> {
+    ) -> BadServer<Link<H2, Link<H, P>>, REQUEST_BUFFER> {
         BadServer {
-            socket: self.socket,
             handler: self.handler.append(handler),
         }
     }
 }
 
-impl<'s, H, const REQUEST_BUFFER: usize> BadServer<'s, H, REQUEST_BUFFER>
+impl<H, const REQUEST_BUFFER: usize> BadServer<H, REQUEST_BUFFER>
 where
     H: Handler,
 {
-    pub fn with_buffer_size<const NEW_BUFFER_SIZE: usize>(
-        self,
-    ) -> BadServer<'s, H, NEW_BUFFER_SIZE> {
+    pub fn with_buffer_size<const NEW_BUFFER_SIZE: usize>(self) -> BadServer<H, NEW_BUFFER_SIZE> {
         BadServer {
-            socket: self.socket,
             handler: self.handler,
         }
     }
 
-    pub async fn listen(mut self, port: u16) {
+    pub async fn listen(&self, socket: &mut TcpSocket<'_>, port: u16) {
         loop {
             log::info!("Wait for connection...");
 
-            let r = self
-                .socket
-                .accept(IpListenEndpoint { addr: None, port })
-                .await;
+            let r = socket.accept(IpListenEndpoint { addr: None, port }).await;
 
             log::info!("Connected...");
 
@@ -96,7 +83,7 @@ where
             let mut pos = 0;
 
             loop {
-                let len = match self.socket.read(&mut buffer).await {
+                let len = match socket.read(&mut buffer).await {
                     Ok(0) => {
                         log::info!("read EOF");
                         break;
@@ -118,13 +105,12 @@ where
                     Ok(res) => res,
                     Err(_) => {
                         log::warn!("Parsing request failed");
-                        self.socket.close();
+                        socket.close();
                         continue;
                     }
                 };
                 if res.is_complete() {
-                    let r = self
-                        .socket
+                    let r = socket
                         .write_all(
                             b"HTTP/1.0 200 OK\r\n\r\n\
                             <html>\
@@ -140,7 +126,7 @@ where
                         log::warn!("write error: {:?}", e);
                     }
 
-                    if let Err(e) = self.socket.flush().await {
+                    if let Err(e) = socket.flush().await {
                         log::warn!("flush error: {:?}", e);
                     }
 
