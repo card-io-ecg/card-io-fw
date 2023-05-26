@@ -1,8 +1,6 @@
-use embassy_time::{Duration, Timer};
-use embedded_hal_async::digital::Wait;
 use esp32s3_hal::gpio::GpioPin;
 
-use crate::board::{pac, ChargerStatus, TouchDetect};
+use crate::board::pac;
 
 #[allow(unused)]
 pub enum RtcioWakeupType {
@@ -11,35 +9,10 @@ pub enum RtcioWakeupType {
     HighLevel = 5,
 }
 
-pub async fn enter_deep_sleep(
-    mut wakeup_pin: TouchDetect,
-    charger_pin: ChargerStatus,
-    charger_trigger_level: RtcioWakeupType,
-) {
-    wakeup_pin.wait_for_high().await.unwrap();
-    Timer::after(Duration::from_millis(100)).await;
-
-    // TODO: S2: disable brownout detector
-
-    critical_section::with(|_cs| {
-        configure_wakeup_sources(wakeup_pin, charger_pin, charger_trigger_level);
-        start_deep_sleep();
-    })
-}
-
-fn configure_wakeup_sources(
-    wakeup_pin: TouchDetect,
-    charger_pin: ChargerStatus,
-    charger_trigger_level: RtcioWakeupType,
-) {
-    enable_gpio_pullup(&charger_pin);
-
-    enable_gpio_wakeup(wakeup_pin, RtcioWakeupType::LowLevel);
-    enable_gpio_wakeup(charger_pin, charger_trigger_level);
-}
-
-fn enable_gpio_wakeup<MODE, const PIN: u8>(_pin: GpioPin<MODE, PIN>, level: RtcioWakeupType) {
+pub fn enable_gpio_wakeup<MODE, const PIN: u8>(_pin: &GpioPin<MODE, PIN>, level: RtcioWakeupType) {
     let sens = unsafe { &*pac::SENS::PTR };
+
+    // TODO: disable clock when not in use
     sens.sar_peri_clk_gate_conf
         .modify(|_, w| w.iomux_clk_en().set_bit());
 
@@ -49,7 +22,12 @@ fn enable_gpio_wakeup<MODE, const PIN: u8>(_pin: GpioPin<MODE, PIN>, level: Rtci
         .modify(|_, w| w.wakeup_enable().set_bit().int_type().variant(level as u8));
 }
 
-fn enable_gpio_pullup<MODE, const PIN: u8>(_pin: &GpioPin<MODE, PIN>) {
+// Wakeup remains enabled after waking from deep sleep, so we need to disable it manually.
+pub fn disable_gpio_wakeup<MODE, const PIN: u8>(pin: &GpioPin<MODE, PIN>) {
+    enable_gpio_wakeup(pin, RtcioWakeupType::Disable)
+}
+
+pub fn enable_gpio_pullup<MODE, const PIN: u8>(_pin: &GpioPin<MODE, PIN>) {
     let rtcio = unsafe { &*pac::RTC_IO::PTR };
     let rtc_ctrl = unsafe { &*pac::RTC_CNTL::PTR };
 
@@ -64,7 +42,8 @@ fn enable_gpio_pullup<MODE, const PIN: u8>(_pin: &GpioPin<MODE, PIN>) {
 }
 
 // Assumptions: S3, Quad Flash/PSRAM, 2nd core stopped
-fn start_deep_sleep() {
+pub fn start_deep_sleep() {
+    // TODO: S2: disable brownout detector
     // TODO: flush log buffers?
 
     let rtc_ctrl = unsafe { &*pac::RTC_CNTL::PTR };

@@ -9,8 +9,9 @@ extern crate alloc;
 
 use embassy_executor::{Executor, Spawner, _export::StaticCell};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex, signal::Signal};
-use embassy_time::{Duration, Ticker};
+use embassy_time::{Duration, Ticker, Timer};
 use embedded_hal::digital::OutputPin;
+use embedded_hal_async::digital::Wait;
 
 use crate::{
     board::{
@@ -19,7 +20,10 @@ use crate::{
         startup::StartupResources,
         BatteryAdc, Config,
     },
-    sleep::{enter_deep_sleep, RtcioWakeupType},
+    sleep::{
+        disable_gpio_wakeup, enable_gpio_pullup, enable_gpio_wakeup, start_deep_sleep,
+        RtcioWakeupType,
+    },
     states::{adc_setup, app_error, charging, display_menu, initialize, main_menu, measure},
 };
 
@@ -125,14 +129,46 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             AppState::DisplayMenu => display_menu(&mut board).await,
             AppState::Error(error) => app_error(&mut board, error).await,
             AppState::Shutdown => {
-                shutdown(board, task_control, RtcioWakeupType::LowLevel).await;
+                let _ = board.display.shut_down();
+
+                task_control.signal(());
+
+                let (_, _, _, mut touch) = board.frontend.split();
+                let charger_pin = board.battery_monitor.charger_status;
+
+                touch.wait_for_high().await.unwrap();
+                Timer::after(Duration::from_millis(100)).await;
+
+                enable_gpio_pullup(&charger_pin);
+
+                enable_gpio_wakeup(&touch, RtcioWakeupType::LowLevel);
+                enable_gpio_wakeup(&charger_pin, RtcioWakeupType::LowLevel);
+
+                // Wake up momentarily when charger is disconnected
+                start_deep_sleep();
 
                 // Shouldn't reach this. If we do, we just exit the task, which means the executor
                 // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
                 return;
             }
             AppState::ShutdownCharging => {
-                shutdown(board, task_control, RtcioWakeupType::HighLevel).await;
+                let _ = board.display.shut_down();
+
+                task_control.signal(());
+
+                let (_, _, _, mut touch) = board.frontend.split();
+                let charger_pin = board.battery_monitor.charger_status;
+
+                touch.wait_for_high().await.unwrap();
+                Timer::after(Duration::from_millis(100)).await;
+
+                enable_gpio_wakeup(&touch, RtcioWakeupType::LowLevel);
+                // FIXME: This is a bit awkward as unplugging then replugging will not wake the
+                // device. Ideally, we'd use the VBUS detect pin, but it's not connected to RTCIO.
+                disable_gpio_wakeup(&charger_pin);
+
+                // Wake up momentarily when charger is disconnected
+                start_deep_sleep();
 
                 // Shouldn't reach this. If we do, we just exit the task, which means the executor
                 // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
@@ -140,22 +176,6 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             }
         };
     }
-}
-
-async fn shutdown(
-    board: Board,
-    task_control: &Signal<NoopRawMutex, ()>,
-    charger_trigger_level: RtcioWakeupType,
-) {
-    let _ = board.display.shut_down();
-
-    task_control.signal(());
-
-    let (_, _, _, touch) = board.frontend.split();
-    let charger_pin = board.battery_monitor.charger_status;
-
-    // Wake up momentarily when charger is disconnected
-    enter_deep_sleep(touch, charger_pin, charger_trigger_level).await;
 }
 
 // Debug task, to be removed
