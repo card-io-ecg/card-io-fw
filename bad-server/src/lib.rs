@@ -68,70 +68,76 @@ where
 
     pub async fn listen(&self, socket: &mut TcpSocket<'_>, port: u16) {
         loop {
-            log::info!("Wait for connection...");
+            log::info!("Wait for connection");
 
             let r = socket.accept(IpListenEndpoint { addr: None, port }).await;
 
-            log::info!("Connected...");
+            log::info!("Connected");
 
             if let Err(e) = r {
                 log::warn!("connect error: {:?}", e);
                 continue;
             }
 
-            let mut buffer = [0u8; REQUEST_BUFFER];
-            let mut pos = 0;
+            self.handle(socket).await;
+        }
+    }
 
-            loop {
-                let len = match socket.read(&mut buffer).await {
-                    Ok(0) => {
-                        log::info!("read EOF");
-                        break;
-                    }
-                    Ok(len) => len,
-                    Err(e) => {
-                        log::warn!("read error: {:?}", e);
-                        break;
-                    }
-                };
+    async fn handle(&self, socket: &mut TcpSocket<'_>) {
+        let mut buffer = [0u8; REQUEST_BUFFER];
+        let mut pos = 0;
 
-                pos += len;
-                log::info!("Buffer size: {pos}");
-
-                let mut headers = [httparse::EMPTY_HEADER; 20];
-                let mut req = httparse::Request::new(&mut headers);
-
-                let res = match req.parse(&buffer) {
-                    Ok(res) => res,
-                    Err(_) => {
-                        log::warn!("Parsing request failed");
-                        socket.close();
-                        continue;
-                    }
-                };
-                if res.is_complete() {
-                    let r = socket
-                        .write_all(
-                            b"HTTP/1.0 200 OK\r\n\r\n\
-                            <html>\
-                                <body>\
-                                    <h1>Hello Rust! Hello esp-wifi!</h1>\
-                                </body>\
-                            </html>\r\n\
-                            ",
-                        )
-                        .await;
-
-                    if let Err(e) = r {
-                        log::warn!("write error: {:?}", e);
-                    }
-
-                    if let Err(e) = socket.flush().await {
-                        log::warn!("flush error: {:?}", e);
-                    }
-
-                    pos = 0;
+        loop {
+            let len = match socket.read(&mut buffer).await {
+                Ok(0) => {
+                    // We're here because the previous read wasn't a complete request. Reading 0
+                    // means the request will not ever be completed.
+                    log::warn!("read EOF");
+                    break;
                 }
+                Ok(len) => len,
+                Err(e) => {
+                    log::warn!("read error: {:?}", e);
+                    break;
+                }
+            };
+
+            pos += len;
+            log::info!("Buffer size: {pos}");
+
+            let mut headers = [httparse::EMPTY_HEADER; 20];
+            let mut req = httparse::Request::new(&mut headers);
+
+            let res = match req.parse(&buffer) {
+                Ok(res) => res,
+                Err(_) => {
+                    log::warn!("Parsing request failed");
+                    socket.close();
+                    continue;
+                }
+            };
+            if res.is_complete() {
+                let r = socket
+                    .write_all(
+                        b"HTTP/1.0 200 OK\r\n\r\n\
+                        <html>\
+                            <body>\
+                                <h1>Hello Rust! Hello esp-wifi!</h1>\
+                            </body>\
+                        </html>\r\n\
+                        ",
+                    )
+                    .await;
+
+                if let Err(e) = r {
+                    log::warn!("write error: {:?}", e);
+                }
+
+                if let Err(e) = socket.flush().await {
+                    log::warn!("flush error: {:?}", e);
+                }
+
+                pos = 0;
             }
         }
     }
