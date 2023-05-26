@@ -1,13 +1,42 @@
 use core::future::Future;
 
+use embassy_net::tcp::TcpSocket;
 use object_chain::{Chain, ChainElement, Link};
 
 use crate::method::Method;
 
-pub struct Request<'path, 'body> {
-    pub method: Method,
-    pub path: &'path str,
-    pub body: &'body [u8],
+pub struct Request<'req, 'socket> {
+    method: Method,
+    path: &'req str,
+    body: &'req [u8],
+    headers: &'req [httparse::Header<'req>],
+    socket: &'req mut TcpSocket<'socket>,
+}
+
+impl<'req, 'socket> Request<'req, 'socket> {
+    pub fn new(
+        req: httparse::Request<'req, 'req>,
+        body: &'req [u8],
+        socket: &'req mut TcpSocket<'socket>,
+    ) -> Result<Self, ()> {
+        let Some(path) = req.path else {
+            log::warn!("Path not set");
+            return Err(());
+        };
+
+        let Some(method) = req.method.and_then(Method::new) else {
+            log::warn!("Unknown method: {:?}", req.method);
+            return Err(());
+        };
+
+        Ok(Self {
+            method,
+            path,
+            body,
+            headers: req.headers,
+            socket,
+        })
+    }
 }
 
 pub trait Handler {
@@ -59,8 +88,8 @@ where
     F: Fn(Request) -> FUT,
     FUT: Future<Output = ()>,
 {
-    fn handles(&self, _request: &Request<'_, '_>) -> bool {
-        todo!()
+    fn handles(&self, request: &Request<'_, '_>) -> bool {
+        self.method == request.method && self.path == request.path
     }
 
     async fn handle(&self, request: Request<'_, '_>) {
