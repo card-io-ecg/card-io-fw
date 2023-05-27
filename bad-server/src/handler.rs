@@ -1,23 +1,22 @@
-use core::future::Future;
+use core::{future::Future, marker::PhantomData};
 
-use embassy_net::tcp::TcpSocket;
 use object_chain::{Chain, ChainElement, Link};
 
-use crate::method::Method;
+use crate::{connector::Connection, method::Method};
 
-pub struct Request<'req, 'socket> {
+pub struct Request<'req, C: Connection> {
     method: Method,
     path: &'req str,
     body: &'req [u8],
     headers: &'req [httparse::Header<'req>],
-    socket: &'req mut TcpSocket<'socket>,
+    socket: &'req mut C,
 }
 
-impl<'req, 'socket> Request<'req, 'socket> {
+impl<'req, C: Connection> Request<'req, C> {
     pub fn new(
         req: httparse::Request<'req, 'req>,
         body: &'req [u8],
-        socket: &'req mut TcpSocket<'socket>,
+        socket: &'req mut C,
     ) -> Result<Self, ()> {
         let Some(path) = req.path else {
             log::warn!("Path not set");
@@ -40,37 +39,45 @@ impl<'req, 'socket> Request<'req, 'socket> {
 }
 
 pub trait Handler {
+    type Connection: Connection;
+
     /// Returns `true` if this handler can handle the given request.
-    fn handles(&self, request: &Request<'_, '_>) -> bool;
+    fn handles(&self, request: &Request<'_, Self::Connection>) -> bool;
 
     /// Handles the given request.
-    async fn handle(&self, request: Request<'_, '_>);
+    async fn handle(&self, request: Request<'_, Self::Connection>);
 }
 
-impl Handler for () {
-    fn handles(&self, _request: &Request<'_, '_>) -> bool {
+pub struct NoHandler<C: Connection>(pub(crate) PhantomData<C>);
+impl<C: Connection> Handler for NoHandler<C> {
+    type Connection = C;
+
+    fn handles(&self, _request: &Request<'_, Self::Connection>) -> bool {
         false
     }
 
-    async fn handle(&self, _request: Request<'_, '_>) {}
+    async fn handle(&self, _request: Request<'_, Self::Connection>) {}
 }
 
-pub struct ClosureHandler<'a, F> {
+pub struct ClosureHandler<'a, F, C> {
     closure: F,
     method: Method,
     path: &'a str,
+    _connection: PhantomData<C>,
 }
 
-impl<'a, F, FUT> ClosureHandler<'a, F>
+impl<'a, F, FUT, C> ClosureHandler<'a, F, C>
 where
-    F: Fn(Request) -> FUT,
+    F: Fn(Request<'_, C>) -> FUT,
     FUT: Future<Output = ()>,
+    C: Connection,
 {
     pub fn new(method: Method, path: &'a str, closure: F) -> Self {
         Self {
             closure,
             method,
             path,
+            _connection: PhantomData,
         }
     }
 
@@ -83,43 +90,51 @@ where
     }
 }
 
-impl<F, FUT> Handler for ClosureHandler<'_, F>
+impl<F, FUT, C> Handler for ClosureHandler<'_, F, C>
 where
-    F: Fn(Request) -> FUT,
+    F: Fn(Request<'_, C>) -> FUT,
     FUT: Future<Output = ()>,
+    C: Connection,
 {
-    fn handles(&self, request: &Request<'_, '_>) -> bool {
+    type Connection = C;
+
+    fn handles(&self, request: &Request<'_, C>) -> bool {
         self.method == request.method && self.path == request.path
     }
 
-    async fn handle(&self, request: Request<'_, '_>) {
+    async fn handle(&self, request: Request<'_, C>) {
         (self.closure)(request).await
     }
 }
 
-impl<H> Handler for Chain<H>
+impl<H, C> Handler for Chain<H>
 where
-    H: Handler,
+    H: Handler<Connection = C>,
+    C: Connection,
 {
-    fn handles(&self, request: &Request<'_, '_>) -> bool {
+    type Connection = C;
+    fn handles(&self, request: &Request<'_, C>) -> bool {
         self.object.handles(request)
     }
 
-    async fn handle(&self, request: Request<'_, '_>) {
+    async fn handle(&self, request: Request<'_, C>) {
         self.object.handle(request).await
     }
 }
 
-impl<V, C> Handler for Link<V, C>
+impl<V, CE, C> Handler for Link<V, CE>
 where
-    V: Handler,
-    C: ChainElement + Handler,
+    V: Handler<Connection = C>,
+    CE: ChainElement + Handler<Connection = C>,
+    C: Connection,
 {
-    fn handles(&self, request: &Request<'_, '_>) -> bool {
+    type Connection = C;
+
+    fn handles(&self, request: &Request<'_, C>) -> bool {
         self.object.handles(request) || self.parent.handles(request)
     }
 
-    async fn handle(&self, request: Request<'_, '_>) {
+    async fn handle(&self, request: Request<'_, C>) {
         if self.object.handles(&request) {
             self.object.handle(request).await
         } else {
