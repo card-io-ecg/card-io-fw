@@ -12,11 +12,13 @@ use object_chain::{Chain, ChainElement, Link};
 use crate::{
     connector::Connection,
     handler::{Handler, NoHandler, Request},
+    request_body::RequestBody,
 };
 
 pub mod connector;
 pub mod handler;
 pub mod method;
+pub mod request_body;
 
 pub struct BadServer<H: Handler, const REQUEST_BUFFER: usize, const MAX_HEADERS: usize> {
     handler: H,
@@ -161,7 +163,7 @@ where
                 // TODO: create a body reader that uses the loaded bytes,
                 // and reads more from socket when needed.
                 let read_body = total_read - header_size;
-                let body = &body_buf[0..read_body];
+                let body = RequestBody::from_preloaded(body_buf, read_body);
 
                 match Request::new(req, body, socket) {
                     Ok(request) => {

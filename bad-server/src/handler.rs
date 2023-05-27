@@ -2,21 +2,21 @@ use core::{future::Future, marker::PhantomData};
 
 use object_chain::{Chain, ChainElement, Link};
 
-use crate::{connector::Connection, method::Method};
+use crate::{connector::Connection, method::Method, request_body::RequestBody};
 
 pub struct Request<'req, C: Connection> {
     method: Method,
     path: &'req str,
-    body: &'req [u8],
+    body: RequestBody<'req>,
     headers: &'req [httparse::Header<'req>],
-    socket: &'req mut C,
+    connection: &'req mut C,
 }
 
 impl<'req, C: Connection> Request<'req, C> {
     pub fn new(
         req: httparse::Request<'req, 'req>,
-        body: &'req [u8],
-        socket: &'req mut C,
+        body: RequestBody<'req>,
+        connection: &'req mut C,
     ) -> Result<Self, ()> {
         let Some(path) = req.path else {
             log::warn!("Path not set");
@@ -33,7 +33,7 @@ impl<'req, C: Connection> Request<'req, C> {
             path,
             body,
             headers: req.headers,
-            socket,
+            connection,
         })
     }
 }
