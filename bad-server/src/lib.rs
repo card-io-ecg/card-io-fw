@@ -1,14 +1,20 @@
 #![no_std]
 #![feature(async_fn_in_trait)]
+#![feature(impl_trait_projections)]
 #![allow(incomplete_features)]
 
-use embassy_net::{tcp::TcpSocket, IpListenEndpoint};
-use embedded_io::asynch::Write;
+use core::marker::PhantomData;
+
+use embedded_io::asynch::{Read, Write};
 use httparse::Status;
 use object_chain::{Chain, ChainElement, Link};
 
-use crate::handler::{Handler, Request};
+use crate::{
+    connector::Connection,
+    handler::{Handler, NoHandler, Request},
+};
 
+pub mod connector;
 pub mod handler;
 pub mod method;
 
@@ -16,9 +22,11 @@ pub struct BadServer<H: Handler, const REQUEST_BUFFER: usize, const MAX_HEADERS:
     handler: H,
 }
 
-impl<'s> BadServer<(), 1024, 32> {
+impl<'s, C: Connection> BadServer<NoHandler<C>, 1024, 32> {
     pub fn new() -> Self {
-        Self { handler: () }
+        Self {
+            handler: NoHandler(PhantomData),
+        }
     }
 
     pub fn add_handler<H: Handler>(self, handler: H) -> BadServer<Chain<H>, 1024, 32> {
@@ -33,7 +41,7 @@ impl<H, const REQUEST_BUFFER: usize, const MAX_HEADERS: usize>
 where
     H: Handler,
 {
-    pub fn add_handler<H2: Handler>(
+    pub fn add_handler<H2: Handler<Connection = H::Connection>>(
         self,
         handler: H2,
     ) -> BadServer<Link<H2, Chain<H>>, REQUEST_BUFFER, MAX_HEADERS> {
@@ -47,9 +55,9 @@ impl<H, P, const REQUEST_BUFFER: usize, const MAX_HEADERS: usize>
     BadServer<Link<H, P>, REQUEST_BUFFER, MAX_HEADERS>
 where
     H: Handler,
-    P: ChainElement + Handler,
+    P: ChainElement + Handler<Connection = H::Connection>,
 {
-    pub fn add_handler<H2: Handler>(
+    pub fn add_handler<H2: Handler<Connection = H::Connection>>(
         self,
         handler: H2,
     ) -> BadServer<Link<H2, Link<H, P>>, REQUEST_BUFFER, MAX_HEADERS> {
@@ -80,27 +88,27 @@ where
         }
     }
 
-    pub async fn listen(&self, socket: &mut TcpSocket<'_>, port: u16) {
+    pub async fn listen(&self, socket: &mut H::Connection, port: u16) {
         loop {
             log::info!("Wait for connection");
 
-            let r = socket.accept(IpListenEndpoint { addr: None, port }).await;
+            let r = socket.listen(port).await;
 
             log::info!("Connected");
 
-            if let Err(e) = r {
-                log::warn!("connect error: {:?}", e);
-                continue;
+            match r {
+                Ok(_) => self.handle(socket).await,
+                Err(e) => {
+                    log::warn!("connect error: {:?}", e);
+                }
             }
-
-            self.handle(socket).await;
         }
     }
 
     async fn load_headers(
         &self,
         buffer: &mut [u8],
-        socket: &mut TcpSocket<'_>,
+        socket: &mut H::Connection,
     ) -> Result<(usize, usize), ()> {
         let mut pos = 0;
         while pos < buffer.len() {
@@ -139,10 +147,10 @@ where
         Err(())
     }
 
-    async fn handle(&self, socket: &mut TcpSocket<'_>) {
+    async fn handle(&self, mut socket: &mut H::Connection) {
         let mut buffer = [0u8; REQUEST_BUFFER];
 
-        match self.load_headers(&mut buffer, socket).await {
+        match self.load_headers(&mut buffer, &mut socket).await {
             Ok((header_size, total_read)) => {
                 let (header_buf, body_buf) = buffer.split_at_mut(header_size);
 
@@ -173,7 +181,7 @@ where
         }
     }
 
-    async fn send_404(&self, socket: &mut TcpSocket<'_>)
+    async fn send_404(&self, socket: &mut H::Connection)
     where
         H: Handler,
     {
