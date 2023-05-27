@@ -13,7 +13,7 @@ pub struct Request<'req, C: Connection> {
 }
 
 impl<'req, C: Connection> Request<'req, C> {
-    pub fn new(
+    pub(crate) fn new(
         req: httparse::Request<'req, 'req>,
         body: RequestBody<'req>,
         connection: &'req mut C,
@@ -35,6 +35,22 @@ impl<'req, C: Connection> Request<'req, C> {
             headers: req.headers,
             connection,
         })
+    }
+
+    pub async fn read_body(&mut self, buf: &mut [u8]) -> Result<usize, ()> {
+        self.body.read(buf, self.connection).await
+    }
+
+    pub fn raw_header(&self, name: &str) -> Option<&[u8]> {
+        self.headers
+            .iter()
+            .find(|header| header.name.eq_ignore_ascii_case(name))
+            .map(|header| header.value)
+    }
+
+    pub fn header(&self, name: &str) -> Option<&str> {
+        self.raw_header(name)
+            .and_then(|header| core::str::from_utf8(header).ok())
     }
 }
 
