@@ -13,12 +13,14 @@ use crate::{
     connector::Connection,
     handler::{Handler, NoHandler, Request},
     request_body::{BodyTypeError, RequestBody, RequestBodyError},
+    response::{Response, ResponseStatus},
 };
 
 pub mod connector;
 pub mod handler;
 pub mod method;
 pub mod request_body;
+pub mod response;
 
 pub struct BadServer<H: Handler, const REQUEST_BUFFER: usize, const MAX_HEADERS: usize> {
     handler: H,
@@ -171,11 +173,19 @@ where
 
                         // Note: this is a bit of a stretch, because this error is for incorrectly
                         // encoded strings, but I think technically we are correct.
-                        ErrorResponse { code: 501 }.send(socket).await;
+                        let _ = ErrorResponse {
+                            status: ResponseStatus::NotImplemented,
+                        }
+                        .send(socket)
+                        .await;
                         return;
                     }
                     Err(RequestBodyError::BodyType(BodyTypeError::ConflictingHeaders)) => {
-                        ErrorResponse { code: 400 }.send(socket).await;
+                        let _ = ErrorResponse {
+                            status: ResponseStatus::BadRequest,
+                        }
+                        .send(socket)
+                        .await;
                         return;
                     }
                 };
@@ -185,7 +195,11 @@ where
                         if self.handler.handles(&request) {
                             self.handler.handle(request).await;
                         } else {
-                            ErrorResponse { code: 404 }.send(socket).await;
+                            let _ = ErrorResponse {
+                                status: ResponseStatus::NotFound,
+                            }
+                            .send(socket)
+                            .await;
                         }
                     }
                     Err(_) => {
@@ -200,40 +214,27 @@ where
 }
 
 struct ErrorResponse {
-    code: u16,
+    status: ResponseStatus,
 }
 
 impl ErrorResponse {
-    async fn send(&self, socket: &mut impl Connection) {
-        const KNOWN_CODES: [(u16, &str); 4] = [
-            (400, "Bad Request"),
-            (404, "Not Found"),
-            (500, "Internal Server Error"),
-            (501, "Not Implemented"),
-        ];
-
-        // if code is not known, send 500
-        let (code, reason) = KNOWN_CODES
-            .iter()
-            .find(|(code, _)| *code == self.code)
-            .cloned()
-            .unwrap_or((500, "Internal Server Error"));
+    async fn send<C: Connection>(&self, socket: &mut C) -> Result<(), C::Error> {
+        let mut response = Response::send_headers(socket, self.status, &[]).await?;
 
         let mut body = heapless::String::<128>::new();
-        // build response
-        let _ = write!(&mut body, "HTTP/1.0 501 Not Implemented\r\n");
-        let _ = write!(&mut body, "\r\n");
+        let code = self.status as u16;
+        let reason = self.status.name();
+        // build response body
         let _ = write!(
             &mut body,
             "<html><body><h1>{code} {reason}</h1></body></html>\r\n"
         );
-
-        if let Err(e) = socket.write_all(body.as_bytes()).await {
-            log::warn!("write error: {:?}", e);
-        }
+        response.write(&body).await?;
 
         if let Err(e) = socket.flush().await {
             log::warn!("flush error: {:?}", e);
         }
+
+        Ok(())
     }
 }
