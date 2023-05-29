@@ -3,16 +3,16 @@
 #![feature(impl_trait_projections)]
 #![allow(incomplete_features)]
 
-use core::marker::PhantomData;
+use core::{fmt::Write as _, marker::PhantomData};
 
-use embedded_io::asynch::{Read, Write};
+use embedded_io::asynch::Read;
 use httparse::Status;
 use object_chain::{Chain, ChainElement, Link};
 
 use crate::{
     connector::Connection,
     handler::{Handler, NoHandler, Request},
-    request_body::RequestBody,
+    request_body::{BodyTypeError, RequestBody, RequestBodyError},
 };
 
 pub mod connector;
@@ -24,7 +24,7 @@ pub struct BadServer<H: Handler, const REQUEST_BUFFER: usize, const MAX_HEADERS:
     handler: H,
 }
 
-impl<'s, C: Connection> BadServer<NoHandler<C>, 1024, 32> {
+impl<C: Connection> BadServer<NoHandler<C>, 1024, 32> {
     pub fn new() -> Self {
         Self {
             handler: NoHandler(PhantomData),
@@ -152,7 +152,7 @@ where
     async fn handle(&self, mut socket: &mut H::Connection) {
         let mut buffer = [0u8; REQUEST_BUFFER];
 
-        match self.load_headers(&mut buffer, &mut socket).await {
+        match self.load_headers(&mut buffer, socket).await {
             Ok((header_size, total_read)) => {
                 let (header_buf, body_buf) = buffer.split_at_mut(header_size);
 
@@ -160,47 +160,75 @@ where
                 let mut req = httparse::Request::new(&mut headers);
                 req.parse(header_buf).unwrap();
 
-                // TODO: create a body reader that uses the loaded bytes,
-                // and reads more from socket when needed.
                 let read_body = total_read - header_size;
-                let body = RequestBody::from_preloaded(body_buf, read_body);
+                let body = RequestBody::from_preloaded(req.headers, body_buf, read_body);
+
+                let body = match body {
+                    Ok(body) => body,
+                    Err(RequestBodyError::BodyType(BodyTypeError::IncorrectEncoding)) => {
+                        // A server that receives a request message with a transfer coding it does
+                        // not understand SHOULD respond with 501 (Not Implemented).
+
+                        // Note: this is a bit of a stretch, because this error is for incorrectly
+                        // encoded strings, but I think technically we are correct.
+                        ErrorResponse { code: 501 }.send(socket).await;
+                        return;
+                    }
+                    Err(RequestBodyError::BodyType(BodyTypeError::ConflictingHeaders)) => {
+                        ErrorResponse { code: 400 }.send(socket).await;
+                        return;
+                    }
+                };
 
                 match Request::new(req, body, socket) {
                     Ok(request) => {
                         if self.handler.handles(&request) {
                             self.handler.handle(request).await;
                         } else {
-                            self.send_404(socket).await;
+                            ErrorResponse { code: 404 }.send(socket).await;
                         }
                     }
                     Err(_) => {
                         // TODO: send a proper response
                         socket.close();
                     }
-                };
+                }
             }
             Err(_) => todo!(),
         }
     }
+}
 
-    async fn send_404(&self, socket: &mut H::Connection)
-    where
-        H: Handler,
-    {
-        // TODO: response builder
-        let r = socket
-            .write_all(
-                b"HTTP/1.0 404 Not Found\r\n\r\n\
-                        <html>\
-                            <body>\
-                                <h1>404 Not Found</h1>\
-                            </body>\
-                        </html>\r\n\
-                        ",
-            )
-            .await;
+struct ErrorResponse {
+    code: u16,
+}
 
-        if let Err(e) = r {
+impl ErrorResponse {
+    async fn send(&self, socket: &mut impl Connection) {
+        const KNOWN_CODES: [(u16, &str); 4] = [
+            (400, "Bad Request"),
+            (404, "Not Found"),
+            (500, "Internal Server Error"),
+            (501, "Not Implemented"),
+        ];
+
+        // if code is not known, send 500
+        let (code, reason) = KNOWN_CODES
+            .iter()
+            .find(|(code, _)| *code == self.code)
+            .cloned()
+            .unwrap_or((500, "Internal Server Error"));
+
+        let mut body = heapless::String::<128>::new();
+        // build response
+        let _ = write!(&mut body, "HTTP/1.0 501 Not Implemented\r\n");
+        let _ = write!(&mut body, "\r\n");
+        let _ = write!(
+            &mut body,
+            "<html><body><h1>{code} {reason}</h1></body></html>\r\n"
+        );
+
+        if let Err(e) = socket.write_all(body.as_bytes()).await {
             log::warn!("write error: {:?}", e);
         }
 
