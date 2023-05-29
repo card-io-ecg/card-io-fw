@@ -73,28 +73,12 @@ pub enum RequestBodyError {
     BodyType(BodyTypeError),
 }
 
-pub struct RequestBody<'buf> {
-    request_type: RequestBodyType,
+struct Buffer<'buf> {
     buffer: &'buf mut [u8],
     bytes: usize,
 }
 
-impl<'buf> RequestBody<'buf> {
-    pub(crate) fn from_preloaded(
-        headers: &[Header],
-        buffer: &'buf mut [u8],
-        bytes: usize,
-    ) -> Result<Self, RequestBodyError> {
-        let request_type =
-            RequestBodyType::from_headers(headers).map_err(RequestBodyError::BodyType)?;
-
-        Ok(Self {
-            buffer,
-            bytes,
-            request_type,
-        })
-    }
-
+impl Buffer<'_> {
     fn flush_loaded<'r>(&mut self, dst: &'r mut [u8]) -> &'r mut [u8] {
         let loaded = &self.buffer[0..self.bytes];
 
@@ -105,11 +89,7 @@ impl<'buf> RequestBody<'buf> {
         &mut dst[bytes..]
     }
 
-    pub async fn load(
-        &mut self,
-        count: usize,
-        connection: &mut impl Connection,
-    ) -> Result<usize, ()> {
+    async fn load(&mut self, count: usize, connection: &mut impl Connection) -> Result<usize, ()> {
         if count <= self.bytes {
             return Ok(self.bytes);
         }
@@ -123,7 +103,7 @@ impl<'buf> RequestBody<'buf> {
         Ok(read)
     }
 
-    pub async fn load_exact(
+    async fn load_exact(
         &mut self,
         count: usize,
         connection: &mut impl Connection,
@@ -138,16 +118,48 @@ impl<'buf> RequestBody<'buf> {
 
         Ok(())
     }
+}
+
+// Reader state specific to each body type
+enum BodyReader {
+    Chunked,
+    ContentLength(u32),
+    Unknown,
+}
+
+pub struct RequestBody<'buf> {
+    buffer: Buffer<'buf>,
+    reader: BodyReader,
+}
+
+impl<'buf> RequestBody<'buf> {
+    pub(crate) fn from_preloaded(
+        headers: &[Header],
+        buffer: &'buf mut [u8],
+        bytes: usize,
+    ) -> Result<Self, RequestBodyError> {
+        let request_type =
+            RequestBodyType::from_headers(headers).map_err(RequestBodyError::BodyType)?;
+
+        Ok(Self {
+            buffer: Buffer { buffer, bytes },
+            reader: match request_type {
+                RequestBodyType::Chunked => BodyReader::Chunked,
+                RequestBodyType::ContentLength(length) => BodyReader::ContentLength(length),
+                RequestBodyType::Unknown => BodyReader::Unknown,
+            },
+        })
+    }
 
     pub async fn read(
         &mut self,
         buf: &mut [u8],
         connection: &mut impl Connection,
     ) -> Result<usize, ()> {
-        self.load_exact(buf.len(), connection).await?;
+        self.buffer.load_exact(buf.len(), connection).await?;
 
         let buf_len = buf.len();
-        let buffer_to_fill = self.flush_loaded(buf);
+        let buffer_to_fill = self.buffer.flush_loaded(buf);
 
         Ok(buf_len - buffer_to_fill.len())
     }
