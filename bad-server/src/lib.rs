@@ -163,7 +163,7 @@ where
                 req.parse(header_buf).unwrap();
 
                 let read_body = total_read - header_size;
-                let body = RequestBody::new(req.headers, body_buf, read_body, socket);
+                let body = RequestBody::new(req.headers, &body_buf[0..read_body], socket);
 
                 let body = match body {
                     Ok(body) => body,
