@@ -163,7 +163,7 @@ where
                 req.parse(header_buf).unwrap();
 
                 let read_body = total_read - header_size;
-                let body = RequestBody::from_preloaded(req.headers, body_buf, read_body);
+                let body = RequestBody::new(req.headers, body_buf, read_body, socket);
 
                 let body = match body {
                     Ok(body) => body,
@@ -190,7 +190,7 @@ where
                     }
                 };
 
-                match Request::new(req, body, socket) {
+                match Request::new(req, body) {
                     Ok(request) => {
                         if self.handler.handles(&request) {
                             self.handler.handle(request).await;
