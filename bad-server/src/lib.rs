@@ -3,9 +3,12 @@
 #![feature(impl_trait_projections)]
 #![allow(incomplete_features)]
 
-use core::{fmt::Write as _, marker::PhantomData};
+use core::{fmt::Write, marker::PhantomData};
 
-use embedded_io::asynch::Read;
+use embedded_io::{
+    asynch::{Read, Write as _},
+    Io,
+};
 use httparse::Status;
 use object_chain::{Chain, ChainElement, Link};
 
@@ -100,11 +103,22 @@ where
 
             log::info!("Connected");
 
-            match r {
-                Ok(_) => self.handle(socket).await,
-                Err(e) => {
-                    log::warn!("connect error: {:?}", e);
-                }
+            if let Err(e) = r {
+                log::warn!("connect error: {:?}", e);
+                socket.close();
+                continue;
+            }
+
+            let handle_result = self.handle(socket).await;
+
+            if let Err(e) = socket.flush().await {
+                log::warn!("flush error: {:?}", e);
+            }
+
+            // Handle errors after flushing
+            if let Err(e) = handle_result {
+                log::warn!("handle error: {:?}", e);
+                socket.close();
             }
         }
     }
@@ -151,7 +165,7 @@ where
         Err(())
     }
 
-    async fn handle(&self, socket: &mut H::Connection) {
+    async fn handle(&self, socket: &mut H::Connection) -> Result<(), <H::Connection as Io>::Error> {
         let mut buffer = [0u8; REQUEST_BUFFER];
 
         match self.load_headers(&mut buffer, socket).await {
@@ -173,20 +187,12 @@ where
 
                         // Note: this is a bit of a stretch, because this error is for incorrectly
                         // encoded strings, but I think technically we are correct.
-                        let _ = ErrorResponse {
-                            status: ResponseStatus::NotImplemented,
-                        }
-                        .send(socket)
-                        .await;
-                        return;
+                        return ErrorResponse(ResponseStatus::NotImplemented)
+                            .send(socket)
+                            .await;
                     }
                     Err(RequestBodyError::BodyType(BodyTypeError::ConflictingHeaders)) => {
-                        let _ = ErrorResponse {
-                            status: ResponseStatus::BadRequest,
-                        }
-                        .send(socket)
-                        .await;
-                        return;
+                        return ErrorResponse(ResponseStatus::BadRequest).send(socket).await;
                     }
                 };
 
@@ -195,11 +201,7 @@ where
                         if self.handler.handles(&request) {
                             self.handler.handle(request).await;
                         } else {
-                            let _ = ErrorResponse {
-                                status: ResponseStatus::NotFound,
-                            }
-                            .send(socket)
-                            .await;
+                            return ErrorResponse(ResponseStatus::NotFound).send(socket).await;
                         }
                     }
                     Err(_) => {
@@ -210,30 +212,30 @@ where
             }
             Err(_) => todo!(),
         }
+
+        // TODO
+        Ok(())
     }
 }
 
-struct ErrorResponse {
-    status: ResponseStatus,
-}
+struct ErrorResponse(ResponseStatus);
 
 impl ErrorResponse {
     async fn send<C: Connection>(&self, socket: &mut C) -> Result<(), C::Error> {
-        let mut response = Response::send_headers(socket, self.status, &[]).await?;
+        let mut response = Response::new(socket)
+            .send_status(self.0)
+            .await?
+            .end_headers()
+            .await?;
 
         let mut body = heapless::String::<128>::new();
-        let code = self.status as u16;
-        let reason = self.status.name();
-        // build response body
         let _ = write!(
             &mut body,
-            "<html><body><h1>{code} {reason}</h1></body></html>\r\n"
+            "<html><body><h1>{code} {reason}</h1></body></html>\r\n",
+            code = self.0 as u16,
+            reason = self.0.name(),
         );
-        response.write(&body).await?;
-
-        if let Err(e) = socket.flush().await {
-            log::warn!("flush error: {:?}", e);
-        }
+        response.write_string(&body).await?;
 
         Ok(())
     }

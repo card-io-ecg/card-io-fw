@@ -21,13 +21,12 @@ pub mod embassy_net_compat {
         type AcceptError = AcceptError;
 
         async fn listen(&mut self, port: u16) -> Result<(), Self::AcceptError> {
-            self.accept(IpListenEndpoint { addr: None, port }).await?;
-
-            Ok(())
+            self.accept(IpListenEndpoint { addr: None, port }).await
         }
 
         fn close(&mut self) {
             TcpSocket::close(self);
+            TcpSocket::abort(self);
         }
     }
 }
