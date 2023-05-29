@@ -3,7 +3,11 @@ use core::{future::Future, marker::PhantomData};
 use httparse::Header;
 use object_chain::{Chain, ChainElement, Link};
 
-use crate::{connector::Connection, method::Method, request_body::RequestBody};
+use crate::{
+    connector::Connection,
+    method::Method,
+    request_body::{ReadResult, RequestBody},
+};
 
 pub struct Request<'req, C: Connection> {
     method: Method,
@@ -35,7 +39,7 @@ impl<'req, C: Connection> Request<'req, C> {
         })
     }
 
-    pub async fn read_body(&mut self, buf: &mut [u8]) -> Result<usize, ()> {
+    pub async fn read_body(&mut self, buf: &mut [u8]) -> ReadResult<usize, C> {
         self.body.read(buf).await
     }
 

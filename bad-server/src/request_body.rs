@@ -1,3 +1,4 @@
+use embedded_io::blocking::ReadExactError;
 use httparse::Header;
 
 use crate::connector::Connection;
@@ -94,6 +95,20 @@ impl<C: Connection> Buffer<'_, C> {
         let buffer_to_fill = self.flush_loaded(buf);
         self.connection.read(buffer_to_fill).await
     }
+
+    pub async fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), ReadExactError<C::Error>> {
+        let buffer_to_fill = self.flush_loaded(buf);
+        self.connection.read_exact(buffer_to_fill).await
+    }
+
+    pub async fn read_one(&mut self) -> Result<Option<u8>, C::Error> {
+        let mut buffer = [0];
+        match self.read_exact(&mut buffer).await {
+            Ok(()) => Ok(Some(buffer[0])),
+            Err(ReadExactError::UnexpectedEof) => Ok(None),
+            Err(ReadExactError::Other(e)) => Err(e),
+        }
+    }
 }
 
 struct ContentLengthReader<'buf, C: Connection> {
@@ -110,10 +125,14 @@ impl<'buf, C: Connection> ContentLengthReader<'buf, C> {
         self.length == 0
     }
 
-    pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize, C::Error> {
+    pub async fn read(&mut self, buf: &mut [u8]) -> ReadResult<usize, C> {
         let len = self.length.min(buf.len() as u32) as usize;
 
-        let read = self.buffer.read(&mut buf[0..len]).await?;
+        let read = self
+            .buffer
+            .read(&mut buf[0..len])
+            .await
+            .map_err(ReadError::Io)?;
         self.length -= read as u32;
 
         Ok(read)
@@ -121,8 +140,16 @@ impl<'buf, C: Connection> ContentLengthReader<'buf, C> {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ReadError<C: Connection> {
+    Io(C::Error),
+}
+
+pub type ReadResult<T, C> = Result<T, ReadError<C>>;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum ChunkedReaderState {
     ReadChunkSize,
+    Chunk(usize),
     Finished,
 }
 
@@ -143,11 +170,53 @@ impl<'buf, C: Connection> ChunkedReader<'buf, C> {
         self.state == ChunkedReaderState::Finished
     }
 
-    pub async fn read_one(&mut self) -> Result<Option<u8>, C::Error> {
+    pub async fn read_number(&mut self) -> ReadResult<usize, C> {
         todo!()
     }
 
-    pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize, C::Error> {
+    pub async fn consume(&mut self, expected: &[u8]) -> ReadResult<(), C> {
+        todo!()
+    }
+
+    pub async fn read_one(&mut self) -> ReadResult<Option<u8>, C> {
+        while !self.is_complete() {
+            match self.state {
+                ChunkedReaderState::ReadChunkSize => {
+                    let chunk_size = self.read_number().await?;
+                    self.consume(b"\r\n").await?;
+
+                    self.state = if chunk_size == 0 {
+                        ChunkedReaderState::Finished
+                    } else {
+                        ChunkedReaderState::Chunk(chunk_size)
+                    };
+                }
+                ChunkedReaderState::Chunk(ref mut remaining) => {
+                    if let Some(byte) = self.buffer.read_one().await.map_err(ReadError::Io)? {
+                        *remaining -= 1;
+
+                        if *remaining == 0 {
+                            self.consume(b"\r\n").await?;
+                            self.state = ChunkedReaderState::ReadChunkSize;
+                        }
+
+                        return Ok(Some(byte));
+                    } else {
+                        // unexpected eof
+                        self.state = ChunkedReaderState::Finished;
+                        return Ok(None);
+                    }
+                }
+                ChunkedReaderState::Finished => {
+                    unreachable!("is_complete() should have returned false");
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    pub async fn read(&mut self, buf: &mut [u8]) -> ReadResult<usize, C> {
         for (index, byte) in buf.iter_mut().enumerate() {
             *byte = match self.read_one().await? {
                 Some(byte) => byte,
@@ -175,11 +244,11 @@ impl<'buf, C: Connection> BodyReader<'buf, C> {
         }
     }
 
-    pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize, C::Error> {
+    pub async fn read(&mut self, buf: &mut [u8]) -> ReadResult<usize, C> {
         match self {
             Self::Chunked(reader) => reader.read(buf).await,
             Self::ContentLength(reader) => reader.read(buf).await,
-            Self::Unknown(reader) => reader.read(buf).await,
+            Self::Unknown(reader) => reader.read(buf).await.map_err(ReadError::Io),
         }
     }
 }
@@ -217,7 +286,7 @@ impl<'buf, C: Connection> RequestBody<'buf, C> {
         self.reader.is_complete()
     }
 
-    pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize, ()> {
-        self.reader.read(buf).await.map_err(|_| ())
+    pub async fn read(&mut self, buf: &mut [u8]) -> ReadResult<usize, C> {
+        self.reader.read(buf).await
     }
 }
