@@ -133,8 +133,19 @@ impl<'buf, C: Connection> ChunkedReader<'buf, C> {
         todo!()
     }
 
-    pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize, C::Error> {
+    pub async fn read_one(&mut self) -> Result<Option<u8>, C::Error> {
         todo!()
+    }
+
+    pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize, C::Error> {
+        for (index, byte) in buf.iter_mut().enumerate() {
+            *byte = match self.read_one().await? {
+                Some(byte) => byte,
+                None => return Ok(index),
+            };
+        }
+
+        Ok(buf.len())
     }
 }
 
