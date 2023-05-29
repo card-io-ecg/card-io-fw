@@ -8,16 +8,14 @@ use crate::{connector::Connection, method::Method, request_body::RequestBody};
 pub struct Request<'req, C: Connection> {
     method: Method,
     path: &'req str,
-    body: RequestBody<'req>,
+    body: RequestBody<'req, C>,
     headers: &'req [Header<'req>],
-    connection: &'req mut C,
 }
 
 impl<'req, C: Connection> Request<'req, C> {
     pub(crate) fn new(
         req: httparse::Request<'req, 'req>,
-        body: RequestBody<'req>,
-        connection: &'req mut C,
+        body: RequestBody<'req, C>,
     ) -> Result<Self, ()> {
         let Some(path) = req.path else {
             log::warn!("Path not set");
@@ -34,12 +32,11 @@ impl<'req, C: Connection> Request<'req, C> {
             path,
             body,
             headers: req.headers,
-            connection,
         })
     }
 
     pub async fn read_body(&mut self, buf: &mut [u8]) -> Result<usize, ()> {
-        self.body.read(buf, self.connection).await
+        self.body.read(buf).await
     }
 
     pub fn raw_header(&self, name: &str) -> Option<&[u8]> {
