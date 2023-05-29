@@ -120,17 +120,27 @@ impl<'buf, C: Connection> ContentLengthReader<'buf, C> {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ChunkedReaderState {
+    ReadChunkSize,
+    Finished,
+}
+
 struct ChunkedReader<'buf, C: Connection> {
     buffer: Buffer<'buf, C>,
+    state: ChunkedReaderState,
 }
 
 impl<'buf, C: Connection> ChunkedReader<'buf, C> {
     fn new(buffer: Buffer<'buf, C>) -> Self {
-        Self { buffer }
+        Self {
+            buffer,
+            state: ChunkedReaderState::ReadChunkSize,
+        }
     }
 
     pub fn is_complete(&self) -> bool {
-        todo!()
+        self.state == ChunkedReaderState::Finished
     }
 
     pub async fn read_one(&mut self) -> Result<Option<u8>, C::Error> {
