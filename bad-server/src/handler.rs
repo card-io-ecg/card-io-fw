@@ -1,5 +1,6 @@
 use core::{future::Future, marker::PhantomData};
 
+use httparse::Header;
 use object_chain::{Chain, ChainElement, Link};
 
 use crate::{connector::Connection, method::Method, request_body::RequestBody};
@@ -8,7 +9,7 @@ pub struct Request<'req, C: Connection> {
     method: Method,
     path: &'req str,
     body: RequestBody<'req>,
-    headers: &'req [httparse::Header<'req>],
+    headers: &'req [Header<'req>],
     connection: &'req mut C,
 }
 

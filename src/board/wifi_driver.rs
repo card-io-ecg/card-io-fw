@@ -47,7 +47,7 @@ impl WifiDriver {
             } => {
                 let timer = TimerGroup::new(timer, clocks, pcc).timer0;
 
-                esp_wifi::initialize(timer, Rng::new(rng), rcc, &clocks).unwrap();
+                esp_wifi::initialize(timer, Rng::new(rng), rcc, clocks).unwrap();
 
                 WifiDriver::Initialized { wifi }
             }
