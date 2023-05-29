@@ -96,16 +96,53 @@ impl<C: Connection> Buffer<'_, C> {
     }
 }
 
+struct ContentLengthReader<'buf, C: Connection> {
+    buffer: Buffer<'buf, C>,
+    length: u32,
+}
+
+impl<'buf, C: Connection> ContentLengthReader<'buf, C> {
+    pub fn is_complete(&self) -> bool {
+        self.length == 0
+    }
+
+    pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize, C::Error> {
+        let len = self.length.min(buf.len() as u32) as usize;
+
+        let read = self.buffer.read(&mut buf[0..len]).await?;
+        self.length -= read as u32;
+
+        Ok(read)
+    }
+}
+
 // Reader state specific to each body type
-enum BodyReader {
+enum BodyReader<'buf, C: Connection> {
     Chunked,
-    ContentLength(u32),
+    ContentLength(ContentLengthReader<'buf, C>),
     Unknown,
 }
 
+impl<'buf, C: Connection> BodyReader<'buf, C> {
+    pub fn is_complete(&self) -> bool {
+        match self {
+            Self::Chunked => todo!(),
+            Self::ContentLength(length) => length.is_complete(),
+            Self::Unknown => todo!(),
+        }
+    }
+
+    pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize, C::Error> {
+        match self {
+            Self::Chunked => todo!(),
+            Self::ContentLength(length) => length.read(buf).await,
+            Self::Unknown => todo!(),
+        }
+    }
+}
+
 pub struct RequestBody<'buf, C: Connection> {
-    buffer: Buffer<'buf, C>,
-    reader: BodyReader,
+    reader: BodyReader<'buf, C>,
 }
 
 impl<'buf, C: Connection> RequestBody<'buf, C> {
@@ -117,20 +154,27 @@ impl<'buf, C: Connection> RequestBody<'buf, C> {
         let request_type =
             RequestBodyType::from_headers(headers).map_err(RequestBodyError::BodyType)?;
 
+        let buffer = Buffer {
+            buffer: pre_loaded,
+            connection,
+        };
+
         Ok(Self {
-            buffer: Buffer {
-                buffer: pre_loaded,
-                connection,
-            },
             reader: match request_type {
                 RequestBodyType::Chunked => BodyReader::Chunked,
-                RequestBodyType::ContentLength(length) => BodyReader::ContentLength(length),
+                RequestBodyType::ContentLength(length) => {
+                    BodyReader::ContentLength(ContentLengthReader { buffer, length })
+                }
                 RequestBodyType::Unknown => BodyReader::Unknown,
             },
         })
     }
 
+    pub fn is_complete(&self) -> bool {
+        self.reader.is_complete()
+    }
+
     pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize, ()> {
-        self.buffer.read(buf).await.map_err(|_| ())
+        self.reader.read(buf).await.map_err(|_| ())
     }
 }
