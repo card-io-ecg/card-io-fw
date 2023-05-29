@@ -151,7 +151,7 @@ where
         Err(())
     }
 
-    async fn handle(&self, mut socket: &mut H::Connection) {
+    async fn handle(&self, socket: &mut H::Connection) {
         let mut buffer = [0u8; REQUEST_BUFFER];
 
         match self.load_headers(&mut buffer, socket).await {
