@@ -102,6 +102,10 @@ struct ContentLengthReader<'buf, C: Connection> {
 }
 
 impl<'buf, C: Connection> ContentLengthReader<'buf, C> {
+    fn new(buffer: Buffer<'buf, C>, length: u32) -> Self {
+        Self { buffer, length }
+    }
+
     pub fn is_complete(&self) -> bool {
         self.length == 0
     }
@@ -116,9 +120,27 @@ impl<'buf, C: Connection> ContentLengthReader<'buf, C> {
     }
 }
 
+struct ChunkedReader<'buf, C: Connection> {
+    buffer: Buffer<'buf, C>,
+}
+
+impl<'buf, C: Connection> ChunkedReader<'buf, C> {
+    fn new(buffer: Buffer<'buf, C>) -> Self {
+        Self { buffer }
+    }
+
+    pub fn is_complete(&self) -> bool {
+        todo!()
+    }
+
+    pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize, C::Error> {
+        todo!()
+    }
+}
+
 // Reader state specific to each body type
 enum BodyReader<'buf, C: Connection> {
-    Chunked,
+    Chunked(ChunkedReader<'buf, C>),
     ContentLength(ContentLengthReader<'buf, C>),
     Unknown(Buffer<'buf, C>),
 }
@@ -126,15 +148,15 @@ enum BodyReader<'buf, C: Connection> {
 impl<'buf, C: Connection> BodyReader<'buf, C> {
     pub fn is_complete(&self) -> bool {
         match self {
-            Self::Chunked => todo!(),
-            Self::ContentLength(length) => length.is_complete(),
+            Self::Chunked(reader) => reader.is_complete(),
+            Self::ContentLength(reader) => reader.is_complete(),
             Self::Unknown(_) => false,
         }
     }
 
     pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize, C::Error> {
         match self {
-            Self::Chunked => todo!(),
+            Self::Chunked(reader) => reader.read(buf).await,
             Self::ContentLength(reader) => reader.read(buf).await,
             Self::Unknown(reader) => reader.read(buf).await,
         }
@@ -161,9 +183,9 @@ impl<'buf, C: Connection> RequestBody<'buf, C> {
 
         Ok(Self {
             reader: match request_type {
-                RequestBodyType::Chunked => BodyReader::Chunked,
+                RequestBodyType::Chunked => BodyReader::Chunked(ChunkedReader::new(buffer)),
                 RequestBodyType::ContentLength(length) => {
-                    BodyReader::ContentLength(ContentLengthReader { buffer, length })
+                    BodyReader::ContentLength(ContentLengthReader::new(buffer, length))
                 }
                 RequestBodyType::Unknown => BodyReader::Unknown(buffer),
             },
