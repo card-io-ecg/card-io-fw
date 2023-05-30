@@ -3,10 +3,7 @@
 #![feature(impl_trait_projections)]
 #![allow(incomplete_features)]
 
-use core::{
-    fmt::{Debug, Write},
-    marker::PhantomData,
-};
+use core::{fmt::Debug, marker::PhantomData};
 
 use embedded_io::asynch::{Read, Write as _};
 use httparse::Status;
@@ -14,14 +11,16 @@ use object_chain::{Chain, ChainElement, Link};
 
 use crate::{
     connector::Connection,
+    error_handler::{DefaultErrorHandler, ErrorHandler},
     handler::{Handler, NoHandler},
     request::Request,
     request_body::{BodyTypeError, ReadError, RequestBody, RequestBodyError},
     request_context::RequestContext,
-    response::{Response, ResponseStatus},
+    response::ResponseStatus,
 };
 
 pub mod connector;
+pub mod error_handler;
 pub mod handler;
 pub mod method;
 pub mod request;
@@ -29,51 +28,66 @@ pub mod request_body;
 pub mod request_context;
 pub mod response;
 
-pub struct BadServer<H: Handler, const REQUEST_BUFFER: usize, const MAX_HEADERS: usize> {
+pub struct BadServer<
+    H: Handler,
+    EH: ErrorHandler,
+    const REQUEST_BUFFER: usize,
+    const MAX_HEADERS: usize,
+> {
     handler: H,
+    error_handler: EH,
 }
 
-impl<C: Connection> BadServer<NoHandler<C>, 1024, 32> {
+impl<C: Connection> BadServer<NoHandler<C>, DefaultErrorHandler<C>, 1024, 32> {
     pub fn new() -> Self {
         Self {
             handler: NoHandler(PhantomData),
+            error_handler: DefaultErrorHandler(PhantomData),
         }
     }
 
-    pub fn add_handler<H: Handler>(self, handler: H) -> BadServer<Chain<H>, 1024, 32> {
+    pub fn add_handler<H: Handler>(
+        self,
+        handler: H,
+    ) -> BadServer<Chain<H>, DefaultErrorHandler<C>, 1024, 32> {
         BadServer {
             handler: Chain::new(handler),
+            error_handler: self.error_handler,
         }
     }
 }
 
-impl<H, const REQUEST_BUFFER: usize, const MAX_HEADERS: usize>
-    BadServer<Chain<H>, REQUEST_BUFFER, MAX_HEADERS>
+impl<H, EH, const REQUEST_BUFFER: usize, const MAX_HEADERS: usize>
+    BadServer<Chain<H>, EH, REQUEST_BUFFER, MAX_HEADERS>
 where
     H: Handler,
+    EH: ErrorHandler,
 {
     pub fn add_handler<H2: Handler<Connection = H::Connection>>(
         self,
         handler: H2,
-    ) -> BadServer<Link<H2, Chain<H>>, REQUEST_BUFFER, MAX_HEADERS> {
+    ) -> BadServer<Link<H2, Chain<H>>, EH, REQUEST_BUFFER, MAX_HEADERS> {
         BadServer {
             handler: self.handler.append(handler),
+            error_handler: self.error_handler,
         }
     }
 }
 
-impl<H, P, const REQUEST_BUFFER: usize, const MAX_HEADERS: usize>
-    BadServer<Link<H, P>, REQUEST_BUFFER, MAX_HEADERS>
+impl<H, EH, P, const REQUEST_BUFFER: usize, const MAX_HEADERS: usize>
+    BadServer<Link<H, P>, EH, REQUEST_BUFFER, MAX_HEADERS>
 where
     H: Handler,
     P: ChainElement + Handler<Connection = H::Connection>,
+    EH: ErrorHandler<Connection = H::Connection>,
 {
     pub fn add_handler<H2: Handler<Connection = H::Connection>>(
         self,
         handler: H2,
-    ) -> BadServer<Link<H2, Link<H, P>>, REQUEST_BUFFER, MAX_HEADERS> {
+    ) -> BadServer<Link<H2, Link<H, P>>, EH, REQUEST_BUFFER, MAX_HEADERS> {
         BadServer {
             handler: self.handler.append(handler),
+            error_handler: self.error_handler,
         }
     }
 }
@@ -103,24 +117,37 @@ where
     }
 }
 
-impl<H, const REQUEST_BUFFER: usize, const MAX_HEADERS: usize>
-    BadServer<H, REQUEST_BUFFER, MAX_HEADERS>
+impl<H, EH, const REQUEST_BUFFER: usize, const MAX_HEADERS: usize>
+    BadServer<H, EH, REQUEST_BUFFER, MAX_HEADERS>
 where
     H: Handler,
+    EH: ErrorHandler<Connection = H::Connection>,
 {
     pub fn with_buffer_size<const NEW_BUFFER_SIZE: usize>(
         self,
-    ) -> BadServer<H, NEW_BUFFER_SIZE, MAX_HEADERS> {
+    ) -> BadServer<H, EH, NEW_BUFFER_SIZE, MAX_HEADERS> {
         BadServer {
             handler: self.handler,
+            error_handler: self.error_handler,
         }
     }
 
     pub fn with_header_count<const NEW_HEADER_COUNT: usize>(
         self,
-    ) -> BadServer<H, REQUEST_BUFFER, NEW_HEADER_COUNT> {
+    ) -> BadServer<H, EH, REQUEST_BUFFER, NEW_HEADER_COUNT> {
         BadServer {
             handler: self.handler,
+            error_handler: self.error_handler,
+        }
+    }
+
+    pub fn with_error_handler<EH2: ErrorHandler<Connection = H::Connection>>(
+        self,
+        error_handler: EH2,
+    ) -> BadServer<H, EH2, REQUEST_BUFFER, MAX_HEADERS> {
+        BadServer {
+            handler: self.handler,
+            error_handler,
         }
     }
 
@@ -214,19 +241,19 @@ where
 
                         // Note: this is a bit of a stretch, because this error is for incorrectly
                         // encoded strings, but I think technically we are correct.
-                        return ErrorResponse(ResponseStatus::NotImplemented)
-                            .send(socket)
-                            .await
-                            .map_err(HandleError::Write);
+                        return self
+                            .error_handler
+                            .handle(ResponseStatus::NotImplemented, socket)
+                            .await;
                     }
                     Err(RequestBodyError::BodyType(
                         BodyTypeError::ConflictingHeaders
                         | BodyTypeError::IncorrectTransferEncoding, // must return 400
                     )) => {
-                        return ErrorResponse(ResponseStatus::BadRequest)
-                            .send(socket)
-                            .await
-                            .map_err(HandleError::Write);
+                        return self
+                            .error_handler
+                            .handle(ResponseStatus::BadRequest, socket)
+                            .await;
                     }
                 };
 
@@ -238,10 +265,9 @@ where
                             // TODO
                             Ok(())
                         } else {
-                            ErrorResponse(ResponseStatus::NotFound)
-                                .send(socket)
+                            self.error_handler
+                                .handle(ResponseStatus::NotFound, socket)
                                 .await
-                                .map_err(HandleError::Write)
                         }
                     }
                     Err(_) => {
@@ -253,28 +279,5 @@ where
             }
             Err(e) => Err(e),
         }
-    }
-}
-
-struct ErrorResponse(ResponseStatus);
-
-impl ErrorResponse {
-    async fn send<C: Connection>(&self, socket: &mut C) -> Result<(), C::Error> {
-        let mut response = Response::new()
-            .send_status(self.0, socket)
-            .await?
-            .end_headers(socket)
-            .await?;
-
-        let mut body = heapless::String::<128>::new();
-        let _ = write!(
-            &mut body,
-            "<html><body><h1>{code} {reason}</h1></body></html>\r\n",
-            code = self.0 as u16,
-            reason = self.0.name(),
-        );
-        response.write_string(&body, socket).await?;
-
-        Ok(())
     }
 }

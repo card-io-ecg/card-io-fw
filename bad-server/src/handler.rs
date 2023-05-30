@@ -13,6 +13,7 @@ pub trait Handler {
     fn handles(&self, request: &RequestContext<'_, Self::Connection>) -> bool;
 
     /// Handles the given request.
+    // TODO: error handling
     async fn handle(&self, request: RequestContext<'_, Self::Connection>);
 }
 
