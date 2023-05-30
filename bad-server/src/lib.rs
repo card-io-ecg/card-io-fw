@@ -252,10 +252,10 @@ struct ErrorResponse(ResponseStatus);
 
 impl ErrorResponse {
     async fn send<C: Connection>(&self, socket: &mut C) -> Result<(), C::Error> {
-        let mut response = Response::new(socket)
-            .send_status(self.0)
+        let mut response = Response::new()
+            .send_status(self.0, socket)
             .await?
-            .end_headers()
+            .end_headers(socket)
             .await?;
 
         let mut body = heapless::String::<128>::new();
@@ -265,7 +265,7 @@ impl ErrorResponse {
             code = self.0 as u16,
             reason = self.0.name(),
         );
-        response.write_string(&body).await?;
+        response.write_string(&body, socket).await?;
 
         Ok(())
     }
