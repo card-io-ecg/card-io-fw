@@ -241,14 +241,15 @@ impl<'buf> ChunkedReader<'buf> {
         }
 
         while let Some(byte) = self.buffer.read_one(socket).await.map_err(ReadError::Io)? {
-            match byte {
-                byte @ b'0'..=b'9' => number = number * 16 + (byte - b'0') as usize,
-                byte @ b'a'..=b'f' => number = number * 16 + (byte - b'a' + 10) as usize,
-                byte @ b'A'..=b'F' => number = number * 16 + (byte - b'A' + 10) as usize,
+            let digit_value = match byte {
+                byte @ b'0'..=b'9' => (byte - b'0') as usize,
+                byte @ b'a'..=b'f' => (byte - b'a' + 10) as usize,
+                byte @ b'A'..=b'F' => (byte - b'A' + 10) as usize,
                 b'\r' => return self.consume(b"\n", socket).await.map(|_| number),
                 b' ' => return self.consume_until_newline(socket).await.map(|_| number),
                 _ => return Err(ReadError::Encoding),
-            }
+            };
+            number = number * 16 + digit_value;
         }
 
         Err(ReadError::UnexpectedEof)
