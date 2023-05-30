@@ -4,6 +4,7 @@ use crate::{
     connector::Connection,
     method::Method,
     request_body::{ReadResult, RequestBody},
+    response::ResponseStatus,
 };
 
 pub struct Request<'req> {
@@ -17,15 +18,15 @@ impl<'req> Request<'req> {
     pub(crate) fn new(
         req: httparse::Request<'req, 'req>,
         body: RequestBody<'req>,
-    ) -> Result<Self, ()> {
+    ) -> Result<Self, ResponseStatus> {
         let Some(path) = req.path else {
             log::warn!("Path not set");
-            return Err(());
+            return Err(ResponseStatus::BadRequest);
         };
 
         let Some(method) = req.method.and_then(Method::new) else {
             log::warn!("Unknown method: {:?}", req.method);
-            return Err(());
+            return Err(ResponseStatus::BadRequest);
         };
 
         log::info!("{}/{path}", method.as_str());

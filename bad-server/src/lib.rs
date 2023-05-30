@@ -13,8 +13,7 @@ use crate::{
     connector::Connection,
     error_handler::{DefaultErrorHandler, ErrorHandler, ResponseBuilder},
     handler::{Handler, NoHandler},
-    request::Request,
-    request_body::{BodyTypeError, ReadError, RequestBody, RequestBodyError},
+    request_body::{ReadError, RequestBody},
     request_context::RequestContext,
     response::ResponseStatus,
 };
@@ -97,8 +96,6 @@ pub enum HandleError<C: Connection> {
     Write(C::Error),
     TooManyHeaders,
     RequestParse(httparse::Error),
-    Request,
-    Other, //Tech debt, replace with a real error
 }
 
 impl<C> Debug for HandleError<C>
@@ -111,8 +108,6 @@ where
             HandleError::Write(f0) => f.debug_tuple("Write").field(&f0).finish(),
             HandleError::TooManyHeaders => f.write_str("TooManyHeaders"),
             HandleError::RequestParse(f0) => f.debug_tuple("RequestParse").field(&f0).finish(),
-            HandleError::Request => f.write_str("Request"),
-            HandleError::Other => f.write_str("Other"),
         }
     }
 }
@@ -214,7 +209,7 @@ where
                     // We need to read more
                 }
                 Err(e) => {
-                    log::warn!("Parsing request failed");
+                    log::warn!("Parsing request failed: {e}");
                     return Err(HandleError::RequestParse(e));
                 }
             };
@@ -227,55 +222,33 @@ where
     async fn handle(&self, socket: &mut H::Connection) -> Result<(), HandleError<H::Connection>> {
         let mut buffer = [0u8; REQUEST_BUFFER];
 
-        match self.load_headers(&mut buffer, socket).await {
+        let status = match self.load_headers(&mut buffer, socket).await {
             Ok((header, body)) => {
                 let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
                 let mut req = httparse::Request::new(&mut headers);
                 req.parse(header).unwrap();
 
-                let body = match RequestBody::new(req.headers, body) {
-                    Ok(body) => body,
-                    Err(RequestBodyError::BodyType(BodyTypeError::IncorrectEncoding)) => {
-                        // A server that receives a request message with a transfer coding it does
-                        // not understand SHOULD respond with 501 (Not Implemented).
-
-                        // Note: this is a bit of a stretch, because this error is for incorrectly
-                        // encoded strings, but I think technically we are correct.
-                        return self
-                            .error_handler
-                            .handle(ResponseStatus::NotImplemented, ResponseBuilder::new(socket))
-                            .await;
-                    }
-                    Err(RequestBodyError::BodyType(
-                        BodyTypeError::ConflictingHeaders
-                        | BodyTypeError::IncorrectTransferEncoding, // must return 400
-                    )) => {
-                        return self
-                            .error_handler
-                            .handle(ResponseStatus::BadRequest, ResponseBuilder::new(socket))
-                            .await;
-                    }
-                };
-
-                match Request::new(req, body) {
-                    Ok(request) => {
-                        let request = RequestContext::new(socket, request);
-                        if self.handler.handles(&request) {
-                            self.handler.handle(request).await
-                        } else {
-                            self.error_handler
-                                .handle(ResponseStatus::NotFound, ResponseBuilder::new(socket))
-                                .await
+                match RequestBody::new(req.headers, body) {
+                    Ok(body) => match RequestContext::new(req, body, socket) {
+                        Ok(request) if self.handler.handles(&request) => {
+                            return self.handler.handle(request).await;
                         }
-                    }
-                    Err(_) => {
-                        // TODO: send a proper response
-                        socket.close();
-                        Err(HandleError::Request)
-                    }
+                        Ok(_request) => ResponseStatus::NotFound,
+                        Err(status) => status,
+                    },
+                    Err(err) => err.into(),
                 }
             }
-            Err(e) => Err(e),
-        }
+            Err(HandleError::TooManyHeaders) => ResponseStatus::RequestEntityTooLarge,
+            Err(HandleError::RequestParse(_)) => ResponseStatus::BadRequest,
+            Err(HandleError::Read(ReadError::Io(_))) => ResponseStatus::InternalServerError,
+            Err(HandleError::Read(ReadError::Encoding)) => ResponseStatus::BadRequest,
+            Err(HandleError::Read(ReadError::UnexpectedEof)) => ResponseStatus::BadRequest,
+            Err(e @ HandleError::Write(_)) => return Err(e),
+        };
+
+        self.error_handler
+            .handle(status, ResponseBuilder::new(socket))
+            .await
     }
 }
