@@ -62,7 +62,7 @@ where
 
     pub async fn end_headers(self) -> Result<RequestContext<'req, C, Body>, C::Error> {
         Ok(RequestContext {
-            response: self.response.end_headers(self.connection).await?,
+            response: self.response.start_body(self.connection).await?,
             connection: self.connection,
             request: self.request,
         })

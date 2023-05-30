@@ -150,7 +150,7 @@ where
         Ok(ResponseBuilder {
             response: self
                 .response
-                .end_headers(self.socket)
+                .start_body(self.socket)
                 .await
                 .map_err(HandleError::Write)?,
             socket: self.socket,
