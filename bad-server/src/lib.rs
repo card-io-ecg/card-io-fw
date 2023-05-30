@@ -202,7 +202,7 @@ where
                 let mut req = httparse::Request::new(&mut headers);
                 req.parse(header).unwrap();
 
-                let body = match RequestBody::new(req.headers, body, socket) {
+                let body = match RequestBody::new(req.headers, body) {
                     Ok(body) => body,
                     Err(RequestBodyError::BodyType(BodyTypeError::IncorrectEncoding)) => {
                         // A server that receives a request message with a transfer coding it does
