@@ -78,6 +78,8 @@ pub enum HandleError<C: Connection> {
     Read(ReadError<C>),
     Write(C::Error),
     TooManyHeaders,
+    RequestParse(httparse::Error),
+    Request,
     Other, //Tech debt, replace with a real error
 }
 
@@ -90,6 +92,8 @@ where
             HandleError::Read(f0) => f.debug_tuple("Read").field(&f0).finish(),
             HandleError::Write(f0) => f.debug_tuple("Write").field(&f0).finish(),
             HandleError::TooManyHeaders => f.write_str("TooManyHeaders"),
+            HandleError::RequestParse(f0) => f.debug_tuple("RequestParse").field(&f0).finish(),
+            HandleError::Request => f.write_str("Request"),
             HandleError::Other => f.write_str("Other"),
         }
     }
@@ -148,7 +152,7 @@ where
         &self,
         buffer: &'b mut [u8],
         socket: &mut H::Connection,
-    ) -> Result<(&'b [u8], &'b [u8]), ()> {
+    ) -> Result<(&'b [u8], &'b [u8]), HandleError<H::Connection>> {
         let mut pos = 0;
         while pos < buffer.len() {
             match socket.read(&mut buffer[pos..]).await {
@@ -156,12 +160,12 @@ where
                     // We're here because the previous read wasn't a complete request. Reading 0
                     // means the request will not ever be completed.
                     log::warn!("read EOF");
-                    return Err(());
+                    return Err(HandleError::Read(ReadError::UnexpectedEof));
                 }
                 Ok(len) => pos += len,
                 Err(e) => {
                     log::warn!("read error: {:?}", e);
-                    return Err(());
+                    return Err(HandleError::Read(ReadError::Io(e)));
                 }
             }
 
@@ -178,15 +182,15 @@ where
                 Ok(Status::Partial) => {
                     // We need to read more
                 }
-                Err(_) => {
+                Err(e) => {
                     log::warn!("Parsing request failed");
-                    return Err(());
+                    return Err(HandleError::RequestParse(e));
                 }
             };
         }
 
         // Can't read more, but we don't have a complete request yet.
-        Err(())
+        Err(HandleError::TooManyHeaders)
     }
 
     async fn handle(&self, socket: &mut H::Connection) -> Result<(), HandleError<H::Connection>> {
@@ -198,9 +202,7 @@ where
                 let mut req = httparse::Request::new(&mut headers);
                 req.parse(header).unwrap();
 
-                let body = RequestBody::new(req.headers, body, socket);
-
-                let body = match body {
+                let body = match RequestBody::new(req.headers, body, socket) {
                     Ok(body) => body,
                     Err(RequestBodyError::BodyType(BodyTypeError::IncorrectEncoding)) => {
                         // A server that receives a request message with a transfer coding it does
@@ -225,6 +227,8 @@ where
                     Ok(request) => {
                         if self.handler.handles(&request) {
                             self.handler.handle(request).await;
+                            // TODO
+                            Ok(())
                         } else {
                             return ErrorResponse(ResponseStatus::NotFound)
                                 .send(socket)
@@ -235,14 +239,12 @@ where
                     Err(_) => {
                         // TODO: send a proper response
                         socket.close();
+                        return Err(HandleError::Request);
                     }
                 }
             }
-            Err(_) => todo!(),
+            Err(e) => return Err(e),
         }
-
-        // TODO
-        Ok(())
     }
 }
 
