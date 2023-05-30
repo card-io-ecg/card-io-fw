@@ -44,11 +44,18 @@ impl<C: Connection> BadServer<NoHandler<C>, DefaultErrorHandler<C>, 1024, 32> {
             error_handler: DefaultErrorHandler(PhantomData),
         }
     }
+}
 
-    pub fn add_handler<H: Handler>(
+impl<C, EH, const REQUEST_BUFFER: usize, const MAX_HEADERS: usize>
+    BadServer<NoHandler<C>, EH, REQUEST_BUFFER, MAX_HEADERS>
+where
+    C: Connection,
+    EH: ErrorHandler,
+{
+    pub fn with_handler<H: Handler>(
         self,
         handler: H,
-    ) -> BadServer<Chain<H>, DefaultErrorHandler<C>, 1024, 32> {
+    ) -> BadServer<Chain<H>, EH, REQUEST_BUFFER, MAX_HEADERS> {
         BadServer {
             handler: Chain::new(handler),
             error_handler: self.error_handler,
@@ -62,7 +69,7 @@ where
     H: Handler,
     EH: ErrorHandler,
 {
-    pub fn add_handler<H2: Handler<Connection = H::Connection>>(
+    pub fn with_handler<H2: Handler<Connection = H::Connection>>(
         self,
         handler: H2,
     ) -> BadServer<Link<H2, Chain<H>>, EH, REQUEST_BUFFER, MAX_HEADERS> {
@@ -80,7 +87,7 @@ where
     P: ChainElement + Handler<Connection = H::Connection>,
     EH: ErrorHandler<Connection = H::Connection>,
 {
-    pub fn add_handler<H2: Handler<Connection = H::Connection>>(
+    pub fn with_handler<H2: Handler<Connection = H::Connection>>(
         self,
         handler: H2,
     ) -> BadServer<Link<H2, Link<H, P>>, EH, REQUEST_BUFFER, MAX_HEADERS> {
@@ -136,10 +143,13 @@ where
         }
     }
 
-    pub fn with_error_handler<EH2: ErrorHandler<Connection = H::Connection>>(
+    pub fn with_error_handler<EH2>(
         self,
         error_handler: EH2,
-    ) -> BadServer<H, EH2, REQUEST_BUFFER, MAX_HEADERS> {
+    ) -> BadServer<H, EH2, REQUEST_BUFFER, MAX_HEADERS>
+    where
+        EH2: ErrorHandler<Connection = H::Connection>,
+    {
         BadServer {
             handler: self.handler,
             error_handler,

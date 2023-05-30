@@ -2,10 +2,7 @@ use core::{future::Future, marker::PhantomData};
 
 use object_chain::{Chain, ChainElement, Link};
 
-use crate::{
-    connector::Connection, method::Method, request::Request, request_context::RequestContext,
-    HandleError,
-};
+use crate::{connector::Connection, method::Method, request_context::RequestContext, HandleError};
 
 pub trait Handler {
     type Connection: Connection;
@@ -33,17 +30,22 @@ impl<C: Connection> Handler for NoHandler<C> {
     }
 }
 
-pub struct ClosureHandler<'a, F, C> {
+pub struct SimpleHandler<'a, F, FUT, C>
+where
+    F: Fn(RequestContext<'_, C>) -> FUT,
+    FUT: Future<Output = Result<(), HandleError<C>>>,
+    C: Connection,
+{
     closure: F,
     method: Method,
     path: &'a str,
     _connection: PhantomData<C>,
 }
 
-impl<'a, F, FUT, C> ClosureHandler<'a, F, C>
+impl<'a, F, FUT, C> SimpleHandler<'a, F, FUT, C>
 where
-    F: Fn(Request<'_>) -> FUT,
-    FUT: Future<Output = ()>,
+    F: Fn(RequestContext<'_, C>) -> FUT,
+    FUT: Future<Output = Result<(), HandleError<C>>>,
     C: Connection,
 {
     pub fn new(method: Method, path: &'a str, closure: F) -> Self {
@@ -64,7 +66,7 @@ where
     }
 }
 
-impl<F, FUT, C> Handler for ClosureHandler<'_, F, C>
+impl<F, FUT, C> Handler for SimpleHandler<'_, F, FUT, C>
 where
     F: Fn(RequestContext<'_, C>) -> FUT,
     FUT: Future<Output = Result<(), HandleError<C>>>,
