@@ -170,7 +170,7 @@ where
 
         match self.load_headers(&mut buffer, socket).await {
             Ok((header_size, total_read)) => {
-                let (header_buf, body_buf) = buffer.split_at_mut(header_size);
+                let (header_buf, body_buf) = buffer.split_at(header_size);
 
                 let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
                 let mut req = httparse::Request::new(&mut headers);
