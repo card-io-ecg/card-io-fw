@@ -7,6 +7,7 @@ use crate::connector::Connection;
 pub enum BodyTypeError {
     IncorrectEncoding,
     ConflictingHeaders,
+    IncorrectTransferEncoding,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -23,12 +24,20 @@ impl RequestBodyType {
                 return Err(BodyTypeError::IncorrectEncoding);
             };
 
-            if value
-                .split(',')
+            match value
+                .rsplit(',')
                 .map(|encoding| encoding.trim())
-                .any(|enc| enc.eq_ignore_ascii_case("chunked"))
+                .position(|enc| enc.eq_ignore_ascii_case("chunked"))
             {
-                return Ok(Self::Chunked);
+                Some(0) => return Ok(Self::Chunked),
+                Some(_) => {
+                    // If a Transfer-Encoding header field is present in a request and the chunked
+                    // transfer coding is not the final encoding, the message body length cannot be
+                    // determined reliably; the server MUST respond with the 400 (Bad Request)
+                    // status code and then close the connection.
+                    return Err(BodyTypeError::IncorrectTransferEncoding);
+                }
+                None => {}
             }
         } else if header.name.eq_ignore_ascii_case("content-length") {
             // When a message does not have a Transfer-Encoding header field,
@@ -199,11 +208,19 @@ impl<'buf> ChunkedReader<'buf> {
     }
 
     pub async fn read_chunk_size<C: Connection>(&mut self, socket: &mut C) -> ReadResult<usize, C> {
-        let mut number = 0;
+        let mut number;
+
+        if let Some(digit) = self.buffer.read_one(socket).await.map_err(ReadError::Io)? {
+            number = digit as usize;
+        } else {
+            // EOF at the beginning of a chunk is allowed and indicates the end of the body
+            // Note: this is spelled out in the RFC for responses, but not for requests.
+            return Ok(0);
+        }
 
         while let Some(byte) = self.buffer.read_one(socket).await.map_err(ReadError::Io)? {
             match byte {
-                byte @ b'0'..=b'9' => number = number * 10 + byte as usize,
+                byte @ b'0'..=b'9' => number = number * 10 + byte as usize, // FIXME overflow
                 b'\r' => return self.consume(b"\n", socket).await.map(|_| number),
                 b' ' => return self.consume_until_newline(socket).await.map(|_| number),
                 _ => return Err(ReadError::Encoding),
@@ -216,10 +233,14 @@ impl<'buf> ChunkedReader<'buf> {
     pub async fn consume_until_newline<C: Connection>(
         &mut self,
         socket: &mut C,
-    ) -> ReadResult<(), C> {
+    ) -> ReadResult<usize, C> {
+        let mut consumed = 0;
         while let Some(byte) = self.buffer.read_one(socket).await.map_err(ReadError::Io)? {
             if let b'\r' = byte {
-                return self.consume(b"\n", socket).await;
+                self.consume(b"\n", socket).await?;
+                return Ok(consumed);
+            } else {
+                consumed += 1;
             }
         }
 
@@ -242,6 +263,17 @@ impl<'buf> ChunkedReader<'buf> {
         Ok(())
     }
 
+    pub async fn consume_trailers<C: Connection>(&mut self, socket: &mut C) -> ReadResult<(), C> {
+        loop {
+            let consumed = self.consume_until_newline(socket).await?;
+            if consumed == 0 {
+                break;
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn read_one<C: Connection>(&mut self, socket: &mut C) -> ReadResult<Option<u8>, C> {
         loop {
             match self.state {
@@ -249,6 +281,9 @@ impl<'buf> ChunkedReader<'buf> {
                     let chunk_size = self.read_chunk_size(socket).await?;
 
                     self.state = if chunk_size == 0 {
+                        // A recipient that removes the chunked coding from a message MAY
+                        // selectively retain or discard the received trailer fields.
+                        self.consume_trailers(socket).await?;
                         ChunkedReaderState::Finished
                     } else {
                         ChunkedReaderState::Chunk(chunk_size)

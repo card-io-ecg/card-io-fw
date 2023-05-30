@@ -219,7 +219,10 @@ where
                             .await
                             .map_err(HandleError::Write);
                     }
-                    Err(RequestBodyError::BodyType(BodyTypeError::ConflictingHeaders)) => {
+                    Err(RequestBodyError::BodyType(
+                        BodyTypeError::ConflictingHeaders
+                        | BodyTypeError::IncorrectTransferEncoding, // must return 400
+                    )) => {
                         return ErrorResponse(ResponseStatus::BadRequest)
                             .send(socket)
                             .await
