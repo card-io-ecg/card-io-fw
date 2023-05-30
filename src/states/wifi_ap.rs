@@ -1,6 +1,6 @@
 use core::future::Future;
 
-use bad_server::BadServer;
+use bad_server::{error_handler::SimpleErrorHandler, handler::SimpleHandler, BadServer};
 use embassy_executor::Spawner;
 use embassy_futures::{join::join, select::select};
 use embassy_net::{
@@ -205,6 +205,10 @@ async fn webserver_task(
 
             BadServer::new()
                 .with_buffer_size::<2048>()
+                .with_handler(SimpleHandler::get("/", |_request| async { Ok(()) }))
+                .with_error_handler(SimpleErrorHandler::new(|_status, _response| async {
+                    Ok(())
+                }))
                 .listen(&mut socket, 8080)
                 .await;
         })

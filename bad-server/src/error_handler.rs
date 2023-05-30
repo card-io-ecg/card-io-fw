@@ -1,4 +1,4 @@
-use core::{fmt::Write, marker::PhantomData};
+use core::{fmt::Write, future::Future, marker::PhantomData};
 
 use httparse::Header;
 
@@ -17,6 +17,47 @@ pub trait ErrorHandler {
         status: ResponseStatus,
         response: ResponseBuilder<'_, Self::Connection>,
     ) -> Result<(), HandleError<Self::Connection>>;
+}
+
+pub struct SimpleErrorHandler<F, FUT, C>
+where
+    C: Connection,
+    F: Fn(ResponseStatus, ResponseBuilder<'_, C>) -> FUT,
+    FUT: Future<Output = Result<(), HandleError<C>>>,
+{
+    closure: F,
+    _connection: PhantomData<C>,
+}
+
+impl<F, FUT, C> SimpleErrorHandler<F, FUT, C>
+where
+    C: Connection,
+    F: Fn(ResponseStatus, ResponseBuilder<'_, C>) -> FUT,
+    FUT: Future<Output = Result<(), HandleError<C>>>,
+{
+    pub fn new(value: F) -> Self {
+        SimpleErrorHandler {
+            closure: value,
+            _connection: PhantomData,
+        }
+    }
+}
+
+impl<F, FUT, C> ErrorHandler for SimpleErrorHandler<F, FUT, C>
+where
+    C: Connection,
+    F: Fn(ResponseStatus, ResponseBuilder<'_, C>) -> FUT,
+    FUT: Future<Output = Result<(), HandleError<C>>>,
+{
+    type Connection = C;
+
+    async fn handle(
+        &self,
+        status: ResponseStatus,
+        response: ResponseBuilder<'_, C>,
+    ) -> Result<(), HandleError<C>> {
+        (self.closure)(status, response).await
+    }
 }
 
 pub struct DefaultErrorHandler<C: Connection>(pub(crate) PhantomData<C>);
