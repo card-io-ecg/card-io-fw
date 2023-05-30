@@ -75,12 +75,11 @@ pub enum RequestBodyError {
 }
 
 // A buffer around the socket that first returns pre-loaded data.
-struct Buffer<'buf, C: Connection> {
+struct Buffer<'buf> {
     buffer: &'buf [u8],
-    connection: &'buf mut C,
 }
 
-impl<C: Connection> Buffer<'_, C> {
+impl Buffer<'_> {
     fn flush_loaded<'r>(&mut self, dst: &'r mut [u8]) -> &'r mut [u8] {
         let bytes = self.buffer.len().min(dst.len());
 
@@ -91,19 +90,30 @@ impl<C: Connection> Buffer<'_, C> {
         &mut dst[bytes..]
     }
 
-    pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize, C::Error> {
+    pub async fn read<C: Connection>(
+        &mut self,
+        buf: &mut [u8],
+        socket: &mut C,
+    ) -> Result<usize, C::Error> {
         let buffer_to_fill = self.flush_loaded(buf);
-        self.connection.read(buffer_to_fill).await
+        socket.read(buffer_to_fill).await
     }
 
-    pub async fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), ReadExactError<C::Error>> {
+    pub async fn read_exact<C: Connection>(
+        &mut self,
+        buf: &mut [u8],
+        socket: &mut C,
+    ) -> Result<(), ReadExactError<C::Error>> {
         let buffer_to_fill = self.flush_loaded(buf);
-        self.connection.read_exact(buffer_to_fill).await
+        socket.read_exact(buffer_to_fill).await
     }
 
-    pub async fn read_one(&mut self) -> Result<Option<u8>, C::Error> {
+    pub async fn read_one<C: Connection>(
+        &mut self,
+        socket: &mut C,
+    ) -> Result<Option<u8>, C::Error> {
         let mut buffer = [0];
-        match self.read_exact(&mut buffer).await {
+        match self.read_exact(&mut buffer, socket).await {
             Ok(()) => Ok(Some(buffer[0])),
             Err(ReadExactError::UnexpectedEof) => Ok(None),
             Err(ReadExactError::Other(e)) => Err(e),
@@ -111,13 +121,13 @@ impl<C: Connection> Buffer<'_, C> {
     }
 }
 
-struct ContentLengthReader<'buf, C: Connection> {
-    buffer: Buffer<'buf, C>,
+struct ContentLengthReader<'buf> {
+    buffer: Buffer<'buf>,
     length: u32,
 }
 
-impl<'buf, C: Connection> ContentLengthReader<'buf, C> {
-    fn new(buffer: Buffer<'buf, C>, length: u32) -> Self {
+impl<'buf> ContentLengthReader<'buf> {
+    fn new(buffer: Buffer<'buf>, length: u32) -> Self {
         Self { buffer, length }
     }
 
@@ -125,12 +135,16 @@ impl<'buf, C: Connection> ContentLengthReader<'buf, C> {
         self.length == 0
     }
 
-    pub async fn read(&mut self, buf: &mut [u8]) -> ReadResult<usize, C> {
+    pub async fn read<C: Connection>(
+        &mut self,
+        buf: &mut [u8],
+        socket: &mut C,
+    ) -> ReadResult<usize, C> {
         let len = self.length.min(buf.len() as u32) as usize;
 
         let read = self
             .buffer
-            .read(&mut buf[0..len])
+            .read(&mut buf[0..len], socket)
             .await
             .map_err(ReadError::Io)?;
         self.length -= read as u32;
@@ -167,13 +181,13 @@ enum ChunkedReaderState {
     Finished,
 }
 
-struct ChunkedReader<'buf, C: Connection> {
-    buffer: Buffer<'buf, C>,
+struct ChunkedReader<'buf> {
+    buffer: Buffer<'buf>,
     state: ChunkedReaderState,
 }
 
-impl<'buf, C: Connection> ChunkedReader<'buf, C> {
-    fn new(buffer: Buffer<'buf, C>) -> Self {
+impl<'buf> ChunkedReader<'buf> {
+    fn new(buffer: Buffer<'buf>) -> Self {
         Self {
             buffer,
             state: ChunkedReaderState::ReadChunkSize,
@@ -184,14 +198,14 @@ impl<'buf, C: Connection> ChunkedReader<'buf, C> {
         self.state == ChunkedReaderState::Finished
     }
 
-    pub async fn read_chunk_size(&mut self) -> ReadResult<usize, C> {
+    pub async fn read_chunk_size<C: Connection>(&mut self, socket: &mut C) -> ReadResult<usize, C> {
         let mut number = 0;
 
-        while let Some(byte) = self.buffer.read_one().await.map_err(ReadError::Io)? {
+        while let Some(byte) = self.buffer.read_one(socket).await.map_err(ReadError::Io)? {
             match byte {
                 byte @ b'0'..=b'9' => number = number * 10 + byte as usize,
-                b'\r' => return self.consume(b"\n").await.map(|_| number),
-                b' ' => return self.consume_until_newline().await.map(|_| number),
+                b'\r' => return self.consume(b"\n", socket).await.map(|_| number),
+                b' ' => return self.consume_until_newline(socket).await.map(|_| number),
                 _ => return Err(ReadError::Encoding),
             }
         }
@@ -199,19 +213,26 @@ impl<'buf, C: Connection> ChunkedReader<'buf, C> {
         Err(ReadError::UnexpectedEof)
     }
 
-    pub async fn consume_until_newline(&mut self) -> ReadResult<(), C> {
-        while let Some(byte) = self.buffer.read_one().await.map_err(ReadError::Io)? {
+    pub async fn consume_until_newline<C: Connection>(
+        &mut self,
+        socket: &mut C,
+    ) -> ReadResult<(), C> {
+        while let Some(byte) = self.buffer.read_one(socket).await.map_err(ReadError::Io)? {
             if let b'\r' = byte {
-                return self.consume(b"\n").await;
+                return self.consume(b"\n", socket).await;
             }
         }
 
         Err(ReadError::UnexpectedEof)
     }
 
-    pub async fn consume(&mut self, expected: &[u8]) -> ReadResult<(), C> {
+    pub async fn consume<C: Connection>(
+        &mut self,
+        expected: &[u8],
+        socket: &mut C,
+    ) -> ReadResult<(), C> {
         for expected_byte in expected {
-            let byte = self.buffer.read_one().await.map_err(ReadError::Io)?;
+            let byte = self.buffer.read_one(socket).await.map_err(ReadError::Io)?;
 
             if byte != Some(*expected_byte) {
                 return Err(ReadError::Encoding);
@@ -221,11 +242,11 @@ impl<'buf, C: Connection> ChunkedReader<'buf, C> {
         Ok(())
     }
 
-    pub async fn read_one(&mut self) -> ReadResult<Option<u8>, C> {
+    pub async fn read_one<C: Connection>(&mut self, socket: &mut C) -> ReadResult<Option<u8>, C> {
         loop {
             match self.state {
                 ChunkedReaderState::ReadChunkSize => {
-                    let chunk_size = self.read_chunk_size().await?;
+                    let chunk_size = self.read_chunk_size(socket).await?;
 
                     self.state = if chunk_size == 0 {
                         ChunkedReaderState::Finished
@@ -234,7 +255,7 @@ impl<'buf, C: Connection> ChunkedReader<'buf, C> {
                     };
                 }
                 ChunkedReaderState::Chunk(ref mut remaining) => {
-                    let read_result = self.buffer.read_one().await.map_err(ReadError::Io)?;
+                    let read_result = self.buffer.read_one(socket).await.map_err(ReadError::Io)?;
                     let Some(byte) = read_result else {
                         // unexpected eof
                         self.state = ChunkedReaderState::Finished;
@@ -243,7 +264,7 @@ impl<'buf, C: Connection> ChunkedReader<'buf, C> {
 
                     *remaining -= 1;
                     if *remaining == 0 {
-                        self.consume(b"\r\n").await?;
+                        self.consume(b"\r\n", socket).await?;
                         self.state = ChunkedReaderState::ReadChunkSize;
                     }
 
@@ -254,9 +275,13 @@ impl<'buf, C: Connection> ChunkedReader<'buf, C> {
         }
     }
 
-    pub async fn read(&mut self, buf: &mut [u8]) -> ReadResult<usize, C> {
+    pub async fn read<C: Connection>(
+        &mut self,
+        buf: &mut [u8],
+        socket: &mut C,
+    ) -> ReadResult<usize, C> {
         for (index, byte) in buf.iter_mut().enumerate() {
-            *byte = match self.read_one().await? {
+            *byte = match self.read_one(socket).await? {
                 Some(byte) => byte,
                 None => return Ok(index),
             };
@@ -267,13 +292,13 @@ impl<'buf, C: Connection> ChunkedReader<'buf, C> {
 }
 
 // Reader state specific to each body type
-enum BodyReader<'buf, C: Connection> {
-    Chunked(ChunkedReader<'buf, C>),
-    ContentLength(ContentLengthReader<'buf, C>),
-    Unknown(Buffer<'buf, C>),
+enum BodyReader<'buf> {
+    Chunked(ChunkedReader<'buf>),
+    ContentLength(ContentLengthReader<'buf>),
+    Unknown(Buffer<'buf>),
 }
 
-impl<'buf, C: Connection> BodyReader<'buf, C> {
+impl<'buf> BodyReader<'buf> {
     pub fn is_complete(&self) -> bool {
         match self {
             Self::Chunked(reader) => reader.is_complete(),
@@ -282,32 +307,32 @@ impl<'buf, C: Connection> BodyReader<'buf, C> {
         }
     }
 
-    pub async fn read(&mut self, buf: &mut [u8]) -> ReadResult<usize, C> {
+    pub async fn read<C: Connection>(
+        &mut self,
+        buf: &mut [u8],
+        socket: &mut C,
+    ) -> ReadResult<usize, C> {
         match self {
-            Self::Chunked(reader) => reader.read(buf).await,
-            Self::ContentLength(reader) => reader.read(buf).await,
-            Self::Unknown(reader) => reader.read(buf).await.map_err(ReadError::Io),
+            Self::Chunked(reader) => reader.read(buf, socket).await,
+            Self::ContentLength(reader) => reader.read(buf, socket).await,
+            Self::Unknown(reader) => reader.read(buf, socket).await.map_err(ReadError::Io),
         }
     }
 }
 
-pub struct RequestBody<'buf, C: Connection> {
-    reader: BodyReader<'buf, C>,
+pub struct RequestBody<'buf> {
+    reader: BodyReader<'buf>,
 }
 
-impl<'buf, C: Connection> RequestBody<'buf, C> {
+impl<'buf> RequestBody<'buf> {
     pub(crate) fn new(
         headers: &[Header],
         pre_loaded: &'buf [u8],
-        connection: &'buf mut C,
     ) -> Result<Self, RequestBodyError> {
         let request_type =
             RequestBodyType::from_headers(headers).map_err(RequestBodyError::BodyType)?;
 
-        let buffer = Buffer {
-            buffer: pre_loaded,
-            connection,
-        };
+        let buffer = Buffer { buffer: pre_loaded };
 
         Ok(Self {
             reader: match request_type {
@@ -324,7 +349,10 @@ impl<'buf, C: Connection> RequestBody<'buf, C> {
         self.reader.is_complete()
     }
 
-    pub async fn read(&mut self, buf: &mut [u8]) -> ReadResult<usize, C> {
-        self.reader.read(buf).await
+    pub async fn read<C>(&mut self, buf: &mut [u8], socket: &mut C) -> ReadResult<usize, C>
+    where
+        C: Connection,
+    {
+        self.reader.read(buf, socket).await
     }
 }

@@ -9,17 +9,17 @@ use crate::{
     request_body::{ReadResult, RequestBody},
 };
 
-pub struct Request<'req, C: Connection> {
+pub struct Request<'req> {
     method: Method,
     path: &'req str,
-    body: RequestBody<'req, C>,
+    body: RequestBody<'req>,
     headers: &'req [Header<'req>],
 }
 
-impl<'req, C: Connection> Request<'req, C> {
+impl<'req> Request<'req> {
     pub(crate) fn new(
         req: httparse::Request<'req, 'req>,
-        body: RequestBody<'req, C>,
+        body: RequestBody<'req>,
     ) -> Result<Self, ()> {
         let Some(path) = req.path else {
             log::warn!("Path not set");
@@ -39,8 +39,12 @@ impl<'req, C: Connection> Request<'req, C> {
         })
     }
 
-    pub async fn read_body(&mut self, buf: &mut [u8]) -> ReadResult<usize, C> {
-        self.body.read(buf).await
+    pub async fn read_body<C: Connection>(
+        &mut self,
+        buf: &mut [u8],
+        socket: &mut C,
+    ) -> ReadResult<usize, C> {
+        self.body.read(buf, socket).await
     }
 
     pub fn raw_header(&self, name: &str) -> Option<&[u8]> {
@@ -60,21 +64,21 @@ pub trait Handler {
     type Connection: Connection;
 
     /// Returns `true` if this handler can handle the given request.
-    fn handles(&self, request: &Request<'_, Self::Connection>) -> bool;
+    fn handles(&self, request: &Request<'_>) -> bool;
 
     /// Handles the given request.
-    async fn handle(&self, request: Request<'_, Self::Connection>);
+    async fn handle(&self, request: Request<'_>);
 }
 
 pub struct NoHandler<C: Connection>(pub(crate) PhantomData<C>);
 impl<C: Connection> Handler for NoHandler<C> {
     type Connection = C;
 
-    fn handles(&self, _request: &Request<'_, Self::Connection>) -> bool {
+    fn handles(&self, _request: &Request<'_>) -> bool {
         false
     }
 
-    async fn handle(&self, _request: Request<'_, Self::Connection>) {}
+    async fn handle(&self, _request: Request<'_>) {}
 }
 
 pub struct ClosureHandler<'a, F, C> {
@@ -86,7 +90,7 @@ pub struct ClosureHandler<'a, F, C> {
 
 impl<'a, F, FUT, C> ClosureHandler<'a, F, C>
 where
-    F: Fn(Request<'_, C>) -> FUT,
+    F: Fn(Request<'_>) -> FUT,
     FUT: Future<Output = ()>,
     C: Connection,
 {
@@ -110,17 +114,17 @@ where
 
 impl<F, FUT, C> Handler for ClosureHandler<'_, F, C>
 where
-    F: Fn(Request<'_, C>) -> FUT,
+    F: Fn(Request<'_>) -> FUT,
     FUT: Future<Output = ()>,
     C: Connection,
 {
     type Connection = C;
 
-    fn handles(&self, request: &Request<'_, C>) -> bool {
+    fn handles(&self, request: &Request<'_>) -> bool {
         self.method == request.method && self.path == request.path
     }
 
-    async fn handle(&self, request: Request<'_, C>) {
+    async fn handle(&self, request: Request<'_>) {
         (self.closure)(request).await
     }
 }
@@ -131,11 +135,11 @@ where
     C: Connection,
 {
     type Connection = C;
-    fn handles(&self, request: &Request<'_, C>) -> bool {
+    fn handles(&self, request: &Request<'_>) -> bool {
         self.object.handles(request)
     }
 
-    async fn handle(&self, request: Request<'_, C>) {
+    async fn handle(&self, request: Request<'_>) {
         self.object.handle(request).await
     }
 }
@@ -148,11 +152,11 @@ where
 {
     type Connection = C;
 
-    fn handles(&self, request: &Request<'_, C>) -> bool {
+    fn handles(&self, request: &Request<'_>) -> bool {
         self.object.handles(request) || self.parent.handles(request)
     }
 
-    async fn handle(&self, request: Request<'_, C>) {
+    async fn handle(&self, request: Request<'_>) {
         if self.object.handles(&request) {
             self.object.handle(request).await
         } else {
