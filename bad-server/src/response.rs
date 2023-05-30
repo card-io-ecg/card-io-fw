@@ -30,6 +30,7 @@ impl ResponseStatus {
 pub struct Initial(());
 pub struct Headers(());
 pub struct Body(());
+pub struct BodyChunked(());
 
 mod sealed {
     pub trait Sealed {}
@@ -37,6 +38,7 @@ mod sealed {
     impl Sealed for super::Initial {}
     impl Sealed for super::Headers {}
     impl Sealed for super::Body {}
+    impl Sealed for super::BodyChunked {}
 }
 
 pub trait ResponseState: sealed::Sealed {}
@@ -44,6 +46,7 @@ pub trait ResponseState: sealed::Sealed {}
 impl ResponseState for Initial {}
 impl ResponseState for Headers {}
 impl ResponseState for Body {}
+impl ResponseState for BodyChunked {}
 
 pub struct Response<S>
 where
@@ -115,11 +118,30 @@ impl Response<Headers> {
         Ok(())
     }
 
-    pub async fn end_headers<C: Connection>(
+    pub async fn start_body<C: Connection>(
         self,
         socket: &mut C,
     ) -> Result<Response<Body>, C::Error> {
         socket.write_all(b"\r\n").await?;
+        Ok(Response {
+            _state: PhantomData,
+        })
+    }
+
+    pub async fn start_chunked_body<C: Connection>(
+        mut self,
+        socket: &mut C,
+    ) -> Result<Response<BodyChunked>, C::Error> {
+        self.send_header(
+            Header {
+                name: "transfer-encoding",
+                value: b"chunked",
+            },
+            socket,
+        )
+        .await?;
+        socket.write_all(b"\r\n").await?;
+
         Ok(Response {
             _state: PhantomData,
         })
@@ -141,5 +163,27 @@ impl Response<Body> {
         socket: &mut C,
     ) -> Result<(), C::Error> {
         socket.write_all(data).await
+    }
+}
+
+impl Response<BodyChunked> {
+    pub async fn write_string<C: Connection>(
+        &mut self,
+        data: &str,
+        socket: &mut C,
+    ) -> Result<(), C::Error> {
+        self.write_raw(data.as_bytes(), socket).await
+    }
+
+    pub async fn write_raw<C: Connection>(
+        &mut self,
+        data: &[u8],
+        socket: &mut C,
+    ) -> Result<(), C::Error> {
+        let mut chunk_header = heapless::Vec::<u8, 12>::new();
+        write!(&mut chunk_header, "{:X}\r\n", data.len()).unwrap();
+        socket.write_all(&chunk_header).await?;
+        socket.write_all(data).await?;
+        socket.write_all(b"\r\n").await
     }
 }
