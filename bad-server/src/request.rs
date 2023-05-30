@@ -28,6 +28,8 @@ impl<'req> Request<'req> {
             return Err(());
         };
 
+        log::info!("{}/{path}", method.as_str());
+
         Ok(Self {
             method,
             path,

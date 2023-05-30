@@ -65,6 +65,7 @@ impl Response<Initial> {
         socket.write_all(b"HTTP/1.0 ").await?;
 
         let mut status_code = heapless::Vec::<u8, 4>::new();
+        log::debug!("Response status: {}", status as u16);
         write!(&mut status_code, "{}", status as u16).unwrap();
         socket.write_all(&status_code).await?;
 
