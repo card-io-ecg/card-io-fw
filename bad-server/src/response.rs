@@ -9,6 +9,7 @@ pub enum ResponseStatus {
     Ok = 200,
     BadRequest = 400,
     NotFound = 404,
+    RequestEntityTooLarge = 413,
     InternalServerError = 500,
     NotImplemented = 501,
 }
@@ -19,6 +20,7 @@ impl ResponseStatus {
             Self::Ok => "OK",
             Self::BadRequest => "Bad Request",
             Self::NotFound => "Not Found",
+            Self::RequestEntityTooLarge => "Request Entity Too Large",
             Self::InternalServerError => "Internal Server Error",
             Self::NotImplemented => "Not Implemented",
         }

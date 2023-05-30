@@ -4,7 +4,7 @@ use crate::{
     connector::Connection,
     method::Method,
     request::Request,
-    request_body::ReadResult,
+    request_body::{ReadResult, RequestBody},
     response::{Body, Headers, Initial, Response, ResponseState, ResponseStatus},
 };
 
@@ -22,12 +22,16 @@ impl<'req, C> RequestContext<'req, C, Initial>
 where
     C: Connection,
 {
-    pub fn new(connection: &'req mut C, request: Request<'req>) -> Self {
-        Self {
+    pub fn new(
+        req: httparse::Request<'req, 'req>,
+        body: RequestBody<'req>,
+        connection: &'req mut C,
+    ) -> Result<Self, ResponseStatus> {
+        Request::new(req, body).map(|request| Self {
             connection,
             response: Response::new(),
             request,
-        }
+        })
     }
 
     pub async fn send_status(

@@ -1,7 +1,7 @@
 use embedded_io::blocking::ReadExactError;
 use httparse::Header;
 
-use crate::connector::Connection;
+use crate::{connector::Connection, response::ResponseStatus};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum BodyTypeError {
@@ -81,6 +81,28 @@ impl RequestBodyType {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum RequestBodyError {
     BodyType(BodyTypeError),
+}
+
+impl From<RequestBodyError> for ResponseStatus {
+    fn from(value: RequestBodyError) -> Self {
+        match value {
+            RequestBodyError::BodyType(BodyTypeError::IncorrectEncoding) => {
+                // A server that receives a request message with a transfer coding it does
+                // not understand SHOULD respond with 501 (Not Implemented).
+
+                // Note: this is a bit of a stretch, because this error is for incorrectly
+                // encoded strings, but I think technically we are correct.
+                ResponseStatus::NotImplemented
+            }
+            RequestBodyError::BodyType(BodyTypeError::ConflictingHeaders) => {
+                ResponseStatus::BadRequest
+            }
+            RequestBodyError::BodyType(BodyTypeError::IncorrectTransferEncoding) => {
+                // must return 400
+                ResponseStatus::BadRequest
+            }
+        }
+    }
 }
 
 // A buffer around the socket that first returns pre-loaded data.
