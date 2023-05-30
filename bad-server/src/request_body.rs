@@ -18,7 +18,7 @@ enum RequestBodyType {
 }
 
 impl RequestBodyType {
-    pub fn from_header(header: Header) -> Result<Self, BodyTypeError> {
+    fn from_header(header: Header) -> Result<Self, BodyTypeError> {
         if header.name.eq_ignore_ascii_case("transfer-encoding") {
             let Ok(value) = core::str::from_utf8(header.value) else {
                 return Err(BodyTypeError::IncorrectEncoding);
@@ -56,7 +56,7 @@ impl RequestBodyType {
         Ok(Self::Unknown)
     }
 
-    pub fn from_headers(headers: &[Header]) -> Result<Self, BodyTypeError> {
+    fn from_headers(headers: &[Header]) -> Result<Self, BodyTypeError> {
         let mut result = Self::Unknown;
 
         // Transfer-Encoding is defined as overriding Content-Length
@@ -121,7 +121,7 @@ impl Buffer<'_> {
         &mut dst[bytes..]
     }
 
-    pub async fn read<C: Connection>(
+    async fn read<C: Connection>(
         &mut self,
         buf: &mut [u8],
         socket: &mut C,
@@ -130,7 +130,7 @@ impl Buffer<'_> {
         socket.read(buffer_to_fill).await
     }
 
-    pub async fn read_exact<C: Connection>(
+    async fn read_exact<C: Connection>(
         &mut self,
         buf: &mut [u8],
         socket: &mut C,
@@ -139,10 +139,7 @@ impl Buffer<'_> {
         socket.read_exact(buffer_to_fill).await
     }
 
-    pub async fn read_one<C: Connection>(
-        &mut self,
-        socket: &mut C,
-    ) -> Result<Option<u8>, C::Error> {
+    async fn read_one<C: Connection>(&mut self, socket: &mut C) -> Result<Option<u8>, C::Error> {
         let mut buffer = [0];
         match self.read_exact(&mut buffer, socket).await {
             Ok(()) => Ok(Some(buffer[0])),
@@ -162,11 +159,11 @@ impl<'buf> ContentLengthReader<'buf> {
         Self { buffer, length }
     }
 
-    pub fn is_complete(&self) -> bool {
+    fn is_complete(&self) -> bool {
         self.length == 0
     }
 
-    pub async fn read<C: Connection>(
+    async fn read<C: Connection>(
         &mut self,
         buf: &mut [u8],
         socket: &mut C,
@@ -225,11 +222,11 @@ impl<'buf> ChunkedReader<'buf> {
         }
     }
 
-    pub fn is_complete(&self) -> bool {
+    fn is_complete(&self) -> bool {
         self.state == ChunkedReaderState::Finished
     }
 
-    pub async fn read_chunk_size<C: Connection>(&mut self, socket: &mut C) -> ReadResult<usize, C> {
+    async fn read_chunk_size<C: Connection>(&mut self, socket: &mut C) -> ReadResult<usize, C> {
         let mut read = false;
         let mut number = 0;
         while let Some(byte) = self.buffer.read_one(socket).await.map_err(ReadError::Io)? {
@@ -254,7 +251,7 @@ impl<'buf> ChunkedReader<'buf> {
         }
     }
 
-    pub async fn consume_until_newline<C: Connection>(
+    async fn consume_until_newline<C: Connection>(
         &mut self,
         socket: &mut C,
     ) -> ReadResult<usize, C> {
@@ -271,7 +268,7 @@ impl<'buf> ChunkedReader<'buf> {
         Err(ReadError::UnexpectedEof)
     }
 
-    pub async fn consume<C: Connection>(
+    async fn consume<C: Connection>(
         &mut self,
         expected: &[u8],
         socket: &mut C,
@@ -287,7 +284,7 @@ impl<'buf> ChunkedReader<'buf> {
         Ok(())
     }
 
-    pub async fn consume_trailers<C: Connection>(&mut self, socket: &mut C) -> ReadResult<(), C> {
+    async fn consume_trailers<C: Connection>(&mut self, socket: &mut C) -> ReadResult<(), C> {
         loop {
             let consumed = self.consume_until_newline(socket).await?;
             if consumed == 0 {
@@ -298,7 +295,7 @@ impl<'buf> ChunkedReader<'buf> {
         Ok(())
     }
 
-    pub async fn read_one<C: Connection>(&mut self, socket: &mut C) -> ReadResult<Option<u8>, C> {
+    async fn read_one<C: Connection>(&mut self, socket: &mut C) -> ReadResult<Option<u8>, C> {
         loop {
             match self.state {
                 ChunkedReaderState::ReadChunkSize => {
@@ -334,7 +331,7 @@ impl<'buf> ChunkedReader<'buf> {
         }
     }
 
-    pub async fn read<C: Connection>(
+    async fn read<C: Connection>(
         &mut self,
         buf: &mut [u8],
         socket: &mut C,
@@ -358,7 +355,7 @@ enum BodyReader<'buf> {
 }
 
 impl<'buf> BodyReader<'buf> {
-    pub fn is_complete(&self) -> bool {
+    fn is_complete(&self) -> bool {
         match self {
             Self::Chunked(reader) => reader.is_complete(),
             Self::ContentLength(reader) => reader.is_complete(),
@@ -366,7 +363,7 @@ impl<'buf> BodyReader<'buf> {
         }
     }
 
-    pub async fn read<C: Connection>(
+    async fn read<C: Connection>(
         &mut self,
         buf: &mut [u8],
         socket: &mut C,
