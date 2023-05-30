@@ -139,11 +139,23 @@ impl<'buf, C: Connection> ContentLengthReader<'buf, C> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ReadError<C: Connection> {
     Io(C::Error),
     Encoding,
     UnexpectedEof,
+}
+
+impl<C> core::fmt::Debug for ReadError<C>
+where
+    C: Connection,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        match self {
+            ReadError::Io(f0) => f.debug_tuple("Io").field(&f0).finish(),
+            ReadError::Encoding => f.write_str("Encoding"),
+            ReadError::UnexpectedEof => f.write_str("UnexpectedEof"),
+        }
+    }
 }
 
 pub type ReadResult<T, C> = Result<T, ReadError<C>>;

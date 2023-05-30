@@ -3,19 +3,19 @@
 #![feature(impl_trait_projections)]
 #![allow(incomplete_features)]
 
-use core::{fmt::Write, marker::PhantomData};
-
-use embedded_io::{
-    asynch::{Read, Write as _},
-    Io,
+use core::{
+    fmt::{Debug, Write},
+    marker::PhantomData,
 };
+
+use embedded_io::asynch::{Read, Write as _};
 use httparse::Status;
 use object_chain::{Chain, ChainElement, Link};
 
 use crate::{
     connector::Connection,
     handler::{Handler, NoHandler, Request},
-    request_body::{BodyTypeError, RequestBody, RequestBodyError},
+    request_body::{BodyTypeError, ReadError, RequestBody, RequestBodyError},
     response::{Response, ResponseStatus},
 };
 
@@ -70,6 +70,27 @@ where
     ) -> BadServer<Link<H2, Link<H, P>>, REQUEST_BUFFER, MAX_HEADERS> {
         BadServer {
             handler: self.handler.append(handler),
+        }
+    }
+}
+
+pub enum HandleError<C: Connection> {
+    Read(ReadError<C>),
+    Write(C::Error),
+    TooManyHeaders,
+    Other, //Tech debt, replace with a real error
+}
+
+impl<C> Debug for HandleError<C>
+where
+    C: Connection,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        match self {
+            HandleError::Read(f0) => f.debug_tuple("Read").field(&f0).finish(),
+            HandleError::Write(f0) => f.debug_tuple("Write").field(&f0).finish(),
+            HandleError::TooManyHeaders => f.write_str("TooManyHeaders"),
+            HandleError::Other => f.write_str("Other"),
         }
     }
 }
@@ -165,7 +186,7 @@ where
         Err(())
     }
 
-    async fn handle(&self, socket: &mut H::Connection) -> Result<(), <H::Connection as Io>::Error> {
+    async fn handle(&self, socket: &mut H::Connection) -> Result<(), HandleError<H::Connection>> {
         let mut buffer = [0u8; REQUEST_BUFFER];
 
         match self.load_headers(&mut buffer, socket).await {
@@ -189,10 +210,14 @@ where
                         // encoded strings, but I think technically we are correct.
                         return ErrorResponse(ResponseStatus::NotImplemented)
                             .send(socket)
-                            .await;
+                            .await
+                            .map_err(HandleError::Write);
                     }
                     Err(RequestBodyError::BodyType(BodyTypeError::ConflictingHeaders)) => {
-                        return ErrorResponse(ResponseStatus::BadRequest).send(socket).await;
+                        return ErrorResponse(ResponseStatus::BadRequest)
+                            .send(socket)
+                            .await
+                            .map_err(HandleError::Write);
                     }
                 };
 
@@ -201,7 +226,10 @@ where
                         if self.handler.handles(&request) {
                             self.handler.handle(request).await;
                         } else {
-                            return ErrorResponse(ResponseStatus::NotFound).send(socket).await;
+                            return ErrorResponse(ResponseStatus::NotFound)
+                                .send(socket)
+                                .await
+                                .map_err(HandleError::Write);
                         }
                     }
                     Err(_) => {
