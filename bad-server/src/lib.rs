@@ -144,11 +144,11 @@ where
         }
     }
 
-    async fn load_headers(
+    async fn load_headers<'b>(
         &self,
-        buffer: &mut [u8],
+        buffer: &'b mut [u8],
         socket: &mut H::Connection,
-    ) -> Result<(usize, usize), ()> {
+    ) -> Result<(&'b [u8], &'b [u8]), ()> {
         let mut pos = 0;
         while pos < buffer.len() {
             match socket.read(&mut buffer[pos..]).await {
@@ -171,7 +171,10 @@ where
             let mut req = httparse::Request::new(&mut headers);
 
             match req.parse(&buffer[0..pos]) {
-                Ok(Status::Complete(header_size)) => return Ok((header_size, pos)),
+                Ok(Status::Complete(header_size)) => {
+                    let (header, body) = buffer[..pos].split_at(header_size);
+                    return Ok((header, body));
+                }
                 Ok(Status::Partial) => {
                     // We need to read more
                 }
@@ -190,15 +193,12 @@ where
         let mut buffer = [0u8; REQUEST_BUFFER];
 
         match self.load_headers(&mut buffer, socket).await {
-            Ok((header_size, total_read)) => {
-                let (header_buf, body_buf) = buffer.split_at(header_size);
-
+            Ok((header, body)) => {
                 let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
                 let mut req = httparse::Request::new(&mut headers);
-                req.parse(header_buf).unwrap();
+                req.parse(header).unwrap();
 
-                let read_body = total_read - header_size;
-                let body = RequestBody::new(req.headers, &body_buf[0..read_body], socket);
+                let body = RequestBody::new(req.headers, body, socket);
 
                 let body = match body {
                     Ok(body) => body,
