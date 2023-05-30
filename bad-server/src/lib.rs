@@ -235,20 +235,20 @@ where
                             // TODO
                             Ok(())
                         } else {
-                            return ErrorResponse(ResponseStatus::NotFound)
+                            ErrorResponse(ResponseStatus::NotFound)
                                 .send(socket)
                                 .await
-                                .map_err(HandleError::Write);
+                                .map_err(HandleError::Write)
                         }
                     }
                     Err(_) => {
                         // TODO: send a proper response
                         socket.close();
-                        return Err(HandleError::Request);
+                        Err(HandleError::Request)
                     }
                 }
             }
-            Err(e) => return Err(e),
+            Err(e) => Err(e),
         }
     }
 }
