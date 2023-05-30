@@ -230,17 +230,10 @@ impl<'buf> ChunkedReader<'buf> {
     }
 
     pub async fn read_chunk_size<C: Connection>(&mut self, socket: &mut C) -> ReadResult<usize, C> {
-        let mut number;
-
-        if let Some(digit) = self.buffer.read_one(socket).await.map_err(ReadError::Io)? {
-            number = digit as usize;
-        } else {
-            // EOF at the beginning of a chunk is allowed and indicates the end of the body
-            // Note: this is spelled out in the RFC for responses, but not for requests.
-            return Ok(0);
-        }
-
+        let mut read = false;
+        let mut number = 0;
         while let Some(byte) = self.buffer.read_one(socket).await.map_err(ReadError::Io)? {
+            read = true;
             let digit_value = match byte {
                 byte @ b'0'..=b'9' => (byte - b'0') as usize,
                 byte @ b'a'..=b'f' => (byte - b'a' + 10) as usize,
@@ -252,7 +245,13 @@ impl<'buf> ChunkedReader<'buf> {
             number = number * 16 + digit_value;
         }
 
-        Err(ReadError::UnexpectedEof)
+        if read {
+            Err(ReadError::UnexpectedEof)
+        } else {
+            // EOF at the beginning of a chunk is allowed and indicates the end of the body
+            // Note: this is spelled out in the RFC for responses, but not for requests.
+            Ok(0)
+        }
     }
 
     pub async fn consume_until_newline<C: Connection>(
