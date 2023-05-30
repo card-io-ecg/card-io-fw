@@ -80,19 +80,19 @@ impl Response<Initial> {
 
 impl Response<Headers> {
     pub async fn send_header<C: Connection>(
-        mut self,
+        &mut self,
         header: Header<'_>,
         socket: &mut C,
-    ) -> Result<Response<Headers>, C::Error> {
+    ) -> Result<&mut Self, C::Error> {
         self.send_raw_header(header, socket).await?;
         Ok(self)
     }
 
     pub async fn send_headers<C: Connection>(
-        mut self,
+        &mut self,
         headers: &[Header<'_>],
         socket: &mut C,
-    ) -> Result<Response<Headers>, C::Error> {
+    ) -> Result<&mut Self, C::Error> {
         for &header in headers {
             self.send_raw_header(header, socket).await?;
         }
