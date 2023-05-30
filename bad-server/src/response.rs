@@ -25,9 +25,9 @@ impl ResponseStatus {
     }
 }
 
-pub struct Initial;
-pub struct Headers;
-pub struct Body;
+pub struct Initial(());
+pub struct Headers(());
+pub struct Body(());
 
 mod sealed {
     pub trait Sealed {}
@@ -43,96 +43,100 @@ impl ResponseState for Initial {}
 impl ResponseState for Headers {}
 impl ResponseState for Body {}
 
-pub struct Response<'a, C, S>
+pub struct Response<S>
 where
-    C: Connection,
     S: ResponseState,
 {
-    socket: &'a mut C,
     _state: PhantomData<S>,
 }
 
-impl<'a, C> Response<'a, C, Initial>
-where
-    C: Connection,
-{
-    pub fn new(socket: &'a mut C) -> Self {
+impl Response<Initial> {
+    pub fn new() -> Self {
         Self {
-            socket,
             _state: PhantomData,
         }
     }
 
-    pub async fn send_status(
+    pub async fn send_status<C: Connection>(
         self,
         status: ResponseStatus,
-    ) -> Result<Response<'a, C, Headers>, C::Error> {
-        self.socket.write_all(b"HTTP/1.0 ").await?;
+        socket: &mut C,
+    ) -> Result<Response<Headers>, C::Error> {
+        socket.write_all(b"HTTP/1.0 ").await?;
 
         let mut status_code = heapless::Vec::<u8, 4>::new();
         write!(&mut status_code, "{}", status as u16).unwrap();
-        self.socket.write_all(&status_code).await?;
+        socket.write_all(&status_code).await?;
 
-        self.socket.write_all(b" ").await?;
-        self.socket.write_all(status.name().as_bytes()).await?;
-        self.socket.write_all(b"\r\n").await?;
+        socket.write_all(b" ").await?;
+        socket.write_all(status.name().as_bytes()).await?;
+        socket.write_all(b"\r\n").await?;
 
         Ok(Response {
-            socket: self.socket,
             _state: PhantomData,
         })
     }
 }
 
-impl<'a, C> Response<'a, C, Headers>
-where
-    C: Connection,
-{
-    pub async fn send_header(
+impl Response<Headers> {
+    pub async fn send_header<C: Connection>(
         mut self,
         header: Header<'_>,
-    ) -> Result<Response<'a, C, Headers>, C::Error> {
-        self.send_raw_header(header).await?;
+        socket: &mut C,
+    ) -> Result<Response<Headers>, C::Error> {
+        self.send_raw_header(header, socket).await?;
         Ok(self)
     }
 
-    pub async fn send_headers(
+    pub async fn send_headers<C: Connection>(
         mut self,
         headers: &[Header<'_>],
-    ) -> Result<Response<'a, C, Headers>, C::Error> {
+        socket: &mut C,
+    ) -> Result<Response<Headers>, C::Error> {
         for &header in headers {
-            self.send_raw_header(header).await?;
+            self.send_raw_header(header, socket).await?;
         }
         Ok(self)
     }
 
-    async fn send_raw_header(&mut self, header: Header<'_>) -> Result<(), C::Error> {
-        self.socket.write_all(header.name.as_bytes()).await?;
-        self.socket.write_all(b": ").await?;
-        self.socket.write_all(header.value).await?;
-        self.socket.write_all(b"\r\n").await?;
+    async fn send_raw_header<C: Connection>(
+        &mut self,
+        header: Header<'_>,
+        socket: &mut C,
+    ) -> Result<(), C::Error> {
+        socket.write_all(header.name.as_bytes()).await?;
+        socket.write_all(b": ").await?;
+        socket.write_all(header.value).await?;
+        socket.write_all(b"\r\n").await?;
 
         Ok(())
     }
 
-    pub async fn end_headers(self) -> Result<Response<'a, C, Body>, C::Error> {
-        self.socket.write_all(b"\r\n").await?;
+    pub async fn end_headers<C: Connection>(
+        self,
+        socket: &mut C,
+    ) -> Result<Response<Body>, C::Error> {
+        socket.write_all(b"\r\n").await?;
         Ok(Response {
-            socket: self.socket,
             _state: PhantomData,
         })
     }
 }
 
-impl<'a, C> Response<'a, C, Body>
-where
-    C: Connection,
-{
-    pub async fn write_string(&mut self, data: &str) -> Result<(), C::Error> {
-        self.write_raw(data.as_bytes()).await
+impl Response<Body> {
+    pub async fn write_string<C: Connection>(
+        &mut self,
+        data: &str,
+        socket: &mut C,
+    ) -> Result<(), C::Error> {
+        self.write_raw(data.as_bytes(), socket).await
     }
 
-    pub async fn write_raw(&mut self, data: &[u8]) -> Result<(), C::Error> {
-        self.socket.write_all(data).await
+    pub async fn write_raw<C: Connection>(
+        &mut self,
+        data: &[u8],
+        socket: &mut C,
+    ) -> Result<(), C::Error> {
+        socket.write_all(data).await
     }
 }
