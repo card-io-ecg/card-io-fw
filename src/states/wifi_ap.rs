@@ -204,7 +204,8 @@ async fn webserver_task(
             socket.set_timeout(Some(embassy_net::SmolDuration::from_secs(10)));
 
             BadServer::new()
-                .with_buffer_size::<2048>()
+                .with_request_buffer_size::<2048>()
+                .with_header_count::<48>()
                 .with_handler(SimpleHandler::get("/", |_request| async { Ok(()) }))
                 .with_error_handler(SimpleErrorHandler::new(|_status, _response| async {
                     Ok(())

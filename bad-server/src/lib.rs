@@ -125,7 +125,7 @@ where
     H: Handler,
     EH: ErrorHandler<Connection = H::Connection>,
 {
-    pub fn with_buffer_size<const NEW_BUFFER_SIZE: usize>(
+    pub fn with_request_buffer_size<const NEW_BUFFER_SIZE: usize>(
         self,
     ) -> BadServer<H, EH, NEW_BUFFER_SIZE, MAX_HEADERS> {
         BadServer {
