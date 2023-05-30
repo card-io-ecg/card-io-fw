@@ -261,9 +261,7 @@ where
                     Ok(request) => {
                         let request = RequestContext::new(socket, request);
                         if self.handler.handles(&request) {
-                            self.handler.handle(request).await;
-                            // TODO
-                            Ok(())
+                            self.handler.handle(request).await
                         } else {
                             self.error_handler
                                 .handle(ResponseStatus::NotFound, ResponseBuilder::new(socket))

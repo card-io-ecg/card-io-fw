@@ -4,6 +4,7 @@ use object_chain::{Chain, ChainElement, Link};
 
 use crate::{
     connector::Connection, method::Method, request::Request, request_context::RequestContext,
+    HandleError,
 };
 
 pub trait Handler {
@@ -13,8 +14,10 @@ pub trait Handler {
     fn handles(&self, request: &RequestContext<'_, Self::Connection>) -> bool;
 
     /// Handles the given request.
-    // TODO: error handling
-    async fn handle(&self, request: RequestContext<'_, Self::Connection>);
+    async fn handle(
+        &self,
+        request: RequestContext<'_, Self::Connection>,
+    ) -> Result<(), HandleError<Self::Connection>>;
 }
 
 pub struct NoHandler<C: Connection>(pub(crate) PhantomData<C>);
@@ -25,7 +28,9 @@ impl<C: Connection> Handler for NoHandler<C> {
         false
     }
 
-    async fn handle(&self, _request: RequestContext<'_, C>) {}
+    async fn handle(&self, _request: RequestContext<'_, C>) -> Result<(), HandleError<C>> {
+        Ok(())
+    }
 }
 
 pub struct ClosureHandler<'a, F, C> {
@@ -62,7 +67,7 @@ where
 impl<F, FUT, C> Handler for ClosureHandler<'_, F, C>
 where
     F: Fn(RequestContext<'_, C>) -> FUT,
-    FUT: Future<Output = ()>,
+    FUT: Future<Output = Result<(), HandleError<C>>>,
     C: Connection,
 {
     type Connection = C;
@@ -71,7 +76,7 @@ where
         self.method == request.method() && self.path == request.path()
     }
 
-    async fn handle(&self, request: RequestContext<'_, C>) {
+    async fn handle(&self, request: RequestContext<'_, C>) -> Result<(), HandleError<C>> {
         (self.closure)(request).await
     }
 }
@@ -86,7 +91,7 @@ where
         self.object.handles(request)
     }
 
-    async fn handle(&self, request: RequestContext<'_, C>) {
+    async fn handle(&self, request: RequestContext<'_, C>) -> Result<(), HandleError<C>> {
         self.object.handle(request).await
     }
 }
@@ -103,7 +108,7 @@ where
         self.object.handles(request) || self.parent.handles(request)
     }
 
-    async fn handle(&self, request: RequestContext<'_, C>) {
+    async fn handle(&self, request: RequestContext<'_, C>) -> Result<(), HandleError<C>> {
         if self.object.handles(&request) {
             self.object.handle(request).await
         } else {
