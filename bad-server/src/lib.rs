@@ -11,7 +11,7 @@ use object_chain::{Chain, ChainElement, Link};
 
 use crate::{
     connector::Connection,
-    error_handler::{DefaultErrorHandler, ErrorHandler},
+    error_handler::{DefaultErrorHandler, ErrorHandler, ResponseBuilder},
     handler::{Handler, NoHandler},
     request::Request,
     request_body::{BodyTypeError, ReadError, RequestBody, RequestBodyError},
@@ -243,7 +243,7 @@ where
                         // encoded strings, but I think technically we are correct.
                         return self
                             .error_handler
-                            .handle(ResponseStatus::NotImplemented, socket)
+                            .handle(ResponseStatus::NotImplemented, ResponseBuilder::new(socket))
                             .await;
                     }
                     Err(RequestBodyError::BodyType(
@@ -252,7 +252,7 @@ where
                     )) => {
                         return self
                             .error_handler
-                            .handle(ResponseStatus::BadRequest, socket)
+                            .handle(ResponseStatus::BadRequest, ResponseBuilder::new(socket))
                             .await;
                     }
                 };
@@ -266,7 +266,7 @@ where
                             Ok(())
                         } else {
                             self.error_handler
-                                .handle(ResponseStatus::NotFound, socket)
+                                .handle(ResponseStatus::NotFound, ResponseBuilder::new(socket))
                                 .await
                         }
                     }
