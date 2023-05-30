@@ -1,84 +1,30 @@
 use core::{future::Future, marker::PhantomData};
 
-use httparse::Header;
 use object_chain::{Chain, ChainElement, Link};
 
 use crate::{
-    connector::Connection,
-    method::Method,
-    request_body::{ReadResult, RequestBody},
+    connector::Connection, method::Method, request::Request, request_context::RequestContext,
 };
-
-pub struct Request<'req> {
-    method: Method,
-    path: &'req str,
-    body: RequestBody<'req>,
-    headers: &'req [Header<'req>],
-}
-
-impl<'req> Request<'req> {
-    pub(crate) fn new(
-        req: httparse::Request<'req, 'req>,
-        body: RequestBody<'req>,
-    ) -> Result<Self, ()> {
-        let Some(path) = req.path else {
-            log::warn!("Path not set");
-            return Err(());
-        };
-
-        let Some(method) = req.method.and_then(Method::new) else {
-            log::warn!("Unknown method: {:?}", req.method);
-            return Err(());
-        };
-
-        Ok(Self {
-            method,
-            path,
-            body,
-            headers: req.headers,
-        })
-    }
-
-    pub async fn read_body<C: Connection>(
-        &mut self,
-        buf: &mut [u8],
-        socket: &mut C,
-    ) -> ReadResult<usize, C> {
-        self.body.read(buf, socket).await
-    }
-
-    pub fn raw_header(&self, name: &str) -> Option<&[u8]> {
-        self.headers
-            .iter()
-            .find(|header| header.name.eq_ignore_ascii_case(name))
-            .map(|header| header.value)
-    }
-
-    pub fn header(&self, name: &str) -> Option<&str> {
-        self.raw_header(name)
-            .and_then(|header| core::str::from_utf8(header).ok())
-    }
-}
 
 pub trait Handler {
     type Connection: Connection;
 
     /// Returns `true` if this handler can handle the given request.
-    fn handles(&self, request: &Request<'_>) -> bool;
+    fn handles(&self, request: &RequestContext<'_, Self::Connection>) -> bool;
 
     /// Handles the given request.
-    async fn handle(&self, request: Request<'_>);
+    async fn handle(&self, request: RequestContext<'_, Self::Connection>);
 }
 
 pub struct NoHandler<C: Connection>(pub(crate) PhantomData<C>);
 impl<C: Connection> Handler for NoHandler<C> {
     type Connection = C;
 
-    fn handles(&self, _request: &Request<'_>) -> bool {
+    fn handles(&self, _request: &RequestContext<'_, C>) -> bool {
         false
     }
 
-    async fn handle(&self, _request: Request<'_>) {}
+    async fn handle(&self, _request: RequestContext<'_, C>) {}
 }
 
 pub struct ClosureHandler<'a, F, C> {
@@ -114,17 +60,17 @@ where
 
 impl<F, FUT, C> Handler for ClosureHandler<'_, F, C>
 where
-    F: Fn(Request<'_>) -> FUT,
+    F: Fn(RequestContext<'_, C>) -> FUT,
     FUT: Future<Output = ()>,
     C: Connection,
 {
     type Connection = C;
 
-    fn handles(&self, request: &Request<'_>) -> bool {
-        self.method == request.method && self.path == request.path
+    fn handles(&self, request: &RequestContext<'_, C>) -> bool {
+        self.method == request.method() && self.path == request.path()
     }
 
-    async fn handle(&self, request: Request<'_>) {
+    async fn handle(&self, request: RequestContext<'_, C>) {
         (self.closure)(request).await
     }
 }
@@ -135,11 +81,11 @@ where
     C: Connection,
 {
     type Connection = C;
-    fn handles(&self, request: &Request<'_>) -> bool {
+    fn handles(&self, request: &RequestContext<'_, C>) -> bool {
         self.object.handles(request)
     }
 
-    async fn handle(&self, request: Request<'_>) {
+    async fn handle(&self, request: RequestContext<'_, C>) {
         self.object.handle(request).await
     }
 }
@@ -152,11 +98,11 @@ where
 {
     type Connection = C;
 
-    fn handles(&self, request: &Request<'_>) -> bool {
+    fn handles(&self, request: &RequestContext<'_, C>) -> bool {
         self.object.handles(request) || self.parent.handles(request)
     }
 
-    async fn handle(&self, request: Request<'_>) {
+    async fn handle(&self, request: RequestContext<'_, C>) {
         if self.object.handles(&request) {
             self.object.handle(request).await
         } else {

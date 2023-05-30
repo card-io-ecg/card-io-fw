@@ -14,15 +14,19 @@ use object_chain::{Chain, ChainElement, Link};
 
 use crate::{
     connector::Connection,
-    handler::{Handler, NoHandler, Request},
+    handler::{Handler, NoHandler},
+    request::Request,
     request_body::{BodyTypeError, ReadError, RequestBody, RequestBodyError},
+    request_context::RequestContext,
     response::{Response, ResponseStatus},
 };
 
 pub mod connector;
 pub mod handler;
 pub mod method;
+pub mod request;
 pub mod request_body;
+pub mod request_context;
 pub mod response;
 
 pub struct BadServer<H: Handler, const REQUEST_BUFFER: usize, const MAX_HEADERS: usize> {
@@ -225,6 +229,7 @@ where
 
                 match Request::new(req, body) {
                     Ok(request) => {
+                        let request = RequestContext::new(socket, request);
                         if self.handler.handles(&request) {
                             self.handler.handle(request).await;
                             // TODO
