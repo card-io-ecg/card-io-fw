@@ -5,8 +5,8 @@
 use bad_server::{
     connector::{std_compat::StdTcpSocket, Connection},
     handler::RequestHandler,
-    request_context::RequestContext,
-    response::ResponseStatus,
+    request::Request,
+    response::{Response, ResponseStatus},
     BadServer, HandleError,
 };
 use log::LevelFilter;
@@ -23,10 +23,14 @@ fn main() {
 
 struct RootHandler;
 impl<C: Connection> RequestHandler<C> for RootHandler {
-    async fn handle(&self, request: RequestContext<'_, C>) -> Result<(), HandleError<C>> {
-        let request = request.send_status(ResponseStatus::Ok).await?;
-        let mut request = request.end_headers().await?;
-        request.write_string("Hello, world!").await?;
+    async fn handle(
+        &self,
+        _request: Request<'_, '_, C>,
+        response: Response<'_, C>,
+    ) -> Result<(), HandleError<C>> {
+        let response = response.send_status(ResponseStatus::Ok).await?;
+        let mut response = response.start_body().await?;
+        response.write_string("Hello, world!").await?;
         Ok(())
     }
 }

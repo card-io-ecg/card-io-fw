@@ -1,8 +1,11 @@
 use core::future::Future;
 
 use bad_server::{
-    connector::Connection, handler::RequestHandler, request_context::RequestContext,
-    response::ResponseStatus, BadServer, HandleError,
+    connector::Connection,
+    handler::RequestHandler,
+    request::Request,
+    response::{Response, ResponseStatus},
+    BadServer, HandleError,
 };
 use embassy_executor::Spawner;
 use embassy_futures::{join::join, select::select};
@@ -192,10 +195,14 @@ async fn net_task(
 
 struct RootHandler;
 impl<C: Connection> RequestHandler<C> for RootHandler {
-    async fn handle(&self, request: RequestContext<'_, C>) -> Result<(), HandleError<C>> {
-        let request = request.send_status(ResponseStatus::Ok).await?;
-        let mut request = request.end_headers().await?;
-        request.write_string("Hello, world!").await?;
+    async fn handle(
+        &self,
+        _request: Request<'_, '_, C>,
+        response: Response<'_, C>,
+    ) -> Result<(), HandleError<C>> {
+        let response = response.send_status(ResponseStatus::Ok).await?;
+        let mut response = response.start_body().await?;
+        response.write_string("Hello, world!").await?;
         Ok(())
     }
 }

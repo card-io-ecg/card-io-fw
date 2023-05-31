@@ -7,17 +7,17 @@ use crate::{
     response::ResponseStatus,
 };
 
-pub struct Request<'req> {
+pub struct Request<'req, 's, C: Connection + 's> {
     pub method: Method,
     pub path: &'req str,
-    body: RequestBody<'req>,
+    body: RequestBody<'req, 's, C>,
     headers: &'req [Header<'req>],
 }
 
-impl<'req> Request<'req> {
+impl<'req, 's, C: Connection> Request<'req, 's, C> {
     pub(crate) fn new(
         req: httparse::Request<'req, 'req>,
-        body: RequestBody<'req>,
+        body: RequestBody<'req, 's, C>,
     ) -> Result<Self, ResponseStatus> {
         let Some(path) = req.path else {
             log::warn!("Path not set");
@@ -43,12 +43,8 @@ impl<'req> Request<'req> {
         self.body.is_complete()
     }
 
-    pub async fn read<C: Connection>(
-        &mut self,
-        buf: &mut [u8],
-        socket: &mut C,
-    ) -> ReadResult<usize, C> {
-        self.body.read(buf, socket).await
+    pub async fn read(&mut self, buf: &mut [u8]) -> ReadResult<usize, C> {
+        self.body.read(buf).await
     }
 
     pub fn raw_header(&self, name: &str) -> Option<&[u8]> {

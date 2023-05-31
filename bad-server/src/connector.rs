@@ -4,9 +4,16 @@ use embedded_io::asynch::{Read, Write};
 
 pub trait Connection: Read + Write {
     type AcceptError: Debug;
+    type Reader<'a>: Read<Error = Self::Error>
+    where
+        Self: 'a;
+    type Writer<'a>: Write<Error = Self::Error>
+    where
+        Self: 'a;
 
     // TODO: separate listener and socket
     async fn listen(&mut self, port: u16) -> Result<(), Self::AcceptError>;
+    fn split(&mut self) -> (Self::Reader<'_>, Self::Writer<'_>);
 
     fn close(&mut self);
 }
@@ -15,15 +22,21 @@ pub trait Connection: Read + Write {
 pub mod embassy_net_compat {
     use super::*;
     use embassy_net::{
-        tcp::{AcceptError, TcpSocket},
+        tcp::{AcceptError, TcpReader, TcpSocket, TcpWriter},
         IpListenEndpoint,
     };
 
     impl<'a> Connection for TcpSocket<'a> {
         type AcceptError = AcceptError;
+        type Reader<'s> = TcpReader<'s> where Self: 's;
+        type Writer<'s> = TcpWriter<'s> where Self: 's;
 
         async fn listen(&mut self, port: u16) -> Result<(), Self::AcceptError> {
             self.accept(IpListenEndpoint { addr: None, port }).await
+        }
+
+        fn split(&mut self) -> (Self::Reader<'_>, Self::Writer<'_>) {
+            TcpSocket::split(self)
         }
 
         fn close(&mut self) {
@@ -45,6 +58,19 @@ pub mod std_compat {
 
     pub struct StdTcpSocket {
         socket: Option<Async<TcpStream>>,
+    }
+
+    impl Clone for StdTcpSocket {
+        fn clone(&self) -> Self {
+            Self {
+                socket: match self.socket {
+                    Some(ref socket) => {
+                        Some(Async::new(socket.get_ref().try_clone().unwrap()).unwrap())
+                    }
+                    None => None,
+                },
+            }
+        }
     }
 
     impl StdTcpSocket {
@@ -87,6 +113,8 @@ pub mod std_compat {
 
     impl<'a> Connection for StdTcpSocket {
         type AcceptError = StdError;
+        type Reader<'s> = StdTcpSocket where Self: 's;
+        type Writer<'s> = StdTcpSocket where Self: 's;
 
         async fn listen(&mut self, port: u16) -> Result<(), Self::AcceptError> {
             let listener = Async::<TcpListener>::bind(SocketAddr::from(([127, 0, 0, 1], port)))?;
@@ -95,6 +123,10 @@ pub mod std_compat {
             self.socket = Some(socket);
 
             Ok(())
+        }
+
+        fn split(&mut self) -> (Self::Reader<'_>, Self::Writer<'_>) {
+            (self.clone(), self.clone())
         }
 
         fn close(&mut self) {
