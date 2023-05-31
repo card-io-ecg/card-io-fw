@@ -46,6 +46,9 @@ signal-processing = { path = "signal-processing" }
 replace_with = { version = "0.1", default-features = false, features = ["nightly"] }
 bad-server = { path = "bad-server", features = ["embassy"] }
 
+[build-dependencies]
+libflate = "1.4.0"
+
 [patch.crates-io]
 # needed because of esp-wifi
 esp-hal-common = { git = "https://github.com/bugadani/esp-hal.git", branch = "s3_adc_calibration" }

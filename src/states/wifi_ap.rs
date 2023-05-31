@@ -2,10 +2,10 @@ use core::future::Future;
 
 use bad_server::{
     connector::Connection,
-    handler::RequestHandler,
+    handler::{RequestHandler, StaticHandler},
     request::Request,
     response::{Response, ResponseStatus},
-    BadServer, HandleError,
+    BadServer, HandleError, Header,
 };
 use embassy_executor::Spawner;
 use embassy_futures::{join::join, select::select};
@@ -226,7 +226,16 @@ async fn webserver_task(
             BadServer::new()
                 .with_request_buffer_size::<2048>()
                 .with_header_count::<48>()
-                .with_handler(RequestHandler::get("/", RootHandler))
+                .with_handler(RequestHandler::get(
+                    "/",
+                    StaticHandler(
+                        &[Header {
+                            name: "Content-Encoding",
+                            value: b"gzip",
+                        }],
+                        include_bytes!(concat!(env!("COMPRESS_OUT_DIR"), "/static/index.html.gz")),
+                    ),
+                ))
                 .listen(&mut socket, 8080)
                 .await;
         })
