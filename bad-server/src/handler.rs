@@ -1,9 +1,14 @@
-use core::marker::PhantomData;
+use core::{fmt::Write as _, marker::PhantomData};
 
+use httparse::Header;
 use object_chain::{Chain, ChainElement, Link};
 
 use crate::{
-    connector::Connection, method::Method, request::Request, response::Response, HandleError,
+    connector::Connection,
+    method::Method,
+    request::Request,
+    response::{Response, ResponseStatus},
+    HandleError,
 };
 
 pub trait Handler {
@@ -54,6 +59,32 @@ pub trait RequestHandler<C: Connection>: Sized {
 
     fn post(path: &str, handler: Self) -> RequestWithMatcher<'_, C, Self> {
         Self::new(Method::Post, path, handler)
+    }
+}
+
+pub struct StaticHandler<'a>(pub &'a [Header<'a>], pub &'a [u8]);
+
+impl<C: Connection> RequestHandler<C> for StaticHandler<'_> {
+    async fn handle(
+        &self,
+        _request: Request<'_, '_, C>,
+        response: Response<'_, C>,
+    ) -> Result<(), HandleError<C>> {
+        let mut response = response.send_status(ResponseStatus::Ok).await?;
+
+        let mut length = heapless::String::<12>::new();
+        write!(length, "{}", self.1.len()).unwrap();
+
+        response
+            .send_headers(self.0)
+            .await?
+            .send_header(Header {
+                name: "Content-Length",
+                value: length.as_bytes(),
+            })
+            .await?;
+
+        response.start_body().await?.write_raw(self.1).await
     }
 }
 

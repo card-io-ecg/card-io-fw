@@ -21,6 +21,8 @@ use crate::{
     response::{Response, ResponseStatus},
 };
 
+pub use httparse::Header;
+
 pub mod connector;
 pub mod error_handler;
 pub mod handler;
