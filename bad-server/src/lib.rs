@@ -14,11 +14,11 @@ use object_chain::{Chain, ChainElement, Link};
 
 use crate::{
     connector::Connection,
-    error_handler::{DefaultErrorHandler, ErrorHandler, ResponseBuilder},
+    error_handler::{DefaultErrorHandler, ErrorHandler},
     handler::{Handler, NoHandler},
+    request::Request,
     request_body::{ReadError, RequestBody},
-    request_context::RequestContext,
-    response::ResponseStatus,
+    response::{Response, ResponseStatus},
 };
 
 pub mod connector;
@@ -27,7 +27,6 @@ pub mod handler;
 pub mod method;
 pub mod request;
 pub mod request_body;
-pub mod request_context;
 pub mod response;
 
 pub struct BadServer<
@@ -191,7 +190,7 @@ where
     async fn load_headers<'b>(
         &self,
         buffer: &'b mut [u8],
-        socket: &mut H::Connection,
+        socket: &mut <H::Connection as Connection>::Reader<'_>,
     ) -> Result<(&'b [u8], &'b [u8]), HandleError<H::Connection>> {
         let mut pos = 0;
         while pos < buffer.len() {
@@ -235,17 +234,18 @@ where
 
     async fn handle(&self, socket: &mut H::Connection) -> Result<(), HandleError<H::Connection>> {
         let mut buffer = [0u8; REQUEST_BUFFER];
+        let (mut reader, writer) = socket.split();
 
-        let status = match self.load_headers(&mut buffer, socket).await {
+        let status = match self.load_headers(&mut buffer, &mut reader).await {
             Ok((header, body)) => {
                 let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
                 let mut req = httparse::Request::new(&mut headers);
                 req.parse(header).unwrap();
 
-                match RequestBody::new(req.headers, body) {
-                    Ok(body) => match RequestContext::new(req, body, socket) {
+                match RequestBody::new(req.headers, body, reader) {
+                    Ok(body) => match Request::new(req, body) {
                         Ok(request) if self.handler.handles(&request) => {
-                            return self.handler.handle(request).await;
+                            return self.handler.handle(request, Response::new(writer)).await;
                         }
                         Ok(_request) => ResponseStatus::NotFound,
                         Err(status) => status,
@@ -262,7 +262,7 @@ where
         };
 
         self.error_handler
-            .handle(status, ResponseBuilder::new(socket))
+            .handle(status, Response::new(writer))
             .await
     }
 }

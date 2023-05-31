@@ -1,5 +1,6 @@
-use core::{fmt::Write, marker::PhantomData};
+use core::{fmt::Write as _, marker::PhantomData};
 
+use embedded_io::asynch::Write;
 use httparse::Header;
 
 use crate::{connector::Connection, HandleError};
@@ -48,26 +49,28 @@ impl ResponseState for Headers {}
 impl ResponseState for Body {}
 impl ResponseState for BodyChunked {}
 
-pub struct Response<S>
+pub struct Response<'s, C, S = Initial>
 where
+    C: Connection + 's,
     S: ResponseState,
 {
+    socket: C::Writer<'s>,
     _state: PhantomData<S>,
 }
 
-impl Response<Initial> {
-    pub fn new() -> Self {
+impl<'s, C: Connection> Response<'s, C, Initial> {
+    pub fn new(socket: C::Writer<'s>) -> Self {
         Self {
+            socket,
             _state: PhantomData,
         }
     }
 
-    pub async fn send_status<C: Connection>(
-        self,
+    pub async fn send_status(
+        mut self,
         status: ResponseStatus,
-        socket: &mut C,
-    ) -> Result<Response<Headers>, HandleError<C>> {
-        socket
+    ) -> Result<Response<'s, C, Headers>, HandleError<C>> {
+        self.socket
             .write_all(b"HTTP/1.0 ")
             .await
             .map_err(HandleError::Write)?;
@@ -75,63 +78,61 @@ impl Response<Initial> {
         let mut status_code = heapless::Vec::<u8, 4>::new();
         log::debug!("Response status: {}", status as u16);
         write!(&mut status_code, "{}", status as u16).unwrap();
-        socket
+        self.socket
             .write_all(&status_code)
             .await
             .map_err(HandleError::Write)?;
 
-        socket.write_all(b" ").await.map_err(HandleError::Write)?;
-        socket
+        self.socket
+            .write_all(b" ")
+            .await
+            .map_err(HandleError::Write)?;
+        self.socket
             .write_all(status.name().as_bytes())
             .await
             .map_err(HandleError::Write)?;
-        socket
+        self.socket
             .write_all(b"\r\n")
             .await
             .map_err(HandleError::Write)?;
 
         Ok(Response {
+            socket: self.socket,
             _state: PhantomData,
         })
     }
 }
 
-impl Response<Headers> {
-    pub async fn send_header<C: Connection>(
-        &mut self,
-        header: Header<'_>,
-        socket: &mut C,
-    ) -> Result<&mut Self, HandleError<C>> {
-        self.send_raw_header(header, socket).await?;
+impl<'s, C: Connection> Response<'s, C, Headers> {
+    pub async fn send_header(&mut self, header: Header<'_>) -> Result<&mut Self, HandleError<C>> {
+        self.send_raw_header(header).await?;
         Ok(self)
     }
 
-    pub async fn send_headers<C: Connection>(
+    pub async fn send_headers(
         &mut self,
         headers: &[Header<'_>],
-        socket: &mut C,
     ) -> Result<&mut Self, HandleError<C>> {
         for &header in headers {
-            self.send_raw_header(header, socket).await?;
+            self.send_raw_header(header).await?;
         }
         Ok(self)
     }
 
-    async fn send_raw_header<C: Connection>(
-        &mut self,
-        header: Header<'_>,
-        socket: &mut C,
-    ) -> Result<(), HandleError<C>> {
-        socket
+    async fn send_raw_header(&mut self, header: Header<'_>) -> Result<(), HandleError<C>> {
+        self.socket
             .write_all(header.name.as_bytes())
             .await
             .map_err(HandleError::Write)?;
-        socket.write_all(b": ").await.map_err(HandleError::Write)?;
-        socket
+        self.socket
+            .write_all(b": ")
+            .await
+            .map_err(HandleError::Write)?;
+        self.socket
             .write_all(header.value)
             .await
             .map_err(HandleError::Write)?;
-        socket
+        self.socket
             .write_all(b"\r\n")
             .await
             .map_err(HandleError::Write)?;
@@ -139,81 +140,69 @@ impl Response<Headers> {
         Ok(())
     }
 
-    pub async fn start_body<C: Connection>(
-        self,
-        socket: &mut C,
-    ) -> Result<Response<Body>, HandleError<C>> {
-        socket
+    pub async fn start_body(mut self) -> Result<Response<'s, C, Body>, HandleError<C>> {
+        self.socket
             .write_all(b"\r\n")
             .await
             .map_err(HandleError::Write)?;
         Ok(Response {
+            socket: self.socket,
             _state: PhantomData,
         })
     }
 
-    pub async fn start_chunked_body<C: Connection>(
+    pub async fn start_chunked_body(
         mut self,
-        socket: &mut C,
-    ) -> Result<Response<BodyChunked>, HandleError<C>> {
-        self.send_header(
-            Header {
-                name: "transfer-encoding",
-                value: b"chunked",
-            },
-            socket,
-        )
+    ) -> Result<Response<'s, C, BodyChunked>, HandleError<C>> {
+        self.send_header(Header {
+            name: "transfer-encoding",
+            value: b"chunked",
+        })
         .await?;
-        socket
+        self.socket
             .write_all(b"\r\n")
             .await
             .map_err(HandleError::Write)?;
 
         Ok(Response {
+            socket: self.socket,
             _state: PhantomData,
         })
     }
 }
 
-impl Response<Body> {
-    pub async fn write_string<C: Connection>(
-        &mut self,
-        data: &str,
-        socket: &mut C,
-    ) -> Result<(), HandleError<C>> {
-        self.write_raw(data.as_bytes(), socket).await
+impl<'s, C: Connection> Response<'s, C, Body> {
+    pub async fn write_string(&mut self, data: &str) -> Result<(), HandleError<C>> {
+        self.write_raw(data.as_bytes()).await
     }
 
-    pub async fn write_raw<C: Connection>(
-        &mut self,
-        data: &[u8],
-        socket: &mut C,
-    ) -> Result<(), HandleError<C>> {
-        socket.write_all(data).await.map_err(HandleError::Write)
+    pub async fn write_raw(&mut self, data: &[u8]) -> Result<(), HandleError<C>> {
+        self.socket
+            .write_all(data)
+            .await
+            .map_err(HandleError::Write)
     }
 }
 
-impl Response<BodyChunked> {
-    pub async fn write_string<C: Connection>(
-        &mut self,
-        data: &str,
-        socket: &mut C,
-    ) -> Result<(), HandleError<C>> {
-        self.write_raw(data.as_bytes(), socket).await
+impl<'s, C: Connection> Response<'s, C, BodyChunked> {
+    pub async fn write_string(&mut self, data: &str) -> Result<(), HandleError<C>> {
+        self.write_raw(data.as_bytes()).await
     }
 
-    pub async fn write_raw<C: Connection>(
-        &mut self,
-        data: &[u8],
-        socket: &mut C,
-    ) -> Result<(), HandleError<C>> {
+    pub async fn write_raw(&mut self, data: &[u8]) -> Result<(), HandleError<C>> {
         let mut chunk_header = heapless::Vec::<u8, 12>::new();
         write!(&mut chunk_header, "{:X}\r\n", data.len()).unwrap();
-        socket
+        self.socket
             .write_all(&chunk_header)
             .await
             .map_err(HandleError::Write)?;
-        socket.write_all(data).await.map_err(HandleError::Write)?;
-        socket.write_all(b"\r\n").await.map_err(HandleError::Write)
+        self.socket
+            .write_all(data)
+            .await
+            .map_err(HandleError::Write)?;
+        self.socket
+            .write_all(b"\r\n")
+            .await
+            .map_err(HandleError::Write)
     }
 }

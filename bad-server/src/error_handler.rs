@@ -1,10 +1,10 @@
-use core::{fmt::Write, marker::PhantomData};
+use core::{fmt::Write as _, marker::PhantomData};
 
-use httparse::Header;
+use embedded_io::asynch::Write;
 
 use crate::{
     connector::Connection,
-    response::{Body, Headers, Initial, Response, ResponseState, ResponseStatus},
+    response::{Response, ResponseStatus},
     HandleError,
 };
 
@@ -15,11 +15,11 @@ pub trait ErrorHandler {
     async fn handle(
         &self,
         status: ResponseStatus,
-        response: ResponseBuilder<'_, Self::Connection>,
+        response: Response<'_, Self::Connection>,
     ) -> Result<(), HandleError<Self::Connection>>;
 }
 
-pub struct DefaultErrorHandler<C: Connection>(pub(crate) PhantomData<C>);
+pub struct DefaultErrorHandler<C: Write>(pub(crate) PhantomData<C>);
 
 impl<C> ErrorHandler for DefaultErrorHandler<C>
 where
@@ -30,9 +30,9 @@ where
     async fn handle(
         &self,
         status: ResponseStatus,
-        response: ResponseBuilder<'_, Self::Connection>,
-    ) -> Result<(), HandleError<Self::Connection>> {
-        let mut response = response.send_status(status).await?.end_headers().await?;
+        response: Response<'_, C>,
+    ) -> Result<(), HandleError<C>> {
+        let mut response = response.send_status(status).await?.start_body().await?;
 
         let mut body = heapless::String::<128>::new();
         let _ = write!(
@@ -43,75 +43,5 @@ where
         );
 
         response.write_string(&body).await
-    }
-}
-
-/// Response builder for the error handler
-pub struct ResponseBuilder<'resp, C, S = Initial>
-where
-    S: ResponseState,
-    C: Connection,
-{
-    socket: &'resp mut C,
-    response: Response<S>,
-}
-
-impl<'resp, C> ResponseBuilder<'resp, C, Initial>
-where
-    C: Connection,
-{
-    pub fn new(socket: &'resp mut C) -> Self {
-        Self {
-            socket,
-            response: Response::new(),
-        }
-    }
-
-    pub async fn send_status(
-        self,
-        status: ResponseStatus,
-    ) -> Result<ResponseBuilder<'resp, C, Headers>, HandleError<C>> {
-        Ok(ResponseBuilder {
-            response: self.response.send_status(status, self.socket).await?,
-            socket: self.socket,
-        })
-    }
-}
-
-impl<'resp, C> ResponseBuilder<'resp, C, Headers>
-where
-    C: Connection,
-{
-    pub async fn send_header(&mut self, header: Header<'_>) -> Result<&mut Self, HandleError<C>> {
-        self.response.send_header(header, self.socket).await?;
-        Ok(self)
-    }
-
-    pub async fn send_headers(
-        &mut self,
-        headers: &[Header<'_>],
-    ) -> Result<&mut Self, HandleError<C>> {
-        self.response.send_headers(headers, self.socket).await?;
-        Ok(self)
-    }
-
-    pub async fn end_headers(self) -> Result<ResponseBuilder<'resp, C, Body>, HandleError<C>> {
-        Ok(ResponseBuilder {
-            response: self.response.start_body(self.socket).await?,
-            socket: self.socket,
-        })
-    }
-}
-
-impl<'resp, C> ResponseBuilder<'resp, C, Body>
-where
-    C: Connection,
-{
-    pub async fn write_string(&mut self, data: &str) -> Result<(), HandleError<C>> {
-        self.response.write_string(data, self.socket).await
-    }
-
-    pub async fn write_raw(&mut self, data: &[u8]) -> Result<(), HandleError<C>> {
-        self.response.write_raw(data, self.socket).await
     }
 }
