@@ -1,4 +1,4 @@
-use core::{fmt::Write, future::Future, marker::PhantomData};
+use core::{fmt::Write, marker::PhantomData};
 
 use httparse::Header;
 
@@ -17,47 +17,6 @@ pub trait ErrorHandler {
         status: ResponseStatus,
         response: ResponseBuilder<'_, Self::Connection>,
     ) -> Result<(), HandleError<Self::Connection>>;
-}
-
-pub struct SimpleErrorHandler<F, FUT, C>
-where
-    C: Connection,
-    F: Fn(ResponseStatus, ResponseBuilder<'_, C>) -> FUT,
-    FUT: Future<Output = Result<(), HandleError<C>>>,
-{
-    closure: F,
-    _connection: PhantomData<C>,
-}
-
-impl<F, FUT, C> SimpleErrorHandler<F, FUT, C>
-where
-    C: Connection,
-    F: Fn(ResponseStatus, ResponseBuilder<'_, C>) -> FUT,
-    FUT: Future<Output = Result<(), HandleError<C>>>,
-{
-    pub fn new(value: F) -> Self {
-        SimpleErrorHandler {
-            closure: value,
-            _connection: PhantomData,
-        }
-    }
-}
-
-impl<F, FUT, C> ErrorHandler for SimpleErrorHandler<F, FUT, C>
-where
-    C: Connection,
-    F: Fn(ResponseStatus, ResponseBuilder<'_, C>) -> FUT,
-    FUT: Future<Output = Result<(), HandleError<C>>>,
-{
-    type Connection = C;
-
-    async fn handle(
-        &self,
-        status: ResponseStatus,
-        response: ResponseBuilder<'_, C>,
-    ) -> Result<(), HandleError<C>> {
-        (self.closure)(status, response).await
-    }
 }
 
 pub struct DefaultErrorHandler<C: Connection>(pub(crate) PhantomData<C>);
@@ -113,11 +72,7 @@ where
         status: ResponseStatus,
     ) -> Result<ResponseBuilder<'resp, C, Headers>, HandleError<C>> {
         Ok(ResponseBuilder {
-            response: self
-                .response
-                .send_status(status, self.socket)
-                .await
-                .map_err(HandleError::Write)?,
+            response: self.response.send_status(status, self.socket).await?,
             socket: self.socket,
         })
     }
@@ -128,10 +83,7 @@ where
     C: Connection,
 {
     pub async fn send_header(&mut self, header: Header<'_>) -> Result<&mut Self, HandleError<C>> {
-        self.response
-            .send_header(header, self.socket)
-            .await
-            .map_err(HandleError::Write)?;
+        self.response.send_header(header, self.socket).await?;
         Ok(self)
     }
 
@@ -139,20 +91,13 @@ where
         &mut self,
         headers: &[Header<'_>],
     ) -> Result<&mut Self, HandleError<C>> {
-        self.response
-            .send_headers(headers, self.socket)
-            .await
-            .map_err(HandleError::Write)?;
+        self.response.send_headers(headers, self.socket).await?;
         Ok(self)
     }
 
     pub async fn end_headers(self) -> Result<ResponseBuilder<'resp, C, Body>, HandleError<C>> {
         Ok(ResponseBuilder {
-            response: self
-                .response
-                .start_body(self.socket)
-                .await
-                .map_err(HandleError::Write)?,
+            response: self.response.start_body(self.socket).await?,
             socket: self.socket,
         })
     }
@@ -163,16 +108,10 @@ where
     C: Connection,
 {
     pub async fn write_string(&mut self, data: &str) -> Result<(), HandleError<C>> {
-        self.response
-            .write_string(data, self.socket)
-            .await
-            .map_err(HandleError::Write)
+        self.response.write_string(data, self.socket).await
     }
 
     pub async fn write_raw(&mut self, data: &[u8]) -> Result<(), HandleError<C>> {
-        self.response
-            .write_raw(data, self.socket)
-            .await
-            .map_err(HandleError::Write)
+        self.response.write_raw(data, self.socket).await
     }
 }

@@ -6,6 +6,7 @@ use crate::{
     request::Request,
     request_body::{ReadResult, RequestBody},
     response::{Body, Headers, Initial, Response, ResponseState, ResponseStatus},
+    HandleError,
 };
 
 pub struct RequestContext<'req, C, RSP = Initial>
@@ -37,7 +38,7 @@ where
     pub async fn send_status(
         self,
         status: ResponseStatus,
-    ) -> Result<RequestContext<'req, C, Headers>, C::Error> {
+    ) -> Result<RequestContext<'req, C, Headers>, HandleError<C>> {
         Ok(RequestContext {
             response: self.response.send_status(status, self.connection).await?,
             connection: self.connection,
@@ -50,17 +51,20 @@ impl<'req, C> RequestContext<'req, C, Headers>
 where
     C: Connection,
 {
-    pub async fn send_header(&mut self, header: Header<'_>) -> Result<&mut Self, C::Error> {
+    pub async fn send_header(&mut self, header: Header<'_>) -> Result<&mut Self, HandleError<C>> {
         self.response.send_header(header, self.connection).await?;
         Ok(self)
     }
 
-    pub async fn send_headers(&mut self, headers: &[Header<'_>]) -> Result<&mut Self, C::Error> {
+    pub async fn send_headers(
+        &mut self,
+        headers: &[Header<'_>],
+    ) -> Result<&mut Self, HandleError<C>> {
         self.response.send_headers(headers, self.connection).await?;
         Ok(self)
     }
 
-    pub async fn end_headers(self) -> Result<RequestContext<'req, C, Body>, C::Error> {
+    pub async fn end_headers(self) -> Result<RequestContext<'req, C, Body>, HandleError<C>> {
         Ok(RequestContext {
             response: self.response.start_body(self.connection).await?,
             connection: self.connection,
@@ -73,11 +77,11 @@ impl<'req, C> RequestContext<'req, C, Body>
 where
     C: Connection,
 {
-    pub async fn write_string(&mut self, data: &str) -> Result<(), C::Error> {
+    pub async fn write_string(&mut self, data: &str) -> Result<(), HandleError<C>> {
         self.response.write_string(data, self.connection).await
     }
 
-    pub async fn write_raw(&mut self, data: &[u8]) -> Result<(), C::Error> {
+    pub async fn write_raw(&mut self, data: &[u8]) -> Result<(), HandleError<C>> {
         self.response.write_raw(data, self.connection).await
     }
 }

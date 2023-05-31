@@ -1,4 +1,4 @@
-use embedded_io::blocking::ReadExactError;
+use embedded_io::{blocking::ReadExactError, Io};
 use httparse::Header;
 
 use crate::{connector::Connection, response::ResponseStatus};
@@ -181,7 +181,7 @@ impl<'buf> ContentLengthReader<'buf> {
     }
 }
 
-pub enum ReadError<C: Connection> {
+pub enum ReadError<C: Io> {
     Io(C::Error),
     Encoding,
     UnexpectedEof,
@@ -189,7 +189,7 @@ pub enum ReadError<C: Connection> {
 
 impl<C> core::fmt::Debug for ReadError<C>
 where
-    C: Connection,
+    C: Io,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {

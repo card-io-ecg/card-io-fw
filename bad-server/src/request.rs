@@ -29,7 +29,7 @@ impl<'req> Request<'req> {
             return Err(ResponseStatus::BadRequest);
         };
 
-        log::info!("{}/{path}", method.as_str());
+        log::info!("[{}] {path}", method.as_str());
 
         Ok(Self {
             method,

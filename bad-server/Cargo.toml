@@ -6,10 +6,20 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-embassy-net = { git = "https://github.com/embassy-rs/embassy.git", rev = "fb27594", features = ["nightly", "tcp", "udp", "dhcpv4", "medium-ethernet"] }
-embedded-io = "0.4"
+async-io = { version = "1", optional = true }
+embassy-net = { git = "https://github.com/embassy-rs/embassy.git", rev = "fb27594", features = ["nightly", "tcp", "udp", "dhcpv4", "medium-ethernet"], optional = true }
+embedded-io = { version = "0.4", features = ["async"] }
 embedded-svc = { version = "0.25", default-features = false, features = [] }
 heapless = "0.7"
 httparse = { version = "1.8", default-features = false }
 log = "0.4"
+smol = { version = "1", optional = true }
 object-chain = "0.1.3"
+
+[dev-dependencies]
+simple_logger="4.1"
+
+[features]
+default = []
+std = ["async-io", "smol"]
+embassy = ["embassy-net"]
