@@ -29,31 +29,30 @@ impl RequestBodyType {
                 .map(|encoding| encoding.trim())
                 .position(|enc| enc.eq_ignore_ascii_case("chunked"))
             {
-                Some(0) => return Ok(Self::Chunked),
+                Some(0) => Ok(Self::Chunked),
+                None => Ok(Self::Unknown),
                 Some(_) => {
                     // If a Transfer-Encoding header field is present in a request and the chunked
                     // transfer coding is not the final encoding, the message body length cannot be
                     // determined reliably; the server MUST respond with the 400 (Bad Request)
                     // status code and then close the connection.
-                    return Err(BodyTypeError::IncorrectTransferEncoding);
+                    Err(BodyTypeError::IncorrectTransferEncoding)
                 }
-                None => {}
             }
         } else if header.name.eq_ignore_ascii_case("content-length") {
-            // When a message does not have a Transfer-Encoding header field,
-            // a Content-Length header field (Section 8.6 of [HTTP]) can provide the anticipated size
+            // When a message does not have a Transfer-Encoding header field, a
+            // Content-Length header field (Section 8.6 of [HTTP]) can provide the anticipated size
             let Ok(value) = core::str::from_utf8(header.value) else {
                 return Err(BodyTypeError::IncorrectEncoding);
             };
 
-            let length = value
+            value
                 .parse::<u32>()
-                .map_err(|_| BodyTypeError::IncorrectEncoding)?;
-
-            return Ok(Self::ContentLength(length));
+                .map_err(|_| BodyTypeError::IncorrectEncoding)
+                .map(Self::ContentLength)
+        } else {
+            Ok(Self::Unknown)
         }
-
-        Ok(Self::Unknown)
     }
 
     fn from_headers(headers: &[Header]) -> Result<Self, BodyTypeError> {

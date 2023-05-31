@@ -37,31 +37,22 @@ impl<C: Connection> Handler for NoHandler<C> {
     }
 }
 
-pub trait RequestHandler<C: Connection> {
+pub trait RequestHandler<C: Connection>: Sized {
     async fn handle(
         &self,
         request: Request<'_, '_, C>,
         response: Response<'_, C>,
     ) -> Result<(), HandleError<C>>;
 
-    fn new<'a>(method: Method, path: &'a str, handler: Self) -> RequestWithMatcher<'a, C, Self>
-    where
-        Self: Sized,
-    {
+    fn new(method: Method, path: &str, handler: Self) -> RequestWithMatcher<'_, C, Self> {
         RequestWithMatcher::new(method, path, handler)
     }
 
-    fn get<'a>(path: &'a str, handler: Self) -> RequestWithMatcher<'a, C, Self>
-    where
-        Self: Sized,
-    {
+    fn get(path: &str, handler: Self) -> RequestWithMatcher<'_, C, Self> {
         Self::new(Method::Get, path, handler)
     }
 
-    fn post<'a>(path: &'a str, handler: Self) -> RequestWithMatcher<'a, C, Self>
-    where
-        Self: Sized,
-    {
+    fn post(path: &str, handler: Self) -> RequestWithMatcher<'_, C, Self> {
         Self::new(Method::Post, path, handler)
     }
 }
