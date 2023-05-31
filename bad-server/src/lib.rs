@@ -1,11 +1,14 @@
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 #![feature(async_fn_in_trait)]
 #![feature(impl_trait_projections)]
 #![allow(incomplete_features)]
 
 use core::{fmt::Debug, marker::PhantomData};
 
-use embedded_io::asynch::{Read, Write as _};
+use embedded_io::{
+    asynch::{Read, Write as _},
+    Io,
+};
 use httparse::Status;
 use object_chain::{Chain, ChainElement, Link};
 
@@ -98,7 +101,7 @@ where
     }
 }
 
-pub enum HandleError<C: Connection> {
+pub enum HandleError<C: Io> {
     Read(ReadError<C>),
     Write(C::Error),
     TooManyHeaders,
@@ -107,7 +110,7 @@ pub enum HandleError<C: Connection> {
 
 impl<C> Debug for HandleError<C>
 where
-    C: Connection,
+    C: Io,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
@@ -179,8 +182,9 @@ where
             // Handle errors after flushing
             if let Err(e) = handle_result {
                 log::warn!("handle error: {:?}", e);
-                socket.close();
             }
+
+            socket.close();
         }
     }
 

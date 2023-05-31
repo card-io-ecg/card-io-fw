@@ -1,6 +1,9 @@
 use core::future::Future;
 
-use bad_server::{error_handler::SimpleErrorHandler, handler::SimpleHandler, BadServer};
+use bad_server::{
+    connector::Connection, handler::RequestHandler, request_context::RequestContext,
+    response::ResponseStatus, BadServer, HandleError,
+};
 use embassy_executor::Spawner;
 use embassy_futures::{join::join, select::select};
 use embassy_net::{
@@ -187,6 +190,16 @@ async fn net_task(
     task_control.run_cancellable(stack.run()).await;
 }
 
+struct RootHandler;
+impl<C: Connection> RequestHandler<C> for RootHandler {
+    async fn handle(&self, request: RequestContext<'_, C>) -> Result<(), HandleError<C>> {
+        let request = request.send_status(ResponseStatus::Ok).await?;
+        let mut request = request.end_headers().await?;
+        request.write_string("Hello, world!").await?;
+        Ok(())
+    }
+}
+
 #[embassy_executor::task]
 async fn webserver_task(
     stack: &'static Stack<WifiDevice<'static>>,
@@ -206,10 +219,7 @@ async fn webserver_task(
             BadServer::new()
                 .with_request_buffer_size::<2048>()
                 .with_header_count::<48>()
-                .with_handler(SimpleHandler::get("/", |_request| async { Ok(()) }))
-                .with_error_handler(SimpleErrorHandler::new(|_status, _response| async {
-                    Ok(())
-                }))
+                .with_handler(RequestHandler::get("/", RootHandler))
                 .listen(&mut socket, 8080)
                 .await;
         })

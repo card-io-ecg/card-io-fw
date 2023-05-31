@@ -1,4 +1,4 @@
-use core::{future::Future, marker::PhantomData};
+use core::marker::PhantomData;
 
 use object_chain::{Chain, ChainElement, Link};
 
@@ -30,47 +30,53 @@ impl<C: Connection> Handler for NoHandler<C> {
     }
 }
 
-pub struct SimpleHandler<'a, F, FUT, C>
-where
-    F: Fn(RequestContext<'_, C>) -> FUT,
-    FUT: Future<Output = Result<(), HandleError<C>>>,
-    C: Connection,
-{
-    closure: F,
+pub trait RequestHandler<C: Connection> {
+    async fn handle(&self, request: RequestContext<'_, C>) -> Result<(), HandleError<C>>;
+
+    fn new<'a>(method: Method, path: &'a str, handler: Self) -> RequestWithMatcher<'a, C, Self>
+    where
+        Self: Sized,
+    {
+        RequestWithMatcher::new(method, path, handler)
+    }
+
+    fn get<'a>(path: &'a str, handler: Self) -> RequestWithMatcher<'a, C, Self>
+    where
+        Self: Sized,
+    {
+        Self::new(Method::Get, path, handler)
+    }
+
+    fn post<'a>(path: &'a str, handler: Self) -> RequestWithMatcher<'a, C, Self>
+    where
+        Self: Sized,
+    {
+        Self::new(Method::Post, path, handler)
+    }
+}
+
+pub struct RequestWithMatcher<'a, C: Connection, H: RequestHandler<C>> {
     method: Method,
     path: &'a str,
+    handler: H,
     _connection: PhantomData<C>,
 }
 
-impl<'a, F, FUT, C> SimpleHandler<'a, F, FUT, C>
-where
-    F: Fn(RequestContext<'_, C>) -> FUT,
-    FUT: Future<Output = Result<(), HandleError<C>>>,
-    C: Connection,
-{
-    pub fn new(method: Method, path: &'a str, closure: F) -> Self {
+impl<'a, C: Connection, H: RequestHandler<C>> RequestWithMatcher<'a, C, H> {
+    fn new(method: Method, path: &'a str, handler: H) -> Self {
         Self {
-            closure,
             method,
             path,
+            handler,
             _connection: PhantomData,
         }
     }
-
-    pub fn get(path: &'a str, closure: F) -> Self {
-        Self::new(Method::Get, path, closure)
-    }
-
-    pub fn post(path: &'a str, closure: F) -> Self {
-        Self::new(Method::Post, path, closure)
-    }
 }
 
-impl<F, FUT, C> Handler for SimpleHandler<'_, F, FUT, C>
+impl<'a, C, H> Handler for RequestWithMatcher<'a, C, H>
 where
-    F: Fn(RequestContext<'_, C>) -> FUT,
-    FUT: Future<Output = Result<(), HandleError<C>>>,
     C: Connection,
+    H: RequestHandler<C>,
 {
     type Connection = C;
 
@@ -79,7 +85,7 @@ where
     }
 
     async fn handle(&self, request: RequestContext<'_, C>) -> Result<(), HandleError<C>> {
-        (self.closure)(request).await
+        self.handler.handle(request).await
     }
 }
 
