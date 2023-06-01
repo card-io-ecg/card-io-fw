@@ -7,7 +7,26 @@
 </head>
 
 <body>
-    <h1>Welcome</h1>
+    <h1 id="hello">Welcome</h1>
 </body>
+
+<script>
+    $id = function (id) {
+        return document.getElementById(id);
+    }
+    const $fe = (function () {
+        return {
+            load_demo: async function () {
+                let res = await fetch('/demo');
+                $id('hello').innerHTML = await res.text();
+                console.log("Demo loaded");
+            }
+        };
+    })();
+
+    document.addEventListener("DOMContentLoaded", async function (event) {
+        await $fe.load_demo();
+    });
+</script>
 
 </html>

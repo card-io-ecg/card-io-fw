@@ -47,7 +47,7 @@ pub struct StartupResources {
 impl StartupResources {
     pub fn initialize() -> StartupResources {
         init_heap();
-        init_logger(log::LevelFilter::Debug);
+        init_logger(log::LevelFilter::Info);
 
         let peripherals = Peripherals::take();
 

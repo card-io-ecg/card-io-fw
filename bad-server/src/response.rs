@@ -70,7 +70,7 @@ impl<'s, C: Connection> Response<'s, C, Initial> {
         status: ResponseStatus,
     ) -> Result<Response<'s, C, Headers>, HandleError<C>> {
         self.socket
-            .write_all(b"HTTP/1.0 ")
+            .write_all(b"HTTP/1.1 ")
             .await
             .map_err(HandleError::Write)?;
 

@@ -164,28 +164,26 @@ where
         loop {
             log::info!("Wait for connection");
 
-            let r = socket.listen(port).await;
-
-            log::info!("Connected");
-
-            if let Err(e) = r {
-                log::warn!("connect error: {:?}", e);
+            if let Err(e) = socket.listen(port).await {
+                log::warn!("Connect error: {:?}", e);
                 socket.close();
                 continue;
             }
 
+            log::info!("Connected");
             let handle_result = self.handle(socket).await;
 
             if let Err(e) = socket.flush().await {
-                log::warn!("flush error: {:?}", e);
+                log::warn!("Flush error: {:?}", e);
             }
 
             // Handle errors after flushing
             if let Err(e) = handle_result {
-                log::warn!("handle error: {:?}", e);
+                log::warn!("Handle error: {:?}", e);
             }
 
             socket.close();
+            log::info!("Done");
         }
     }
 
