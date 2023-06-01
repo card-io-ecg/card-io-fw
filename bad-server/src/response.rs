@@ -154,7 +154,7 @@ impl<'s, C: Connection> Response<'s, C, Headers> {
         mut self,
     ) -> Result<Response<'s, C, BodyChunked>, HandleError<C>> {
         self.send_header(Header {
-            name: "transfer-encoding",
+            name: "Transfer-Encoding",
             value: b"chunked",
         })
         .await?;
@@ -203,5 +203,9 @@ impl<'s, C: Connection> Response<'s, C, BodyChunked> {
             .write_all(b"\r\n")
             .await
             .map_err(HandleError::Write)
+    }
+
+    pub async fn end_chunked_response(mut self) -> Result<(), HandleError<C>> {
+        self.write_raw(&[]).await
     }
 }
