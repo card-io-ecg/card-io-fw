@@ -41,7 +41,7 @@ where
         self.display
             .init_with_addr_mode_async(AddrMode::Horizontal)
             .await?;
-        self.display.clear();
+        self.display.clear(BinaryColor::Off)?;
         self.display.flush_async().await?;
 
         Ok(PoweredDisplay { display: self })
@@ -69,9 +69,8 @@ impl<DI, RESET> DrawTarget for PoweredDisplay<DI, RESET> {
         self.display.display.draw_iter(pixels)
     }
 
-    fn clear(&mut self, _color: Self::Color) -> Result<(), Self::Error> {
-        self.display.display.clear();
-        Ok(())
+    fn clear(&mut self, color: Self::Color) -> Result<(), Self::Error> {
+        self.display.display.clear(color)
     }
 }
 
