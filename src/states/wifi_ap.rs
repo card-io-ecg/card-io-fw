@@ -193,8 +193,8 @@ async fn net_task(
     task_control.run_cancellable(stack.run()).await;
 }
 
-struct RootHandler;
-impl<C: Connection> RequestHandler<C> for RootHandler {
+struct DemoHandler;
+impl<C: Connection> RequestHandler<C> for DemoHandler {
     async fn handle(&self, request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
         let response = request.send_response(ResponseStatus::Ok).await?;
         let mut response = response.start_body().await?;
@@ -232,6 +232,7 @@ async fn webserver_task(
                         include_bytes!(concat!(env!("COMPRESS_OUT_DIR"), "/static/index.html.gz")),
                     ),
                 ))
+                .with_handler(RequestHandler::get("/demo", DemoHandler))
                 .listen(&mut socket, 8080)
                 .await;
         })
