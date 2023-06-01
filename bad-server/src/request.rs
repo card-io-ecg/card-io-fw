@@ -4,10 +4,11 @@ use crate::{
     connector::Connection,
     method::Method,
     request_body::{ReadResult, RequestBody},
-    response::ResponseStatus,
+    response::{Headers, Response, ResponseStatus},
+    HandleError,
 };
 
-pub struct Request<'req, 's, C: Connection + 's> {
+pub struct Request<'req, 's, C: Connection> {
     pub method: Method,
     pub path: &'req str,
     body: RequestBody<'req, 's, C>,
@@ -57,5 +58,14 @@ impl<'req, 's, C: Connection> Request<'req, 's, C> {
     pub fn header(&self, name: &str) -> Option<&str> {
         self.raw_header(name)
             .and_then(|header| core::str::from_utf8(header).ok())
+    }
+
+    pub async fn send_response(
+        self,
+        status: ResponseStatus,
+    ) -> Result<Response<'s, C, Headers>, HandleError<C>> {
+        let socket = self.body.take_socket();
+
+        Response::new(socket).send_status(status).await
     }
 }

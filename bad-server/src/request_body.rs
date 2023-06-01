@@ -1,4 +1,4 @@
-use embedded_io::{asynch::Read, blocking::ReadExactError, Io};
+use embedded_io::{blocking::ReadExactError, Io};
 use httparse::Header;
 
 use crate::{connector::Connection, response::ResponseStatus};
@@ -105,12 +105,12 @@ impl From<RequestBodyError> for ResponseStatus {
 }
 
 /// A buffer around the socket that first returns pre-loaded data.
-pub struct Buffer<'buf, 's, C: Connection + 's> {
+pub struct Buffer<'buf, 's, C: Connection> {
     buffer: &'buf [u8],
-    socket: C::Reader<'s>,
+    socket: &'s mut C,
 }
 
-impl<C: Connection> Buffer<'_, '_, C> {
+impl<'s, C: Connection> Buffer<'_, 's, C> {
     fn flush_loaded<'r>(&mut self, dst: &'r mut [u8]) -> &'r mut [u8] {
         let bytes = self.buffer.len().min(dst.len());
 
@@ -139,6 +139,10 @@ impl<C: Connection> Buffer<'_, '_, C> {
             Err(ReadExactError::Other(e)) => Err(e),
         }
     }
+
+    fn take_socket(self) -> &'s mut C {
+        self.socket
+    }
 }
 
 pub struct ContentLengthReader<'buf, 's, C: Connection> {
@@ -166,6 +170,10 @@ impl<'buf, 's, C: Connection> ContentLengthReader<'buf, 's, C> {
         self.length -= read as u32;
 
         Ok(read)
+    }
+
+    fn take_socket(self) -> &'s mut C {
+        self.buffer.take_socket()
     }
 }
 
@@ -322,6 +330,10 @@ impl<'buf, 's, C: Connection> ChunkedReader<'buf, 's, C> {
 
         Ok(buf.len())
     }
+
+    fn take_socket(self) -> &'s mut C {
+        self.buffer.take_socket()
+    }
 }
 
 pub enum RequestBody<'buf, 's, C: Connection> {
@@ -332,12 +344,12 @@ pub enum RequestBody<'buf, 's, C: Connection> {
 
 impl<'buf, 's, C> RequestBody<'buf, 's, C>
 where
-    C: Connection + 's,
+    C: Connection,
 {
     pub(crate) fn new(
         headers: &[Header],
         pre_loaded: &'buf [u8],
-        socket: C::Reader<'s>,
+        socket: &'s mut C,
     ) -> Result<Self, RequestBodyError> {
         let request_type =
             RequestBodyType::from_headers(headers).map_err(RequestBodyError::BodyType)?;
@@ -369,6 +381,14 @@ where
             Self::Chunked(reader) => reader.read(buf).await,
             Self::ContentLength(reader) => reader.read(buf).await,
             Self::Unknown(reader) => reader.read(buf).await.map_err(ReadError::Io),
+        }
+    }
+
+    pub(crate) fn take_socket(self) -> &'s mut C {
+        match self {
+            RequestBody::Chunked(reader) => reader.take_socket(),
+            RequestBody::ContentLength(reader) => reader.take_socket(),
+            RequestBody::Unknown(reader) => reader.take_socket(),
         }
     }
 }

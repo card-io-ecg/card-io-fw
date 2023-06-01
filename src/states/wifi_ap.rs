@@ -4,7 +4,7 @@ use bad_server::{
     connector::Connection,
     handler::{RequestHandler, StaticHandler},
     request::Request,
-    response::{Response, ResponseStatus},
+    response::ResponseStatus,
     BadServer, HandleError, Header,
 };
 use embassy_executor::Spawner;
@@ -195,12 +195,8 @@ async fn net_task(
 
 struct RootHandler;
 impl<C: Connection> RequestHandler<C> for RootHandler {
-    async fn handle(
-        &self,
-        _request: Request<'_, '_, C>,
-        response: Response<'_, C>,
-    ) -> Result<(), HandleError<C>> {
-        let response = response.send_status(ResponseStatus::Ok).await?;
+    async fn handle(&self, request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
+        let response = request.send_response(ResponseStatus::Ok).await?;
         let mut response = response.start_body().await?;
         response.write_string("Hello, world!").await?;
         Ok(())

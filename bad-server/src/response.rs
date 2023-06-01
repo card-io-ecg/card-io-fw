@@ -1,6 +1,5 @@
 use core::{fmt::Write as _, marker::PhantomData};
 
-use embedded_io::asynch::Write;
 use httparse::Header;
 
 use crate::{connector::Connection, HandleError};
@@ -54,12 +53,12 @@ where
     C: Connection + 's,
     S: ResponseState,
 {
-    socket: C::Writer<'s>,
+    socket: &'s mut C,
     _state: PhantomData<S>,
 }
 
 impl<'s, C: Connection> Response<'s, C, Initial> {
-    pub fn new(socket: C::Writer<'s>) -> Self {
+    pub fn new(socket: &'s mut C) -> Self {
         Self {
             socket,
             _state: PhantomData,
@@ -67,7 +66,7 @@ impl<'s, C: Connection> Response<'s, C, Initial> {
     }
 
     pub async fn send_status(
-        mut self,
+        self,
         status: ResponseStatus,
     ) -> Result<Response<'s, C, Headers>, HandleError<C>> {
         self.socket
@@ -140,7 +139,7 @@ impl<'s, C: Connection> Response<'s, C, Headers> {
         Ok(())
     }
 
-    pub async fn start_body(mut self) -> Result<Response<'s, C, Body>, HandleError<C>> {
+    pub async fn start_body(self) -> Result<Response<'s, C, Body>, HandleError<C>> {
         self.socket
             .write_all(b"\r\n")
             .await

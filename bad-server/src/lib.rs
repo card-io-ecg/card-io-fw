@@ -192,7 +192,7 @@ where
     async fn load_headers<'b>(
         &self,
         buffer: &'b mut [u8],
-        socket: &mut <H::Connection as Connection>::Reader<'_>,
+        socket: &mut H::Connection,
     ) -> Result<(&'b [u8], &'b [u8]), HandleError<H::Connection>> {
         let mut pos = 0;
         while pos < buffer.len() {
@@ -236,18 +236,17 @@ where
 
     async fn handle(&self, socket: &mut H::Connection) -> Result<(), HandleError<H::Connection>> {
         let mut buffer = [0u8; REQUEST_BUFFER];
-        let (mut reader, writer) = socket.split();
 
-        let status = match self.load_headers(&mut buffer, &mut reader).await {
+        let status = match self.load_headers(&mut buffer, socket).await {
             Ok((header, body)) => {
                 let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
                 let mut req = httparse::Request::new(&mut headers);
                 req.parse(header).unwrap();
 
-                match RequestBody::new(req.headers, body, reader) {
+                match RequestBody::new(req.headers, body, socket) {
                     Ok(body) => match Request::new(req, body) {
                         Ok(request) if self.handler.handles(&request) => {
-                            return self.handler.handle(request, Response::new(writer)).await;
+                            return self.handler.handle(request).await;
                         }
                         Ok(_request) => ResponseStatus::NotFound,
                         Err(status) => status,
@@ -264,7 +263,7 @@ where
         };
 
         self.error_handler
-            .handle(status, Response::new(writer))
+            .handle(status, Response::new(socket))
             .await
     }
 }

@@ -4,11 +4,7 @@ use httparse::Header;
 use object_chain::{Chain, ChainElement, Link};
 
 use crate::{
-    connector::Connection,
-    method::Method,
-    request::Request,
-    response::{Response, ResponseStatus},
-    HandleError,
+    connector::Connection, method::Method, request::Request, response::ResponseStatus, HandleError,
 };
 
 pub trait Handler {
@@ -21,7 +17,6 @@ pub trait Handler {
     async fn handle(
         &self,
         request: Request<'_, '_, Self::Connection>,
-        response: Response<'_, Self::Connection>,
     ) -> Result<(), HandleError<Self::Connection>>;
 }
 
@@ -33,21 +28,13 @@ impl<C: Connection> Handler for NoHandler<C> {
         false
     }
 
-    async fn handle(
-        &self,
-        _request: Request<'_, '_, C>,
-        _response: Response<'_, C>,
-    ) -> Result<(), HandleError<C>> {
+    async fn handle(&self, _request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
         Ok(())
     }
 }
 
 pub trait RequestHandler<C: Connection>: Sized {
-    async fn handle(
-        &self,
-        request: Request<'_, '_, C>,
-        response: Response<'_, C>,
-    ) -> Result<(), HandleError<C>>;
+    async fn handle(&self, request: Request<'_, '_, C>) -> Result<(), HandleError<C>>;
 
     fn new(method: Method, path: &str, handler: Self) -> RequestWithMatcher<'_, C, Self> {
         RequestWithMatcher::new(method, path, handler)
@@ -65,12 +52,8 @@ pub trait RequestHandler<C: Connection>: Sized {
 pub struct StaticHandler<'a>(pub &'a [Header<'a>], pub &'a [u8]);
 
 impl<C: Connection> RequestHandler<C> for StaticHandler<'_> {
-    async fn handle(
-        &self,
-        _request: Request<'_, '_, C>,
-        response: Response<'_, C>,
-    ) -> Result<(), HandleError<C>> {
-        let mut response = response.send_status(ResponseStatus::Ok).await?;
+    async fn handle(&self, request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
+        let mut response = request.send_response(ResponseStatus::Ok).await?;
 
         let mut length = heapless::String::<12>::new();
         write!(length, "{}", self.1.len()).unwrap();
@@ -117,12 +100,8 @@ where
         self.method == request.method && self.path == request.path
     }
 
-    async fn handle(
-        &self,
-        request: Request<'_, '_, C>,
-        response: Response<'_, C>,
-    ) -> Result<(), HandleError<C>> {
-        self.handler.handle(request, response).await
+    async fn handle(&self, request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
+        self.handler.handle(request).await
     }
 }
 
@@ -137,12 +116,8 @@ where
         self.object.handles(request)
     }
 
-    async fn handle(
-        &self,
-        request: Request<'_, '_, C>,
-        response: Response<'_, C>,
-    ) -> Result<(), HandleError<C>> {
-        self.object.handle(request, response).await
+    async fn handle(&self, request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
+        self.object.handle(request).await
     }
 }
 
@@ -158,15 +133,11 @@ where
         self.object.handles(request) || self.parent.handles(request)
     }
 
-    async fn handle(
-        &self,
-        request: Request<'_, '_, C>,
-        response: Response<'_, C>,
-    ) -> Result<(), HandleError<C>> {
+    async fn handle(&self, request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
         if self.object.handles(&request) {
-            self.object.handle(request, response).await
+            self.object.handle(request).await
         } else {
-            self.parent.handle(request, response).await
+            self.parent.handle(request).await
         }
     }
 }
