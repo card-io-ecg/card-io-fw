@@ -196,7 +196,13 @@ async fn net_task(
 struct DemoHandler;
 impl<C: Connection> RequestHandler<C> for DemoHandler {
     async fn handle(&self, request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
-        let response = request.send_response(ResponseStatus::Ok).await?;
+        let mut response = request.send_response(ResponseStatus::Ok).await?;
+        response
+            .send_header(Header {
+                name: "Content-Length",
+                value: b"13",
+            })
+            .await?;
         let mut response = response.start_body().await?;
         response.write_string("Hello, world!").await?;
         Ok(())
