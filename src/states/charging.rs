@@ -1,5 +1,6 @@
 use crate::{
     board::{initialized::Board, BATTERY_MODEL},
+    states::{MIN_FRAME_TIME, TARGET_FPS},
     AppState,
 };
 use embassy_time::{Duration, Instant, Ticker};
@@ -8,36 +9,37 @@ use gui::screens::charging::ChargingScreen;
 
 pub async fn charging(board: &mut Board) -> AppState {
     const DISPLAY_TIME: Duration = Duration::from_secs(10);
-    const FPS: u32 = 10;
 
     let mut display_started = Instant::now();
-    let mut ticker = Ticker::every(Duration::from_hz(FPS as u64));
+    let mut ticker = Ticker::every(MIN_FRAME_TIME);
 
-    // Count displayed frames since last wakeup
-    let mut frames = 0;
+    let mut charging_screen = ChargingScreen {
+        battery_data: board.battery_monitor.battery_data().await,
+        model: BATTERY_MODEL,
+        is_charging: board.battery_monitor.is_charging(),
+        frames: 0,
+        fps: TARGET_FPS,
+        progress: 0,
+    };
 
     while board.battery_monitor.is_plugged() && display_started.elapsed() <= DISPLAY_TIME {
         if board.frontend.is_touched() {
             display_started = Instant::now();
         }
+        if charging_screen.update_touched(board.frontend.is_touched()) {
+            return AppState::MainMenu;
+        }
 
-        let battery_data = board.battery_monitor.battery_data().await;
+        charging_screen.is_charging = board.battery_monitor.is_charging();
+        charging_screen.battery_data = board.battery_monitor.battery_data().await;
+        charging_screen.frames += 1;
+
         board
             .display
-            .frame(|display| {
-                ChargingScreen {
-                    battery_data,
-                    model: BATTERY_MODEL,
-                    is_charging: board.battery_monitor.is_charging(),
-                    frames,
-                    fps: FPS,
-                }
-                .draw(display)
-            })
+            .frame(|display| charging_screen.draw(display))
             .await
             .unwrap();
 
-        frames += 1;
         ticker.next().await;
     }
 

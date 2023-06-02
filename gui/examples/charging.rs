@@ -38,6 +38,7 @@ fn main() -> Result<(), Infallible> {
             is_charging: true,
             frames,
             fps: 100,
+            progress: 1,
         }
         .draw(&mut display)
         .unwrap();
