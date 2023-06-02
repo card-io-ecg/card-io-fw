@@ -17,4 +17,5 @@ pub use menu::display::display_menu;
 pub use menu::main::main_menu;
 pub use wifi_ap::wifi_ap;
 
-const MIN_FRAME_TIME: Duration = Duration::from_hz(100);
+const TARGET_FPS: u32 = 100;
+const MIN_FRAME_TIME: Duration = Duration::from_hz(TARGET_FPS as u64);

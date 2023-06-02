@@ -7,7 +7,10 @@ use embedded_layout::prelude::{horizontal, vertical, Align};
 
 use signal_processing::battery::BatteryModel;
 
-use crate::{screens::BatteryInfo, widgets::battery::Battery};
+use crate::{
+    screens::BatteryInfo,
+    widgets::{battery::Battery, progress_bar::ProgressBar},
+};
 
 pub struct ChargingScreen {
     pub battery_data: Option<BatteryInfo>,
@@ -15,6 +18,23 @@ pub struct ChargingScreen {
     pub is_charging: bool,
     pub frames: u32,
     pub fps: u32,
+    pub progress: u32,
+}
+
+impl ChargingScreen {
+    fn max_progress(&self) -> u32 {
+        self.fps * 2
+    }
+
+    pub fn update_touched(&mut self, touched: bool) -> bool {
+        if touched {
+            self.progress += 1;
+            self.progress >= self.max_progress()
+        } else {
+            self.progress = 0;
+            false
+        }
+    }
 }
 
 impl Drawable for ChargingScreen {
@@ -44,6 +64,16 @@ impl Drawable for ChargingScreen {
             )
             .draw(display)?;
         }
+
+        if self.progress > 0 {
+            ProgressBar {
+                label: "Enter menu",
+                progress: self.progress,
+                max_progress: self.max_progress(),
+            }
+            .draw(display)?;
+        }
+
         Ok(())
     }
 }
