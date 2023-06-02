@@ -15,6 +15,7 @@ use crate::{
             },
             Rtc, Spi, IO,
         },
+        wifi_driver::WifiDriver,
         *,
     },
     heap::init_heap,
@@ -23,7 +24,7 @@ use crate::{
 use display_interface_spi::SPIInterface;
 use embassy_executor::SendSpawner;
 use esp_println::logger::init_logger;
-use hal::systimer::SystemTimer;
+use hal::{system::PeripheralClockControl, systimer::SystemTimer};
 
 static INT_EXECUTOR: InterruptExecutor<SwInterrupt0> = InterruptExecutor::new();
 
@@ -36,15 +37,17 @@ pub struct StartupResources {
     pub display: Display,
     pub frontend: EcgFrontend,
     pub clocks: Clocks<'static>,
+    pub peripheral_clock_control: PeripheralClockControl,
     pub battery_adc: BatteryAdc,
     pub misc_pins: MiscPins,
     pub high_prio_spawner: SendSpawner,
+    pub wifi: WifiDriver,
 }
 
 impl StartupResources {
     pub fn initialize() -> StartupResources {
         init_heap();
-        init_logger(log::LevelFilter::Debug);
+        init_logger(log::LevelFilter::Info);
 
         let peripherals = Peripherals::take();
 
@@ -177,12 +180,22 @@ impl StartupResources {
 
         let battery_adc = BatteryAdc::new(analog.adc2, batt_adc_in, chg_current, batt_adc_en);
 
+        // Wifi
+        let (wifi, _) = peripherals.RADIO.split();
+
         StartupResources {
             display,
             frontend: adc,
-            clocks,
             battery_adc,
             high_prio_spawner,
+            wifi: WifiDriver::Uninitialized {
+                wifi,
+                timer: peripherals.TIMG1,
+                rng: peripherals.RNG,
+                rcc: system.radio_clock_control,
+            },
+            clocks,
+            peripheral_clock_control: system.peripheral_clock_control,
 
             misc_pins: MiscPins {
                 vbus_detect,
