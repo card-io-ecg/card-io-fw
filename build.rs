@@ -8,10 +8,12 @@ use std::{
 
 fn compress_files_individually(source: impl AsRef<Path>, dst: impl AsRef<Path>) {
     // Extract file names from ".compress" file
-    let Ok(compressed_files) = std::fs::read_to_string(source.as_ref().join(".compress"))
+    let compressed_list_file = source.as_ref().join(".compress");
+    let Ok(compressed_files) = std::fs::read_to_string(&compressed_list_file)
     else {
         return;
     };
+    println!("cargo:rerun-if-changed={}", compressed_list_file.display());
 
     let file_names = compressed_files
         .lines()
