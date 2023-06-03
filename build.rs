@@ -1,23 +1,38 @@
 use libflate::gzip;
 use std::{
+    borrow::Cow,
     fs::{self, File},
     io::{BufReader, Read, Write},
     path::Path,
 };
 
 fn compress_files_individually(source: impl AsRef<Path>, dst: impl AsRef<Path>) {
+    // Extract file names from ".compress" file
+    let Ok(compressed_files) = std::fs::read_to_string(source.as_ref().join(".compress"))
+    else {
+        return;
+    };
+
+    let file_names = compressed_files
+        .lines()
+        .map(|line| line.trim())
+        .collect::<Vec<_>>();
+
     for entry in fs::read_dir(source).unwrap() {
         let entry = entry.unwrap();
         let path = entry.path();
+        let file_name = path.file_name().unwrap();
 
-        let dst = dst.as_ref().join(path.file_name().unwrap());
+        let dst = dst.as_ref().join(file_name);
         if path.is_dir() {
             compress_files_individually(&path, dst);
-        } else {
-            compress_file(
-                &path,
-                dst.with_extension(format!("{}.gz", dst.extension().unwrap().to_str().unwrap())),
-            );
+        } else if file_names.contains(&file_name.to_str().unwrap()) {
+            let new_extension = if let Some(extension) = dst.extension() {
+                Cow::Owned(format!("{}.gz", extension.to_str().unwrap()))
+            } else {
+                Cow::Borrowed("gz")
+            };
+            compress_file(&path, dst.with_extension(&*new_extension));
         }
     }
 }
