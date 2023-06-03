@@ -35,6 +35,7 @@ ssd1306 = { git = "https://github.com/bugadani/ssd1306.git", branch = "async", f
 
 embedded-graphics = "0.8.0"
 
+config-site = { path = "config-site" }
 critical-section = "1.1"
 device-descriptor = { path = "device-descriptor" }
 register-access = { path = "register-access" }
@@ -45,9 +46,6 @@ object-chain = "0.1.3"
 signal-processing = { path = "signal-processing" }
 replace_with = { version = "0.1", default-features = false, features = ["nightly"] }
 bad-server = { path = "bad-server", features = ["embassy"] }
-
-[build-dependencies]
-libflate = "1.4.0"
 
 [patch.crates-io]
 # needed because of esp-wifi

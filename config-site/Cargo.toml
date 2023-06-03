@@ -1,0 +1,21 @@
+[package]
+name = "config-site"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bad-server = { path = "../bad-server" }
+
+[build-dependencies]
+libflate = "1.4.0"
+
+[[example]]
+name = "simple"
+required-features = ["bad-server/std"]
+
+[dev-dependencies]
+log = "0.4"
+simple_logger = "4.1"
+smol = "1"
