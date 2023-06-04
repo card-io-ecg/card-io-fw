@@ -10,6 +10,7 @@ bad-server = { path = "../bad-server" }
 
 [build-dependencies]
 libflate = "1.4.0"
+minify-html = "0.11.1"
 
 [[example]]
 name = "simple"

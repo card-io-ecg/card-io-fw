@@ -1,6 +1,7 @@
 use libflate::gzip;
 use std::{
     borrow::Cow,
+    ffi::OsStr,
     fs::{self, File},
     io::{BufReader, Read, Write},
     path::Path,
@@ -47,6 +48,16 @@ fn compress_file(source: impl AsRef<Path>, dst: impl AsRef<Path>) {
 
     let mut buffer = Vec::new();
     reader.read_to_end(&mut buffer).unwrap();
+
+    if source.as_ref().extension() == Some(&OsStr::new("html")) {
+        let cfg = minify_html::Cfg {
+            do_not_minify_doctype: true,
+            minify_css: true,
+            minify_js: true,
+            ..Default::default()
+        };
+        buffer = minify_html::minify(&buffer, &cfg);
+    }
 
     let mut encoder = gzip::Encoder::new(Vec::new()).unwrap();
     encoder.write_all(&buffer).unwrap();
