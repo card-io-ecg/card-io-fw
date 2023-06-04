@@ -79,6 +79,21 @@
         <div class="content">
             <span class="data"></span><br />
             Firmware version: <span class="fw"></span>
+            <!--button id="btn_nn">Add network</button-->
+        </div>
+    </div>
+
+    <div id="nn" class="tpl">
+        <h1 class="header">Add network</h1>
+        <div class="content">
+            <form id="form">
+                <label for="ssid">SSID</label><br />
+                <input type="text" id="ssid" name="ssid" /><br />
+                <label for="password">Password</label><br />
+                <input type="password" id="password" name="password" /><br />
+                <input type="submit" value="Submit" />
+            </form>
+            <button id="btn_back">Back</button>
         </div>
     </div>
 
@@ -89,71 +104,61 @@
 
 <script>
     $id = (id) => document.getElementById(id);
+    $on = (id, evt, cb) => $id(id).addEventListener(evt, cb);
     $tpl = (id) => {
         let tpl = $id(id).cloneNode(true);
         tpl.style.display = "block";
 
-        let content = tpl.querySelector(".content");
-        if (content) {
-            content.set = (name, value) => {
-                let elem = tpl.querySelector("." + name);
-                elem.innerHTML = value;
-            }
-        }
+        let c = tpl.querySelector(".content");
+        if (c) c.set = (name, value) => tpl.querySelector("." + name).innerHTML = value;
 
         return tpl;
     }
-    $clear = (name) => {
-        let elem = $id(name);
-        while (elem.firstChild) {
-            elem.removeChild(elem.lastChild);
+    $show = (id, n) => {
+        let e = $id(id);
+        while (e.firstChild) {
+            e.removeChild(e.lastChild);
         }
+        e.appendChild(n);
     }
-    $on = (name, event, callback) => {
-        $id(name).addEventListener(event, callback);
-    }
-    $show = (section, node) => {
-        $clear(section);
-        $id(section).appendChild(node);
-    }
-    $load = async (tpl_name, fn) => {
-        let loaded = false;
-
-        let tpl = $tpl(tpl_name);
+    $page = async (tpln, fn) => {
+        let tpl = $tpl(tpln);
 
         $show("header", tpl.querySelector(".header"));
 
         // Prevent rapid flashing
         let delay;
-        new Promise((resolve) => setTimeout(resolve, 100)).then(() => {
+        let loaded;
+        new Promise((res) => setTimeout(res, 100)).then(() => {
             if (!loaded) {
-                delay = new Promise((resolve) => setTimeout(resolve, 500));
+                delay = new Promise((res) => setTimeout(res, 500));
                 $show("content", $tpl("spinner"));
             }
         });
 
         let node = tpl.querySelector(".content");
-        await fn(node);
+        if (fn) await fn(node);
         loaded = true;
-
-        if (delay) {
-            await delay;
-        }
+        if (delay) await delay;
 
         $show("content", node);
+
+        $on("btn_nn", "click", $fe.nn);
+        $on("btn_back", "click", $fe.start);
     }
 
     $fe = {
-        start: () => $load('demo', async (tpl) => {
+        start: () => $page('demo', async (tpl) => {
             let demo = await fetch('/demo');
             let si = await fetch('/si');
 
             tpl.set("data", await demo.text());
             tpl.set("fw", await si.text());
-        })
+        }),
+
+        nn: () => $page('nn')
     };
 
-    $on("logo", "click", $fe.start);
     document.addEventListener("DOMContentLoaded", $fe.start);
 </script>
 
