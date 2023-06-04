@@ -4,21 +4,68 @@
 <head>
     <meta charset="UTF-8">
     <title>Hello Card/IO</title>
+    <style type="text/css">
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background-color: #f5f5f5;
+            font-size: 14px;
+        }
+
+        #container {
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+        }
+
+        .tpl {
+            display: none;
+        }
+    </style>
 </head>
 
 <body>
-    <h1 id="hello">Welcome</h1>
+    <div id="container"></div>
+
+    <div id="template-demo" class="tpl">
+        <h1>Welcome!</h1>
+        <p id="data"></p>
+    </div>
+
+    <div id="template-spinner" class="tpl">
+        <h1>Loading...</h1>
+    </div>
 </body>
 
 <script>
-    $id = function (id) {
-        return document.getElementById(id);
+    $id = (id) => document.getElementById(id);
+    $tpl = (id) => $id(id).cloneNode(true);
+    $clear = (name) => {
+        let elem = $id(name);
+        while (elem.firstChild) {
+            elem.removeChild(elem.lastChild);
+        }
+    }
+    $show = (tpl) => {
+        tpl.style.display = "block";
+        $id("container").appendChild(tpl);
+    }
+    $showSpinner = () => {
+        $clear("container");
+        $show($tpl("template-spinner"));
     }
     const $fe = (function () {
         return {
             load_demo: async function () {
+                $showSpinner();
+
+                $clear("container");
+                let tpl = $tpl("template-demo");
+
                 let res = await fetch('/demo');
-                $id('hello').innerHTML = await res.text();
+                tpl.querySelector("#data").innerHTML = await res.text();
+
+                $show(tpl);
                 console.log("Demo loaded");
             }
         };
