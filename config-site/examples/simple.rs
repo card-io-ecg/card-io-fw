@@ -30,6 +30,10 @@ pub async fn run() {
             "/demo",
             StaticHandler(&[], b"Hello, World!"),
         ))
+        .with_handler(RequestHandler::get(
+            "/si",
+            StaticHandler(&[], b"0.1.0-b66903b"),
+        ))
         .listen(&mut socket, 8080)
         .await;
 }

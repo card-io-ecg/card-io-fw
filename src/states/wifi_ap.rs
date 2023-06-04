@@ -1,7 +1,10 @@
 use core::future::Future;
 
 use bad_server::{
-    connector::Connection, handler::RequestHandler, request::Request, response::ResponseStatus,
+    connector::Connection,
+    handler::{RequestHandler, StaticHandler},
+    request::Request,
+    response::ResponseStatus,
     BadServer, HandleError, Header,
 };
 use config_site::INDEX_HANDLER;
@@ -228,6 +231,10 @@ async fn webserver_task(
                 .with_header_count::<48>()
                 .with_handler(RequestHandler::get("/", INDEX_HANDLER))
                 .with_handler(RequestHandler::get("/demo", DemoHandler))
+                .with_handler(RequestHandler::get(
+                    "/si",
+                    StaticHandler(&[], env!("FW_VERSION").as_bytes()),
+                ))
                 .listen(&mut socket, 8080)
                 .await;
         })

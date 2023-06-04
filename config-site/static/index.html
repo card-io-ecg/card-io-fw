@@ -12,7 +12,7 @@
             padding: 1em;
         }
 
-        #container {
+        #frame {
             margin: 0 auto;
             max-width: 800px;
             padding: 1em;
@@ -58,7 +58,7 @@
 </head>
 
 <body>
-    <div id="container">
+    <div id="frame">
         <div id="header-container">
             <span id="header"></span>
             <svg id="logo" viewBox="80 60 150 90" width="120" height="60">
@@ -75,81 +75,82 @@
     </div>
 
     <div id="demo" class="tpl">
-        <span class="header">
-            <h1>Welcome!</h1>
-        </span>
+        <h1 class="header">Welcome!</h1>
         <div class="content">
-            <p id="data"></p>
+            <span class="data"></span><br />
+            Firmware version: <span class="fw"></span>
         </div>
     </div>
 
-    <div id="template-spinner" class="tpl">
-        <span class="header">
-            <h1>Loading...</h1>
-        </span>
-        <div class="content center">
-            Loading...
-        </div>
+    <div id="spinner" class="content center tpl">
+        Loading...
     </div>
 </body>
 
 <script>
     $id = (id) => document.getElementById(id);
-    $tpl = (id) => $id(id).cloneNode(true);
+    $tpl = (id) => {
+        let tpl = $id(id).cloneNode(true);
+        tpl.style.display = "block";
+
+        let content = tpl.querySelector(".content");
+        if (content) {
+            content.set = (name, value) => {
+                let elem = tpl.querySelector("." + name);
+                elem.innerHTML = value;
+            }
+        }
+
+        return tpl;
+    }
     $clear = (name) => {
         let elem = $id(name);
         while (elem.firstChild) {
             elem.removeChild(elem.lastChild);
         }
     }
-    $dehydrate = (name) => {
-        $clear("header");
-        $clear("content");
-    }
-    $show = (tpl) => {
-        $dehydrate();
-        tpl.style.display = "block";
-        $id("header").appendChild(tpl.querySelector(".header"));
-        $id("content").appendChild(tpl.querySelector(".content"));
-    }
-    $showSpinner = () => {
-        $show($tpl("template-spinner"));
-    }
     $on = (name, event, callback) => {
         $id(name).addEventListener(event, callback);
     }
-    $load = async (fn) => {
+    $show = (section, node) => {
+        $clear(section);
+        $id(section).appendChild(node);
+    }
+    $load = async (tpl_name, fn) => {
         let loaded = false;
+
+        let tpl = $tpl(tpl_name);
+
+        $show("header", tpl.querySelector(".header"));
 
         // Prevent rapid flashing
         let delay;
         new Promise((resolve) => setTimeout(resolve, 100)).then(() => {
             if (!loaded) {
-                $showSpinner();
                 delay = new Promise((resolve) => setTimeout(resolve, 500));
+                $show("content", $tpl("spinner"));
             }
         });
 
-        let node = await fn();
+        let node = tpl.querySelector(".content");
+        await fn(node);
         loaded = true;
 
         if (delay) {
             await delay;
         }
 
-        $show(node);
+        $show("content", node);
     }
 
     $fe = {
-        start: async () => {
-            $load(async () => {
-                let res = await fetch('/demo');
+        start: () => $load('demo', async (tpl) => {
+            let demo = await fetch('/demo');
+            let si = await fetch('/si');
 
-                let tpl = $tpl("demo");
-                tpl.querySelector("#data").innerHTML = await res.text();
-                return tpl;
-            });
-        }
+            tpl.set("data", await demo.text());
+            tpl.set("fw", await si.text());
+        })
     };
 
     $on("logo", "click", $fe.start);
