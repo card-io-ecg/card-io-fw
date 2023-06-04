@@ -6,7 +6,7 @@
     <title>Card/IO configuration</title>
     <style type="text/css">
         body {
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: 'Segoe UI';
             background-color: #ddd;
             font-size: 14px;
             padding: 1em;
@@ -14,18 +14,41 @@
 
         #container {
             margin: 0 auto;
-            background-color: #eee;
-            border-radius: 1em;
             max-width: 800px;
-            padding: 2em;
+            padding: 1em;
+        }
+
+        #header h1,
+        #logo {
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        #header h1 {
+            margin: 0;
+            padding: 0;
+            font: 3em 'Segoe UI';
+            font-weight: normal;
+            color: #333;
+        }
+
+        #logo {
+            fill: #333;
+            stroke: #333;
+            font-family: 'Segoe UI';
+            float: right;
+            cursor: pointer;
         }
 
         #content {
-            margin: 2em 1em;
+            margin-top: 1em;
+            padding: 1em;
+            background-color: #eee;
+            border-radius: 1em;
         }
 
-        #footer {
-            color: #999;
+        .center {
+            text-align: center;
         }
 
         .tpl {
@@ -36,18 +59,37 @@
 
 <body>
     <div id="container">
-        <div id="header"><a id="logo">Header</a></div>
+        <div id="header-container">
+            <span id="header"></span>
+            <svg id="logo" viewBox="80 60 150 90" width="120" height="60">
+                <text style="font-size: 44px;" x="77.386" y="107" dx="0 0 0 0 9.302">Card
+                    IO</text>
+                <path style="fill-opacity: 0; stroke-linecap: round; stroke-linejoin: round; stroke-width: 3px;"
+                    d="M 80.55 113.063 L 170.418 112.824 L 178.571 74.279 L 187.51 138.286 L 192.926 112.422 L 228.61 112.497">
+                </path>
+                <text style="font-size: 20px;" x="110" y="137">2023</text>
+            </svg>
+        </div>
+
         <div id="content"></div>
-        <div id="footer">2023 Card/IO</div>
     </div>
 
-    <div id="template-demo" class="tpl">
-        <h1>Welcome!</h1>
-        <p id="data"></p>
+    <div id="demo" class="tpl">
+        <span class="header">
+            <h1>Welcome!</h1>
+        </span>
+        <div class="content">
+            <p id="data"></p>
+        </div>
     </div>
 
     <div id="template-spinner" class="tpl">
-        <h1>Loading...</h1>
+        <span class="header">
+            <h1>Loading...</h1>
+        </span>
+        <div class="content center">
+            Loading...
+        </div>
     </div>
 </body>
 
@@ -60,29 +102,53 @@
             elem.removeChild(elem.lastChild);
         }
     }
+    $dehydrate = (name) => {
+        $clear("header");
+        $clear("content");
+    }
     $show = (tpl) => {
+        $dehydrate();
         tpl.style.display = "block";
-        $id("content").appendChild(tpl);
+        $id("header").appendChild(tpl.querySelector(".header"));
+        $id("content").appendChild(tpl.querySelector(".content"));
     }
     $showSpinner = () => {
-        $clear("content");
         $show($tpl("template-spinner"));
     }
     $on = (name, event, callback) => {
         $id(name).addEventListener(event, callback);
     }
+    $load = async (fn) => {
+        let loaded = false;
+
+        // Prevent rapid flashing
+        let delay;
+        new Promise((resolve) => setTimeout(resolve, 100)).then(() => {
+            if (!loaded) {
+                $showSpinner();
+                delay = new Promise((resolve) => setTimeout(resolve, 500));
+            }
+        });
+
+        let node = await fn();
+        loaded = true;
+
+        if (delay) {
+            await delay;
+        }
+
+        $show(node);
+    }
 
     $fe = {
         start: async () => {
-            $showSpinner();
+            $load(async () => {
+                let res = await fetch('/demo');
 
-            let res = await fetch('/demo');
-
-            let tpl = $tpl("template-demo");
-            tpl.querySelector("#data").innerHTML = await res.text();
-
-            $clear("content");
-            $show(tpl);
+                let tpl = $tpl("demo");
+                tpl.querySelector("#data").innerHTML = await res.text();
+                return tpl;
+            });
         }
     };
 
