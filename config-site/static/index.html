@@ -3,19 +3,29 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Hello Card/IO</title>
+    <title>Card/IO configuration</title>
     <style type="text/css">
         body {
             font-family: Arial, Helvetica, sans-serif;
-            background-color: #f5f5f5;
+            background-color: #ddd;
             font-size: 14px;
+            padding: 1em;
         }
 
         #container {
-            width: 100%;
-            height: 100%;
-            top: 0;
-            left: 0;
+            margin: 0 auto;
+            background-color: #eee;
+            border-radius: 1em;
+            max-width: 800px;
+            padding: 2em;
+        }
+
+        #content {
+            margin: 2em 1em;
+        }
+
+        #footer {
+            color: #999;
         }
 
         .tpl {
@@ -25,7 +35,11 @@
 </head>
 
 <body>
-    <div id="container"></div>
+    <div id="container">
+        <div id="header"><a id="logo">Header</a></div>
+        <div id="content"></div>
+        <div id="footer">2023 Card/IO</div>
+    </div>
 
     <div id="template-demo" class="tpl">
         <h1>Welcome!</h1>
@@ -48,32 +62,32 @@
     }
     $show = (tpl) => {
         tpl.style.display = "block";
-        $id("container").appendChild(tpl);
+        $id("content").appendChild(tpl);
     }
     $showSpinner = () => {
-        $clear("container");
+        $clear("content");
         $show($tpl("template-spinner"));
     }
-    const $fe = (function () {
-        return {
-            load_demo: async function () {
-                $showSpinner();
+    $on = (name, event, callback) => {
+        $id(name).addEventListener(event, callback);
+    }
 
-                $clear("container");
-                let tpl = $tpl("template-demo");
+    $fe = {
+        start: async () => {
+            $showSpinner();
 
-                let res = await fetch('/demo');
-                tpl.querySelector("#data").innerHTML = await res.text();
+            let res = await fetch('/demo');
 
-                $show(tpl);
-                console.log("Demo loaded");
-            }
-        };
-    })();
+            let tpl = $tpl("template-demo");
+            tpl.querySelector("#data").innerHTML = await res.text();
 
-    document.addEventListener("DOMContentLoaded", async function (event) {
-        await $fe.load_demo();
-    });
+            $clear("content");
+            $show(tpl);
+        }
+    };
+
+    $on("logo", "click", $fe.start);
+    document.addEventListener("DOMContentLoaded", $fe.start);
 </script>
 
 </html>
