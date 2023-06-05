@@ -79,8 +79,13 @@
         <div class="content">
             <span class="data"></span><br />
             Firmware version: <span class="fw"></span>
+            Known networks: <span class="kn"></span>
             <!--button id="btn_nn">Add network</button-->
         </div>
+    </div>
+
+    <div id="network" class="tpl">
+        Known network <span class="data"></span>
     </div>
 
     <div id="nn" class="tpl">
@@ -104,13 +109,34 @@
 
 <script>
     $id = (id) => document.getElementById(id);
-    $on = (id, evt, cb) => $id(id).addEventListener(evt, cb);
+    $on = (id, evt, cb) => {
+        let c = $id(id);
+        if (c) c.addEventListener(evt, cb);
+    }
     $tpl = (id) => {
         let tpl = $id(id).cloneNode(true);
-        tpl.style.display = "block";
+        tpl.classList.remove("tpl");
 
         let c = tpl.querySelector(".content");
-        if (c) c.set = (name, value) => tpl.querySelector("." + name).innerHTML = value;
+        if (c) {
+            c.set = (name, value) => {
+                // TODO: support multiple fields
+                tpl.querySelector("." + name).innerHTML = value;
+            }
+            c.set_list = (name, item_tpl, value) => {
+                // value is a newline-delimited list of items
+                // TODO: support multiple fields
+                let item_template = $tpl(item_tpl);
+                let list_node = tpl.querySelector("." + name);
+
+                let lines = value.split("\n");
+                for (let line of lines) {
+                    let node = item_template.cloneNode(true);
+                    node.querySelector(".data").innerHTML = line;
+                    list_node.appendChild(node);
+                }
+            }
+        }
 
         return tpl;
     }
@@ -150,10 +176,12 @@
     $fe = {
         start: () => $page('demo', async (tpl) => {
             let demo = await fetch('/demo');
-            let si = await fetch('/si');
+            let system_info = await fetch('/si');
+            let known_networks = await fetch('/kn');
 
             tpl.set("data", await demo.text());
-            tpl.set("fw", await si.text());
+            tpl.set("fw", await system_info.text());
+            tpl.set_list("kn", "network", await known_networks.text());
         }),
 
         nn: () => $page('nn')

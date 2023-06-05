@@ -34,6 +34,10 @@ pub async fn run() {
             "/si",
             StaticHandler(&[], b"0.1.0-b66903b"),
         ))
+        .with_handler(RequestHandler::get(
+            "/kn",
+            StaticHandler(&[], b"Network1\nNetwork2\nNetwork3"),
+        ))
         .listen(&mut socket, 8080)
         .await;
 }
