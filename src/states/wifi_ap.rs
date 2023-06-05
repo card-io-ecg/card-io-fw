@@ -7,7 +7,7 @@ use bad_server::{
     response::ResponseStatus,
     BadServer, HandleError, Header,
 };
-use config_site::INDEX_HANDLER;
+use config_site::{HEADER_FONT, INDEX_HANDLER};
 use embassy_executor::Spawner;
 use embassy_futures::{join::join, select::select};
 use embassy_net::{
@@ -230,10 +230,15 @@ async fn webserver_task(
                 .with_request_buffer_size::<2048>()
                 .with_header_count::<48>()
                 .with_handler(RequestHandler::get("/", INDEX_HANDLER))
+                .with_handler(RequestHandler::get("/font", HEADER_FONT))
                 .with_handler(RequestHandler::get("/demo", DemoHandler))
                 .with_handler(RequestHandler::get(
                     "/si",
                     StaticHandler(&[], env!("FW_VERSION").as_bytes()),
+                ))
+                .with_handler(RequestHandler::get(
+                    "/kn",
+                    StaticHandler(&[], b"Network1\nNetwork2\nNetwork3"),
                 ))
                 .listen(&mut socket, 8080)
                 .await;

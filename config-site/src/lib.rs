@@ -9,3 +9,14 @@ pub const INDEX_HANDLER: StaticHandler = StaticHandler(
     }],
     include_bytes!(concat!(env!("COMPRESS_OUT_DIR"), "/static/index.html.gz")),
 );
+
+pub const HEADER_FONT: StaticHandler = StaticHandler(
+    &[Header {
+        name: "Content-Encoding",
+        value: b"gzip",
+    }],
+    include_bytes!(concat!(
+        env!("COMPRESS_OUT_DIR"),
+        "/static/Poppins-Bold.ttf.gz"
+    )),
+);

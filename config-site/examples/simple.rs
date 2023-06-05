@@ -6,7 +6,7 @@ use bad_server::{
     handler::{RequestHandler, StaticHandler},
     BadServer,
 };
-use config_site::INDEX_HANDLER;
+use config_site::{HEADER_FONT, INDEX_HANDLER};
 use log::LevelFilter;
 
 fn main() {
@@ -26,6 +26,7 @@ pub async fn run() {
         .with_request_buffer_size::<2048>()
         .with_header_count::<48>()
         .with_handler(RequestHandler::get("/", INDEX_HANDLER))
+        .with_handler(RequestHandler::get("/font", HEADER_FONT))
         .with_handler(RequestHandler::get(
             "/demo",
             StaticHandler(&[], b"Hello, World!"),
