@@ -1,9 +1,11 @@
 use embedded_graphics::{
+    image::Image,
     pixelcolor::BinaryColor,
     prelude::{DrawTarget, Point},
     Drawable,
 };
 use embedded_layout::prelude::{horizontal, vertical, Align};
+use tinybmp::Bmp;
 
 use crate::{
     screens::BatteryInfo,
@@ -32,6 +34,11 @@ impl Drawable for StartupScreen<'_> {
             max_progress: self.max_progress,
         }
         .draw(display)?;
+
+        let logo = include_bytes!("../static/logo.bmp");
+        let bmp = Bmp::from_slice(logo).unwrap();
+
+        Image::new(&bmp, Point::new(1, 12)).draw(display)?;
 
         if let Some(data) = self.battery_data {
             Battery {
