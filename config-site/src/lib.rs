@@ -17,6 +17,6 @@ pub const HEADER_FONT: StaticHandler = StaticHandler(
     }],
     include_bytes!(concat!(
         env!("COMPRESS_OUT_DIR"),
-        "/static/Poppins-Bold.ttf.gz"
+        "/static/Poppins-Regular.ttf.gz"
     )),
 );
