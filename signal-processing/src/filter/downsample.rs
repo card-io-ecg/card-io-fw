@@ -1,6 +1,6 @@
 use super::{fir::Fir, Filter};
 
-const COEFFS: [f32; 43] = [
+const COEFFS: &[f32; 43] = &[
     0.001_896_49,
     0.001_427_698_3,
     -0.005_418_506_5,
@@ -54,7 +54,7 @@ pub struct DownSampler {
 impl DownSampler {
     pub fn new() -> Self {
         Self {
-            filter: Fir::from_coeffs(&COEFFS),
+            filter: Fir::from_coeffs(COEFFS),
             output_next: false,
         }
     }
