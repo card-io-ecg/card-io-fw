@@ -1,3 +1,4 @@
+pub mod cache;
 pub mod ram;
 
 fn size_to_bytes(size: usize) -> u32 {
