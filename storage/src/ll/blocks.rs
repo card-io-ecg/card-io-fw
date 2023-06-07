@@ -5,6 +5,8 @@ pub struct BlockHeader {
     erase_count: u32,
 }
 impl BlockHeader {
+    const HEADER_BYTES: usize = 8;
+
     async fn read<M: StorageMedium>(medium: &mut M, block: usize) -> Result<Self, ()> {
         let mut header_bytes = [0; 4];
         let mut erase_count_bytes = [0; 4];
@@ -34,6 +36,14 @@ impl BlockHeader {
 
         Ok(())
     }
+
+    fn is_empty(&self) -> bool {
+        self.header == u32::MAX && self.erase_count == u32::MAX
+    }
+
+    fn is_expected<M: StorageMedium>(&self) -> bool {
+        self.header == M::block_header()
+    }
 }
 
 pub(crate) struct BlockOps<'a, M> {
@@ -45,19 +55,23 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         Self { medium }
     }
 
-    pub async fn is_block_empty(&mut self, block: usize, offset: usize) -> Result<bool, ()> {
+    pub async fn is_block_data_empty(&mut self, block: usize) -> Result<bool, ()> {
         fn is_written(byte: &u8) -> bool {
             *byte != 0xFF
         }
 
         let mut buffer = [0; 4];
 
-        debug_assert!(M::BLOCK_SIZE % buffer.len() == 0);
-        debug_assert!(offset % buffer.len() == 0);
+        let block_data_size = M::BLOCK_SIZE - BlockHeader::HEADER_BYTES;
 
-        for offset in (offset..M::BLOCK_SIZE).step_by(buffer.len()) {
-            self.medium.read(block, offset, &mut buffer).await?;
+        for offset in (0..block_data_size).step_by(buffer.len()) {
+            let remaining_bytes = block_data_size - offset;
+            let len = remaining_bytes.min(buffer.len());
 
+            let buffer = &mut buffer[0..len];
+
+            // TODO: impl should cache consecutive small reads
+            self.read_data(block, offset, buffer).await?;
             if buffer.iter().any(is_written) {
                 return Ok(false);
             }
@@ -76,20 +90,23 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         let mut erase = true;
         let mut new_erase_count = 0;
 
-        if header.header == u32::MAX {
-            if self.is_block_empty(block, 0).await? {
+        if header.is_empty() {
+            if self.is_block_data_empty(block).await? {
                 erase = false;
             }
-        } else if header.header == M::block_header() {
-            if self.is_block_empty(block, 8).await? {
+        } else if header.is_expected::<M>() {
+            if self.is_block_data_empty(block).await? {
                 // Block is already formatted
                 return Ok(());
             }
-            if header.erase_count == u32::MAX {
-                // We can't erase this block, because it has reached the maximum erase count
-                return Err(());
+
+            new_erase_count = match header.erase_count.checked_add(1) {
+                Some(count) => count,
+                None => {
+                    // We can't erase this block, because it has reached the maximum erase count
+                    return Err(());
+                }
             }
-            new_erase_count = header.erase_count + 1;
         }
 
         if erase {
@@ -110,7 +127,9 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
     }
 
     pub async fn write_data(&mut self, block: usize, offset: usize, data: &[u8]) -> Result<(), ()> {
-        self.medium.write(block, offset + 8, data).await
+        self.medium
+            .write(block, offset + BlockHeader::HEADER_BYTES, data)
+            .await
     }
 
     pub async fn read_data(
@@ -119,7 +138,9 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         offset: usize,
         data: &mut [u8],
     ) -> Result<(), ()> {
-        self.medium.read(block, offset + 8, data).await
+        self.medium
+            .read(block, offset + BlockHeader::HEADER_BYTES, data)
+            .await
     }
 }
 
