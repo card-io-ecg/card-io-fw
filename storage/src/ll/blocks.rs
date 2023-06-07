@@ -27,14 +27,18 @@ impl BlockHeader {
         }
     }
 
+    fn into_bytes(self) -> [u8; Self::HEADER_BYTES] {
+        let mut bytes = [0; Self::HEADER_BYTES];
+
+        bytes[0..4].copy_from_slice(&self.header.to_le_bytes());
+        bytes[4..8].copy_from_slice(&self.erase_count.to_le_bytes());
+
+        bytes
+    }
+
     async fn write<M: StorageMedium>(self, block: usize, medium: &mut M) -> Result<(), ()> {
-        let header_bytes = self.header.to_le_bytes();
-        let erase_count_bytes = self.erase_count.to_le_bytes();
-
-        medium.write(block, 0, &header_bytes).await?;
-        medium.write(block, 4, &erase_count_bytes).await?;
-
-        Ok(())
+        let bytes = self.into_bytes();
+        medium.write(block, 0, &bytes).await
     }
 
     fn is_empty(&self) -> bool {
