@@ -34,8 +34,8 @@ impl<const STORAGE_SIZE: usize, const BLOCK_SIZE: usize> StorageMedium
     }
 
     async fn read(&mut self, block: usize, offset: usize, data: &mut [u8]) -> Result<(), ()> {
-        let offset = Self::offset(block, offset);
         assert!(offset + data.len() <= Self::BLOCK_SIZE);
+        let offset = Self::offset(block, offset);
 
         data.copy_from_slice(&self.data[offset..offset + data.len()]);
 
@@ -43,8 +43,8 @@ impl<const STORAGE_SIZE: usize, const BLOCK_SIZE: usize> StorageMedium
     }
 
     async fn write(&mut self, block: usize, offset: usize, data: &[u8]) -> Result<(), ()> {
-        let offset = Self::offset(block, offset);
         assert!(offset + data.len() <= Self::BLOCK_SIZE);
+        let offset = Self::offset(block, offset);
 
         for (src, dst) in data.iter().zip(self.data[offset..].iter_mut()) {
             *dst &= *src;

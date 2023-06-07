@@ -10,7 +10,7 @@ fn size_to_bytes(size: usize) -> u32 {
     }
 }
 
-trait StoragePrivate: StorageMedium {
+pub(crate) trait StoragePrivate: StorageMedium {
     fn block_size_bytes() -> u32 {
         size_to_bytes(Self::BLOCK_SIZE)
     }
