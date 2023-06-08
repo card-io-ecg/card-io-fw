@@ -1,13 +1,16 @@
+use core::marker::PhantomData;
+
 use crate::medium::{StorageMedium, StoragePrivate};
 
-pub struct BlockHeader {
+pub struct BlockHeader<M: StorageMedium> {
     header: u32,
     erase_count: u32,
+    _medium: PhantomData<M>,
 }
-impl BlockHeader {
-    const HEADER_BYTES: usize = 8;
+const HEADER_BYTES: usize = 8;
 
-    async fn read<M: StorageMedium>(medium: &mut M, block: usize) -> Result<Self, ()> {
+impl<M: StorageMedium> BlockHeader<M> {
+    async fn read(medium: &mut M, block: usize) -> Result<Self, ()> {
         let mut header_bytes = [0; 4];
         let mut erase_count_bytes = [0; 4];
 
@@ -17,18 +20,20 @@ impl BlockHeader {
         Ok(Self {
             header: u32::from_le_bytes(header_bytes),
             erase_count: u32::from_le_bytes(erase_count_bytes),
+            _medium: PhantomData,
         })
     }
 
-    fn new<M: StorageMedium>(new_erase_count: u32) -> Self {
+    fn new(new_erase_count: u32) -> Self {
         Self {
             header: M::block_header(),
             erase_count: new_erase_count,
+            _medium: PhantomData,
         }
     }
 
-    fn into_bytes(self) -> [u8; Self::HEADER_BYTES] {
-        let mut bytes = [0; Self::HEADER_BYTES];
+    fn into_bytes(self) -> [u8; HEADER_BYTES] {
+        let mut bytes = [0; HEADER_BYTES];
 
         bytes[0..4].copy_from_slice(&self.header.to_le_bytes());
         bytes[4..8].copy_from_slice(&self.erase_count.to_le_bytes());
@@ -36,7 +41,7 @@ impl BlockHeader {
         bytes
     }
 
-    async fn write<M: StorageMedium>(self, block: usize, medium: &mut M) -> Result<(), ()> {
+    async fn write(self, block: usize, medium: &mut M) -> Result<(), ()> {
         let bytes = self.into_bytes();
         medium.write(block, 0, &bytes).await
     }
@@ -45,7 +50,7 @@ impl BlockHeader {
         self.header == u32::MAX && self.erase_count == u32::MAX
     }
 
-    fn is_expected<M: StorageMedium>(&self) -> bool {
+    fn is_expected(&self) -> bool {
         self.header == M::block_header()
     }
 }
@@ -66,7 +71,7 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
 
         let mut buffer = [0; 4];
 
-        let block_data_size = M::BLOCK_SIZE - BlockHeader::HEADER_BYTES;
+        let block_data_size = M::BLOCK_SIZE - HEADER_BYTES;
 
         for offset in (0..block_data_size).step_by(buffer.len()) {
             let remaining_bytes = block_data_size - offset;
@@ -84,7 +89,7 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         Ok(true)
     }
 
-    pub async fn read_header(&mut self, block: usize) -> Result<BlockHeader, ()> {
+    pub async fn read_header(&mut self, block: usize) -> Result<BlockHeader<M>, ()> {
         BlockHeader::read(self.medium, block).await
     }
 
@@ -98,7 +103,7 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
             if self.is_block_data_empty(block).await? {
                 erase = false;
             }
-        } else if header.is_expected::<M>() {
+        } else if header.is_expected() {
             if self.is_block_data_empty(block).await? {
                 // Block is already formatted
                 return Ok(());
@@ -117,7 +122,7 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
             self.medium.erase(block).await?;
         }
 
-        BlockHeader::new::<M>(new_erase_count)
+        BlockHeader::new(new_erase_count)
             .write(block, self.medium)
             .await
     }
@@ -131,9 +136,7 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
     }
 
     pub async fn write_data(&mut self, block: usize, offset: usize, data: &[u8]) -> Result<(), ()> {
-        self.medium
-            .write(block, offset + BlockHeader::HEADER_BYTES, data)
-            .await
+        self.medium.write(block, offset + HEADER_BYTES, data).await
     }
 
     pub async fn read_data(
@@ -142,9 +145,7 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         offset: usize,
         data: &mut [u8],
     ) -> Result<(), ()> {
-        self.medium
-            .read(block, offset + BlockHeader::HEADER_BYTES, data)
-            .await
+        self.medium.read(block, offset + HEADER_BYTES, data).await
     }
 }
 
