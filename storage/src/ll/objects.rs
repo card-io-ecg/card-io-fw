@@ -1,7 +1,7 @@
-use crate::medium::{StorageMedium, StoragePrivate};
+use crate::medium::{StorageMedium, StoragePrivate, WriteGranularity};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum ObjectState {
+pub enum ObjectState {
     Free, // Implicit
     Allocated,
     Finalized,
@@ -9,6 +9,15 @@ enum ObjectState {
 }
 
 impl ObjectState {
+    const FREE_WORDS: &[u8] = &[0xFF; 12];
+    const ALLOCATED_WORDS: &[u8] = &[
+        0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    ];
+    const FINALIZED_WORDS: &[u8] = &[
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF,
+    ];
+    const DELETED_WORDS: &[u8] = &[0; 12];
+
     fn is_free(self) -> bool {
         matches!(self, ObjectState::Free)
     }
@@ -41,7 +50,7 @@ impl ObjectState {
         }
     }
 
-    fn from_bits(self, bits: u8) -> Result<Self, ()> {
+    fn from_bits(bits: u8) -> Result<Self, ()> {
         match bits {
             0xFF => Ok(ObjectState::Free),
             0xFE => Ok(ObjectState::Allocated),
@@ -51,22 +60,45 @@ impl ObjectState {
         }
     }
 
-    fn into_words(self) -> [u32; 3] {
+    fn into_words(self) -> &'static [u8] {
         match self {
-            Self::Free => [0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF],
-            Self::Allocated => [0x00000000, 0xFFFFFFFF, 0xFFFFFFFF],
-            Self::Finalized => [0x00000000, 0x00000000, 0xFFFFFFFF],
-            Self::Deleted => [0x00000000, 0x00000000, 0x00000000],
+            Self::Free => Self::FREE_WORDS,
+            Self::Allocated => Self::ALLOCATED_WORDS,
+            Self::Finalized => Self::FINALIZED_WORDS,
+            Self::Deleted => Self::DELETED_WORDS,
         }
     }
 
-    fn from_words(self, words: [u32; 3]) -> Result<Self, ()> {
+    fn from_words(words: &[u8]) -> Result<Self, ()> {
         match words {
-            [0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF] => Ok(Self::Free),
-            [0x00000000, 0xFFFFFFFF, 0xFFFFFFFF] => Ok(Self::Allocated),
-            [0x00000000, 0x00000000, 0xFFFFFFFF] => Ok(Self::Finalized),
-            [0x00000000, 0x00000000, 0x00000000] => Ok(Self::Deleted),
+            Self::FREE_WORDS => Ok(Self::Free),
+            Self::ALLOCATED_WORDS => Ok(Self::Allocated),
+            Self::FINALIZED_WORDS => Ok(Self::Finalized),
+            Self::DELETED_WORDS => Ok(Self::Deleted),
             _ => Err(()),
+        }
+    }
+
+    async fn write<M: StorageMedium>(
+        self,
+        location: ObjectLocation,
+        medium: &mut M,
+    ) -> Result<(), ()> {
+        match M::WRITE_GRANULARITY {
+            WriteGranularity::Bit => {
+                let new_state = self.into_bits();
+
+                medium
+                    .write(location.block, location.offset, &[new_state])
+                    .await
+            }
+            WriteGranularity::Word => {
+                let new_state = self.into_words();
+
+                medium
+                    .write(location.block, location.offset, new_state)
+                    .await
+            }
         }
     }
 }
@@ -125,7 +157,46 @@ impl ObjectLocation {
 
 struct ObjectHeader {
     state: ObjectState,
-    object_size: u32, // At most block size
+    object_size: usize, // At most block size
+}
+
+impl ObjectHeader {
+    pub async fn read<M: StorageMedium>(
+        location: ObjectLocation,
+        medium: &mut M,
+    ) -> Result<Self, ()> {
+        match M::WRITE_GRANULARITY {
+            WriteGranularity::Bit => {
+                let mut header_bytes = [0; 5];
+
+                medium
+                    .read(location.block, location.offset, &mut header_bytes)
+                    .await?;
+
+                let (state_bytes, size_bytes) = header_bytes.split_at(1);
+
+                let state = ObjectState::from_bits(state_bytes[0])?;
+                let object_size = usize::from_le_bytes(size_bytes.try_into().unwrap());
+
+                Ok(Self { state, object_size })
+            }
+
+            WriteGranularity::Word => {
+                let mut header_bytes = [0; 16];
+
+                medium
+                    .read(location.block, location.offset, &mut header_bytes)
+                    .await?;
+
+                let (state_bytes, size_bytes) = header_bytes.split_at(12);
+
+                let state = ObjectState::from_words(state_bytes)?;
+                let object_size = usize::from_le_bytes(size_bytes.try_into().unwrap());
+
+                Ok(Self { state, object_size })
+            }
+        }
+    }
 }
 
 // Object payload contains a list of object locations.
@@ -137,4 +208,183 @@ pub struct MetadataObjectHeader {
 // Object payload contains a chunk of data.
 pub struct DataObjectHeader {
     object: ObjectHeader,
+}
+
+pub struct ObjectWriter<'a, M: StorageMedium> {
+    location: ObjectLocation,
+    object: ObjectHeader,
+    cursor: usize,
+    medium: &'a mut M,
+}
+
+impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
+    pub async fn new(location: ObjectLocation, medium: &'a mut M) -> Result<Self, ()> {
+        // We read back the header to ensure that the object is in a valid state.
+        let object = ObjectHeader::read(location, medium).await?;
+
+        if object.state == ObjectState::Allocated {
+            // This is most likely a power loss or a bug.
+            return Err(());
+        }
+
+        Ok(Self {
+            location,
+            object,
+            cursor: 0,
+            medium,
+        })
+    }
+
+    pub async fn allocate(&mut self) -> Result<(), ()> {
+        self.set_state(ObjectState::Allocated).await
+    }
+
+    pub fn space(&self) -> usize {
+        let write_offset = self.cursor + self.location.offset;
+
+        M::BLOCK_SIZE - write_offset
+    }
+
+    pub async fn write(&mut self, data: &[u8]) -> Result<(), ()> {
+        if self.object.state != ObjectState::Allocated {
+            return Err(());
+        }
+
+        if self.space() < data.len() {
+            // TODO once we can search for free space
+            // delete current object
+            // try to allocate new object with appropriate size
+            // copy previous contents to new location
+            return Err(());
+        }
+
+        self.medium
+            .write(
+                self.location.block,
+                self.location.offset + self.cursor,
+                data,
+            )
+            .await?;
+
+        self.cursor += data.len();
+
+        Ok(())
+    }
+
+    async fn write_size(&mut self) -> Result<(), ()> {
+        ObjectOps {
+            medium: self.medium,
+        }
+        .set_payload_size(self.location, self.cursor)
+        .await
+    }
+
+    async fn set_state(&mut self, state: ObjectState) -> Result<(), ()> {
+        self.object.state = state;
+        ObjectOps {
+            medium: self.medium,
+        }
+        .update_state(self.location, state)
+        .await
+    }
+
+    pub async fn finalize(mut self) -> Result<(), ()> {
+        if self.object.state != ObjectState::Allocated {
+            return Err(());
+        }
+
+        // must be two different writes for powerloss safety
+        self.write_size().await?;
+        self.set_state(ObjectState::Finalized).await
+    }
+
+    pub async fn delete(mut self) -> Result<(), ()> {
+        if let ObjectState::Free | ObjectState::Deleted = self.object.state {
+            return Ok(());
+        }
+
+        if self.object.state == ObjectState::Allocated {
+            self.write_size().await?;
+        }
+
+        self.set_state(ObjectState::Deleted).await
+    }
+}
+
+pub struct ObjectReader<'a, M: StorageMedium> {
+    location: ObjectLocation,
+    object: ObjectHeader,
+    cursor: usize,
+    medium: &'a mut M,
+}
+
+impl<'a, M: StorageMedium> ObjectReader<'a, M> {
+    pub async fn new(location: ObjectLocation, medium: &'a mut M) -> Result<Self, ()> {
+        // We read back the header to ensure that the object is in a valid state.
+        let object = ObjectHeader::read(location, medium).await?;
+
+        if object.state != ObjectState::Finalized {
+            // We can only read data from finalized objects.
+            return Err(());
+        }
+
+        Ok(Self {
+            location,
+            object,
+            cursor: 0,
+            medium,
+        })
+    }
+
+    pub fn remaining(&self) -> usize {
+        let read_offset = self.object.object_size - self.cursor;
+
+        M::BLOCK_SIZE - read_offset
+    }
+
+    pub fn rewind(&mut self) {
+        self.cursor = 0;
+    }
+
+    pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize, ()> {
+        let read_offset = self.location.offset + self.cursor;
+        let read_size = buf.len().min(self.remaining());
+
+        self.medium
+            .read(self.location.block, read_offset, &mut buf[0..read_size])
+            .await?;
+
+        self.cursor += read_size;
+
+        Ok(read_size)
+    }
+}
+
+pub(crate) struct ObjectOps<'a, M> {
+    medium: &'a mut M,
+}
+
+impl<'a, M: StorageMedium> ObjectOps<'a, M> {
+    pub async fn update_state(
+        &mut self,
+        location: ObjectLocation,
+        state: ObjectState,
+    ) -> Result<(), ()> {
+        if state.is_free() {
+            return Err(());
+        }
+
+        state.write(location, self.medium).await
+    }
+
+    async fn set_payload_size(
+        &mut self,
+        location: ObjectLocation,
+        cursor: usize,
+    ) -> Result<(), ()> {
+        let bytes = (cursor as u32).to_le_bytes();
+        let offset = M::object_status_bytes();
+
+        self.medium.write(location.block, offset, &bytes).await
+    }
 }
