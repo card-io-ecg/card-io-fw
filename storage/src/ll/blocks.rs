@@ -17,15 +17,18 @@ enum BlockHeaderKind {
 
 impl BlockHeaderKind {
     fn from_bytes<M: StorageMedium>(header_bytes: [u8; 4]) -> BlockHeaderKind {
-        if header_bytes == Self::Known(BlockType::Data).to_le_bytes::<M>() {
-            Self::Known(BlockType::Data)
-        } else if header_bytes == Self::Known(BlockType::Metadata).to_le_bytes::<M>() {
-            Self::Known(BlockType::Metadata)
-        } else if header_bytes == Self::Empty.to_le_bytes::<M>() {
-            Self::Empty
-        } else {
-            Self::Unknown
+        let options = [
+            Self::Known(BlockType::Data),
+            Self::Known(BlockType::Metadata),
+            Self::Empty,
+        ];
+        for option in options.iter() {
+            if header_bytes == option.to_le_bytes::<M>() {
+                return *option;
+            }
         }
+
+        Self::Unknown
     }
 
     fn to_le_bytes<M: StorageMedium>(self) -> [u8; 4] {
