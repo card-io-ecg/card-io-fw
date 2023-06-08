@@ -1,6 +1,17 @@
 use core::marker::PhantomData;
 
-use crate::medium::{StorageMedium, StoragePrivate};
+use crate::medium::{StorageMedium, StoragePrivate, WriteGranularity};
+
+enum BlockType {
+    Metadata,
+    Data,
+}
+
+enum BlockHeaderKind {
+    Empty,
+    Unknown,
+    Known(BlockType),
+}
 
 pub struct BlockHeader<M: StorageMedium> {
     header: u32,
@@ -26,10 +37,25 @@ impl<M: StorageMedium> BlockHeader<M> {
 
     fn new(new_erase_count: u32) -> Self {
         Self {
-            header: M::block_header(),
+            header: Self::block_header(),
             erase_count: new_erase_count,
             _medium: PhantomData,
         }
+    }
+
+    // TODO add block type
+    fn block_header() -> u32 {
+        // 2 bytes constant (FS version)
+        0xBA01 << 16
+        // 1 byte layout info
+            | M::block_size_bytes() << 14 // 2 bits
+            | M::block_count_bytes() << 10 // 4 bits
+            | match M::WRITE_GRANULARITY {
+                WriteGranularity::Bit => 0,
+                WriteGranularity::Word => 1,
+            } << 8 // 1 bit
+
+        // 1 byte reserved
     }
 
     fn into_bytes(self) -> [u8; HEADER_BYTES] {
@@ -51,7 +77,7 @@ impl<M: StorageMedium> BlockHeader<M> {
     }
 
     fn is_expected(&self) -> bool {
-        self.header == M::block_header()
+        self.header == Self::block_header()
     }
 }
 

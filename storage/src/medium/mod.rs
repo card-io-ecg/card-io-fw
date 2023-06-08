@@ -19,20 +19,6 @@ pub(crate) trait StoragePrivate: StorageMedium {
     fn block_count_bytes() -> u32 {
         size_to_bytes(Self::BLOCK_COUNT)
     }
-
-    fn block_header() -> u32 {
-        // 2 bytes constant (FS version)
-        0xBA01 << 16
-        // 1 byte layout info
-            | Self::block_size_bytes() << 14 // 2 bits
-            | Self::block_count_bytes() << 10 // 4 bits
-            | match Self::WRITE_GRANULARITY {
-                WriteGranularity::Bit => 0,
-                WriteGranularity::Word => 1,
-            } << 8 // 1 bit
-
-        // 1 byte reserved
-    }
 }
 
 impl<T> StoragePrivate for T where T: StorageMedium {}
