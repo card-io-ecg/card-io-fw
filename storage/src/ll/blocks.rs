@@ -2,19 +2,92 @@ use core::marker::PhantomData;
 
 use crate::medium::{StorageMedium, StoragePrivate, WriteGranularity};
 
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub enum BlockType {
     Metadata,
     Data,
 }
 
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
 enum BlockHeaderKind {
     Empty,
     Unknown,
     Known(BlockType),
 }
 
+impl BlockHeaderKind {
+    fn from_bytes<M: StorageMedium>(header_bytes: [u8; 4]) -> BlockHeaderKind {
+        if header_bytes == Self::Known(BlockType::Data).to_le_bytes::<M>() {
+            Self::Known(BlockType::Data)
+        } else if header_bytes == Self::Known(BlockType::Metadata).to_le_bytes::<M>() {
+            Self::Known(BlockType::Metadata)
+        } else if header_bytes == Self::Empty.to_le_bytes::<M>() {
+            Self::Empty
+        } else {
+            Self::Unknown
+        }
+    }
+
+    fn to_le_bytes<M: StorageMedium>(self) -> [u8; 4] {
+        let header = match self {
+            BlockHeaderKind::Known(ty) => {
+                let fs_info = 0xBA01_0000; // 2 bytes constant
+
+                let layout_info = M::block_size_bytes() << 14 // 2 bits
+                | M::block_count_bytes() << 10 // 4 bits
+                | match M::WRITE_GRANULARITY {
+                    WriteGranularity::Bit => 0,
+                    WriteGranularity::Word => 1,
+                } << 8; // 1 bit
+
+                let blk_ty = match ty {
+                    BlockType::Metadata => 0x55,
+                    BlockType::Data => 0xaa,
+                };
+
+                fs_info | layout_info | blk_ty
+            }
+            BlockHeaderKind::Empty | BlockHeaderKind::Unknown => u32::MAX,
+        };
+
+        header.to_le_bytes()
+    }
+
+    /// Returns `true` if the block header kind is [`Empty`].
+    ///
+    /// [`Empty`]: BlockHeaderKind::Empty
+    #[must_use]
+    fn is_empty(self) -> bool {
+        matches!(self, Self::Empty)
+    }
+
+    /// Returns `true` if the block header kind is [`Known`].
+    ///
+    /// [`Known`]: BlockHeaderKind::Known
+    #[must_use]
+    fn is_known(self) -> bool {
+        matches!(self, Self::Known(..))
+    }
+
+    /// Returns `true` if the block header kind is [`Unknown`].
+    ///
+    /// [`Unknown`]: BlockHeaderKind::Unknown
+    #[must_use]
+    fn is_unknown(self) -> bool {
+        matches!(self, Self::Unknown)
+    }
+
+    fn as_known(self) -> Option<BlockType> {
+        if let Self::Known(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+}
+
 pub struct BlockHeader<M: StorageMedium> {
-    header: u32,
+    header: BlockHeaderKind,
     erase_count: u32,
     _medium: PhantomData<M>,
 }
@@ -29,7 +102,7 @@ impl<M: StorageMedium> BlockHeader<M> {
         medium.read(block, 4, &mut erase_count_bytes).await?;
 
         Ok(Self {
-            header: u32::from_le_bytes(header_bytes),
+            header: BlockHeaderKind::from_bytes::<M>(header_bytes),
             erase_count: u32::from_le_bytes(erase_count_bytes),
             _medium: PhantomData,
         })
@@ -37,7 +110,7 @@ impl<M: StorageMedium> BlockHeader<M> {
 
     fn new(ty: BlockType, new_erase_count: u32) -> Self {
         Self {
-            header: Self::block_header(ty),
+            header: BlockHeaderKind::Known(ty),
             erase_count: new_erase_count,
             _medium: PhantomData,
         }
@@ -64,7 +137,7 @@ impl<M: StorageMedium> BlockHeader<M> {
     fn into_bytes(self) -> [u8; HEADER_BYTES] {
         let mut bytes = [0; HEADER_BYTES];
 
-        bytes[0..4].copy_from_slice(&self.header.to_le_bytes());
+        bytes[0..4].copy_from_slice(&self.header.to_le_bytes::<M>());
         bytes[4..8].copy_from_slice(&self.erase_count.to_le_bytes());
 
         bytes
@@ -76,12 +149,12 @@ impl<M: StorageMedium> BlockHeader<M> {
     }
 
     fn is_empty(&self) -> bool {
-        self.header == u32::MAX && self.erase_count == u32::MAX
+        self.header.is_empty() && self.erase_count == u32::MAX
     }
 
     // TODO: read header kind
-    fn is_expected(&self) -> bool {
-        self.header == Self::block_header(BlockType::Data)
+    fn kind(&self) -> BlockHeaderKind {
+        self.header
     }
 }
 
@@ -129,15 +202,16 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         let mut erase = true;
         let mut new_erase_count = 0;
 
-        // TODO: check if header type matches
         if header.is_empty() {
             if self.is_block_data_empty(block).await? {
                 erase = false;
             }
-        } else if header.is_expected() {
-            if self.is_block_data_empty(block).await? {
-                // Block is already formatted
-                return Ok(());
+        } else if let Some(current_ty) = header.kind().as_known() {
+            if current_ty == ty {
+                if self.is_block_data_empty(block).await? {
+                    // Block is already formatted
+                    return Ok(());
+                }
             }
 
             new_erase_count = match header.erase_count.checked_add(1) {
