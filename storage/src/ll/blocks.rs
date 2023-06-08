@@ -36,8 +36,8 @@ impl BlockHeaderKind {
             BlockHeaderKind::Known(ty) => {
                 let fs_info = 0xBA01_0000; // 2 bytes constant
 
-                let layout_info = M::block_size_bytes() << 14 // 2 bits
-                | M::block_count_bytes() << 10 // 4 bits
+                let layout_info = (M::block_size_bytes() as u32) << 14 // 2 bits
+                | (M::block_count_bytes() as u32) << 10 // 4 bits
                 | match M::WRITE_GRANULARITY {
                     WriteGranularity::Bit => 0,
                     WriteGranularity::Word => 1,
@@ -119,24 +119,6 @@ impl<M: StorageMedium> BlockHeader<M> {
         }
     }
 
-    fn block_header(ty: BlockType) -> u32 {
-        // 2 bytes constant (FS version)
-        0xBA01 << 16
-        // 1 byte layout info
-            | M::block_size_bytes() << 14 // 2 bits
-            | M::block_count_bytes() << 10 // 4 bits
-            | match M::WRITE_GRANULARITY {
-                WriteGranularity::Bit => 0,
-                WriteGranularity::Word => 1,
-            } << 8 // 1 bit
-
-        // 1 byte block type
-        | match ty {
-            BlockType::Metadata => 0x55,
-            BlockType::Data => 0xaa,
-        }
-    }
-
     fn into_bytes(self) -> [u8; HEADER_BYTES] {
         let mut bytes = [0; HEADER_BYTES];
 
@@ -155,7 +137,6 @@ impl<M: StorageMedium> BlockHeader<M> {
         self.header.is_empty() && self.erase_count == u32::MAX
     }
 
-    // TODO: read header kind
     fn kind(&self) -> BlockHeaderKind {
         self.header
     }

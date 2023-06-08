@@ -1,7 +1,7 @@
 pub mod cache;
 pub mod ram;
 
-fn size_to_bytes(size: usize) -> u32 {
+fn size_to_bytes(size: usize) -> usize {
     match size {
         0..=255 => 1,
         256..=65535 => 2,
@@ -12,11 +12,11 @@ fn size_to_bytes(size: usize) -> u32 {
 }
 
 pub(crate) trait StoragePrivate: StorageMedium {
-    fn block_size_bytes() -> u32 {
+    fn block_size_bytes() -> usize {
         size_to_bytes(Self::BLOCK_SIZE)
     }
 
-    fn block_count_bytes() -> u32 {
+    fn block_count_bytes() -> usize {
         size_to_bytes(Self::BLOCK_COUNT)
     }
 }
