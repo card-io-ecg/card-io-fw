@@ -142,6 +142,12 @@ impl<M: StorageMedium> BlockHeader<M> {
     }
 }
 
+/// Block info read when the FS is mounted.
+pub struct BlockInfo<M: StorageMedium> {
+    header: BlockHeader<M>,
+    used_bytes: usize,
+}
+
 pub(crate) struct BlockOps<'a, M> {
     medium: &'a mut M,
 }
@@ -236,6 +242,23 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         data: &mut [u8],
     ) -> Result<(), ()> {
         self.medium.read(block, offset + HEADER_BYTES, data).await
+    }
+
+    pub async fn scan_block(&mut self, block: usize) -> Result<BlockInfo<M>, ()> {
+        let header = BlockHeader::read(self.medium, block).await?;
+        let mut used_bytes = 0;
+
+        // TODO: iterate through objects to avoid missing 0xFF data bytes.
+        for offset in (0..M::BLOCK_SIZE).step_by(4) {
+            let data = &mut [0];
+            self.medium.read(block, offset, data).await?;
+
+            if data[0] != 0xFF {
+                used_bytes = offset + 1;
+            }
+        }
+
+        Ok(BlockInfo { header, used_bytes })
     }
 }
 
