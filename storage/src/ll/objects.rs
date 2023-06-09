@@ -84,20 +84,16 @@ impl ObjectState {
         location: ObjectLocation,
         medium: &mut M,
     ) -> Result<(), ()> {
+        let offset = M::align(location.offset);
         match M::WRITE_GRANULARITY {
             WriteGranularity::Bit => {
                 let new_state = self.into_bits();
-
-                medium
-                    .write(location.block, location.offset, &[new_state])
-                    .await
+                medium.write(location.block, offset, &[new_state]).await
             }
+
             WriteGranularity::Word => {
                 let new_state = self.into_words();
-
-                medium
-                    .write(location.block, location.offset, new_state)
-                    .await
+                medium.write(location.block, offset, new_state).await
             }
         }
     }
@@ -119,7 +115,7 @@ impl ObjectLocation {
         let block_bytes = self.block.to_le_bytes();
         let offset_bytes = self.offset.to_le_bytes();
 
-        let byte_count = Self::byte_count::<M>();
+        let byte_count = M::object_location_bytes();
 
         let mut bytes = [0u8; 8];
         let (block_idx_byte_slice, offset_byte_slice) =
@@ -132,7 +128,7 @@ impl ObjectLocation {
     }
 
     fn from_bytes<M: StorageMedium>(bytes: &[u8]) -> Result<Self, ()> {
-        if bytes.len() != Self::byte_count::<M>() {
+        if bytes.len() != M::object_location_bytes() {
             return Err(());
         }
 
@@ -149,10 +145,6 @@ impl ObjectLocation {
             offset: usize::from_le_bytes(offset_bytes),
         })
     }
-
-    fn byte_count<M: StorageMedium>() -> usize {
-        M::block_count_bytes() + M::block_size_bytes()
-    }
 }
 
 struct ObjectHeader {
@@ -165,37 +157,28 @@ impl ObjectHeader {
         location: ObjectLocation,
         medium: &mut M,
     ) -> Result<Self, ()> {
-        match M::WRITE_GRANULARITY {
-            WriteGranularity::Bit => {
-                let mut header_bytes = [0; 5];
+        let mut header_bytes = [0; 16];
+        let obj_size_bytes = M::object_size_bytes();
+        let status_bytes = M::object_status_bytes();
+        let header_bytes = &mut header_bytes[0..obj_size_bytes + status_bytes];
 
-                medium
-                    .read(location.block, location.offset, &mut header_bytes)
-                    .await?;
+        medium
+            .read(location.block, location.offset, header_bytes)
+            .await?;
 
-                let (state_bytes, size_bytes) = header_bytes.split_at(1);
+        let (state_slice, size_slice) = header_bytes.split_at(status_bytes);
 
-                let state = ObjectState::from_bits(state_bytes[0])?;
-                let object_size = usize::from_le_bytes(size_bytes.try_into().unwrap()); // TODO: M::block_size_bytes()
+        let state = match M::WRITE_GRANULARITY {
+            WriteGranularity::Bit => ObjectState::from_bits(state_slice[0])?,
+            WriteGranularity::Word => ObjectState::from_words(state_slice)?,
+        };
 
-                Ok(Self { state, object_size })
-            }
+        // Extend size bytes and convert to usize.
+        let mut object_size_bytes = [0; 4];
+        object_size_bytes[0..size_slice.len()].copy_from_slice(size_slice);
+        let object_size = u32::from_le_bytes(object_size_bytes) as usize;
 
-            WriteGranularity::Word => {
-                let mut header_bytes = [0; 16];
-
-                medium
-                    .read(location.block, location.offset, &mut header_bytes)
-                    .await?;
-
-                let (state_bytes, size_bytes) = header_bytes.split_at(12);
-
-                let state = ObjectState::from_words(state_bytes)?;
-                let object_size = usize::from_le_bytes(size_bytes.try_into().unwrap()); // TODO: M::block_size_bytes()
-
-                Ok(Self { state, object_size })
-            }
-        }
+        Ok(Self { state, object_size })
     }
 }
 
@@ -215,6 +198,7 @@ pub struct ObjectWriter<'a, M: StorageMedium> {
     object: ObjectHeader,
     cursor: usize,
     medium: &'a mut M,
+    // TODO: add a buffer to store bytes that are not aligned to the write granularity.
 }
 
 impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
@@ -240,9 +224,9 @@ impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
     }
 
     fn data_write_offset(&self) -> usize {
-        let header_size = M::object_status_bytes() // state
-            + M::block_size_bytes() // max payload size
-            + M::object_location_bytes(); // reserved
+        let header_size = M::align(M::object_status_bytes()) // state
+            + M::align(M::object_size_bytes()) // max payload size
+            + M::align(M::object_location_bytes()); // reserved
         self.location.offset + header_size + self.cursor
     }
 
@@ -385,10 +369,11 @@ impl<'a, M: StorageMedium> ObjectOps<'a, M> {
         location: ObjectLocation,
         cursor: usize,
     ) -> Result<(), ()> {
-        // TODO: M::block_size_bytes()
-        let bytes = (cursor as u32).to_le_bytes();
-        let offset = M::object_status_bytes();
+        let bytes = cursor.to_le_bytes();
+        let offset = M::align(M::object_status_bytes());
 
-        self.medium.write(location.block, offset, &bytes).await
+        self.medium
+            .write(location.block, offset, &bytes[0..M::object_size_bytes()])
+            .await
     }
 }

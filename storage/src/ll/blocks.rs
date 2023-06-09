@@ -191,11 +191,9 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
                 erase = false;
             }
         } else if let Some(current_ty) = header.kind().as_known() {
-            if current_ty == ty {
-                if self.is_block_data_empty(block).await? {
-                    // Block is already formatted
-                    return Ok(());
-                }
+            if current_ty == ty && self.is_block_data_empty(block).await? {
+                // Block is already formatted
+                return Ok(());
             }
 
             new_erase_count = match header.erase_count.checked_add(1) {

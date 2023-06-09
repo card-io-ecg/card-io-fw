@@ -27,8 +27,26 @@ pub(crate) trait StoragePrivate: StorageMedium {
         }
     }
 
+    fn object_size_bytes() -> usize {
+        size_to_bytes(Self::BLOCK_SIZE)
+    }
+
     fn object_location_bytes() -> usize {
         Self::block_count_bytes() + Self::block_size_bytes()
+    }
+
+    fn align(size: usize) -> usize {
+        match Self::WRITE_GRANULARITY {
+            WriteGranularity::Bit => size,
+            WriteGranularity::Word => {
+                let remainder = size % 4;
+                if remainder == 0 {
+                    size
+                } else {
+                    size + 4 - remainder
+                }
+            }
+        }
     }
 }
 
