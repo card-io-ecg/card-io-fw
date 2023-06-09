@@ -248,13 +248,16 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         let header = BlockHeader::read(self.medium, block).await?;
         let mut used_bytes = 0;
 
-        // TODO: iterate through objects to avoid missing 0xFF data bytes.
-        for offset in (0..M::BLOCK_SIZE).step_by(4) {
-            let data = &mut [0];
-            self.medium.read(block, offset, data).await?;
+        if header.kind().is_known() {
+            // TODO: iterate through objects to avoid missing 0xFF data bytes.
+        } else {
+            for offset in (0..M::BLOCK_SIZE).step_by(4) {
+                let data = &mut [0];
+                self.medium.read(block, offset, data).await?;
 
-            if data[0] != 0xFF {
-                used_bytes = offset + 1;
+                if data[0] != 0xFF {
+                    used_bytes = offset + 1;
+                }
             }
         }
 
