@@ -2,8 +2,8 @@ use crate::medium::{StorageMedium, StoragePrivate, WriteGranularity};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ObjectState {
-    Free, // Implicit
-    Allocated,
+    Free,      // Implicit
+    Allocated, // TODO: make this implicit
     Finalized,
     Deleted,
 }
@@ -176,7 +176,7 @@ impl ObjectHeader {
                 let (state_bytes, size_bytes) = header_bytes.split_at(1);
 
                 let state = ObjectState::from_bits(state_bytes[0])?;
-                let object_size = usize::from_le_bytes(size_bytes.try_into().unwrap());
+                let object_size = usize::from_le_bytes(size_bytes.try_into().unwrap()); // TODO: M::block_size_bytes()
 
                 Ok(Self { state, object_size })
             }
@@ -191,7 +191,7 @@ impl ObjectHeader {
                 let (state_bytes, size_bytes) = header_bytes.split_at(12);
 
                 let state = ObjectState::from_words(state_bytes)?;
-                let object_size = usize::from_le_bytes(size_bytes.try_into().unwrap());
+                let object_size = usize::from_le_bytes(size_bytes.try_into().unwrap()); // TODO: M::block_size_bytes()
 
                 Ok(Self { state, object_size })
             }
@@ -239,8 +239,15 @@ impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
         self.set_state(ObjectState::Allocated).await
     }
 
+    fn data_write_offset(&self) -> usize {
+        let header_size = M::object_status_bytes() // state
+            + M::block_size_bytes() // max payload size
+            + M::object_location_bytes(); // reserved
+        self.location.offset + header_size + self.cursor
+    }
+
     pub fn space(&self) -> usize {
-        let write_offset = self.cursor + self.location.offset;
+        let write_offset = self.data_write_offset();
 
         M::BLOCK_SIZE - write_offset
     }
@@ -259,11 +266,7 @@ impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
         }
 
         self.medium
-            .write(
-                self.location.block,
-                self.location.offset + self.cursor,
-                data,
-            )
+            .write(self.location.block, self.data_write_offset(), data)
             .await?;
 
         self.cursor += data.len();
@@ -382,6 +385,7 @@ impl<'a, M: StorageMedium> ObjectOps<'a, M> {
         location: ObjectLocation,
         cursor: usize,
     ) -> Result<(), ()> {
+        // TODO: M::block_size_bytes()
         let bytes = (cursor as u32).to_le_bytes();
         let offset = M::object_status_bytes();
 

@@ -26,6 +26,10 @@ pub(crate) trait StoragePrivate: StorageMedium {
             WriteGranularity::Word => 12,
         }
     }
+
+    fn object_location_bytes() -> usize {
+        Self::block_count_bytes() + Self::block_size_bytes()
+    }
 }
 
 impl<T> StoragePrivate for T where T: StorageMedium {}
