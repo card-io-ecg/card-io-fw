@@ -9,6 +9,7 @@ pub enum ObjectState {
 }
 
 impl ObjectState {
+    // TODO: don't assume 4 bytes per word
     const FREE_WORDS: &[u8] = &[0xFF; 12];
     const ALLOCATED_WORDS: &[u8] = &[
         0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -91,7 +92,7 @@ impl ObjectState {
                 medium.write(location.block, offset, &[new_state]).await
             }
 
-            WriteGranularity::Word => {
+            WriteGranularity::Word(_) => {
                 let new_state = self.into_words();
                 medium.write(location.block, offset, new_state).await
             }
@@ -99,7 +100,6 @@ impl ObjectState {
     }
 }
 
-// TODO: representation depends on the storage medium.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ObjectLocation {
     block: usize,
@@ -170,7 +170,7 @@ impl ObjectHeader {
 
         let state = match M::WRITE_GRANULARITY {
             WriteGranularity::Bit => ObjectState::from_bits(state_slice[0])?,
-            WriteGranularity::Word => ObjectState::from_words(state_slice)?,
+            WriteGranularity::Word(_) => ObjectState::from_words(state_slice)?,
         };
 
         // Extend size bytes and convert to usize.
@@ -198,7 +198,7 @@ pub struct ObjectWriter<'a, M: StorageMedium> {
     object: ObjectHeader,
     cursor: usize,
     medium: &'a mut M,
-    // TODO: add a buffer to store bytes that are not aligned to the write granularity.
+    buffer: heapless::Vec<u8, 4>, // TODO: support larger word sizes?
 }
 
 impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
@@ -216,7 +216,46 @@ impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
             object,
             cursor: 0,
             medium,
+            buffer: heapless::Vec::new(),
         })
+    }
+
+    fn fill_buffer<'d>(&mut self, data: &'d [u8]) -> Result<&'d [u8], ()> {
+        // Buffering is not necessary if we can write arbitrary bits.
+        match M::WRITE_GRANULARITY {
+            WriteGranularity::Bit => Ok(data),
+            WriteGranularity::Word(len) => {
+                let copied = data.len().min(len - self.buffer.len());
+                self.buffer.extend_from_slice(&data[0..copied]).unwrap();
+
+                Ok(&data[copied..])
+            }
+        }
+    }
+
+    fn can_flush(&self) -> bool {
+        match M::WRITE_GRANULARITY {
+            WriteGranularity::Bit => false,
+            WriteGranularity::Word(len) => self.buffer.len() == len,
+        }
+    }
+
+    async fn flush(&mut self) -> Result<(), ()> {
+        // Buffering is not necessary if we can write arbitrary bits.
+        if M::WRITE_GRANULARITY == WriteGranularity::Bit {
+            return Ok(());
+        }
+
+        if !self.buffer.is_empty() {
+            let offset = self.data_write_offset();
+            self.medium
+                .write(self.location.block, offset, &self.buffer)
+                .await?;
+
+            self.buffer.clear();
+        }
+
+        Ok(())
     }
 
     pub async fn allocate(&mut self) -> Result<(), ()> {
@@ -231,17 +270,17 @@ impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
     }
 
     pub fn space(&self) -> usize {
-        let write_offset = self.data_write_offset();
-
-        M::BLOCK_SIZE - write_offset
+        M::BLOCK_SIZE - self.data_write_offset()
     }
 
-    pub async fn write(&mut self, data: &[u8]) -> Result<(), ()> {
+    pub async fn write(&mut self, mut data: &[u8]) -> Result<(), ()> {
         if self.object.state != ObjectState::Allocated {
             return Err(());
         }
 
-        if self.space() < data.len() {
+        let len = data.len();
+
+        if self.space() < len {
             // TODO once we can search for free space
             // delete current object
             // try to allocate new object with appropriate size
@@ -249,11 +288,28 @@ impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
             return Err(());
         }
 
+        if !self.buffer.is_empty() {
+            data = self.fill_buffer(data)?;
+            if self.can_flush() {
+                self.flush().await?;
+            }
+        }
+
+        let remaining = data.len() % M::WRITE_GRANULARITY.width();
+        let aligned_bytes = len - remaining;
         self.medium
-            .write(self.location.block, self.data_write_offset(), data)
+            .write(
+                self.location.block,
+                self.data_write_offset(),
+                &data[0..aligned_bytes],
+            )
             .await?;
 
-        self.cursor += data.len();
+        data = self.fill_buffer(&data[aligned_bytes..])?;
+
+        debug_assert!(data.is_empty());
+
+        self.cursor += len;
 
         Ok(())
     }
@@ -282,6 +338,7 @@ impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
 
         // must be two different writes for powerloss safety
         self.write_size().await?;
+        self.flush().await?;
         self.set_state(ObjectState::Finalized).await
     }
 
@@ -294,6 +351,7 @@ impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
             self.write_size().await?;
         }
 
+        self.flush().await?;
         self.set_state(ObjectState::Deleted).await
     }
 }

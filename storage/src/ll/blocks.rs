@@ -40,7 +40,7 @@ impl BlockHeaderKind {
                 | (M::block_count_bytes() as u32) << 10 // 4 bits
                 | match M::WRITE_GRANULARITY {
                     WriteGranularity::Bit => 0,
-                    WriteGranularity::Word => 1,
+                    WriteGranularity::Word(_) => 1,
                 } << 8; // 1 bit
 
                 let blk_ty = match ty {

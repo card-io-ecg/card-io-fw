@@ -23,7 +23,7 @@ pub(crate) trait StoragePrivate: StorageMedium {
     fn object_status_bytes() -> usize {
         match Self::WRITE_GRANULARITY {
             WriteGranularity::Bit => 1,
-            WriteGranularity::Word => 12,
+            WriteGranularity::Word(len) => 3 * len,
         }
     }
 
@@ -38,12 +38,12 @@ pub(crate) trait StoragePrivate: StorageMedium {
     fn align(size: usize) -> usize {
         match Self::WRITE_GRANULARITY {
             WriteGranularity::Bit => size,
-            WriteGranularity::Word => {
-                let remainder = size % 4;
+            WriteGranularity::Word(len) => {
+                let remainder = size % len;
                 if remainder == 0 {
                     size
                 } else {
-                    size + 4 - remainder
+                    size + len - remainder
                 }
             }
         }
@@ -64,7 +64,17 @@ pub trait StorageMedium {
     async fn write(&mut self, block: usize, offset: usize, data: &[u8]) -> Result<(), ()>;
 }
 
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum WriteGranularity {
     Bit,
-    Word,
+    Word(usize),
+}
+
+impl WriteGranularity {
+    pub const fn width(self) -> usize {
+        match self {
+            WriteGranularity::Bit => 1,
+            WriteGranularity::Word(len) => len,
+        }
+    }
 }
