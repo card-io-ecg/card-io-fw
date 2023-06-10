@@ -31,6 +31,12 @@ pub(crate) trait StoragePrivate: StorageMedium {
         size_to_bytes(Self::BLOCK_SIZE)
     }
 
+    fn object_header_bytes() -> usize {
+        Self::align(Self::object_status_bytes()) // status
+            + Self::align(Self::object_size_bytes()) // payload size
+            + Self::align(Self::object_location_bytes()) // reserved
+    }
+
     fn object_location_bytes() -> usize {
         Self::block_count_bytes() + Self::block_size_bytes()
     }

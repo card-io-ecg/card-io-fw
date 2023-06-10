@@ -1,4 +1,9 @@
-use crate::medium::{StorageMedium, StoragePrivate, WriteGranularity};
+use core::marker::PhantomData;
+
+use crate::{
+    ll::blocks,
+    medium::{StorageMedium, StoragePrivate, WriteGranularity},
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ObjectState {
@@ -141,13 +146,13 @@ impl ObjectLocation {
         offset_bytes[0..offset_byte_slice.len()].copy_from_slice(offset_byte_slice);
 
         Ok(Self {
-            block: usize::from_le_bytes(block_bytes),
-            offset: usize::from_le_bytes(offset_bytes),
+            block: u32::from_le_bytes(block_bytes) as usize,
+            offset: u32::from_le_bytes(offset_bytes) as usize,
         })
     }
 }
 
-struct ObjectHeader {
+pub struct ObjectHeader {
     state: ObjectState,
     object_size: usize, // At most block size
 }
@@ -263,9 +268,7 @@ impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
     }
 
     fn data_write_offset(&self) -> usize {
-        let header_size = M::align(M::object_status_bytes()) // state
-            + M::align(M::object_size_bytes()) // max payload size
-            + M::align(M::object_location_bytes()); // reserved
+        let header_size = M::object_header_bytes();
         self.location.offset + header_size + self.cursor
     }
 
@@ -402,6 +405,62 @@ impl<'a, M: StorageMedium> ObjectReader<'a, M> {
         self.cursor += read_size;
 
         Ok(read_size)
+    }
+}
+
+pub struct ObjectInfo<M: StorageMedium> {
+    pub location: ObjectLocation,
+    pub header: ObjectHeader,
+    _medium: PhantomData<M>,
+}
+
+impl<M: StorageMedium> ObjectInfo<M> {
+    pub fn total_size(&self) -> usize {
+        self.header.object_size + M::object_header_bytes()
+    }
+}
+
+pub struct ObjectIterator {
+    location: ObjectLocation,
+}
+
+impl ObjectIterator {
+    pub fn new(block: usize) -> Self {
+        Self {
+            location: ObjectLocation {
+                block,
+                offset: blocks::HEADER_BYTES,
+            },
+        }
+    }
+
+    pub async fn next<M: StorageMedium>(
+        &mut self,
+        medium: &mut M,
+    ) -> Result<Option<ObjectInfo<M>>, ()> {
+        let location = self.location;
+
+        if location.offset + blocks::HEADER_BYTES >= M::BLOCK_SIZE {
+            return Ok(None);
+        }
+
+        let object = ObjectHeader::read(location, medium).await?;
+        if object.state.is_free() {
+            return Ok(None);
+        }
+
+        let info = ObjectInfo {
+            location,
+            header: object,
+            _medium: PhantomData,
+        };
+        self.location.offset += info.total_size();
+
+        Ok(Some(info))
+    }
+
+    pub fn current_offset(&self) -> usize {
+        self.location.offset
     }
 }
 

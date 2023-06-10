@@ -1,6 +1,9 @@
 use core::marker::PhantomData;
 
-use crate::medium::{StorageMedium, StoragePrivate, WriteGranularity};
+use crate::{
+    ll::objects::ObjectIterator,
+    medium::{StorageMedium, StoragePrivate, WriteGranularity},
+};
 
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub enum BlockType {
@@ -94,7 +97,7 @@ pub struct BlockHeader<M: StorageMedium> {
     erase_count: u32,
     _medium: PhantomData<M>,
 }
-const HEADER_BYTES: usize = 8;
+pub const HEADER_BYTES: usize = 8;
 
 impl<M: StorageMedium> BlockHeader<M> {
     async fn read(medium: &mut M, block: usize) -> Result<Self, ()> {
@@ -249,7 +252,11 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         let mut used_bytes = 0;
 
         if header.kind().is_known() {
-            // TODO: iterate through objects to avoid missing 0xFF data bytes.
+            let mut iter = ObjectIterator::new(block);
+
+            while iter.next(self.medium).await?.is_some() {}
+
+            used_bytes = iter.current_offset();
         } else {
             for offset in 0..M::BLOCK_SIZE {
                 let data = &mut [0];
@@ -272,12 +279,33 @@ mod tests {
     use super::*;
 
     #[async_std::test]
+    async fn empty_block_reports_0_used_bytes() {
+        let mut medium = RamStorage::<256, 32>::new();
+        let mut block_ops = BlockOps::new(&mut medium);
+
+        let info = block_ops.scan_block(0).await.unwrap();
+        assert_eq!(info.used_bytes, 0);
+    }
+
+    #[async_std::test]
     async fn test_formatting_empty_block_sets_erase_count_to_0() {
         let mut medium = RamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
         block_ops.format_block(3, BlockType::Data).await.unwrap();
         assert_eq!(block_ops.read_header(3).await.unwrap().erase_count, 0);
+    }
+
+    #[async_std::test]
+    async fn formatted_block_reports_some_used_bytes() {
+        let mut medium = RamStorage::<256, 32>::new();
+        let mut block_ops = BlockOps::new(&mut medium);
+
+        block_ops.format_block(0, BlockType::Data).await.unwrap();
+        assert_eq!(block_ops.read_header(0).await.unwrap().erase_count, 0);
+
+        let info = block_ops.scan_block(0).await.unwrap();
+        assert_eq!(info.used_bytes, 8);
     }
 
     #[async_std::test]
