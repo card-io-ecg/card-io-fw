@@ -251,7 +251,7 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         if header.kind().is_known() {
             // TODO: iterate through objects to avoid missing 0xFF data bytes.
         } else {
-            for offset in (0..M::BLOCK_SIZE).step_by(4) {
+            for offset in 0..M::BLOCK_SIZE {
                 let data = &mut [0];
                 self.medium.read(block, offset, data).await?;
 
