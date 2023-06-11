@@ -5,13 +5,15 @@
 #![allow(incomplete_features)]
 
 use crate::{
+    diag::Counters,
     ll::{
-        blocks::{BlockHeaderKind, BlockInfo, BlockOps, BlockType},
+        blocks::{BlockInfo, BlockOps},
         objects::{ObjectIterator, ObjectState},
     },
     medium::StorageMedium,
 };
 
+pub mod diag;
 pub mod gc;
 pub mod ll;
 pub mod medium;
@@ -141,5 +143,24 @@ where
 
     async fn write_object(&mut self, object: &ObjectId, data: &[u8]) -> Result<(), ()> {
         todo!()
+    }
+}
+
+impl<P> Storage<Counters<P>>
+where
+    P: StorageMedium,
+    [(); P::BLOCK_COUNT]:,
+    [(); Counters::<P>::BLOCK_COUNT]:,
+{
+    pub fn erase_count(&self) -> usize {
+        self.media.erase_count
+    }
+
+    pub fn read_count(&self) -> usize {
+        self.media.read_count
+    }
+
+    pub fn write_count(&self) -> usize {
+        self.media.write_count
     }
 }
