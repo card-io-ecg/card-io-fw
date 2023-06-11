@@ -8,7 +8,7 @@ use crate::{
     diag::Counters,
     ll::{
         blocks::{BlockInfo, BlockOps},
-        objects::{ObjectIterator, ObjectState},
+        objects::{ObjectIterator, ObjectLocation, ObjectState},
     },
     medium::StorageMedium,
 };
@@ -43,12 +43,8 @@ where
     [(); P::BLOCK_COUNT]:,
 {
     storage: &'a mut Storage<P>,
-    object: ObjectId,
+    object: ObjectLocation,
     cursor: u32,
-}
-
-struct ObjectId {
-    offset: u32,
 }
 
 impl<P> Storage<P>
@@ -102,11 +98,15 @@ where
 
     pub async fn read(&mut self, path: &str) -> Result<Reader<'_, P>, ()> {
         let object = self.lookup(path).await?;
-        todo!()
+        Ok(Reader {
+            storage: self,
+            object,
+            cursor: 0,
+        })
     }
 
-    async fn lookup(&mut self, path: &str) -> Result<ObjectId, ()> {
-        let path_hash = path.len(); // TODO: Hash the path
+    async fn lookup(&mut self, path: &str) -> Result<ObjectLocation, ()> {
+        let path_hash = path.len() as u32; // TODO: Hash the path
 
         for block_idx in self
             .blocks
@@ -121,9 +121,9 @@ where
                     continue;
                 }
 
-                let object_hash = 0; // TODO
+                let metadata = object.read_metadata(&mut self.media).await?;
 
-                if object_hash == path_hash {
+                if metadata.path_hash == path_hash {
                     todo!("Read first data object and compare path. If path matches, return object id.");
                 }
             }
@@ -133,15 +133,15 @@ where
         Err(())
     }
 
-    async fn delete_object(&mut self, object: ObjectId) -> Result<(), ()> {
+    async fn delete_object(&mut self, object: ObjectLocation) -> Result<(), ()> {
         todo!()
     }
 
-    async fn allocate_object(&mut self, path: &str) -> Result<ObjectId, ()> {
+    async fn allocate_object(&mut self, path: &str) -> Result<ObjectLocation, ()> {
         todo!()
     }
 
-    async fn write_object(&mut self, object: &ObjectId, data: &[u8]) -> Result<(), ()> {
+    async fn write_object(&mut self, object: &ObjectLocation, data: &[u8]) -> Result<(), ()> {
         todo!()
     }
 }

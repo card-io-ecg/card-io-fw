@@ -150,8 +150,13 @@ impl ObjectLocation {
             offset: u32::from_le_bytes(offset_bytes) as usize,
         })
     }
+
+    pub async fn read_header(self, medium: &mut impl StorageMedium) -> Result<ObjectHeader, ()> {
+        ObjectHeader::read(self, medium).await
+    }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ObjectHeader {
     pub state: ObjectState,
     pub object_size: usize, // At most block size
@@ -189,8 +194,42 @@ impl ObjectHeader {
 
 // Object payload contains a list of object locations.
 pub struct MetadataObjectHeader {
-    object: ObjectHeader,
-    path_hash: u32,
+    pub object: ObjectHeader,
+    pub path_hash: u32,
+    pub filename_location: ObjectLocation,
+    location: ObjectLocation,
+    cursor: usize, // Used to iterate through the list of object locations.
+}
+
+impl MetadataObjectHeader {
+    pub async fn next_object_location<M: StorageMedium>(
+        &mut self,
+        media: &mut M,
+    ) -> Result<Option<ObjectLocation>, ()> {
+        if self.cursor > self.object.object_size {
+            return Ok(None);
+        }
+
+        let mut location_bytes = [0; 8];
+        let location_bytes = &mut location_bytes[0..M::object_location_bytes()];
+
+        media
+            .read(
+                self.location.block,
+                self.location.offset + self.cursor,
+                location_bytes,
+            )
+            .await?;
+
+        self.cursor += location_bytes.len();
+
+        ObjectLocation::from_bytes::<M>(location_bytes).map(Some)
+    }
+
+    pub async fn reset<M: StorageMedium>(&mut self) {
+        // 4: path hash
+        self.cursor = 4 + M::object_location_bytes();
+    }
 }
 
 // Object payload contains a chunk of data.
@@ -417,6 +456,29 @@ pub struct ObjectInfo<M: StorageMedium> {
 impl<M: StorageMedium> ObjectInfo<M> {
     pub fn total_size(&self) -> usize {
         self.header.object_size + M::object_header_bytes()
+    }
+
+    pub async fn read_metadata(&self, medium: &mut M) -> Result<MetadataObjectHeader, ()> {
+        let mut path_hash_bytes = [0; 4];
+        let path_hash_offset = self.location.offset + M::object_header_bytes();
+        medium
+            .read(self.location.block, path_hash_offset, &mut path_hash_bytes)
+            .await?;
+
+        let mut location_bytes = [0; 8];
+        let location_bytes = &mut location_bytes[0..M::object_location_bytes()];
+
+        medium
+            .read(self.location.block, path_hash_offset + 4, location_bytes)
+            .await?;
+
+        Ok(MetadataObjectHeader {
+            object: self.header,
+            path_hash: u32::from_le_bytes(path_hash_bytes),
+            filename_location: ObjectLocation::from_bytes::<M>(location_bytes)?,
+            location: self.location,
+            cursor: 4 + M::object_location_bytes(), // skip path hash and filename
+        })
     }
 }
 
