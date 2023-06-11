@@ -201,6 +201,10 @@ impl<M: StorageMedium> BlockInfo<M> {
         self.used_bytes = M::block_size_bytes();
         self.allow_alloc = true;
     }
+
+    pub fn is_metadata(&self) -> bool {
+        self.header.kind() == BlockHeaderKind::Known(BlockType::Metadata)
+    }
 }
 
 pub(crate) struct BlockOps<'a, M> {

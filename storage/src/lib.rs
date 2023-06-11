@@ -5,7 +5,10 @@
 #![allow(incomplete_features)]
 
 use crate::{
-    ll::blocks::{BlockInfo, BlockOps},
+    ll::{
+        blocks::{BlockHeaderKind, BlockInfo, BlockOps, BlockType},
+        objects::{ObjectIterator, ObjectState},
+    },
     medium::StorageMedium,
 };
 
@@ -18,7 +21,7 @@ where
     P: StorageMedium,
     [(); P::BLOCK_COUNT]:,
 {
-    partition: P,
+    media: P,
     blocks: [BlockInfo<P>; P::BLOCK_COUNT],
 }
 
@@ -59,7 +62,10 @@ where
             blocks[block] = ops.scan_block(block).await?;
         }
 
-        Ok(Self { partition, blocks })
+        Ok(Self {
+            media: partition,
+            blocks,
+        })
     }
 
     pub async fn format(partition: &mut P, metadata_blocks: usize) -> Result<(), ()> {
@@ -98,7 +104,31 @@ where
     }
 
     async fn lookup(&mut self, path: &str) -> Result<ObjectId, ()> {
-        todo!()
+        let path_hash = path.len(); // TODO: Hash the path
+
+        for block_idx in self
+            .blocks
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, blk)| blk.is_metadata().then_some(idx))
+        {
+            let mut iter = ObjectIterator::new(block_idx);
+
+            while let Some(object) = iter.next(&mut self.media).await? {
+                if object.header.state != ObjectState::Finalized {
+                    continue;
+                }
+
+                let object_hash = 0; // TODO
+
+                if object_hash == path_hash {
+                    todo!("Read first data object and compare path. If path matches, return object id.");
+                }
+            }
+        }
+
+        // not found
+        Err(())
     }
 
     async fn delete_object(&mut self, object: ObjectId) -> Result<(), ()> {
