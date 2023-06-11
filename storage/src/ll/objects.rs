@@ -204,7 +204,7 @@ pub struct MetadataObjectHeader {
 impl MetadataObjectHeader {
     pub async fn next_object_location<M: StorageMedium>(
         &mut self,
-        media: &mut M,
+        medium: &mut M,
     ) -> Result<Option<ObjectLocation>, ()> {
         if self.cursor > self.object.object_size {
             return Ok(None);
@@ -213,7 +213,7 @@ impl MetadataObjectHeader {
         let mut location_bytes = [0; 8];
         let location_bytes = &mut location_bytes[0..M::object_location_bytes()];
 
-        media
+        medium
             .read(
                 self.location.block,
                 self.location.offset + self.cursor,

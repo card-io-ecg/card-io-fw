@@ -23,7 +23,7 @@ where
     P: StorageMedium,
     [(); P::BLOCK_COUNT]:,
 {
-    media: P,
+    medium: P,
     blocks: [BlockInfo<P>; P::BLOCK_COUNT],
 }
 
@@ -61,7 +61,7 @@ where
         }
 
         Ok(Self {
-            media: partition,
+            medium: partition,
             blocks,
         })
     }
@@ -116,12 +116,12 @@ where
         {
             let mut iter = ObjectIterator::new(block_idx);
 
-            while let Some(object) = iter.next(&mut self.media).await? {
+            while let Some(object) = iter.next(&mut self.medium).await? {
                 if object.header.state != ObjectState::Finalized {
                     continue;
                 }
 
-                let metadata = object.read_metadata(&mut self.media).await?;
+                let metadata = object.read_metadata(&mut self.medium).await?;
 
                 if metadata.path_hash == path_hash {
                     todo!("Read first data object and compare path. If path matches, return object id.");
@@ -153,14 +153,14 @@ where
     [(); Counters::<P>::BLOCK_COUNT]:,
 {
     pub fn erase_count(&self) -> usize {
-        self.media.erase_count
+        self.medium.erase_count
     }
 
     pub fn read_count(&self) -> usize {
-        self.media.read_count
+        self.medium.read_count
     }
 
     pub fn write_count(&self) -> usize {
-        self.media.write_count
+        self.medium.write_count
     }
 }
