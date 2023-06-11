@@ -74,47 +74,42 @@ where
         Self::mount(partition).await
     }
 
-    pub fn delete(&mut self, path: &str) -> Result<(), ()> {
-        let object = self.lookup(path)?;
-        self.delete_object(object)
+    pub async fn delete(&mut self, path: &str) -> Result<(), ()> {
+        let object = self.lookup(path).await?;
+        self.delete_object(object).await
     }
 
-    pub fn store(&mut self, path: &str, data: &[u8]) -> Result<(), ()> {
-        let object = self.lookup(path);
+    pub async fn store(&mut self, path: &str, data: &[u8]) -> Result<(), ()> {
+        let object = self.lookup(path).await;
 
-        let new_object = self.allocate_object(path)?;
-        self.write_object(&new_object, data)?;
-        self.finalize(new_object)?;
+        let new_object = self.allocate_object(path).await?;
+        self.write_object(&new_object, data).await?;
 
         if let Ok(object) = object {
-            self.delete_object(object)?;
+            self.delete_object(object).await?;
         }
 
         Ok(())
     }
 
-    pub fn read(&mut self, path: &str) -> Result<Reader<'_, P>, ()> {
-        let object = self.lookup(path)?;
+    pub async fn read(&mut self, path: &str) -> Result<Reader<'_, P>, ()> {
+        let object = self.lookup(path).await?;
         todo!()
     }
 
-    fn lookup(&mut self, path: &str) -> Result<ObjectId, ()> {
+    async fn lookup(&mut self, path: &str) -> Result<ObjectId, ()> {
         todo!()
     }
 
-    fn delete_object(&mut self, object: ObjectId) -> Result<(), ()> {
+    async fn delete_object(&mut self, object: ObjectId) -> Result<(), ()> {
         todo!()
     }
 
-    fn allocate_object(&mut self, path: &str) -> Result<ObjectId, ()> {
+    async fn allocate_object(&mut self, path: &str) -> Result<ObjectId, ()> {
         todo!()
     }
 
-    fn write_object(&mut self, object: &ObjectId, data: &[u8]) -> Result<(), ()> {
-        todo!()
-    }
-
-    fn finalize(&mut self, object: ObjectId) -> Result<(), ()> {
+    async fn write_object(&mut self, object: &ObjectId, data: &[u8]) -> Result<(), ()> {
         todo!()
     }
 }
