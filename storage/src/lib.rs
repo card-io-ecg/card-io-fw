@@ -1,14 +1,25 @@
 #![cfg_attr(not(test), no_std)]
 #![feature(async_fn_in_trait)]
 #![feature(impl_trait_projections)]
+#![feature(generic_const_exprs)] // Eww
 #![allow(incomplete_features)]
+
+use crate::{
+    ll::blocks::{BlockInfo, BlockOps},
+    medium::StorageMedium,
+};
 
 pub mod gc;
 pub mod ll;
 pub mod medium;
 
-pub struct Storage<P> {
+pub struct Storage<P>
+where
+    P: StorageMedium,
+    [(); P::BLOCK_COUNT]:,
+{
     partition: P,
+    blocks: [BlockInfo<P>; P::BLOCK_COUNT],
 }
 
 enum ObjectKind {
@@ -21,7 +32,11 @@ struct Object {
     kind: ObjectKind,
 }
 
-pub struct Reader<'a, P> {
+pub struct Reader<'a, P>
+where
+    P: StorageMedium,
+    [(); P::BLOCK_COUNT]:,
+{
     storage: &'a mut Storage<P>,
     object: ObjectId,
     cursor: u32,
@@ -31,9 +46,32 @@ struct ObjectId {
     offset: u32,
 }
 
-impl<P> Storage<P> {
-    pub fn new(partition: P) -> Self {
-        Self { partition }
+impl<P> Storage<P>
+where
+    P: StorageMedium,
+    [(); P::BLOCK_COUNT]:,
+{
+    pub async fn mount(mut partition: P) -> Result<Self, ()> {
+        let mut blocks = [BlockInfo::new_unknown(); P::BLOCK_COUNT];
+
+        let mut ops = BlockOps::new(&mut partition);
+        for block in 0..P::BLOCK_COUNT {
+            blocks[block] = ops.scan_block(block).await?;
+        }
+
+        Ok(Self { partition, blocks })
+    }
+
+    pub async fn format(partition: &mut P, metadata_blocks: usize) -> Result<(), ()> {
+        BlockOps::new(partition)
+            .format_storage(metadata_blocks)
+            .await
+    }
+
+    pub async fn format_and_mount(mut partition: P, metadata_blocks: usize) -> Result<Self, ()> {
+        Self::format(&mut partition, metadata_blocks).await?;
+
+        Self::mount(partition).await
     }
 
     pub fn delete(&mut self, path: &str) -> Result<(), ()> {

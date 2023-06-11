@@ -97,6 +97,19 @@ pub struct BlockHeader<M: StorageMedium> {
     erase_count: u32,
     _medium: PhantomData<M>,
 }
+
+impl<M: StorageMedium> Clone for BlockHeader<M> {
+    fn clone(&self) -> Self {
+        Self {
+            header: self.header.clone(),
+            erase_count: self.erase_count.clone(),
+            _medium: self._medium,
+        }
+    }
+}
+
+impl<M: StorageMedium> Copy for BlockHeader<M> {}
+
 pub const HEADER_BYTES: usize = 8;
 
 impl<M: StorageMedium> BlockHeader<M> {
@@ -118,6 +131,14 @@ impl<M: StorageMedium> BlockHeader<M> {
         Self {
             header: BlockHeaderKind::Known(ty),
             erase_count: new_erase_count,
+            _medium: PhantomData,
+        }
+    }
+
+    const fn new_unknown() -> Self {
+        Self {
+            header: BlockHeaderKind::Unknown,
+            erase_count: 0,
             _medium: PhantomData,
         }
     }
@@ -154,7 +175,27 @@ pub struct BlockInfo<M: StorageMedium> {
     pub allow_alloc: bool,
 }
 
+impl<M: StorageMedium> Clone for BlockInfo<M> {
+    fn clone(&self) -> Self {
+        Self {
+            header: self.header.clone(),
+            used_bytes: self.used_bytes.clone(),
+            allow_alloc: self.allow_alloc.clone(),
+        }
+    }
+}
+
+impl<M: StorageMedium> Copy for BlockInfo<M> {}
+
 impl<M: StorageMedium> BlockInfo<M> {
+    pub const fn new_unknown() -> Self {
+        Self {
+            header: BlockHeader::new_unknown(),
+            used_bytes: 0,
+            allow_alloc: false,
+        }
+    }
+
     pub fn update_stats_after_erase(&mut self) {
         self.header.erase_count += 1;
         self.used_bytes = M::block_size_bytes();
