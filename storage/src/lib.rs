@@ -3,6 +3,7 @@
 #![feature(impl_trait_projections)]
 #![allow(incomplete_features)]
 
+pub mod gc;
 pub mod ll;
 pub mod medium;
 

@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 
 use crate::{
-    ll::objects::ObjectIterator,
+    ll::objects::{ObjectIterator, ObjectState},
     medium::{StorageMedium, StoragePrivate, WriteGranularity},
 };
 
@@ -12,7 +12,7 @@ pub enum BlockType {
 }
 
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
-enum BlockHeaderKind {
+pub enum BlockHeaderKind {
     Empty,
     Unknown,
     Known(BlockType),
@@ -63,7 +63,7 @@ impl BlockHeaderKind {
     ///
     /// [`Empty`]: BlockHeaderKind::Empty
     #[must_use]
-    fn is_empty(self) -> bool {
+    pub fn is_empty(self) -> bool {
         matches!(self, Self::Empty)
     }
 
@@ -71,7 +71,7 @@ impl BlockHeaderKind {
     ///
     /// [`Known`]: BlockHeaderKind::Known
     #[must_use]
-    fn is_known(self) -> bool {
+    pub fn is_known(self) -> bool {
         matches!(self, Self::Known(..))
     }
 
@@ -79,11 +79,11 @@ impl BlockHeaderKind {
     ///
     /// [`Unknown`]: BlockHeaderKind::Unknown
     #[must_use]
-    fn is_unknown(self) -> bool {
+    pub fn is_unknown(self) -> bool {
         matches!(self, Self::Unknown)
     }
 
-    fn as_known(self) -> Option<BlockType> {
+    pub fn as_known(self) -> Option<BlockType> {
         if let Self::Known(v) = self {
             Some(v)
         } else {
@@ -100,7 +100,7 @@ pub struct BlockHeader<M: StorageMedium> {
 pub const HEADER_BYTES: usize = 8;
 
 impl<M: StorageMedium> BlockHeader<M> {
-    async fn read(medium: &mut M, block: usize) -> Result<Self, ()> {
+    pub async fn read(medium: &mut M, block: usize) -> Result<Self, ()> {
         let mut header_bytes = [0; 4];
         let mut erase_count_bytes = [0; 4];
 
@@ -136,19 +136,30 @@ impl<M: StorageMedium> BlockHeader<M> {
         medium.write(block, 0, &bytes).await
     }
 
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.header.is_empty() && self.erase_count == u32::MAX
     }
 
-    fn kind(&self) -> BlockHeaderKind {
+    pub fn kind(&self) -> BlockHeaderKind {
         self.header
     }
 }
 
 /// Block info read when the FS is mounted.
 pub struct BlockInfo<M: StorageMedium> {
-    header: BlockHeader<M>,
-    used_bytes: usize,
+    pub header: BlockHeader<M>,
+    /// Includes the header bytes
+    pub used_bytes: usize,
+    /// Indicates whether the block is in a good state and new objects can be allocated in it.
+    pub allow_alloc: bool,
+}
+
+impl<M: StorageMedium> BlockInfo<M> {
+    pub fn update_stats_after_erase(&mut self) {
+        self.header.erase_count += 1;
+        self.used_bytes = M::block_size_bytes();
+        self.allow_alloc = true;
+    }
 }
 
 pub(crate) struct BlockOps<'a, M> {
@@ -251,13 +262,24 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         let header = BlockHeader::read(self.medium, block).await?;
         let mut used_bytes = 0;
 
+        let last_object_reliable;
+
         if header.kind().is_known() {
             let mut iter = ObjectIterator::new(block);
 
-            while iter.next(self.medium).await?.is_some() {}
+            let mut last_object_kind = ObjectState::Free;
+            while let Some(object) = iter.next(self.medium).await? {
+                last_object_kind = object.header.state;
+            }
 
             used_bytes = iter.current_offset();
+
+            // We disallow allocation until the block is fixed.
+            last_object_reliable = last_object_kind != ObjectState::Allocated;
+
+            // TODO: detect if a byte has been written after the last object
         } else {
+            last_object_reliable = false;
             for offset in 0..M::BLOCK_SIZE {
                 let data = &mut [0];
                 self.medium.read(block, offset, data).await?;
@@ -268,7 +290,11 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
             }
         }
 
-        Ok(BlockInfo { header, used_bytes })
+        Ok(BlockInfo {
+            header,
+            used_bytes,
+            allow_alloc: last_object_reliable,
+        })
     }
 }
 

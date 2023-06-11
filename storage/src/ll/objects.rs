@@ -107,8 +107,8 @@ impl ObjectState {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ObjectLocation {
-    block: usize,
-    offset: usize,
+    pub block: usize,
+    pub offset: usize,
 }
 
 impl ObjectLocation {
@@ -153,8 +153,8 @@ impl ObjectLocation {
 }
 
 pub struct ObjectHeader {
-    state: ObjectState,
-    object_size: usize, // At most block size
+    pub state: ObjectState,
+    pub object_size: usize, // At most block size
 }
 
 impl ObjectHeader {
@@ -465,7 +465,7 @@ impl ObjectIterator {
 }
 
 pub(crate) struct ObjectOps<'a, M> {
-    medium: &'a mut M,
+    pub medium: &'a mut M,
 }
 
 impl<'a, M: StorageMedium> ObjectOps<'a, M> {
@@ -481,7 +481,7 @@ impl<'a, M: StorageMedium> ObjectOps<'a, M> {
         state.write(location, self.medium).await
     }
 
-    async fn set_payload_size(
+    pub async fn set_payload_size(
         &mut self,
         location: ObjectLocation,
         cursor: usize,
