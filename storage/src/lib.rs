@@ -54,29 +54,37 @@ where
         Ok(())
     }
 
-    pub async fn read(&mut self, storage: &mut Storage<P>, buf: &mut [u8]) -> Result<usize, ()> {
+    pub async fn read(
+        &mut self,
+        storage: &mut Storage<P>,
+        mut buf: &mut [u8],
+    ) -> Result<usize, ()> {
         let medium = &mut storage.medium;
 
         if self.current_object.is_none() {
             self.select_next_object(medium).await?;
         }
 
-        let mut read = 0;
-        while !buf.is_empty() {
+        let len = buf.len();
+
+        loop {
             let Some(reader) = self.current_object.as_mut() else {
-                return Ok(read);
+                // EOF
+                break;
             };
 
-            let chunk_len = reader.read(medium, &mut buf[read..]).await?;
-            if chunk_len == 0 {
-                self.select_next_object(medium).await?;
-                continue;
+            let read = reader.read(medium, buf).await?;
+            buf = &mut buf[read..];
+
+            if buf.is_empty() {
+                // Buffer is full
+                break;
             }
 
-            read += chunk_len;
+            self.select_next_object(medium).await?;
         }
 
-        Ok(read)
+        Ok(len - buf.len())
     }
 }
 
@@ -400,8 +408,13 @@ mod test {
 
         let mut buf = [0u8; 100];
 
+        // Read in two chunks to test that the reader resumes with the current byte
         reader
-            .read(&mut storage, &mut buf)
+            .read(&mut storage, &mut buf[0..50])
+            .await
+            .expect("Failed to read file");
+        reader
+            .read(&mut storage, &mut buf[50..])
             .await
             .expect("Failed to read file");
 
