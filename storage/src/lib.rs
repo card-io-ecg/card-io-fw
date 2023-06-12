@@ -372,11 +372,25 @@ mod test {
     }
 
     #[async_std::test]
+    async fn fails_to_write_file_if_not_enough_space() {
+        const LIPSUM: &[u8] = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce in mi scelerisque, porttitor mi amet.";
+
+        let mut storage = create_fs().await;
+
+        storage.store("foo", LIPSUM).await.expect("Create failed");
+
+        assert!(
+            storage.store("bar", LIPSUM).await.is_err(),
+            "Lookup returned Ok unexpectedly"
+        );
+    }
+
+    #[async_std::test]
     async fn written_file_can_be_read() {
         let mut storage = create_fs().await;
 
         storage
-            .create_new_file("foo", b"barbaz")
+            .store("foo", b"barbaz")
             .await
             .expect("Create failed");
 
@@ -393,14 +407,39 @@ mod test {
     }
 
     #[async_std::test]
-    async fn content_can_be_longer_than_block_size() {
+    async fn reading_overwritten_file_reads_newer_data() {
         let mut storage = create_fs().await;
-        let lipsum = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce in mi scelerisque, porttitor mi amet.";
 
         storage
-            .create_new_file("foo", lipsum)
+            .store("foo", b"barbaz")
             .await
             .expect("Create failed");
+
+        storage
+            .store("foo", b"foofoobar")
+            .await
+            .expect("Create failed");
+
+        storage.medium.debug_print();
+
+        let mut reader = storage.read("foo").await.expect("Failed to open file");
+
+        let mut buf = [0u8; 9];
+
+        reader
+            .read(&mut storage, &mut buf)
+            .await
+            .expect("Failed to read file");
+
+        assert_eq!(buf, *b"foofoobar");
+    }
+
+    #[async_std::test]
+    async fn content_can_be_longer_than_block_size() {
+        let mut storage = create_fs().await;
+        const LIPSUM: &[u8] = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce in mi scelerisque, porttitor mi amet.";
+
+        storage.store("foo", LIPSUM).await.expect("Create failed");
 
         storage.medium.debug_print();
 
@@ -418,7 +457,7 @@ mod test {
             .await
             .expect("Failed to read file");
 
-        assert_eq!(buf, *lipsum);
+        assert_eq!(buf, *LIPSUM);
     }
 
     #[async_std::test]
@@ -426,7 +465,7 @@ mod test {
         let mut storage = create_fs().await;
 
         storage
-            .create_new_file("foo", b"barbaz")
+            .store("foo", b"barbaz")
             .await
             .expect("Create failed");
 
