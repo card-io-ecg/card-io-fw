@@ -8,10 +8,10 @@ use crate::{
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
 pub enum BlockType {
-    // TODO: add an unset block type - we might be able to dynamically allocate blocks instead of
-    // having a fixed number of metadata blocks
-    Metadata,
-    Data,
+    Metadata = 0x55,
+    Data = 0xAA,
+    /// Freshly formatted, untouched block. Can become either Metadata or Data.
+    Undefined = 0xFF,
 }
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
@@ -22,14 +22,19 @@ pub enum BlockHeaderKind {
 }
 
 impl BlockHeaderKind {
-    fn from_bytes<M: StorageMedium>(header_bytes: [u8; 4]) -> BlockHeaderKind {
+    fn from_bytes<M: StorageMedium>(mut header_bytes: [u8; 12]) -> BlockHeaderKind {
         let options = [
             Self::Known(BlockType::Data),
             Self::Known(BlockType::Metadata),
+            Self::Known(BlockType::Undefined),
             Self::Empty,
         ];
+
+        // mask erase count
+        header_bytes[4..8].fill(0xFF);
+
         for option in options.iter() {
-            if header_bytes == option.to_bytes::<M>() {
+            if header_bytes == option.to_bytes::<M>().0 {
                 return *option;
             }
         }
@@ -37,29 +42,29 @@ impl BlockHeaderKind {
         Self::Unknown
     }
 
-    fn to_bytes<M: StorageMedium>(self) -> [u8; 4] {
-        let header = match self {
-            BlockHeaderKind::Known(ty) => {
-                let fs_info = 0xBA01_0000; // 2 bytes constant
+    fn to_bytes<M: StorageMedium>(self) -> ([u8; 12], usize) {
+        let mut bytes = [0xFF; 12];
 
-                let layout_info = (M::block_size_bytes() as u32) << 14 // 2 bits
-                | (M::block_count_bytes() as u32) << 10 // 4 bits
-                | match M::WRITE_GRANULARITY {
-                    WriteGranularity::Bit => 0,
-                    WriteGranularity::Word(_) => 1,
-                } << 8; // 1 bit
+        if let BlockHeaderKind::Known(ty) = self {
+            let layout_info = (M::block_size_bytes() as u8) << 6 // 2 bits
+            | (M::block_count_bytes() as u8) << 2 // 4 bits
+            | match M::WRITE_GRANULARITY {
+                WriteGranularity::Bit => 0,
+                WriteGranularity::Word(_) => 1,
+            }; // 1 bit
 
-                let blk_ty = match ty {
-                    BlockType::Metadata => 0x55,
-                    BlockType::Data => 0xaa,
-                };
+            bytes[0] = 0xBA;
+            bytes[1] = 0x01;
+            bytes[2] = layout_info;
 
-                fs_info | layout_info | blk_ty
+            match M::WRITE_GRANULARITY {
+                WriteGranularity::Bit | WriteGranularity::Word(1) => bytes[3] = ty as u8,
+                WriteGranularity::Word(4) => bytes[8] = ty as u8,
+                _ => unimplemented!(),
             }
-            BlockHeaderKind::Empty | BlockHeaderKind::Unknown => u32::MAX,
-        };
+        }
 
-        header.to_be_bytes()
+        (bytes, BlockHeader::<M>::byte_count())
     }
 
     /// Returns `true` if the block header kind is [`Empty`].
@@ -122,19 +127,14 @@ impl<M: StorageMedium> Clone for BlockHeader<M> {
 
 impl<M: StorageMedium> Copy for BlockHeader<M> {}
 
-pub const HEADER_BYTES: usize = 8;
-
 impl<M: StorageMedium> BlockHeader<M> {
     pub async fn read(medium: &mut M, block: usize) -> Result<Self, StorageError> {
-        let mut header_bytes = [0; 4];
-        let mut erase_count_bytes = [0; 4];
-
+        let mut header_bytes = [0; 12];
         medium.read(block, 0, &mut header_bytes).await?;
-        medium.read(block, 4, &mut erase_count_bytes).await?;
 
         Ok(Self {
             header: BlockHeaderKind::from_bytes::<M>(header_bytes),
-            erase_count: u32::from_le_bytes(erase_count_bytes),
+            erase_count: u32::from_le_bytes(header_bytes[4..8].try_into().unwrap()),
             _medium: PhantomData,
         })
     }
@@ -155,19 +155,26 @@ impl<M: StorageMedium> BlockHeader<M> {
         }
     }
 
-    fn into_bytes(self) -> [u8; HEADER_BYTES] {
-        let mut bytes = [0; HEADER_BYTES];
+    pub const fn byte_count() -> usize {
+        match M::WRITE_GRANULARITY {
+            WriteGranularity::Bit => 8,
+            WriteGranularity::Word(4) => 1,
+            _ => unimplemented!(),
+        }
+    }
 
-        bytes[0..4].copy_from_slice(&self.header.to_bytes::<M>());
+    fn into_bytes(self) -> ([u8; 12], usize) {
+        let (mut bytes, byte_count) = self.header.to_bytes::<M>();
+
         bytes[4..8].copy_from_slice(&self.erase_count.to_le_bytes());
 
-        bytes
+        (bytes, byte_count)
     }
 
     async fn write(self, block: usize, medium: &mut M) -> Result<(), StorageError> {
         log::trace!("BlockHeader::write({self:?}, {block})");
-        let bytes = self.into_bytes();
-        medium.write(block, 0, &bytes).await
+        let (bytes, byte_count) = self.into_bytes();
+        medium.write(block, 0, &bytes[0..byte_count]).await
     }
 
     pub fn is_empty(&self) -> bool {
@@ -176,6 +183,10 @@ impl<M: StorageMedium> BlockHeader<M> {
 
     pub fn kind(&self) -> BlockHeaderKind {
         self.header
+    }
+
+    pub fn set_block_type(&mut self, ty: BlockType) {
+        self.header = BlockHeaderKind::Known(ty);
     }
 }
 
@@ -221,7 +232,7 @@ impl<M: StorageMedium> BlockInfo<M> {
 
     pub fn update_stats_after_erase(&mut self) {
         self.header.erase_count += 1;
-        self.used_bytes = HEADER_BYTES;
+        self.used_bytes = BlockHeader::<M>::byte_count();
         self.allow_alloc = true;
     }
 
@@ -230,7 +241,7 @@ impl<M: StorageMedium> BlockInfo<M> {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.used_bytes == HEADER_BYTES
+        self.used_bytes == BlockHeader::<M>::byte_count()
     }
 
     pub fn free_space(&self) -> usize {
@@ -254,7 +265,7 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
 
         let mut buffer = [0; 4];
 
-        let block_data_size = M::BLOCK_SIZE - HEADER_BYTES;
+        let block_data_size = M::BLOCK_SIZE - BlockHeader::<M>::byte_count();
 
         for offset in (0..block_data_size).step_by(buffer.len()) {
             let remaining_bytes = block_data_size - offset;
@@ -276,7 +287,7 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         BlockHeader::read(self.medium, block).await
     }
 
-    pub async fn format_block(&mut self, block: usize, ty: BlockType) -> Result<(), StorageError> {
+    pub async fn format_block(&mut self, block: usize) -> Result<(), StorageError> {
         let header = self.read_header(block).await?;
 
         let mut erase = true;
@@ -287,7 +298,8 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
                 erase = false;
             }
         } else if let Some(current_ty) = header.kind().as_known() {
-            if current_ty == ty && self.is_block_data_empty(block).await? {
+            // Technically one of these checks is enough - if the block is empty, it's Undefined
+            if current_ty == BlockType::Undefined && self.is_block_data_empty(block).await? {
                 // Block is already formatted
                 return Ok(());
             }
@@ -306,17 +318,14 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
             self.medium.erase(block).await?;
         }
 
-        BlockHeader::new(ty, new_erase_count)
+        BlockHeader::new(BlockType::Undefined, new_erase_count)
             .write(block, self.medium)
             .await
     }
 
-    pub async fn format_storage(&mut self, metadata_blocks: usize) -> Result<(), StorageError> {
-        for block in 0..metadata_blocks {
-            self.format_block(block, BlockType::Metadata).await?;
-        }
-        for block in metadata_blocks..M::BLOCK_COUNT {
-            self.format_block(block, BlockType::Data).await?;
+    pub async fn format_storage(&mut self) -> Result<(), StorageError> {
+        for block in 0..M::BLOCK_COUNT {
+            self.format_block(block).await?;
         }
 
         Ok(())
@@ -329,7 +338,9 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         offset: usize,
         data: &[u8],
     ) -> Result<(), StorageError> {
-        self.medium.write(block, offset + HEADER_BYTES, data).await
+        self.medium
+            .write(block, offset + BlockHeader::<M>::byte_count(), data)
+            .await
     }
 
     pub async fn read_data(
@@ -338,7 +349,9 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         offset: usize,
         data: &mut [u8],
     ) -> Result<(), StorageError> {
-        self.medium.read(block, offset + HEADER_BYTES, data).await
+        self.medium
+            .read(block, offset + BlockHeader::<M>::byte_count(), data)
+            .await
     }
 
     pub async fn scan_block(&mut self, block: usize) -> Result<BlockInfo<M>, StorageError> {
@@ -348,7 +361,7 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         let last_object_reliable;
 
         if header.kind().is_known() {
-            let mut iter = ObjectIterator::new(block);
+            let mut iter = ObjectIterator::new::<M>(block);
 
             let mut last_object_kind = ObjectState::Free;
             while let Some(object) = iter.next(self.medium).await? {
@@ -382,6 +395,20 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
 
         Ok(info)
     }
+
+    pub(crate) async fn set_block_type(
+        &mut self,
+        block: usize,
+        ty: BlockType,
+    ) -> Result<(), StorageError> {
+        let offset = match M::WRITE_GRANULARITY {
+            WriteGranularity::Bit | WriteGranularity::Word(1) => 3,
+            WriteGranularity::Word(4) => 8,
+            _ => unimplemented!(),
+        };
+
+        self.medium.write(block, offset, &[ty as u8]).await
+    }
 }
 
 #[cfg(test)]
@@ -408,7 +435,7 @@ mod tests {
         let mut medium = RamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
-        block_ops.format_block(3, BlockType::Data).await.unwrap();
+        block_ops.format_block(3).await.unwrap();
         assert_eq!(block_ops.read_header(3).await.unwrap().erase_count, 0);
     }
 
@@ -419,7 +446,7 @@ mod tests {
         let mut medium = RamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
-        block_ops.format_block(0, BlockType::Data).await.unwrap();
+        block_ops.format_block(0).await.unwrap();
         assert_eq!(block_ops.read_header(0).await.unwrap().erase_count, 0);
 
         let info = block_ops.scan_block(0).await.unwrap();
@@ -433,7 +460,7 @@ mod tests {
         let mut medium = RamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
-        block_ops.format_storage(4).await.unwrap();
+        block_ops.format_storage().await.unwrap();
         for block in 0..RamStorage::<256, 32>::BLOCK_COUNT {
             assert_eq!(block_ops.read_header(block).await.unwrap().erase_count, 0);
         }
@@ -446,34 +473,11 @@ mod tests {
         let mut medium = RamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
-        block_ops
-            .format_block(3, BlockType::Metadata)
-            .await
-            .unwrap();
+        block_ops.format_block(3).await.unwrap();
         assert_eq!(block_ops.read_header(3).await.unwrap().erase_count, 0);
 
-        block_ops
-            .format_block(3, BlockType::Metadata)
-            .await
-            .unwrap();
+        block_ops.format_block(3).await.unwrap();
         assert_eq!(block_ops.read_header(3).await.unwrap().erase_count, 0);
-    }
-
-    #[async_std::test]
-    async fn test_changing_block_type_increases_erase_count() {
-        init_test();
-
-        let mut medium = RamStorage::<256, 32>::new();
-        let mut block_ops = BlockOps::new(&mut medium);
-
-        block_ops
-            .format_block(3, BlockType::Metadata)
-            .await
-            .unwrap();
-        assert_eq!(block_ops.read_header(3).await.unwrap().erase_count, 0);
-
-        block_ops.format_block(3, BlockType::Data).await.unwrap();
-        assert_eq!(block_ops.read_header(3).await.unwrap().erase_count, 1);
     }
 
     #[async_std::test]
@@ -483,18 +487,12 @@ mod tests {
         let mut medium = RamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
-        block_ops
-            .format_block(3, BlockType::Metadata)
-            .await
-            .unwrap();
+        block_ops.format_block(3).await.unwrap();
         assert_eq!(block_ops.read_header(3).await.unwrap().erase_count, 0);
 
         block_ops.write_data(3, 5, &[1, 2, 3]).await.unwrap();
 
-        block_ops
-            .format_block(3, BlockType::Metadata)
-            .await
-            .unwrap();
+        block_ops.format_block(3).await.unwrap();
         assert_eq!(block_ops.read_header(3).await.unwrap().erase_count, 1);
     }
 
@@ -505,10 +503,7 @@ mod tests {
         let mut medium = RamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
-        block_ops
-            .format_block(3, BlockType::Metadata)
-            .await
-            .unwrap();
+        block_ops.format_block(3).await.unwrap();
 
         block_ops.write_data(3, 5, &[1, 2, 3]).await.unwrap();
 

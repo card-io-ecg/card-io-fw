@@ -29,7 +29,7 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
             return Ok(());
         }
 
-        let mut iter = ObjectIterator::new(block);
+        let mut iter = ObjectIterator::new::<M>(block);
 
         while let Some(object) = iter.next(medium).await? {
             if object.header.state == ObjectState::Allocated {
@@ -84,7 +84,7 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
             return Ok(());
         }
 
-        let mut iter = ObjectIterator::new(block);
+        let mut iter = ObjectIterator::new::<M>(block);
 
         let mut erase = false;
         while let Some(object) = iter.next(medium).await? {
@@ -103,12 +103,12 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
             return Err(StorageError::FsCorrupted);
         }
 
-        let BlockHeaderKind::Known(ty) = info.header.kind() else {
+        let BlockHeaderKind::Known(_) = info.header.kind() else {
             // We should have fixed the invalid blocks first
             return Err(StorageError::FsCorrupted);
         };
 
-        BlockOps::new(medium).format_block(block, ty).await?;
+        BlockOps::new(medium).format_block(block).await?;
 
         info.update_stats_after_erase();
 
@@ -138,7 +138,7 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
             return Ok(());
         }
 
-        let mut iter = ObjectIterator::new(block);
+        let mut iter = ObjectIterator::new::<M>(block);
 
         while let Some(object) = iter.next(medium).await? {
             if object.header.state != ObjectState::Deleted {
@@ -146,12 +146,12 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
             }
         }
 
-        let BlockHeaderKind::Known(ty) = info.header.kind() else {
+        let BlockHeaderKind::Known(_) = info.header.kind() else {
             // We should have fixed the invalid blocks first
             return Err(StorageError::FsCorrupted);
         };
 
-        BlockOps::new(medium).format_block(block, ty).await?;
+        BlockOps::new(medium).format_block(block).await?;
 
         info.update_stats_after_erase();
 

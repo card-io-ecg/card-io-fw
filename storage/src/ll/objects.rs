@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 
 use crate::{
-    ll::blocks,
+    ll::blocks::BlockHeader,
     medium::{StorageMedium, StoragePrivate, WriteGranularity},
     StorageError,
 };
@@ -503,7 +503,7 @@ impl<M: StorageMedium> ObjectInfo<M> {
     }
 
     async fn read(location: ObjectLocation, medium: &mut M) -> Result<Option<Self>, StorageError> {
-        if location.offset + blocks::HEADER_BYTES >= M::BLOCK_SIZE {
+        if location.offset + BlockHeader::<M>::byte_count() >= M::BLOCK_SIZE {
             return Ok(None);
         }
 
@@ -527,11 +527,11 @@ pub struct ObjectIterator {
 }
 
 impl ObjectIterator {
-    pub fn new(block: usize) -> Self {
+    pub fn new<M: StorageMedium>(block: usize) -> Self {
         Self {
             location: ObjectLocation {
                 block,
-                offset: blocks::HEADER_BYTES,
+                offset: BlockHeader::<M>::byte_count(),
             },
         }
     }
