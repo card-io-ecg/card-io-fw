@@ -154,6 +154,18 @@ impl ObjectLocation {
     pub async fn read_header(self, medium: &mut impl StorageMedium) -> Result<ObjectHeader, ()> {
         ObjectHeader::read(self, medium).await
     }
+
+    pub(crate) async fn read_metadata(
+        self,
+        medium: &mut impl StorageMedium,
+    ) -> Result<MetadataObjectHeader, ()> {
+        let Some(info) = ObjectInfo::read(self, medium).await?
+        else {
+            return Err(());
+        };
+
+        info.read_metadata(medium).await
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -486,6 +498,25 @@ impl<M: StorageMedium> ObjectInfo<M> {
             parent: None,
         })
     }
+
+    async fn read(location: ObjectLocation, medium: &mut M) -> Result<Option<Self>, ()> {
+        if location.offset + blocks::HEADER_BYTES >= M::BLOCK_SIZE {
+            return Ok(None);
+        }
+
+        let object = ObjectHeader::read(location, medium).await?;
+        if object.state.is_free() {
+            return Ok(None);
+        }
+
+        let info = ObjectInfo {
+            location,
+            header: object,
+            _medium: PhantomData,
+        };
+
+        Ok(Some(info))
+    }
 }
 
 pub struct ObjectIterator {
@@ -506,25 +537,11 @@ impl ObjectIterator {
         &mut self,
         medium: &mut M,
     ) -> Result<Option<ObjectInfo<M>>, ()> {
-        let location = self.location;
-
-        if location.offset + blocks::HEADER_BYTES >= M::BLOCK_SIZE {
-            return Ok(None);
+        let info = ObjectInfo::read(self.location, medium).await?;
+        if let Some(info) = info.as_ref() {
+            self.location.offset += info.total_size();
         }
-
-        let object = ObjectHeader::read(location, medium).await?;
-        if object.state.is_free() {
-            return Ok(None);
-        }
-
-        let info = ObjectInfo {
-            location,
-            header: object,
-            _medium: PhantomData,
-        };
-        self.location.offset += info.total_size();
-
-        Ok(Some(info))
+        Ok(info)
     }
 
     pub fn current_offset(&self) -> usize {
@@ -537,6 +554,10 @@ pub(crate) struct ObjectOps<'a, M> {
 }
 
 impl<'a, M: StorageMedium> ObjectOps<'a, M> {
+    pub(crate) fn new(medium: &'a mut M) -> Self {
+        Self { medium }
+    }
+
     pub async fn update_state(
         &mut self,
         location: ObjectLocation,

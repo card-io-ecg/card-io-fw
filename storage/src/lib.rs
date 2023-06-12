@@ -8,7 +8,7 @@ use crate::{
     diag::Counters,
     ll::{
         blocks::{BlockInfo, BlockOps},
-        objects::{ObjectIterator, ObjectLocation, ObjectReader, ObjectState},
+        objects::{ObjectIterator, ObjectLocation, ObjectOps, ObjectReader, ObjectState},
     },
     medium::StorageMedium,
 };
@@ -79,18 +79,18 @@ where
     }
 
     pub async fn delete(&mut self, path: &str) -> Result<(), ()> {
-        let object = self.lookup(path).await?;
-        self.delete_object(object).await
+        let location = self.lookup(path).await?;
+        self.delete_file_at(location).await
     }
 
     pub async fn store(&mut self, path: &str, data: &[u8]) -> Result<(), ()> {
-        let object = self.lookup(path).await;
+        let overwritten_location = self.lookup(path).await;
 
         let new_object = self.allocate_object(path).await?;
         self.write_object(&new_object, data).await?;
 
-        if let Ok(object) = object {
-            self.delete_object(object).await?;
+        if let Ok(location) = overwritten_location {
+            self.delete_file_at(location).await?;
         }
 
         Ok(())
@@ -154,8 +154,21 @@ where
         Err(())
     }
 
-    async fn delete_object(&mut self, object: ObjectLocation) -> Result<(), ()> {
-        todo!()
+    async fn delete_file_at(&mut self, meta_location: ObjectLocation) -> Result<(), ()> {
+        let mut metadata = meta_location.read_metadata(&mut self.medium).await?;
+        let mut ops = ObjectOps::new(&mut self.medium);
+
+        ops.update_state(metadata.filename_location, ObjectState::Deleted)
+            .await?;
+
+        while let Some(location) = metadata.next_object_location(ops.medium).await? {
+            ops.update_state(location, ObjectState::Deleted).await?;
+        }
+
+        ops.update_state(meta_location, ObjectState::Deleted)
+            .await?;
+
+        Ok(())
     }
 
     async fn allocate_object(&mut self, path: &str) -> Result<ObjectLocation, ()> {
