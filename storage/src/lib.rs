@@ -205,12 +205,16 @@ mod test {
 
     use super::*;
 
+    async fn create_fs() -> Storage<RamStorage<256, 32>> {
+        let medium = RamStorage::<256, 32>::new();
+        Storage::format_and_mount(medium, 3)
+            .await
+            .expect("Failed to mount storage")
+    }
+
     #[async_std::test]
     async fn lookup_returns_error_if_file_does_not_exist() {
-        let medium = RamStorage::<256, 32>::new();
-        let mut storage = Storage::format_and_mount(medium, 3)
-            .await
-            .expect("Failed to mount storage");
+        let mut storage = create_fs().await;
 
         assert!(
             storage.read("foo").await.is_err(),
@@ -220,10 +224,7 @@ mod test {
 
     #[async_std::test]
     async fn delete_returns_error_if_file_does_not_exist() {
-        let medium = RamStorage::<256, 32>::new();
-        let mut storage = Storage::format_and_mount(medium, 3)
-            .await
-            .expect("Failed to mount storage");
+        let mut storage = create_fs().await;
 
         storage
             .delete("foo")
