@@ -116,7 +116,7 @@ impl ObjectLocation {
         Self { block, offset }
     }
 
-    fn into_bytes<M: StorageMedium>(self) -> ([u8; 8], usize) {
+    pub fn into_bytes<M: StorageMedium>(self) -> ([u8; 8], usize) {
         let block_bytes = self.block.to_le_bytes();
         let offset_bytes = self.offset.to_le_bytes();
 
@@ -250,16 +250,16 @@ pub struct DataObjectHeader {
     object: ObjectHeader,
 }
 
-pub struct ObjectWriter<'a, M: StorageMedium> {
+pub struct ObjectWriter<M: StorageMedium> {
     location: ObjectLocation,
     object: ObjectHeader,
     cursor: usize,
-    medium: &'a mut M,
     buffer: heapless::Vec<u8, 4>, // TODO: support larger word sizes?
+    _medium: PhantomData<M>,
 }
 
-impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
-    pub async fn new(location: ObjectLocation, medium: &'a mut M) -> Result<Self, ()> {
+impl<M: StorageMedium> ObjectWriter<M> {
+    pub async fn new(location: ObjectLocation, medium: &mut M) -> Result<Self, ()> {
         // We read back the header to ensure that the object is in a valid state.
         let object = ObjectHeader::read(location, medium).await?;
 
@@ -272,8 +272,8 @@ impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
             location,
             object,
             cursor: 0,
-            medium,
             buffer: heapless::Vec::new(),
+            _medium: PhantomData,
         })
     }
 
@@ -297,7 +297,7 @@ impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
         }
     }
 
-    async fn flush(&mut self) -> Result<(), ()> {
+    async fn flush(&mut self, medium: &mut M) -> Result<(), ()> {
         // Buffering is not necessary if we can write arbitrary bits.
         if M::WRITE_GRANULARITY == WriteGranularity::Bit {
             return Ok(());
@@ -305,7 +305,7 @@ impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
 
         if !self.buffer.is_empty() {
             let offset = self.data_write_offset();
-            self.medium
+            medium
                 .write(self.location.block, offset, &self.buffer)
                 .await?;
 
@@ -315,8 +315,8 @@ impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
         Ok(())
     }
 
-    pub async fn allocate(&mut self) -> Result<(), ()> {
-        self.set_state(ObjectState::Allocated).await
+    pub async fn allocate(&mut self, medium: &mut M) -> Result<(), ()> {
+        self.set_state(medium, ObjectState::Allocated).await
     }
 
     fn data_write_offset(&self) -> usize {
@@ -328,7 +328,7 @@ impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
         M::BLOCK_SIZE - self.data_write_offset()
     }
 
-    pub async fn write(&mut self, mut data: &[u8]) -> Result<(), ()> {
+    pub async fn write(&mut self, medium: &mut M, mut data: &[u8]) -> Result<(), ()> {
         if self.object.state != ObjectState::Allocated {
             return Err(());
         }
@@ -346,13 +346,13 @@ impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
         if !self.buffer.is_empty() {
             data = self.fill_buffer(data)?;
             if self.can_flush() {
-                self.flush().await?;
+                self.flush(medium).await?;
             }
         }
 
         let remaining = data.len() % M::WRITE_GRANULARITY.width();
         let aligned_bytes = len - remaining;
-        self.medium
+        medium
             .write(
                 self.location.block,
                 self.data_write_offset(),
@@ -369,45 +369,41 @@ impl<'a, M: StorageMedium> ObjectWriter<'a, M> {
         Ok(())
     }
 
-    async fn write_size(&mut self) -> Result<(), ()> {
-        ObjectOps {
-            medium: self.medium,
-        }
-        .set_payload_size(self.location, self.cursor)
-        .await
+    async fn write_size(&mut self, medium: &mut M) -> Result<(), ()> {
+        ObjectOps { medium }
+            .set_payload_size(self.location, self.cursor)
+            .await
     }
 
-    async fn set_state(&mut self, state: ObjectState) -> Result<(), ()> {
+    async fn set_state(&mut self, medium: &mut M, state: ObjectState) -> Result<(), ()> {
         self.object.state = state;
-        ObjectOps {
-            medium: self.medium,
-        }
-        .update_state(self.location, state)
-        .await
+        ObjectOps { medium }
+            .update_state(self.location, state)
+            .await
     }
 
-    pub async fn finalize(mut self) -> Result<(), ()> {
+    pub async fn finalize(mut self, medium: &mut M) -> Result<(), ()> {
         if self.object.state != ObjectState::Allocated {
             return Err(());
         }
 
         // must be two different writes for powerloss safety
-        self.write_size().await?;
-        self.flush().await?;
-        self.set_state(ObjectState::Finalized).await
+        self.write_size(medium).await?;
+        self.flush(medium).await?;
+        self.set_state(medium, ObjectState::Finalized).await
     }
 
-    pub async fn delete(mut self) -> Result<(), ()> {
+    pub async fn delete(mut self, medium: &mut M) -> Result<(), ()> {
         if let ObjectState::Free | ObjectState::Deleted = self.object.state {
             return Ok(());
         }
 
         if self.object.state == ObjectState::Allocated {
-            self.write_size().await?;
+            self.write_size(medium).await?;
         }
 
-        self.flush().await?;
-        self.set_state(ObjectState::Deleted).await
+        self.flush(medium).await?;
+        self.set_state(medium, ObjectState::Deleted).await
     }
 }
 

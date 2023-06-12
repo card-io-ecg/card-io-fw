@@ -7,10 +7,12 @@
 use crate::{
     diag::Counters,
     ll::{
-        blocks::{BlockInfo, BlockOps},
-        objects::{ObjectIterator, ObjectLocation, ObjectOps, ObjectReader, ObjectState},
+        blocks::{BlockHeaderKind, BlockInfo, BlockOps, BlockType},
+        objects::{
+            ObjectIterator, ObjectLocation, ObjectOps, ObjectReader, ObjectState, ObjectWriter,
+        },
     },
-    medium::StorageMedium,
+    medium::{StorageMedium, StoragePrivate},
 };
 
 pub mod diag;
@@ -86,8 +88,7 @@ where
     pub async fn store(&mut self, path: &str, data: &[u8]) -> Result<(), ()> {
         let overwritten_location = self.lookup(path).await;
 
-        let new_object = self.allocate_object(path).await?;
-        self.write_object(&new_object, data).await?;
+        self.create_new_file(path, data).await?;
 
         if let Ok(location) = overwritten_location {
             self.delete_file_at(location).await?;
@@ -106,7 +107,7 @@ where
     }
 
     async fn lookup(&mut self, path: &str) -> Result<ObjectLocation, ()> {
-        let path_hash = path.len() as u32; // TODO: Hash the path
+        let path_hash = hash_path(path);
 
         for block_idx in self
             .blocks
@@ -171,13 +172,84 @@ where
         Ok(())
     }
 
-    async fn allocate_object(&mut self, path: &str) -> Result<ObjectLocation, ()> {
-        todo!()
+    async fn create_new_file(&mut self, path: &str, data: &[u8]) -> Result<(), ()> {
+        let path_hash = hash_path(path);
+
+        // Write file name as data object
+        let filename_location = self.find_new_object_location(BlockType::Data, data.len())?;
+
+        // filename + 1 data page
+        let est_page_count = 1 + 1; // TODO: guess the number of data pages needed
+
+        let file_meta_location = self.find_new_object_location(
+            BlockType::Metadata,
+            est_page_count * P::object_location_bytes(),
+        )?;
+
+        let mut meta_writer = ObjectWriter::new(file_meta_location, &mut self.medium).await?;
+        let mut filename_writer = ObjectWriter::new(filename_location, &mut self.medium).await?;
+
+        filename_writer.allocate(&mut self.medium).await?;
+        filename_writer
+            .write(&mut self.medium, path.as_bytes())
+            .await?;
+        filename_writer.finalize(&mut self.medium).await?;
+
+        // Write a non-finalized header obejct
+        let (fn_loc_bytes, fn_loc_byte_count) = filename_location.into_bytes::<P>();
+
+        meta_writer.allocate(&mut self.medium).await?;
+        meta_writer
+            .write(&mut self.medium, &path_hash.to_le_bytes())
+            .await?;
+        meta_writer
+            .write(&mut self.medium, &fn_loc_bytes[..fn_loc_byte_count])
+            .await?;
+
+        // Write data objects
+        // TODO
+
+        // Finalize header object
+        meta_writer.finalize(&mut self.medium).await?;
+
+        Ok(())
     }
 
-    async fn write_object(&mut self, object: &ObjectLocation, data: &[u8]) -> Result<(), ()> {
-        todo!()
+    fn find_alloc_block(&self, ty: BlockType, min_free: usize) -> Result<usize, ()> {
+        // Try to find a used block with enough free space
+        if let Some(block) = self.blocks.iter().position(|info| {
+            info.header.kind() == BlockHeaderKind::Known(ty)
+                && !info.is_empty()
+                && info.free_space() >= min_free
+        }) {
+            return Ok(block);
+        }
+
+        // Pick a free block
+        if let Some(block) = self.blocks.iter().position(|info| {
+            info.header.kind() == BlockHeaderKind::Known(ty) && info.free_space() >= min_free
+        }) {
+            return Ok(block);
+        }
+
+        // No block found
+        Err(())
     }
+
+    fn find_new_object_location(&self, ty: BlockType, len: usize) -> Result<ObjectLocation, ()> {
+        // find block with most free space
+        let block = self.find_alloc_block(ty, P::object_header_bytes() + len)?;
+
+        Ok(ObjectLocation {
+            block,
+            offset: self.blocks[block].used_bytes,
+        })
+    }
+}
+
+fn hash_path(path: &str) -> u32 {
+    // TODO
+    path.len() as u32
 }
 
 impl<P> Storage<Counters<P>>

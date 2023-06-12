@@ -5,6 +5,8 @@ use crate::{
     medium::{StorageMedium, StoragePrivate, WriteGranularity},
 };
 
+use super::objects::ObjectLocation;
+
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub enum BlockType {
     // TODO: add an unset block type - we might be able to dynamically allocate blocks instead of
@@ -200,12 +202,20 @@ impl<M: StorageMedium> BlockInfo<M> {
 
     pub fn update_stats_after_erase(&mut self) {
         self.header.erase_count += 1;
-        self.used_bytes = M::block_size_bytes();
+        self.used_bytes = HEADER_BYTES;
         self.allow_alloc = true;
     }
 
     pub fn is_metadata(&self) -> bool {
         self.header.kind() == BlockHeaderKind::Known(BlockType::Metadata)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.used_bytes == HEADER_BYTES
+    }
+
+    pub fn free_space(&self) -> usize {
+        M::BLOCK_SIZE - self.used_bytes
     }
 }
 
