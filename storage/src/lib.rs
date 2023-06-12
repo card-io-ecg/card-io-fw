@@ -8,7 +8,7 @@ use crate::{
     diag::Counters,
     ll::{
         blocks::{BlockInfo, BlockOps},
-        objects::{ObjectIterator, ObjectLocation, ObjectState},
+        objects::{ObjectIterator, ObjectLocation, ObjectReader, ObjectState},
     },
     medium::StorageMedium,
 };
@@ -116,15 +116,36 @@ where
         {
             let mut iter = ObjectIterator::new(block_idx);
 
-            while let Some(object) = iter.next(&mut self.medium).await? {
+            'objs: while let Some(object) = iter.next(&mut self.medium).await? {
                 if object.header.state != ObjectState::Finalized {
-                    continue;
+                    continue 'objs;
                 }
 
                 let metadata = object.read_metadata(&mut self.medium).await?;
 
                 if metadata.path_hash == path_hash {
-                    todo!("Read first data object and compare path. If path matches, return object id.");
+                    let mut reader =
+                        ObjectReader::new(metadata.filename_location, &mut self.medium).await?;
+
+                    if reader.len() != path.len() {
+                        continue 'objs;
+                    }
+
+                    let mut path_buf = [0u8; 16];
+
+                    let mut read = 0;
+                    while read < path.len() {
+                        let bytes_read = reader.read(&mut path_buf).await?;
+                        let path_bytes = &path.as_bytes()[read..read + bytes_read];
+
+                        if path_bytes != &path_buf[..bytes_read] {
+                            continue 'objs;
+                        }
+
+                        read += bytes_read;
+                    }
+
+                    return Ok(metadata.location);
                 }
             }
         }

@@ -197,7 +197,7 @@ pub struct MetadataObjectHeader {
     pub object: ObjectHeader,
     pub path_hash: u32,
     pub filename_location: ObjectLocation,
-    location: ObjectLocation,
+    pub location: ObjectLocation,
     cursor: usize, // Used to iterate through the list of object locations.
 }
 
@@ -421,6 +421,10 @@ impl<'a, M: StorageMedium> ObjectReader<'a, M> {
             cursor: 0,
             medium,
         })
+    }
+
+    pub fn len(&self) -> usize {
+        self.object.object_size
     }
 
     pub fn remaining(&self) -> usize {
