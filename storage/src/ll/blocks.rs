@@ -5,8 +5,6 @@ use crate::{
     medium::{StorageMedium, StoragePrivate, WriteGranularity},
 };
 
-use super::objects::ObjectLocation;
-
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub enum BlockType {
     // TODO: add an unset block type - we might be able to dynamically allocate blocks instead of
@@ -30,7 +28,7 @@ impl BlockHeaderKind {
             Self::Empty,
         ];
         for option in options.iter() {
-            if header_bytes == option.to_le_bytes::<M>() {
+            if header_bytes == option.to_bytes::<M>() {
                 return *option;
             }
         }
@@ -38,7 +36,7 @@ impl BlockHeaderKind {
         Self::Unknown
     }
 
-    fn to_le_bytes<M: StorageMedium>(self) -> [u8; 4] {
+    fn to_bytes<M: StorageMedium>(self) -> [u8; 4] {
         let header = match self {
             BlockHeaderKind::Known(ty) => {
                 let fs_info = 0xBA01_0000; // 2 bytes constant
@@ -60,7 +58,7 @@ impl BlockHeaderKind {
             BlockHeaderKind::Empty | BlockHeaderKind::Unknown => u32::MAX,
         };
 
-        header.to_le_bytes()
+        header.to_be_bytes()
     }
 
     /// Returns `true` if the block header kind is [`Empty`].
@@ -150,7 +148,7 @@ impl<M: StorageMedium> BlockHeader<M> {
     fn into_bytes(self) -> [u8; HEADER_BYTES] {
         let mut bytes = [0; HEADER_BYTES];
 
-        bytes[0..4].copy_from_slice(&self.header.to_le_bytes::<M>());
+        bytes[0..4].copy_from_slice(&self.header.to_bytes::<M>());
         bytes[4..8].copy_from_slice(&self.erase_count.to_le_bytes());
 
         bytes

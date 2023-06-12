@@ -39,14 +39,23 @@ struct Object {
     kind: ObjectKind,
 }
 
-pub struct Reader<'a, P>
+pub struct Reader<P>
 where
     P: StorageMedium,
     [(); P::BLOCK_COUNT]:,
 {
-    storage: &'a mut Storage<P>,
-    object: ObjectLocation,
-    cursor: u32,
+    reader: ObjectReader<P>,
+}
+
+impl<P> Reader<P>
+where
+    P: StorageMedium,
+    [(); P::BLOCK_COUNT]:,
+{
+    pub async fn read(&mut self, storage: &mut Storage<P>, buf: &mut [u8]) -> Result<usize, ()> {
+        todo!()
+        // self.reader.read(&mut storage.medium, buf).await
+    }
 }
 
 impl<P> Storage<P>
@@ -97,12 +106,10 @@ where
         Ok(())
     }
 
-    pub async fn read(&mut self, path: &str) -> Result<Reader<'_, P>, ()> {
+    pub async fn read(&mut self, path: &str) -> Result<Reader<P>, ()> {
         let object = self.lookup(path).await?;
         Ok(Reader {
-            storage: self,
-            object,
-            cursor: 0,
+            reader: ObjectReader::new(object, &mut self.medium).await?,
         })
     }
 
@@ -136,10 +143,13 @@ where
 
                     let mut read = 0;
                     while read < path.len() {
-                        let bytes_read = reader.read(&mut path_buf).await?;
+                        let len = path_buf.len().min(path.len() - read);
+                        let buf = &mut path_buf[..len];
+
+                        let bytes_read = reader.read(&mut self.medium, buf).await?;
                         let path_bytes = &path.as_bytes()[read..read + bytes_read];
 
-                        if path_bytes != &path_buf[..bytes_read] {
+                        if path_bytes != buf {
                             continue 'objs;
                         }
 
@@ -172,11 +182,28 @@ where
         Ok(())
     }
 
-    async fn create_new_file(&mut self, path: &str, data: &[u8]) -> Result<(), ()> {
+    async fn write_object(&mut self, location: ObjectLocation, data: &[u8]) -> Result<(), ()> {
+        self.blocks[location.block].used_bytes +=
+            ObjectWriter::write_to(location, &mut self.medium, data).await?;
+        Ok(())
+    }
+
+    async fn write_location(
+        &mut self,
+        meta_writer: &mut ObjectWriter<P>,
+        location: ObjectLocation,
+    ) -> Result<(), ()> {
+        let (bytes, byte_count) = location.into_bytes::<P>();
+        meta_writer
+            .write(&mut self.medium, &bytes[..byte_count])
+            .await
+    }
+
+    async fn create_new_file(&mut self, path: &str, mut data: &[u8]) -> Result<(), ()> {
         let path_hash = hash_path(path);
 
         // Write file name as data object
-        let filename_location = self.find_new_object_location(BlockType::Data, data.len())?;
+        let filename_location = self.find_new_object_location(BlockType::Data, path.len())?;
 
         // filename + 1 data page
         let est_page_count = 1 + 1; // TODO: guess the number of data pages needed
@@ -187,30 +214,40 @@ where
         )?;
 
         let mut meta_writer = ObjectWriter::new(file_meta_location, &mut self.medium).await?;
-        let mut filename_writer = ObjectWriter::new(filename_location, &mut self.medium).await?;
 
-        filename_writer.allocate(&mut self.medium).await?;
-        filename_writer
-            .write(&mut self.medium, path.as_bytes())
+        self.write_object(filename_location, path.as_bytes())
             .await?;
-        filename_writer.finalize(&mut self.medium).await?;
 
         // Write a non-finalized header obejct
-        let (fn_loc_bytes, fn_loc_byte_count) = filename_location.into_bytes::<P>();
-
         meta_writer.allocate(&mut self.medium).await?;
         meta_writer
             .write(&mut self.medium, &path_hash.to_le_bytes())
             .await?;
-        meta_writer
-            .write(&mut self.medium, &fn_loc_bytes[..fn_loc_byte_count])
+
+        self.write_location(&mut meta_writer, filename_location)
             .await?;
 
         // Write data objects
-        // TODO
+        while !data.is_empty() {
+            // Write file name as data object
+            let chunk_location = self.find_new_object_location(BlockType::Data, 0)?;
+            let max_chunk_len =
+                self.blocks[chunk_location.block].free_space() - P::object_header_bytes();
 
+            let (chunk, remaining) = data.split_at(data.len().min(max_chunk_len));
+
+            self.write_object(chunk_location, chunk).await?;
+
+            data = remaining;
+
+            self.write_location(&mut meta_writer, chunk_location)
+                .await?;
+        }
+
+        // TODO: store data length
         // Finalize header object
-        meta_writer.finalize(&mut self.medium).await?;
+        let object_total_size = meta_writer.finalize(&mut self.medium).await?;
+        self.blocks[file_meta_location.block].used_bytes += object_total_size;
 
         Ok(())
     }
@@ -302,5 +339,26 @@ mod test {
             .delete("foo")
             .await
             .expect_err("Delete returned Ok unexpectedly");
+    }
+
+    #[async_std::test]
+    async fn written_file_can_be_read() {
+        let mut storage = create_fs().await;
+
+        storage
+            .create_new_file("foo", b"bar")
+            .await
+            .expect("Create failed");
+
+        let mut reader = storage.read("foo").await.expect("Failed to open file");
+
+        // let mut buf = [0u8; 3];
+        //
+        // reader
+        //     .read(&mut storage, &mut buf)
+        //     .await
+        //     .expect("Failed to read file");
+        //
+        // assert_eq!(buf, *b"bar");
     }
 }

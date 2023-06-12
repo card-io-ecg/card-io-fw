@@ -319,6 +319,18 @@ impl<M: StorageMedium> ObjectWriter<M> {
         self.set_state(medium, ObjectState::Allocated).await
     }
 
+    pub async fn write_to(
+        location: ObjectLocation,
+        medium: &mut M,
+        data: &[u8],
+    ) -> Result<usize, ()> {
+        let mut this = Self::new(location, medium).await?;
+
+        this.allocate(medium).await?;
+        this.write(medium, data).await?;
+        this.finalize(medium).await
+    }
+
     fn data_write_offset(&self) -> usize {
         let header_size = M::object_header_bytes();
         self.location.offset + header_size + self.cursor
@@ -382,7 +394,7 @@ impl<M: StorageMedium> ObjectWriter<M> {
             .await
     }
 
-    pub async fn finalize(mut self, medium: &mut M) -> Result<(), ()> {
+    pub async fn finalize(mut self, medium: &mut M) -> Result<usize, ()> {
         if self.object.state != ObjectState::Allocated {
             return Err(());
         }
@@ -390,7 +402,9 @@ impl<M: StorageMedium> ObjectWriter<M> {
         // must be two different writes for powerloss safety
         self.write_size(medium).await?;
         self.flush(medium).await?;
-        self.set_state(medium, ObjectState::Finalized).await
+        self.set_state(medium, ObjectState::Finalized).await?;
+
+        Ok(M::object_header_bytes() + self.cursor)
     }
 
     pub async fn delete(mut self, medium: &mut M) -> Result<(), ()> {
@@ -407,15 +421,15 @@ impl<M: StorageMedium> ObjectWriter<M> {
     }
 }
 
-pub struct ObjectReader<'a, M: StorageMedium> {
+pub struct ObjectReader<M: StorageMedium> {
     location: ObjectLocation,
     object: ObjectHeader,
     cursor: usize,
-    medium: &'a mut M,
+    _medium: PhantomData<M>,
 }
 
-impl<'a, M: StorageMedium> ObjectReader<'a, M> {
-    pub async fn new(location: ObjectLocation, medium: &'a mut M) -> Result<Self, ()> {
+impl<M: StorageMedium> ObjectReader<M> {
+    pub async fn new(location: ObjectLocation, medium: &mut M) -> Result<Self, ()> {
         // We read back the header to ensure that the object is in a valid state.
         let object = ObjectHeader::read(location, medium).await?;
 
@@ -428,7 +442,7 @@ impl<'a, M: StorageMedium> ObjectReader<'a, M> {
             location,
             object,
             cursor: 0,
-            medium,
+            _medium: PhantomData,
         })
     }
 
@@ -446,11 +460,11 @@ impl<'a, M: StorageMedium> ObjectReader<'a, M> {
         self.cursor = 0;
     }
 
-    pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize, ()> {
-        let read_offset = self.location.offset + self.cursor;
+    pub async fn read(&mut self, medium: &mut M, buf: &mut [u8]) -> Result<usize, ()> {
+        let read_offset = self.location.offset + M::object_header_bytes() + self.cursor;
         let read_size = buf.len().min(self.remaining());
 
-        self.medium
+        medium
             .read(self.location.block, read_offset, &mut buf[0..read_size])
             .await?;
 
@@ -575,7 +589,11 @@ impl<'a, M: StorageMedium> ObjectOps<'a, M> {
         let offset = M::align(M::object_status_bytes());
 
         self.medium
-            .write(location.block, offset, &bytes[0..M::object_size_bytes()])
+            .write(
+                location.block,
+                location.offset + offset,
+                &bytes[0..M::object_size_bytes()],
+            )
             .await
     }
 }

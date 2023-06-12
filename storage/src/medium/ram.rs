@@ -3,7 +3,7 @@ use crate::medium::StorageMedium;
 use super::WriteGranularity;
 
 pub struct RamStorage<const STORAGE_SIZE: usize, const BLOCK_SIZE: usize> {
-    data: [u8; STORAGE_SIZE],
+    pub(crate) data: [u8; STORAGE_SIZE],
 }
 
 impl<const STORAGE_SIZE: usize, const BLOCK_SIZE: usize> RamStorage<STORAGE_SIZE, BLOCK_SIZE> {
@@ -15,6 +15,19 @@ impl<const STORAGE_SIZE: usize, const BLOCK_SIZE: usize> RamStorage<STORAGE_SIZE
 
     fn offset(block: usize, offset: usize) -> usize {
         block * Self::BLOCK_SIZE + offset
+    }
+
+    #[cfg(test)]
+    pub fn debug_print(&self) {
+        for blk in 0..Self::BLOCK_COUNT {
+            print!("{blk:02X}:");
+
+            for byte in 0..Self::BLOCK_SIZE {
+                print!(" {:02X}", self.data[Self::offset(blk, byte)]);
+            }
+
+            println!();
+        }
     }
 }
 
