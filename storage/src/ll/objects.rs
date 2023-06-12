@@ -199,6 +199,7 @@ pub struct MetadataObjectHeader {
     pub filename_location: ObjectLocation,
     pub location: ObjectLocation,
     cursor: usize, // Used to iterate through the list of object locations.
+    parent: Option<ObjectLocation>,
 }
 
 impl MetadataObjectHeader {
@@ -482,6 +483,7 @@ impl<M: StorageMedium> ObjectInfo<M> {
             filename_location: ObjectLocation::from_bytes::<M>(location_bytes)?,
             location: self.location,
             cursor: 4 + M::object_location_bytes(), // skip path hash and filename
+            parent: None,
         })
     }
 }
