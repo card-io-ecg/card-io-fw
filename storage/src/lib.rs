@@ -151,6 +151,12 @@ where
         Ok(())
     }
 
+    /// Convenience method for checking if a file exists. Ignores all errors.
+    pub async fn exists(&mut self, path: &str) -> bool {
+        log::trace!("Storage::exists({path})");
+        self.lookup(path).await.is_ok()
+    }
+
     pub async fn read(&mut self, path: &str) -> Result<Reader<P>, StorageError> {
         log::trace!("Storage::read({path})");
         let object = self.lookup(path).await?;
@@ -389,9 +395,29 @@ mod test {
             .expect("Failed to mount storage")
     }
 
+    async fn assert_file_contents(
+        storage: &mut Storage<RamStorage<256, 32>>,
+        path: &str,
+        expected: &[u8],
+    ) {
+        let mut reader = storage.read(path).await.expect("Failed to open file");
+
+        let mut contents = vec![0; expected.len()];
+        let read = reader
+            .read(storage, &mut contents)
+            .await
+            .expect("Failed to read file");
+
+        assert_eq!(0, reader.read(storage, &mut []).await.unwrap());
+        assert_eq!(read, expected.len());
+        assert_eq!(contents, expected);
+    }
+
     #[async_std::test]
     async fn lookup_returns_error_if_file_does_not_exist() {
         let mut storage = create_fs().await;
+
+        assert!(!storage.exists("foo").await);
 
         assert!(
             storage.read("foo").await.is_err(),
@@ -403,6 +429,7 @@ mod test {
     async fn delete_returns_error_if_file_does_not_exist() {
         let mut storage = create_fs().await;
 
+        assert!(!storage.exists("foo").await);
         storage
             .delete("foo")
             .await
@@ -414,6 +441,8 @@ mod test {
         let mut storage = create_fs().await;
 
         storage.store("foo", LIPSUM).await.expect("Create failed");
+
+        assert!(storage.exists("foo").await);
 
         assert!(
             storage.store("bar", LIPSUM).await.is_err(),
@@ -451,23 +480,17 @@ mod test {
             .await
             .expect("Create failed");
 
+        assert!(storage.exists("foo").await);
+
         storage
             .store("foo", b"foofoobar")
             .await
             .expect("Create failed");
 
+        assert!(storage.exists("foo").await);
         storage.medium.debug_print();
 
-        let mut reader = storage.read("foo").await.expect("Failed to open file");
-
-        let mut buf = [0u8; 9];
-
-        reader
-            .read(&mut storage, &mut buf)
-            .await
-            .expect("Failed to read file");
-
-        assert_eq!(buf, *b"foofoobar");
+        assert_file_contents(&mut storage, "foo", b"foofoobar").await;
     }
 
     #[async_std::test]
@@ -506,9 +529,21 @@ mod test {
 
         storage.delete("foo").await.expect("Failed to delete");
 
+        assert!(!storage.exists("foo").await);
         assert!(
             storage.read("foo").await.is_err(),
             "Lookup returned Ok unexpectedly"
         );
+    }
+
+    #[async_std::test]
+    async fn reading_reads_from_the_correct_file() {
+        let mut storage = create_fs().await;
+
+        storage.store("foo", b"bar").await.expect("Create failed");
+        storage.store("baz", b"asdf").await.expect("Create failed");
+
+        assert_file_contents(&mut storage, "foo", b"bar").await;
+        assert_file_contents(&mut storage, "baz", b"asdf").await;
     }
 }
