@@ -5,7 +5,7 @@ use crate::{
     medium::{StorageMedium, StoragePrivate, WriteGranularity},
 };
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ObjectState {
     Free,      // Implicit
     Allocated, // TODO: make this implicit
@@ -86,7 +86,7 @@ impl ObjectState {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct ObjectLocation {
     pub block: usize,
     pub offset: usize,
@@ -549,9 +549,9 @@ impl<'a, M: StorageMedium> ObjectOps<'a, M> {
         location: ObjectLocation,
         state: ObjectState,
     ) -> Result<(), ()> {
-        if state.is_free() {
-            return Err(());
-        }
+        debug_assert!(!state.is_free());
+
+        log::trace!("ObjectOps::update_state({location:?}, {state:?})");
 
         state.write(location, self.medium).await
     }
@@ -559,9 +559,11 @@ impl<'a, M: StorageMedium> ObjectOps<'a, M> {
     pub async fn set_payload_size(
         &mut self,
         location: ObjectLocation,
-        cursor: usize,
+        size: usize,
     ) -> Result<(), ()> {
-        let bytes = cursor.to_le_bytes();
+        log::trace!("ObjectOps::set_payload_size({location:?}, {size})");
+
+        let bytes = size.to_le_bytes();
         let offset = M::align(M::object_status_bytes());
 
         self.medium

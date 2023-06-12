@@ -7,6 +7,8 @@ edition = "2021"
 
 [dependencies]
 heapless = "0.7"
+log = "0.4"
 
 [dev-dependencies]
 async-std = { version = "1", features = ["attributes"] }
+simple_logger = "4.1"

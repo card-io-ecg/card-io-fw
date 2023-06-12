@@ -121,11 +121,13 @@ where
     }
 
     pub async fn delete(&mut self, path: &str) -> Result<(), ()> {
+        log::trace!("Storage::delete({path})");
         let location = self.lookup(path).await?;
         self.delete_file_at(location).await
     }
 
     pub async fn store(&mut self, path: &str, data: &[u8]) -> Result<(), ()> {
+        log::trace!("Storage::store({path}, len = {})", data.len());
         let overwritten_location = self.lookup(path).await;
 
         self.create_new_file(path, data).await?;
@@ -138,6 +140,7 @@ where
     }
 
     pub async fn read(&mut self, path: &str) -> Result<Reader<P>, ()> {
+        log::trace!("Storage::read({path})");
         let object = self.lookup(path).await?;
         Ok(Reader {
             meta: object.read_metadata(&mut self.medium).await?,
@@ -234,9 +237,6 @@ where
     async fn create_new_file(&mut self, path: &str, mut data: &[u8]) -> Result<(), ()> {
         let path_hash = hash_path(path);
 
-        // Write file name as data object
-        let filename_location = self.find_new_object_location(BlockType::Data, path.len())?;
-
         // filename + 1 data page
         let est_page_count = 1 + 1; // TODO: guess the number of data pages needed
 
@@ -244,6 +244,9 @@ where
             BlockType::Metadata,
             est_page_count * P::object_location_bytes(),
         )?;
+
+        // Write file name as data object
+        let filename_location = self.find_new_object_location(BlockType::Data, path.len())?;
 
         let mut meta_writer = ObjectWriter::new(file_meta_location, &mut self.medium).await?;
 
@@ -308,10 +311,14 @@ where
         // find block with most free space
         let block = self.find_alloc_block(ty, P::object_header_bytes() + len)?;
 
-        Ok(ObjectLocation {
+        let location = ObjectLocation {
             block,
             offset: self.blocks[block].used_bytes,
-        })
+        };
+
+        log::trace!("Storage::find_new_object_location({ty:?}, {len}) -> {location:?}");
+
+        Ok(location)
     }
 }
 
@@ -344,7 +351,17 @@ mod test {
 
     use super::*;
 
+    pub fn init_test() {
+        _ = simple_logger::SimpleLogger::new()
+            .with_level(log::LevelFilter::Trace)
+            .env()
+            .init();
+        println!();
+    }
+
     async fn create_fs() -> Storage<RamStorage<256, 32>> {
+        init_test();
+
         let medium = RamStorage::<256, 32>::new();
         Storage::format_and_mount(medium, 3)
             .await

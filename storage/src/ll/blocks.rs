@@ -5,7 +5,7 @@ use crate::{
     medium::{StorageMedium, StoragePrivate, WriteGranularity},
 };
 
-#[derive(Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
 pub enum BlockType {
     // TODO: add an unset block type - we might be able to dynamically allocate blocks instead of
     // having a fixed number of metadata blocks
@@ -13,7 +13,7 @@ pub enum BlockType {
     Data,
 }
 
-#[derive(Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
 pub enum BlockHeaderKind {
     Empty,
     Unknown,
@@ -100,6 +100,15 @@ pub struct BlockHeader<M: StorageMedium> {
     _medium: PhantomData<M>,
 }
 
+impl<M: StorageMedium> core::fmt::Debug for BlockHeader<M> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("BlockHeader")
+            .field("header", &self.header)
+            .field("erase_count", &self.erase_count)
+            .finish()
+    }
+}
+
 impl<M: StorageMedium> Clone for BlockHeader<M> {
     fn clone(&self) -> Self {
         Self {
@@ -155,6 +164,7 @@ impl<M: StorageMedium> BlockHeader<M> {
     }
 
     async fn write(self, block: usize, medium: &mut M) -> Result<(), ()> {
+        log::trace!("BlockHeader::write({self:?}, {block})");
         let bytes = self.into_bytes();
         medium.write(block, 0, &bytes).await
     }
@@ -175,6 +185,16 @@ pub struct BlockInfo<M: StorageMedium> {
     pub used_bytes: usize,
     /// Indicates whether the block is in a good state and new objects can be allocated in it.
     pub allow_alloc: bool,
+}
+
+impl<M: StorageMedium> core::fmt::Debug for BlockInfo<M> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("BlockInfo")
+            .field("header", &self.header)
+            .field("used_bytes", &self.used_bytes)
+            .field("allow_alloc", &self.allow_alloc)
+            .finish()
+    }
 }
 
 impl<M: StorageMedium> Clone for BlockInfo<M> {
@@ -281,6 +301,7 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         }
 
         if erase {
+            log::trace!("Erasing block {block}");
             self.medium.erase(block).await?;
         }
 
@@ -346,11 +367,14 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
             }
         }
 
-        Ok(BlockInfo {
+        let info = BlockInfo {
             header,
             used_bytes,
             allow_alloc: last_object_reliable,
-        })
+        };
+        log::trace!("BlockOps::scan_block({block}) -> {info:?}");
+
+        Ok(info)
     }
 }
 
