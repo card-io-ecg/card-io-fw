@@ -365,8 +365,12 @@ impl<M: StorageMedium> ObjectWriter<M> {
             .await
     }
 
+    pub fn payload_size(&self) -> usize {
+        self.cursor
+    }
+
     pub fn total_size(&self) -> usize {
-        M::object_header_bytes() + self.cursor
+        M::object_header_bytes() + self.payload_size()
     }
 
     pub async fn finalize(mut self, medium: &mut M) -> Result<usize, StorageError> {
@@ -404,13 +408,21 @@ pub struct ObjectReader<M: StorageMedium> {
 }
 
 impl<M: StorageMedium> ObjectReader<M> {
-    pub async fn new(location: ObjectLocation, medium: &mut M) -> Result<Self, StorageError> {
+    pub async fn new(
+        location: ObjectLocation,
+        medium: &mut M,
+        allow_non_finalized: bool,
+    ) -> Result<Self, StorageError> {
         // We read back the header to ensure that the object is in a valid state.
         let object = ObjectHeader::read(location, medium).await?;
 
         if object.state != ObjectState::Finalized {
-            // We can only read data from finalized objects.
-            return Err(StorageError::FsCorrupted);
+            if allow_non_finalized && object.state != ObjectState::Free {
+                // We can read data from unfinalized/deleted objects if the caller allows it.
+            } else {
+                // We can only read data from finalized objects.
+                return Err(StorageError::FsCorrupted);
+            }
         }
 
         Ok(Self {

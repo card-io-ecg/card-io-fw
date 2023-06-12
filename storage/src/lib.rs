@@ -56,7 +56,7 @@ where
 {
     async fn select_next_object(&mut self, medium: &mut P) -> Result<(), StorageError> {
         self.current_object = if let Some(object) = self.meta.next_object_location(medium).await? {
-            Some(ObjectReader::new(object, medium).await?)
+            Some(ObjectReader::new(object, medium, false).await?)
         } else {
             None
         };
@@ -186,7 +186,8 @@ where
 
                 if metadata.path_hash == path_hash {
                     let mut reader =
-                        ObjectReader::new(metadata.filename_location, &mut self.medium).await?;
+                        ObjectReader::new(metadata.filename_location, &mut self.medium, false)
+                            .await?;
 
                     if reader.len() != path.len() {
                         continue 'objs;
@@ -262,8 +263,8 @@ where
         // filename + 1 data page
         let est_page_count = 1 + 1; // TODO: guess the number of data pages needed
 
-        // TODO: make this mutable because we can fail mid-writing
-        let file_meta_location = self.find_new_object_location(
+        // this is mutable because we can fail mid-writing
+        let mut file_meta_location = self.find_new_object_location(
             BlockType::Metadata,
             est_page_count * P::object_location_bytes(),
         )?;
@@ -300,9 +301,41 @@ where
             match self.write_location(&mut meta_writer, chunk_location).await {
                 Ok(()) => {}
                 Err(StorageError::InsufficientSpace) => {
+                    // Old object's accounting
                     self.blocks[file_meta_location.block].used_bytes += meta_writer.total_size();
 
-                    todo!("Reallocate metadata object")
+                    let new_file_meta_location = self.find_new_object_location(
+                        BlockType::Metadata,
+                        meta_writer.payload_size() + P::object_location_bytes(),
+                    )?;
+
+                    let mut new_meta_writer =
+                        ObjectWriter::new(new_file_meta_location, &mut self.medium).await?;
+
+                    new_meta_writer.allocate(&mut self.medium).await?;
+
+                    // TODO: seek over object size when added - it should be the first for simplicity
+
+                    // Copy old object
+                    let mut buf = [0u8; 16];
+                    let mut old_object_reader =
+                        ObjectReader::new(file_meta_location, &mut self.medium, false).await?;
+                    loop {
+                        let bytes_read = old_object_reader.read(&mut self.medium, &mut buf).await?;
+
+                        if bytes_read == 0 {
+                            break;
+                        }
+
+                        new_meta_writer
+                            .write(&mut self.medium, &buf[..bytes_read])
+                            .await?;
+                    }
+
+                    meta_writer.delete(&mut self.medium).await?;
+
+                    meta_writer = new_meta_writer;
+                    file_meta_location = new_file_meta_location;
                 }
                 Err(e) => return Err(e),
             }
