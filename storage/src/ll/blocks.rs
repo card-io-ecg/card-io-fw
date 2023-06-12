@@ -103,8 +103,8 @@ pub struct BlockHeader<M: StorageMedium> {
 impl<M: StorageMedium> Clone for BlockHeader<M> {
     fn clone(&self) -> Self {
         Self {
-            header: self.header.clone(),
-            erase_count: self.erase_count.clone(),
+            header: self.header,
+            erase_count: self.erase_count,
             _medium: self._medium,
         }
     }
@@ -180,9 +180,9 @@ pub struct BlockInfo<M: StorageMedium> {
 impl<M: StorageMedium> Clone for BlockInfo<M> {
     fn clone(&self) -> Self {
         Self {
-            header: self.header.clone(),
-            used_bytes: self.used_bytes.clone(),
-            allow_alloc: self.allow_alloc.clone(),
+            header: self.header,
+            used_bytes: self.used_bytes,
+            allow_alloc: self.allow_alloc,
         }
     }
 }
@@ -298,10 +298,6 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         }
 
         Ok(())
-    }
-
-    pub async fn write_data(&mut self, block: usize, offset: usize, data: &[u8]) -> Result<(), ()> {
-        self.medium.write(block, offset + HEADER_BYTES, data).await
     }
 
     pub async fn read_data(

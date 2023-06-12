@@ -100,10 +100,10 @@ impl<M: StorageMedium, const SIZE: usize> StorageMedium for ReadCache<M, SIZE> {
     }
 
     async fn write(&mut self, block: usize, offset: usize, data: &[u8]) -> Result<(), ()> {
-        let res = self.medium.write(block, offset, data).await?;
+        self.medium.write(block, offset, data).await?;
 
         self.update_cache_if_overlaps(block, offset, data);
 
-        Ok(res)
+        Ok(())
     }
 }

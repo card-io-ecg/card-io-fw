@@ -6,8 +6,16 @@ pub struct RamStorage<const STORAGE_SIZE: usize, const BLOCK_SIZE: usize> {
     pub(crate) data: [u8; STORAGE_SIZE],
 }
 
+impl<const STORAGE_SIZE: usize, const BLOCK_SIZE: usize> Default
+    for RamStorage<STORAGE_SIZE, BLOCK_SIZE>
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<const STORAGE_SIZE: usize, const BLOCK_SIZE: usize> RamStorage<STORAGE_SIZE, BLOCK_SIZE> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             data: [0xFF; STORAGE_SIZE],
         }

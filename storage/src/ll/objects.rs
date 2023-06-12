@@ -28,25 +28,6 @@ impl ObjectState {
         matches!(self, ObjectState::Free)
     }
 
-    fn is_allocated(self) -> bool {
-        matches!(self, ObjectState::Allocated)
-    }
-
-    fn is_valid(self) -> bool {
-        matches!(self, ObjectState::Finalized)
-    }
-
-    fn is_deleted(self) -> bool {
-        matches!(self, ObjectState::Deleted)
-    }
-
-    fn is_used(self) -> bool {
-        matches!(
-            self,
-            ObjectState::Allocated | ObjectState::Finalized | ObjectState::Deleted
-        )
-    }
-
     fn into_bits(self) -> u8 {
         match self {
             ObjectState::Free => 0xFF,
@@ -112,10 +93,6 @@ pub struct ObjectLocation {
 }
 
 impl ObjectLocation {
-    fn new(block: usize, offset: usize) -> Self {
-        Self { block, offset }
-    }
-
     pub fn into_bytes<M: StorageMedium>(self) -> ([u8; 8], usize) {
         let block_bytes = self.block.to_le_bytes();
         let offset_bytes = self.offset.to_le_bytes();
@@ -211,7 +188,7 @@ pub struct MetadataObjectHeader<M: StorageMedium> {
     pub filename_location: ObjectLocation,
     pub location: ObjectLocation,
     cursor: usize, // Used to iterate through the list of object locations.
-    parent: Option<ObjectLocation>,
+    _parent: Option<ObjectLocation>,
     _medium: PhantomData<M>,
 }
 
@@ -244,11 +221,6 @@ impl<M: StorageMedium> MetadataObjectHeader<M> {
         // 4: path hash
         self.cursor = 4 + M::object_location_bytes();
     }
-}
-
-// Object payload contains a chunk of data.
-pub struct DataObjectHeader {
-    object: ObjectHeader,
 }
 
 pub struct ObjectWriter<M: StorageMedium> {
@@ -451,6 +423,10 @@ impl<M: StorageMedium> ObjectReader<M> {
         self.object.object_size
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn remaining(&self) -> usize {
         self.len() - self.cursor
     }
@@ -504,7 +480,7 @@ impl<M: StorageMedium> ObjectInfo<M> {
             filename_location: ObjectLocation::from_bytes::<M>(location_bytes)?,
             location: self.location,
             cursor: 4 + M::object_location_bytes(), // skip path hash and filename
-            parent: None,
+            _parent: None,
             _medium: PhantomData,
         })
     }

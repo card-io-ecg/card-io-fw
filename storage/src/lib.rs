@@ -97,8 +97,8 @@ where
         let mut blocks = [BlockInfo::new_unknown(); P::BLOCK_COUNT];
 
         let mut ops = BlockOps::new(&mut partition);
-        for block in 0..P::BLOCK_COUNT {
-            blocks[block] = ops.scan_block(block).await?;
+        for (idx, block) in blocks.iter_mut().enumerate() {
+            *block = ops.scan_block(idx).await?;
         }
 
         Ok(Self {
