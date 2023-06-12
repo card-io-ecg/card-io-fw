@@ -17,6 +17,7 @@ use crate::{
 };
 
 pub mod diag;
+pub mod fxhash;
 pub mod gc;
 pub mod ll;
 pub mod medium;
@@ -315,8 +316,7 @@ where
 }
 
 fn hash_path(path: &str) -> u32 {
-    // TODO
-    path.len() as u32
+    fxhash::hash32(path.as_bytes())
 }
 
 impl<P> Storage<Counters<P>>
