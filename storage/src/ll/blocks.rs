@@ -7,6 +7,8 @@ use crate::{
 
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub enum BlockType {
+    // TODO: add an unset block type - we might be able to dynamically allocate blocks instead of
+    // having a fixed number of metadata blocks
     Metadata,
     Data,
 }
