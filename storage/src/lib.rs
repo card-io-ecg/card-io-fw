@@ -198,3 +198,36 @@ where
         self.medium.write_count
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::medium::ram::RamStorage;
+
+    use super::*;
+
+    #[async_std::test]
+    async fn lookup_returns_error_if_file_does_not_exist() {
+        let medium = RamStorage::<256, 32>::new();
+        let mut storage = Storage::format_and_mount(medium, 3)
+            .await
+            .expect("Failed to mount storage");
+
+        assert!(
+            storage.read("foo").await.is_err(),
+            "Lookup returned Ok unexpectedly"
+        );
+    }
+
+    #[async_std::test]
+    async fn delete_returns_error_if_file_does_not_exist() {
+        let medium = RamStorage::<256, 32>::new();
+        let mut storage = Storage::format_and_mount(medium, 3)
+            .await
+            .expect("Failed to mount storage");
+
+        storage
+            .delete("foo")
+            .await
+            .expect_err("Delete returned Ok unexpectedly");
+    }
+}
