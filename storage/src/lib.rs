@@ -9,7 +9,8 @@ use crate::{
     ll::{
         blocks::{BlockHeaderKind, BlockInfo, BlockOps, BlockType},
         objects::{
-            ObjectIterator, ObjectLocation, ObjectOps, ObjectReader, ObjectState, ObjectWriter,
+            MetadataObjectHeader, ObjectIterator, ObjectLocation, ObjectOps, ObjectReader,
+            ObjectState, ObjectWriter,
         },
     },
     medium::{StorageMedium, StoragePrivate},
@@ -29,22 +30,13 @@ where
     blocks: [BlockInfo<P>; P::BLOCK_COUNT],
 }
 
-enum ObjectKind {
-    Header { first_data: u32, next_header: u32 },
-    Data { next: u32 },
-}
-
-struct Object {
-    state: u8,
-    kind: ObjectKind,
-}
-
 pub struct Reader<P>
 where
     P: StorageMedium,
     [(); P::BLOCK_COUNT]:,
 {
-    reader: ObjectReader<P>,
+    meta: MetadataObjectHeader<P>,
+    current_object: Option<ObjectReader<P>>,
 }
 
 impl<P> Reader<P>
@@ -53,8 +45,18 @@ where
     [(); P::BLOCK_COUNT]:,
 {
     pub async fn read(&mut self, storage: &mut Storage<P>, buf: &mut [u8]) -> Result<usize, ()> {
-        todo!()
-        // self.reader.read(&mut storage.medium, buf).await
+        let medium = &mut storage.medium;
+
+        if self.current_object.is_none() {
+            if let Some(object) = self.meta.next_object_location(medium).await? {
+                self.current_object = Some(ObjectReader::new(object, medium).await?);
+            } else {
+                return Ok(0);
+            }
+        }
+
+        let current_object = self.current_object.as_mut().unwrap();
+        current_object.read(&mut storage.medium, buf).await
     }
 }
 
@@ -109,7 +111,8 @@ where
     pub async fn read(&mut self, path: &str) -> Result<Reader<P>, ()> {
         let object = self.lookup(path).await?;
         Ok(Reader {
-            reader: ObjectReader::new(object, &mut self.medium).await?,
+            meta: object.read_metadata(&mut self.medium).await?,
+            current_object: None,
         })
     }
 
@@ -235,10 +238,9 @@ where
                 self.blocks[chunk_location.block].free_space() - P::object_header_bytes();
 
             let (chunk, remaining) = data.split_at(data.len().min(max_chunk_len));
+            data = remaining;
 
             self.write_object(chunk_location, chunk).await?;
-
-            data = remaining;
 
             self.write_location(&mut meta_writer, chunk_location)
                 .await?;
@@ -346,19 +348,21 @@ mod test {
         let mut storage = create_fs().await;
 
         storage
-            .create_new_file("foo", b"bar")
+            .create_new_file("foo", b"barbaz")
             .await
             .expect("Create failed");
 
+        storage.medium.debug_print();
+
         let mut reader = storage.read("foo").await.expect("Failed to open file");
 
-        // let mut buf = [0u8; 3];
-        //
-        // reader
-        //     .read(&mut storage, &mut buf)
-        //     .await
-        //     .expect("Failed to read file");
-        //
-        // assert_eq!(buf, *b"bar");
+        let mut buf = [0u8; 6];
+
+        reader
+            .read(&mut storage, &mut buf)
+            .await
+            .expect("Failed to read file");
+
+        assert_eq!(buf, *b"barbaz");
     }
 }

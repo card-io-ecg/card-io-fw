@@ -155,10 +155,10 @@ impl ObjectLocation {
         ObjectHeader::read(self, medium).await
     }
 
-    pub(crate) async fn read_metadata(
+    pub(crate) async fn read_metadata<M: StorageMedium>(
         self,
-        medium: &mut impl StorageMedium,
-    ) -> Result<MetadataObjectHeader, ()> {
+        medium: &mut M,
+    ) -> Result<MetadataObjectHeader<M>, ()> {
         let Some(info) = ObjectInfo::read(self, medium).await?
         else {
             return Err(());
@@ -205,17 +205,18 @@ impl ObjectHeader {
 }
 
 // Object payload contains a list of object locations.
-pub struct MetadataObjectHeader {
+pub struct MetadataObjectHeader<M: StorageMedium> {
     pub object: ObjectHeader,
     pub path_hash: u32,
     pub filename_location: ObjectLocation,
     pub location: ObjectLocation,
     cursor: usize, // Used to iterate through the list of object locations.
     parent: Option<ObjectLocation>,
+    _medium: PhantomData<M>,
 }
 
-impl MetadataObjectHeader {
-    pub async fn next_object_location<M: StorageMedium>(
+impl<M: StorageMedium> MetadataObjectHeader<M> {
+    pub async fn next_object_location(
         &mut self,
         medium: &mut M,
     ) -> Result<Option<ObjectLocation>, ()> {
@@ -229,7 +230,7 @@ impl MetadataObjectHeader {
         medium
             .read(
                 self.location.block,
-                self.location.offset + self.cursor,
+                self.location.offset + self.cursor + M::object_header_bytes(),
                 location_bytes,
             )
             .await?;
@@ -239,7 +240,7 @@ impl MetadataObjectHeader {
         ObjectLocation::from_bytes::<M>(location_bytes).map(Some)
     }
 
-    pub async fn reset<M: StorageMedium>(&mut self) {
+    pub async fn reset(&mut self) {
         // 4: path hash
         self.cursor = 4 + M::object_location_bytes();
     }
@@ -485,7 +486,7 @@ impl<M: StorageMedium> ObjectInfo<M> {
         self.header.object_size + M::object_header_bytes()
     }
 
-    pub async fn read_metadata(&self, medium: &mut M) -> Result<MetadataObjectHeader, ()> {
+    pub async fn read_metadata(&self, medium: &mut M) -> Result<MetadataObjectHeader<M>, ()> {
         let mut path_hash_bytes = [0; 4];
         let path_hash_offset = self.location.offset + M::object_header_bytes();
         medium
@@ -506,6 +507,7 @@ impl<M: StorageMedium> ObjectInfo<M> {
             location: self.location,
             cursor: 4 + M::object_location_bytes(), // skip path hash and filename
             parent: None,
+            _medium: PhantomData,
         })
     }
 
