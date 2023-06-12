@@ -300,6 +300,11 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         Ok(())
     }
 
+    #[cfg(test)]
+    pub async fn write_data(&mut self, block: usize, offset: usize, data: &[u8]) -> Result<(), ()> {
+        self.medium.write(block, offset + HEADER_BYTES, data).await
+    }
+
     pub async fn read_data(
         &mut self,
         block: usize,

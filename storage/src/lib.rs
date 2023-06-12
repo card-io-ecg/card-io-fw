@@ -420,4 +420,21 @@ mod test {
 
         assert_eq!(buf, *lipsum);
     }
+
+    #[async_std::test]
+    async fn deleted_file_can_no_longer_be_read() {
+        let mut storage = create_fs().await;
+
+        storage
+            .create_new_file("foo", b"barbaz")
+            .await
+            .expect("Create failed");
+
+        storage.delete("foo").await.expect("Failed to delete");
+
+        assert!(
+            storage.read("foo").await.is_err(),
+            "Lookup returned Ok unexpectedly"
+        );
+    }
 }
