@@ -386,12 +386,14 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
 
 #[cfg(test)]
 mod tests {
-    use crate::medium::ram::RamStorage;
+    use crate::{medium::ram::RamStorage, test::init_test};
 
     use super::*;
 
     #[async_std::test]
     async fn empty_block_reports_0_used_bytes() {
+        init_test();
+
         let mut medium = RamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
@@ -401,6 +403,8 @@ mod tests {
 
     #[async_std::test]
     async fn test_formatting_empty_block_sets_erase_count_to_0() {
+        init_test();
+
         let mut medium = RamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
@@ -410,6 +414,8 @@ mod tests {
 
     #[async_std::test]
     async fn formatted_block_reports_some_used_bytes() {
+        init_test();
+
         let mut medium = RamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
@@ -422,6 +428,8 @@ mod tests {
 
     #[async_std::test]
     async fn test_format_storage_formats_every_block() {
+        init_test();
+
         let mut medium = RamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
@@ -433,6 +441,8 @@ mod tests {
 
     #[async_std::test]
     async fn test_formatting_formatted_but_empty_block_does_not_increase_erase_count() {
+        init_test();
+
         let mut medium = RamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
@@ -451,6 +461,8 @@ mod tests {
 
     #[async_std::test]
     async fn test_changing_block_type_increases_erase_count() {
+        init_test();
+
         let mut medium = RamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
@@ -466,6 +478,8 @@ mod tests {
 
     #[async_std::test]
     async fn test_formatting_written_block_increases_erase_count() {
+        init_test();
+
         let mut medium = RamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
@@ -486,6 +500,8 @@ mod tests {
 
     #[async_std::test]
     async fn test_written_data_can_be_read() {
+        init_test();
+
         let mut medium = RamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 

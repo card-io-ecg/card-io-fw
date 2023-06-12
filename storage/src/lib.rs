@@ -367,9 +367,10 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::medium::ram::RamStorage;
-
     use super::*;
+    use medium::ram::RamStorage;
+
+    const LIPSUM: &[u8] = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce in mi scelerisque, porttitor mi amet.";
 
     pub fn init_test() {
         _ = simple_logger::SimpleLogger::new()
@@ -410,8 +411,6 @@ mod test {
 
     #[async_std::test]
     async fn fails_to_write_file_if_not_enough_space() {
-        const LIPSUM: &[u8] = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce in mi scelerisque, porttitor mi amet.";
-
         let mut storage = create_fs().await;
 
         storage.store("foo", LIPSUM).await.expect("Create failed");
@@ -474,7 +473,6 @@ mod test {
     #[async_std::test]
     async fn content_can_be_longer_than_block_size() {
         let mut storage = create_fs().await;
-        const LIPSUM: &[u8] = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce in mi scelerisque, porttitor mi amet.";
 
         storage.store("foo", LIPSUM).await.expect("Create failed");
 
