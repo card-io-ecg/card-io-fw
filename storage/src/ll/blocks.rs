@@ -34,7 +34,8 @@ impl BlockHeaderKind {
         header_bytes[4..8].fill(0xFF);
 
         for option in options.iter() {
-            if header_bytes == option.to_bytes::<M>().0 {
+            let (expectation, count) = option.to_bytes::<M>();
+            if header_bytes[..count] == expectation[..count] {
                 return *option;
             }
         }
@@ -155,10 +156,11 @@ impl<M: StorageMedium> BlockHeader<M> {
         }
     }
 
+    /// Returns the number of bytes in a block header, including the erase count.
     pub const fn byte_count() -> usize {
         match M::WRITE_GRANULARITY {
-            WriteGranularity::Bit => 8,
-            WriteGranularity::Word(4) => 1,
+            WriteGranularity::Bit | WriteGranularity::Word(1) => 8,
+            WriteGranularity::Word(4) => 12,
             _ => unimplemented!(),
         }
     }
@@ -241,7 +243,7 @@ impl<M: StorageMedium> BlockInfo<M> {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.used_bytes == BlockHeader::<M>::byte_count()
+        self.used_bytes <= BlockHeader::<M>::byte_count()
     }
 
     pub fn free_space(&self) -> usize {
