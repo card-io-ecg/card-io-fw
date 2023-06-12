@@ -44,19 +44,39 @@ where
     P: StorageMedium,
     [(); P::BLOCK_COUNT]:,
 {
+    async fn select_next_object(&mut self, medium: &mut P) -> Result<(), ()> {
+        self.current_object = if let Some(object) = self.meta.next_object_location(medium).await? {
+            Some(ObjectReader::new(object, medium).await?)
+        } else {
+            None
+        };
+
+        Ok(())
+    }
+
     pub async fn read(&mut self, storage: &mut Storage<P>, buf: &mut [u8]) -> Result<usize, ()> {
         let medium = &mut storage.medium;
 
         if self.current_object.is_none() {
-            if let Some(object) = self.meta.next_object_location(medium).await? {
-                self.current_object = Some(ObjectReader::new(object, medium).await?);
-            } else {
-                return Ok(0);
-            }
+            self.select_next_object(medium).await?;
         }
 
-        let current_object = self.current_object.as_mut().unwrap();
-        current_object.read(&mut storage.medium, buf).await
+        let mut read = 0;
+        while !buf.is_empty() {
+            let Some(reader) = self.current_object.as_mut() else {
+                return Ok(read);
+            };
+
+            let chunk_len = reader.read(medium, &mut buf[read..]).await?;
+            if chunk_len == 0 {
+                self.select_next_object(medium).await?;
+                continue;
+            }
+
+            read += chunk_len;
+        }
+
+        Ok(read)
     }
 }
 
@@ -352,8 +372,6 @@ mod test {
             .await
             .expect("Create failed");
 
-        storage.medium.debug_print();
-
         let mut reader = storage.read("foo").await.expect("Failed to open file");
 
         let mut buf = [0u8; 6];
@@ -364,5 +382,29 @@ mod test {
             .expect("Failed to read file");
 
         assert_eq!(buf, *b"barbaz");
+    }
+
+    #[async_std::test]
+    async fn content_can_be_longer_than_block_size() {
+        let mut storage = create_fs().await;
+        let lipsum = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce in mi scelerisque, porttitor mi amet.";
+
+        storage
+            .create_new_file("foo", lipsum)
+            .await
+            .expect("Create failed");
+
+        storage.medium.debug_print();
+
+        let mut reader = storage.read("foo").await.expect("Failed to open file");
+
+        let mut buf = [0u8; 100];
+
+        reader
+            .read(&mut storage, &mut buf)
+            .await
+            .expect("Failed to read file");
+
+        assert_eq!(buf, *lipsum);
     }
 }

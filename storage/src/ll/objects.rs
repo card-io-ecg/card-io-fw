@@ -220,7 +220,7 @@ impl<M: StorageMedium> MetadataObjectHeader<M> {
         &mut self,
         medium: &mut M,
     ) -> Result<Option<ObjectLocation>, ()> {
-        if self.cursor > self.object.object_size {
+        if self.cursor >= self.object.object_size {
             return Ok(None);
         }
 
@@ -452,9 +452,7 @@ impl<M: StorageMedium> ObjectReader<M> {
     }
 
     pub fn remaining(&self) -> usize {
-        let read_offset = self.object.object_size - self.cursor;
-
-        M::BLOCK_SIZE - read_offset
+        self.len() - self.cursor
     }
 
     pub fn rewind(&mut self) {
