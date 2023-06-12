@@ -1,4 +1,4 @@
-use crate::medium::StorageMedium;
+use crate::{medium::StorageMedium, StorageError};
 
 use super::WriteGranularity;
 
@@ -48,7 +48,7 @@ impl<M: StorageMedium, const SIZE: usize> ReadCache<M, SIZE> {
         }
     }
 
-    async fn load_cache(&mut self, block: usize, offset: usize) -> Result<(), ()> {
+    async fn load_cache(&mut self, block: usize, offset: usize) -> Result<(), StorageError> {
         let offset = offset.min(M::BLOCK_SIZE - SIZE);
 
         self.medium.read(block, offset, &mut self.cache).await?;
@@ -72,7 +72,7 @@ impl<M: StorageMedium, const SIZE: usize> StorageMedium for ReadCache<M, SIZE> {
     const BLOCK_COUNT: usize = M::BLOCK_COUNT;
     const WRITE_GRANULARITY: WriteGranularity = M::WRITE_GRANULARITY;
 
-    async fn erase(&mut self, block: usize) -> Result<(), ()> {
+    async fn erase(&mut self, block: usize) -> Result<(), StorageError> {
         if let Some((cache_block, _)) = self.cache_offset {
             if cache_block == block {
                 self.cache_offset = None;
@@ -82,7 +82,12 @@ impl<M: StorageMedium, const SIZE: usize> StorageMedium for ReadCache<M, SIZE> {
         self.medium.erase(block).await
     }
 
-    async fn read(&mut self, block: usize, offset: usize, data: &mut [u8]) -> Result<(), ()> {
+    async fn read(
+        &mut self,
+        block: usize,
+        offset: usize,
+        data: &mut [u8],
+    ) -> Result<(), StorageError> {
         if !self.is_cached(block, offset, data.len()) {
             // We could load partial data from cache,
             // but it's not worth the complexity at this moment.
@@ -99,7 +104,12 @@ impl<M: StorageMedium, const SIZE: usize> StorageMedium for ReadCache<M, SIZE> {
         Ok(())
     }
 
-    async fn write(&mut self, block: usize, offset: usize, data: &[u8]) -> Result<(), ()> {
+    async fn write(
+        &mut self,
+        block: usize,
+        offset: usize,
+        data: &[u8],
+    ) -> Result<(), StorageError> {
         self.medium.write(block, offset, data).await?;
 
         self.update_cache_if_overlaps(block, offset, data);

@@ -1,3 +1,5 @@
+use crate::StorageError;
+
 pub mod cache;
 pub mod ram;
 
@@ -64,9 +66,15 @@ pub trait StorageMedium {
     /// The smallest writeable unit. Determines how object flags are stored.
     const WRITE_GRANULARITY: WriteGranularity;
 
-    async fn erase(&mut self, block: usize) -> Result<(), ()>;
-    async fn read(&mut self, block: usize, offset: usize, data: &mut [u8]) -> Result<(), ()>;
-    async fn write(&mut self, block: usize, offset: usize, data: &[u8]) -> Result<(), ()>;
+    async fn erase(&mut self, block: usize) -> Result<(), StorageError>;
+    async fn read(
+        &mut self,
+        block: usize,
+        offset: usize,
+        data: &mut [u8],
+    ) -> Result<(), StorageError>;
+    async fn write(&mut self, block: usize, offset: usize, data: &[u8])
+        -> Result<(), StorageError>;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]

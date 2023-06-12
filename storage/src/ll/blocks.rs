@@ -3,6 +3,7 @@ use core::marker::PhantomData;
 use crate::{
     ll::objects::{ObjectIterator, ObjectState},
     medium::{StorageMedium, StoragePrivate, WriteGranularity},
+    StorageError,
 };
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
@@ -124,7 +125,7 @@ impl<M: StorageMedium> Copy for BlockHeader<M> {}
 pub const HEADER_BYTES: usize = 8;
 
 impl<M: StorageMedium> BlockHeader<M> {
-    pub async fn read(medium: &mut M, block: usize) -> Result<Self, ()> {
+    pub async fn read(medium: &mut M, block: usize) -> Result<Self, StorageError> {
         let mut header_bytes = [0; 4];
         let mut erase_count_bytes = [0; 4];
 
@@ -163,7 +164,7 @@ impl<M: StorageMedium> BlockHeader<M> {
         bytes
     }
 
-    async fn write(self, block: usize, medium: &mut M) -> Result<(), ()> {
+    async fn write(self, block: usize, medium: &mut M) -> Result<(), StorageError> {
         log::trace!("BlockHeader::write({self:?}, {block})");
         let bytes = self.into_bytes();
         medium.write(block, 0, &bytes).await
@@ -246,7 +247,7 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         Self { medium }
     }
 
-    pub async fn is_block_data_empty(&mut self, block: usize) -> Result<bool, ()> {
+    pub async fn is_block_data_empty(&mut self, block: usize) -> Result<bool, StorageError> {
         fn is_written(byte: &u8) -> bool {
             *byte != 0xFF
         }
@@ -271,11 +272,11 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         Ok(true)
     }
 
-    pub async fn read_header(&mut self, block: usize) -> Result<BlockHeader<M>, ()> {
+    pub async fn read_header(&mut self, block: usize) -> Result<BlockHeader<M>, StorageError> {
         BlockHeader::read(self.medium, block).await
     }
 
-    pub async fn format_block(&mut self, block: usize, ty: BlockType) -> Result<(), ()> {
+    pub async fn format_block(&mut self, block: usize, ty: BlockType) -> Result<(), StorageError> {
         let header = self.read_header(block).await?;
 
         let mut erase = true;
@@ -295,7 +296,7 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
                 Some(count) => count,
                 None => {
                     // We can't erase this block, because it has reached the maximum erase count
-                    return Err(());
+                    return Err(StorageError::FsCorrupted);
                 }
             }
         }
@@ -310,7 +311,7 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
             .await
     }
 
-    pub async fn format_storage(&mut self, metadata_blocks: usize) -> Result<(), ()> {
+    pub async fn format_storage(&mut self, metadata_blocks: usize) -> Result<(), StorageError> {
         for block in 0..metadata_blocks {
             self.format_block(block, BlockType::Metadata).await?;
         }
@@ -322,7 +323,12 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
     }
 
     #[cfg(test)]
-    pub async fn write_data(&mut self, block: usize, offset: usize, data: &[u8]) -> Result<(), ()> {
+    pub async fn write_data(
+        &mut self,
+        block: usize,
+        offset: usize,
+        data: &[u8],
+    ) -> Result<(), StorageError> {
         self.medium.write(block, offset + HEADER_BYTES, data).await
     }
 
@@ -331,11 +337,11 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
         block: usize,
         offset: usize,
         data: &mut [u8],
-    ) -> Result<(), ()> {
+    ) -> Result<(), StorageError> {
         self.medium.read(block, offset + HEADER_BYTES, data).await
     }
 
-    pub async fn scan_block(&mut self, block: usize) -> Result<BlockInfo<M>, ()> {
+    pub async fn scan_block(&mut self, block: usize) -> Result<BlockInfo<M>, StorageError> {
         let header = BlockHeader::read(self.medium, block).await?;
         let mut used_bytes = 0;
 

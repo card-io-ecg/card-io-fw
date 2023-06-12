@@ -22,6 +22,15 @@ pub mod gc;
 pub mod ll;
 pub mod medium;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum StorageError {
+    NotFound,
+    FsCorrupted,
+    Io,
+    InvalidOperation,
+    InsufficientSpace,
+}
+
 pub struct Storage<P>
 where
     P: StorageMedium,
@@ -45,7 +54,7 @@ where
     P: StorageMedium,
     [(); P::BLOCK_COUNT]:,
 {
-    async fn select_next_object(&mut self, medium: &mut P) -> Result<(), ()> {
+    async fn select_next_object(&mut self, medium: &mut P) -> Result<(), StorageError> {
         self.current_object = if let Some(object) = self.meta.next_object_location(medium).await? {
             Some(ObjectReader::new(object, medium).await?)
         } else {
@@ -59,7 +68,7 @@ where
         &mut self,
         storage: &mut Storage<P>,
         mut buf: &mut [u8],
-    ) -> Result<usize, ()> {
+    ) -> Result<usize, StorageError> {
         let medium = &mut storage.medium;
 
         if self.current_object.is_none() {
@@ -94,7 +103,7 @@ where
     P: StorageMedium,
     [(); P::BLOCK_COUNT]:,
 {
-    pub async fn mount(mut partition: P) -> Result<Self, ()> {
+    pub async fn mount(mut partition: P) -> Result<Self, StorageError> {
         let mut blocks = [BlockInfo::new_unknown(); P::BLOCK_COUNT];
 
         let mut ops = BlockOps::new(&mut partition);
@@ -108,25 +117,28 @@ where
         })
     }
 
-    pub async fn format(partition: &mut P, metadata_blocks: usize) -> Result<(), ()> {
+    pub async fn format(partition: &mut P, metadata_blocks: usize) -> Result<(), StorageError> {
         BlockOps::new(partition)
             .format_storage(metadata_blocks)
             .await
     }
 
-    pub async fn format_and_mount(mut partition: P, metadata_blocks: usize) -> Result<Self, ()> {
+    pub async fn format_and_mount(
+        mut partition: P,
+        metadata_blocks: usize,
+    ) -> Result<Self, StorageError> {
         Self::format(&mut partition, metadata_blocks).await?;
 
         Self::mount(partition).await
     }
 
-    pub async fn delete(&mut self, path: &str) -> Result<(), ()> {
+    pub async fn delete(&mut self, path: &str) -> Result<(), StorageError> {
         log::trace!("Storage::delete({path})");
         let location = self.lookup(path).await?;
         self.delete_file_at(location).await
     }
 
-    pub async fn store(&mut self, path: &str, data: &[u8]) -> Result<(), ()> {
+    pub async fn store(&mut self, path: &str, data: &[u8]) -> Result<(), StorageError> {
         log::trace!("Storage::store({path}, len = {})", data.len());
         let overwritten_location = self.lookup(path).await;
 
@@ -139,7 +151,7 @@ where
         Ok(())
     }
 
-    pub async fn read(&mut self, path: &str) -> Result<Reader<P>, ()> {
+    pub async fn read(&mut self, path: &str) -> Result<Reader<P>, StorageError> {
         log::trace!("Storage::read({path})");
         let object = self.lookup(path).await?;
         Ok(Reader {
@@ -148,7 +160,7 @@ where
         })
     }
 
-    async fn lookup(&mut self, path: &str) -> Result<ObjectLocation, ()> {
+    async fn lookup(&mut self, path: &str) -> Result<ObjectLocation, StorageError> {
         let path_hash = hash_path(path);
 
         for block_idx in self
@@ -197,10 +209,10 @@ where
         }
 
         // not found
-        Err(())
+        Err(StorageError::NotFound)
     }
 
-    async fn delete_file_at(&mut self, meta_location: ObjectLocation) -> Result<(), ()> {
+    async fn delete_file_at(&mut self, meta_location: ObjectLocation) -> Result<(), StorageError> {
         let mut metadata = meta_location.read_metadata(&mut self.medium).await?;
         let mut ops = ObjectOps::new(&mut self.medium);
 
@@ -217,7 +229,11 @@ where
         Ok(())
     }
 
-    async fn write_object(&mut self, location: ObjectLocation, data: &[u8]) -> Result<(), ()> {
+    async fn write_object(
+        &mut self,
+        location: ObjectLocation,
+        data: &[u8],
+    ) -> Result<(), StorageError> {
         self.blocks[location.block].used_bytes +=
             ObjectWriter::write_to(location, &mut self.medium, data).await?;
         Ok(())
@@ -227,14 +243,14 @@ where
         &mut self,
         meta_writer: &mut ObjectWriter<P>,
         location: ObjectLocation,
-    ) -> Result<(), ()> {
+    ) -> Result<(), StorageError> {
         let (bytes, byte_count) = location.into_bytes::<P>();
         meta_writer
             .write(&mut self.medium, &bytes[..byte_count])
             .await
     }
 
-    async fn create_new_file(&mut self, path: &str, mut data: &[u8]) -> Result<(), ()> {
+    async fn create_new_file(&mut self, path: &str, mut data: &[u8]) -> Result<(), StorageError> {
         let path_hash = hash_path(path);
 
         // filename + 1 data page
@@ -286,7 +302,7 @@ where
         Ok(())
     }
 
-    fn find_alloc_block(&self, ty: BlockType, min_free: usize) -> Result<usize, ()> {
+    fn find_alloc_block(&self, ty: BlockType, min_free: usize) -> Result<usize, StorageError> {
         // Try to find a used block with enough free space
         if let Some(block) = self.blocks.iter().position(|info| {
             info.header.kind() == BlockHeaderKind::Known(ty)
@@ -304,10 +320,14 @@ where
         }
 
         // No block found
-        Err(())
+        Err(StorageError::InsufficientSpace)
     }
 
-    fn find_new_object_location(&self, ty: BlockType, len: usize) -> Result<ObjectLocation, ()> {
+    fn find_new_object_location(
+        &self,
+        ty: BlockType,
+        len: usize,
+    ) -> Result<ObjectLocation, StorageError> {
         // find block with most free space
         let block = self.find_alloc_block(ty, P::object_header_bytes() + len)?;
 

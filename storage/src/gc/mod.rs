@@ -4,6 +4,7 @@ use crate::{
         objects::{ObjectIterator, ObjectOps, ObjectState},
     },
     medium::{StorageMedium, StoragePrivate},
+    StorageError,
 };
 
 pub struct Gc<'a, M: StorageMedium> {
@@ -20,9 +21,9 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
         medium: &mut M,
         block: usize,
         info: &mut BlockInfo<M>,
-    ) -> Result<(), ()> {
+    ) -> Result<(), StorageError> {
         if info.header.kind().is_unknown() {
-            return Err(());
+            return Err(StorageError::FsCorrupted);
         }
         if info.header.kind().is_empty() {
             return Ok(());
@@ -65,7 +66,7 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
 
     /// This function deletes all objects that are in an invalid state, which can be caused by a
     /// power loss during a write operation.
-    async fn delete_invalid_objects(&mut self) -> Result<(), ()> {
+    async fn delete_invalid_objects(&mut self) -> Result<(), StorageError> {
         log::trace!("GC::delete_invalid_objects()");
         for (block, info) in self.block_info.iter_mut().enumerate() {
             Self::delete_invalid_objects_in_block(self.medium, block, info).await?;
@@ -78,7 +79,7 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
         medium: &mut M,
         block: usize,
         info: &mut BlockInfo<M>,
-    ) -> Result<(), ()> {
+    ) -> Result<(), StorageError> {
         if info.allow_alloc {
             return Ok(());
         }
@@ -99,12 +100,12 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
 
         if iter.next(medium).await?.is_some() {
             // We should not have blocks where an Allocated object is not the last one.
-            return Err(());
+            return Err(StorageError::FsCorrupted);
         }
 
         let BlockHeaderKind::Known(ty) = info.header.kind() else {
             // We should have fixed the invalid blocks first
-            return Err(());
+            return Err(StorageError::FsCorrupted);
         };
 
         BlockOps::new(medium).format_block(block, ty).await?;
@@ -119,7 +120,7 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
     ///
     /// This function should be called after `delete_invalid_objects` to give the GC a chance to
     /// fix an invalid block.
-    async fn erase_invalid_finished_blocks(&mut self) -> Result<(), ()> {
+    async fn erase_invalid_finished_blocks(&mut self) -> Result<(), StorageError> {
         log::trace!("GC::erase_invalid_finished_blocks()");
         for (block, info) in self.block_info.iter_mut().enumerate() {
             Self::erase_invalid_finished_block(self.medium, block, info).await?;
@@ -132,7 +133,7 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
         medium: &mut M,
         block: usize,
         info: &mut BlockInfo<M>,
-    ) -> Result<(), ()> {
+    ) -> Result<(), StorageError> {
         if info.used_bytes >= M::BLOCK_SIZE - M::object_header_bytes() {
             return Ok(());
         }
@@ -147,7 +148,7 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
 
         let BlockHeaderKind::Known(ty) = info.header.kind() else {
             // We should have fixed the invalid blocks first
-            return Err(());
+            return Err(StorageError::FsCorrupted);
         };
 
         BlockOps::new(medium).format_block(block, ty).await?;
@@ -158,7 +159,7 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
     }
 
     /// This function erases blocks where all present objects are deleted and the block is full.
-    async fn erase_full_finished_blocks(&mut self) -> Result<(), ()> {
+    async fn erase_full_finished_blocks(&mut self) -> Result<(), StorageError> {
         log::trace!("GC::erase_full_finished_blocks()");
         for (block, info) in self.block_info.iter_mut().enumerate() {
             Self::erase_full_finished_block(self.medium, block, info).await?;
@@ -167,7 +168,7 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
         Ok(())
     }
 
-    pub async fn run(&mut self) -> Result<(), ()> {
+    pub async fn run(&mut self) -> Result<(), StorageError> {
         self.delete_invalid_objects().await?;
         self.erase_invalid_finished_blocks().await?;
         self.erase_full_finished_blocks().await?;
