@@ -262,6 +262,7 @@ where
         // filename + 1 data page
         let est_page_count = 1 + 1; // TODO: guess the number of data pages needed
 
+        // TODO: make this mutable because we can fail mid-writing
         let file_meta_location = self.find_new_object_location(
             BlockType::Metadata,
             est_page_count * P::object_location_bytes(),
@@ -296,8 +297,15 @@ where
 
             self.write_object(chunk_location, chunk).await?;
 
-            self.write_location(&mut meta_writer, chunk_location)
-                .await?;
+            match self.write_location(&mut meta_writer, chunk_location).await {
+                Ok(()) => {}
+                Err(StorageError::InsufficientSpace) => {
+                    self.blocks[file_meta_location.block].used_bytes += meta_writer.total_size();
+
+                    todo!("Reallocate metadata object")
+                }
+                Err(e) => return Err(e),
+            }
         }
 
         // TODO: store data length

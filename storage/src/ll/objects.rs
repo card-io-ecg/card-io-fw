@@ -323,10 +323,6 @@ impl<M: StorageMedium> ObjectWriter<M> {
         let len = data.len();
 
         if self.space() < len {
-            // TODO once we can search for free space
-            // delete current object
-            // try to allocate new object with appropriate size
-            // copy previous contents to new location
             return Err(StorageError::InsufficientSpace);
         }
 
@@ -369,6 +365,10 @@ impl<M: StorageMedium> ObjectWriter<M> {
             .await
     }
 
+    pub fn total_size(&self) -> usize {
+        M::object_header_bytes() + self.cursor
+    }
+
     pub async fn finalize(mut self, medium: &mut M) -> Result<usize, StorageError> {
         if self.object.state != ObjectState::Allocated {
             return Err(StorageError::InvalidOperation);
@@ -379,7 +379,7 @@ impl<M: StorageMedium> ObjectWriter<M> {
         self.flush(medium).await?;
         self.set_state(medium, ObjectState::Finalized).await?;
 
-        Ok(M::object_header_bytes() + self.cursor)
+        Ok(self.total_size())
     }
 
     pub async fn delete(mut self, medium: &mut M) -> Result<(), StorageError> {
