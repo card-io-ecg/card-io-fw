@@ -1,5 +1,3 @@
-[build]
-
 [target.xtensa-esp32s3-none-elf]
 rustflags = [
   "-C", "link-arg=-Tlinkall.x",
@@ -21,5 +19,10 @@ rustflags = [
   # "--cfg", 'target_has_atomic="ptr"',
 ]
 
-[unstable]
-build-std = ["alloc", "core"]
+[alias]
+xtask = "run --package xtask --"
+xcheck = "xtask check"
+xtest = "xtask test"
+xclippy = "xtask extra-check"
+xbuild = "xtask build"
+xrun = "xtask run"

@@ -75,7 +75,8 @@ members = [
     "device-descriptor",
     "gui",
     "register-access",
-    "signal-processing"
+    "signal-processing",
+    "xtask"
 ]
 
 [profile.dev]
