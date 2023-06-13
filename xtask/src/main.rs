@@ -10,6 +10,10 @@ pub enum Subcommands {
     Run,
     Check,
     ExtraCheck,
+    Example {
+        package: String,
+        name: String
+    },
 }
 
 #[derive(Debug, Parser)]
@@ -79,6 +83,12 @@ fn test() -> AnyResult<()> {
     Ok(())
 }
 
+fn example(package: String, name: String) -> AnyResult<()> {
+    cargo(&["run", "--example", &name, "-p", &package]).run()?;
+
+    Ok(())
+}
+
 fn main() -> AnyResult<()> {
     let cli = Cli::parse();
 
@@ -88,5 +98,6 @@ fn main() -> AnyResult<()> {
         Subcommands::Run => run(),
         Subcommands::Check => checks(),
         Subcommands::ExtraCheck => extra_checks(),
+        Subcommands::Example {package, name} => example(package, name)
     }
 }
