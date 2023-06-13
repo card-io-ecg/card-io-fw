@@ -25,25 +25,6 @@ impl ObjectType {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum ObjectAllocationState {
-    Free,
-    Allocated(ObjectType),
-}
-
-impl ObjectAllocationState {
-    fn parse(byte: u8) -> Result<Self, StorageError> {
-        match ObjectType::parse(byte) {
-            Some(ty) => Ok(Self::Allocated(ty)),
-            None if byte == 0xFF => Ok(Self::Free),
-            None => {
-                log::warn!("Unknown object type: 0x{byte:02X}");
-                Err(StorageError::FsCorrupted)
-            }
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ObjectDataState {
     Untrusted = 0xFF,
     Valid = 0xF0,
@@ -79,59 +60,51 @@ impl ObjectDataState {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct CompositeObjectState {
-    allocation: ObjectAllocationState,
-    data: ObjectDataState,
+pub enum CompositeObjectState {
+    Free,
+    Allocated(ObjectType, ObjectDataState),
+}
+
+impl From<CompositeObjectState> for ObjectState {
+    fn from(value: CompositeObjectState) -> Self {
+        match value {
+            CompositeObjectState::Free => Self::Free,
+            CompositeObjectState::Allocated(_, data) => match data {
+                ObjectDataState::Untrusted => Self::Allocated,
+                ObjectDataState::Valid => Self::Finalized,
+                ObjectDataState::Deleted => Self::Deleted,
+            },
+        }
+    }
 }
 
 impl CompositeObjectState {
-    pub fn visible_state(&self) -> Result<ObjectState, StorageError> {
-        let state = match (self.allocation, self.data) {
-            (ObjectAllocationState::Free, ObjectDataState::Untrusted) => ObjectState::Free,
-            (ObjectAllocationState::Free, _) => {
-                // TODO: this shouldn't be representable
-                log::warn!("Incorrect object state: {self:?}");
-                return Err(StorageError::FsCorrupted);
-            }
-            (_, ObjectDataState::Untrusted) => ObjectState::Allocated,
-            (_, ObjectDataState::Valid) => ObjectState::Finalized,
-            (_, ObjectDataState::Deleted) => ObjectState::Deleted,
-        };
-
-        Ok(state)
-    }
-
-    pub fn transition(
+    fn transition(
         self,
         new_state: ObjectState,
         object_type: ObjectType,
     ) -> Result<Self, StorageError> {
-        let current_state = self.visible_state()?;
+        let current_state = ObjectState::from(self);
 
         if current_state > new_state {
             // Can't go backwards in state
             return Err(StorageError::InvalidOperation);
         }
 
-        if let ObjectAllocationState::Allocated(ty) = self.allocation {
+        if let Self::Allocated(ty, _) = self {
             // Can't change allocated object type
             if ty != object_type {
                 return Err(StorageError::InvalidOperation);
             }
         }
 
-        let new_alloc_state = ObjectAllocationState::Allocated(object_type);
         let new_data_state = match new_state {
             ObjectState::Free => return Err(StorageError::InvalidOperation),
             ObjectState::Allocated => ObjectDataState::Untrusted,
             ObjectState::Finalized => ObjectDataState::Valid,
             ObjectState::Deleted => ObjectDataState::Deleted,
         };
-
-        Ok(Self {
-            allocation: new_alloc_state,
-            data: new_data_state,
-        })
+        Ok(Self::Allocated(object_type, new_data_state))
     }
 
     fn byte_count<M: StorageMedium>() -> usize {
@@ -154,13 +127,23 @@ impl CompositeObjectState {
 
         medium.read(location.block, location.offset, buffer).await?;
 
-        let allocation = ObjectAllocationState::parse(buffer[0])?;
-        let data = match M::WRITE_GRANULARITY {
-            WriteGranularity::Bit => ObjectDataState::parse(buffer[1])?,
-            WriteGranularity::Word(w) => ObjectDataState::parse_pair(buffer[w], buffer[2 * w])?,
-        };
+        match ObjectType::parse(buffer[0]) {
+            Some(ty) => {
+                let data_state = match M::WRITE_GRANULARITY {
+                    WriteGranularity::Bit => ObjectDataState::parse(buffer[1])?,
+                    WriteGranularity::Word(w) => {
+                        ObjectDataState::parse_pair(buffer[w], buffer[2 * w])?
+                    }
+                };
 
-        Ok(Self { allocation, data })
+                Ok(Self::Allocated(ty, data_state))
+            }
+            None if buffer[0] == 0xFF => Ok(Self::Free),
+            None => {
+                log::warn!("Unknown object type: 0x{:02X}", buffer[0]);
+                Err(StorageError::FsCorrupted)
+            }
+        }
     }
 
     pub async fn allocate<M: StorageMedium>(
@@ -221,10 +204,10 @@ impl CompositeObjectState {
         Ok(this)
     }
 
-    fn object_type(&self) -> Result<ObjectType, StorageError> {
-        match self.allocation {
-            ObjectAllocationState::Allocated(ty) => Ok(ty),
-            ObjectAllocationState::Free => Err(StorageError::InvalidOperation),
+    fn object_type(self) -> Result<ObjectType, StorageError> {
+        match self {
+            Self::Allocated(ty, _) => Ok(ty),
+            Self::Free => Err(StorageError::InvalidOperation),
         }
     }
 }
@@ -348,7 +331,7 @@ impl ObjectHeader {
     }
 
     pub fn state(&self) -> ObjectState {
-        self.state.visible_state().unwrap()
+        self.state.into()
     }
 
     pub fn object_type(&self) -> Result<ObjectType, StorageError> {
@@ -376,7 +359,7 @@ impl ObjectHeader {
 
         log::trace!("ObjectHeader::update_state({:?}, {state:?})", self.location);
 
-        if state == self.state.visible_state()? {
+        if state == self.state.into() {
             return Ok(());
         }
 
