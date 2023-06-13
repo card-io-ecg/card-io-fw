@@ -447,20 +447,27 @@ mod test {
         println!();
     }
 
-    async fn create_fs() -> Storage<RamStorage<256, 32>> {
-        init_test();
-
+    async fn create_default_fs() -> Storage<RamStorage<256, 32>> {
         let medium = RamStorage::<256, 32>::new();
         Storage::format_and_mount(medium)
             .await
             .expect("Failed to mount storage")
     }
 
-    async fn assert_file_contents(
-        storage: &mut Storage<RamStorage<256, 32>>,
+    async fn create_larger_fs() -> Storage<RamStorage<1024, 256>> {
+        let medium = RamStorage::<1024, 256>::new();
+        Storage::format_and_mount(medium)
+            .await
+            .expect("Failed to mount storage")
+    }
+
+    async fn assert_file_contents<M: StorageMedium>(
+        storage: &mut Storage<M>,
         path: &str,
         expected: &[u8],
-    ) {
+    ) where
+        [(); M::BLOCK_COUNT]:,
+    {
         let mut reader = storage.read(path).await.expect("Failed to open file");
 
         let mut contents = vec![0; expected.len()];
@@ -474,32 +481,146 @@ mod test {
         assert_eq!(contents, expected);
     }
 
-    #[async_std::test]
-    async fn lookup_returns_error_if_file_does_not_exist() {
-        let mut storage = create_fs().await;
+    macro_rules! test_cases {
+        (
+            $(async fn $test_name:ident<M: StorageMedium>(mut $storage:ident: Storage<M> $(,)?) $code:tt)+
+        ) => {
+            $(
+                #[async_std::test]
+                async fn $test_name() {
+                    async fn test_case_impl<M: StorageMedium>(mut $storage: Storage<M>)
+                    where
+                        [(); M::BLOCK_COUNT]:,
+                    {
+                        $code
+                    }
 
-        assert!(!storage.exists("foo").await);
+                    init_test();
 
-        assert!(
-            storage.read("foo").await.is_err(),
-            "Lookup returned Ok unexpectedly"
-        );
+                    log::info!("Running test case with create_default_fs");
+                    test_case_impl(create_default_fs().await).await;
+                    log::info!("Running test case with create_larger_fs");
+                    test_case_impl(create_larger_fs().await).await;
+                }
+            )+
+        };
     }
 
-    #[async_std::test]
-    async fn delete_returns_error_if_file_does_not_exist() {
-        let mut storage = create_fs().await;
+    test_cases! {
+        async fn lookup_returns_error_if_file_does_not_exist<M: StorageMedium>(
+            mut storage: Storage<M>,
+        ) {
+            assert!(!storage.exists("foo").await);
 
-        assert!(!storage.exists("foo").await);
-        storage
-            .delete("foo")
-            .await
-            .expect_err("Delete returned Ok unexpectedly");
+            assert!(
+                storage.read("foo").await.is_err(),
+                "Lookup returned Ok unexpectedly"
+            );
+        }
+
+        async fn delete_returns_error_if_file_does_not_exist<M: StorageMedium>(
+            mut storage: Storage<M>,
+        ) {
+            assert!(!storage.exists("foo").await);
+            storage
+                .delete("foo")
+                .await
+                .expect_err("Delete returned Ok unexpectedly");
+        }
+
+        async fn written_file_can_be_read<M: StorageMedium>(
+            mut storage: Storage<M>,
+        ) {
+            storage
+                .store("foo", b"barbaz")
+                .await
+                .expect("Create failed");
+
+            let mut reader = storage.read("foo").await.expect("Failed to open file");
+
+            let mut buf = [0u8; 6];
+
+            reader
+                .read(&mut storage, &mut buf)
+                .await
+                .expect("Failed to read file");
+
+            assert_eq!(buf, *b"barbaz");
+        }
+
+        async fn reading_overwritten_file_reads_newer_data<M: StorageMedium>(
+            mut storage: Storage<M>,
+        ) {
+            storage
+                .store("foo", b"barbaz")
+                .await
+                .expect("Create failed");
+
+            assert!(storage.exists("foo").await);
+
+            storage
+                .store("foo", b"foofoobar")
+                .await
+                .expect("Create failed");
+
+            assert!(storage.exists("foo").await);
+
+            assert_file_contents(&mut storage, "foo", b"foofoobar").await;
+        }
+
+        async fn content_can_be_longer_than_block_size<M: StorageMedium>(
+            mut storage: Storage<M>,
+        ) {
+            storage.store("foo", LIPSUM).await.expect("Create failed");
+
+            let mut reader = storage.read("foo").await.expect("Failed to open file");
+
+            let mut buf = [0u8; 100];
+
+            // Read in two chunks to test that the reader resumes with the current byte
+            reader
+                .read(&mut storage, &mut buf[0..50])
+                .await
+                .expect("Failed to read file");
+            reader
+                .read(&mut storage, &mut buf[50..])
+                .await
+                .expect("Failed to read file");
+
+            assert_eq!(buf, *LIPSUM);
+        }
+
+        async fn deleted_file_can_no_longer_be_read<M: StorageMedium>(
+            mut storage: Storage<M>,
+        ) {
+            storage
+                .store("foo", b"barbaz")
+                .await
+                .expect("Create failed");
+
+            storage.delete("foo").await.expect("Failed to delete");
+
+            assert!(!storage.exists("foo").await);
+            assert!(
+                storage.read("foo").await.is_err(),
+                "Lookup returned Ok unexpectedly"
+            );
+        }
+
+        async fn reading_reads_from_the_correct_file<M: StorageMedium>(
+            mut storage: Storage<M>,
+        ) {
+            storage.store("foo", b"bar").await.expect("Create failed");
+            storage.store("baz", b"asdf").await.expect("Create failed");
+
+            assert_file_contents(&mut storage, "foo", b"bar").await;
+            assert_file_contents(&mut storage, "baz", b"asdf").await;
+        }
     }
 
     #[async_std::test]
     async fn fails_to_write_file_if_not_enough_space() {
-        let mut storage = create_fs().await;
+        let mut storage = create_default_fs().await;
 
         storage.store("foo", LIPSUM).await.expect("Create failed");
 
@@ -509,102 +630,5 @@ mod test {
             storage.store("bar", LIPSUM).await.is_err(),
             "Lookup returned Ok unexpectedly"
         );
-    }
-
-    #[async_std::test]
-    async fn written_file_can_be_read() {
-        let mut storage = create_fs().await;
-
-        storage
-            .store("foo", b"barbaz")
-            .await
-            .expect("Create failed");
-
-        let mut reader = storage.read("foo").await.expect("Failed to open file");
-
-        let mut buf = [0u8; 6];
-
-        reader
-            .read(&mut storage, &mut buf)
-            .await
-            .expect("Failed to read file");
-
-        assert_eq!(buf, *b"barbaz");
-    }
-
-    #[async_std::test]
-    async fn reading_overwritten_file_reads_newer_data() {
-        let mut storage = create_fs().await;
-
-        storage
-            .store("foo", b"barbaz")
-            .await
-            .expect("Create failed");
-
-        assert!(storage.exists("foo").await);
-
-        storage
-            .store("foo", b"foofoobar")
-            .await
-            .expect("Create failed");
-
-        assert!(storage.exists("foo").await);
-        storage.medium.debug_print();
-
-        assert_file_contents(&mut storage, "foo", b"foofoobar").await;
-    }
-
-    #[async_std::test]
-    async fn content_can_be_longer_than_block_size() {
-        let mut storage = create_fs().await;
-
-        storage.store("foo", LIPSUM).await.expect("Create failed");
-
-        storage.medium.debug_print();
-
-        let mut reader = storage.read("foo").await.expect("Failed to open file");
-
-        let mut buf = [0u8; 100];
-
-        // Read in two chunks to test that the reader resumes with the current byte
-        reader
-            .read(&mut storage, &mut buf[0..50])
-            .await
-            .expect("Failed to read file");
-        reader
-            .read(&mut storage, &mut buf[50..])
-            .await
-            .expect("Failed to read file");
-
-        assert_eq!(buf, *LIPSUM);
-    }
-
-    #[async_std::test]
-    async fn deleted_file_can_no_longer_be_read() {
-        let mut storage = create_fs().await;
-
-        storage
-            .store("foo", b"barbaz")
-            .await
-            .expect("Create failed");
-
-        storage.delete("foo").await.expect("Failed to delete");
-
-        assert!(!storage.exists("foo").await);
-        assert!(
-            storage.read("foo").await.is_err(),
-            "Lookup returned Ok unexpectedly"
-        );
-    }
-
-    #[async_std::test]
-    async fn reading_reads_from_the_correct_file() {
-        let mut storage = create_fs().await;
-
-        storage.store("foo", b"bar").await.expect("Create failed");
-        storage.store("baz", b"asdf").await.expect("Create failed");
-
-        assert_file_contents(&mut storage, "foo", b"bar").await;
-        assert_file_contents(&mut storage, "baz", b"asdf").await;
     }
 }
