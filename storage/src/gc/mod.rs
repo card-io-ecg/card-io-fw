@@ -1,7 +1,7 @@
 use crate::{
     ll::{
         blocks::{BlockHeaderKind, BlockInfo, BlockOps},
-        objects::{ObjectIterator, ObjectOps, ObjectState},
+        objects::{ObjectIterator, ObjectState},
     },
     medium::{StorageMedium, StoragePrivate},
     StorageError,
@@ -31,14 +31,14 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
 
         let mut iter = ObjectIterator::new::<M>(block);
 
-        while let Some(object) = iter.next(medium).await? {
+        while let Some(mut object) = iter.next(medium).await? {
             if object.header.state == ObjectState::Allocated {
-                let mut ops = ObjectOps { medium };
-
                 let mut delete = true;
 
                 if object.header.object_size == u32::MAX as usize {
-                    ops.set_payload_size(object.location, info.used_bytes)
+                    object
+                        .header
+                        .set_payload_size(medium, info.used_bytes)
                         .await?;
                 } else {
                     // We can clean up objects that seem to have a valid size. However, we can't
@@ -52,7 +52,9 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
                     return Ok(());
                 }
 
-                ops.update_state(object.location, ObjectState::Deleted)
+                object
+                    .header
+                    .update_state(medium, ObjectState::Deleted)
                     .await?;
 
                 info.allow_alloc = true;

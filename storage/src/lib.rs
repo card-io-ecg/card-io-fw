@@ -9,7 +9,7 @@ use crate::{
     ll::{
         blocks::{BlockHeaderKind, BlockInfo, BlockOps, BlockType},
         objects::{
-            MetadataObjectHeader, ObjectIterator, ObjectLocation, ObjectOps, ObjectReader,
+            MetadataObjectHeader, ObjectHeader, ObjectIterator, ObjectLocation, ObjectReader,
             ObjectState, ObjectWriter,
         },
     },
@@ -216,16 +216,22 @@ where
 
     async fn delete_file_at(&mut self, meta_location: ObjectLocation) -> Result<(), StorageError> {
         let mut metadata = meta_location.read_metadata(&mut self.medium).await?;
-        let mut ops = ObjectOps::new(&mut self.medium);
 
-        ops.update_state(metadata.filename_location, ObjectState::Deleted)
+        metadata
+            .object
+            .update_state(&mut self.medium, ObjectState::Deleted)
             .await?;
 
-        while let Some(location) = metadata.next_object_location(ops.medium).await? {
-            ops.update_state(location, ObjectState::Deleted).await?;
+        while let Some(location) = metadata.next_object_location(&mut self.medium).await? {
+            let mut header = ObjectHeader::read(location, &mut self.medium).await?;
+            header
+                .update_state(&mut self.medium, ObjectState::Deleted)
+                .await?;
         }
 
-        ops.update_state(meta_location, ObjectState::Deleted)
+        metadata
+            .object
+            .update_state(&mut self.medium, ObjectState::Deleted)
             .await?;
 
         Ok(())

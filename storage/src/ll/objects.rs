@@ -150,6 +150,7 @@ impl ObjectLocation {
 pub struct ObjectHeader {
     pub state: ObjectState,
     pub object_size: usize, // At most block size
+    pub location: ObjectLocation,
 }
 
 impl ObjectHeader {
@@ -178,7 +179,51 @@ impl ObjectHeader {
         object_size_bytes[0..size_slice.len()].copy_from_slice(size_slice);
         let object_size = u32::from_le_bytes(object_size_bytes) as usize;
 
-        Ok(Self { state, object_size })
+        Ok(Self {
+            state,
+            object_size,
+            location,
+        })
+    }
+
+    pub async fn update_state<M: StorageMedium>(
+        &mut self,
+        medium: &mut M,
+        state: ObjectState,
+    ) -> Result<(), StorageError> {
+        debug_assert!(!state.is_free());
+
+        log::trace!("ObjectOps::update_state({:?}, {state:?})", self.location);
+
+        state.write(self.location, medium).await?;
+        self.state = state;
+        Ok(())
+    }
+
+    pub async fn set_payload_size<M: StorageMedium>(
+        &mut self,
+        medium: &mut M,
+        size: usize,
+    ) -> Result<(), StorageError> {
+        log::trace!("ObjectOps::set_payload_size({:?}, {size})", self.location);
+
+        let unset_object_size = (1 << (M::object_size_bytes() * 8)) - 1;
+        if self.object_size != unset_object_size {
+            return Err(StorageError::InvalidOperation);
+        }
+
+        let bytes = size.to_le_bytes();
+        let offset = M::align(M::object_status_bytes());
+
+        medium
+            .write(
+                self.location.block,
+                self.location.offset + offset,
+                &bytes[0..M::object_size_bytes()],
+            )
+            .await?;
+        self.object_size = size;
+        Ok(())
     }
 }
 
@@ -225,7 +270,6 @@ impl<M: StorageMedium> MetadataObjectHeader<M> {
 }
 
 pub struct ObjectWriter<M: StorageMedium> {
-    location: ObjectLocation,
     object: ObjectHeader,
     cursor: usize,
     buffer: heapless::Vec<u8, 4>, // TODO: support larger word sizes?
@@ -243,7 +287,6 @@ impl<M: StorageMedium> ObjectWriter<M> {
         }
 
         Ok(Self {
-            location,
             object,
             cursor: 0,
             buffer: heapless::Vec::new(),
@@ -280,7 +323,7 @@ impl<M: StorageMedium> ObjectWriter<M> {
         if !self.buffer.is_empty() {
             let offset = self.data_write_offset();
             medium
-                .write(self.location.block, offset, &self.buffer)
+                .write(self.object.location.block, offset, &self.buffer)
                 .await?;
 
             self.buffer.clear();
@@ -307,7 +350,7 @@ impl<M: StorageMedium> ObjectWriter<M> {
 
     fn data_write_offset(&self) -> usize {
         let header_size = M::object_header_bytes();
-        self.location.offset + header_size + self.cursor
+        self.object.location.offset + header_size + self.cursor
     }
 
     pub fn space(&self) -> usize {
@@ -336,7 +379,7 @@ impl<M: StorageMedium> ObjectWriter<M> {
         let aligned_bytes = len - remaining;
         medium
             .write(
-                self.location.block,
+                self.object.location.block,
                 self.data_write_offset(),
                 &data[0..aligned_bytes],
             )
@@ -352,16 +395,11 @@ impl<M: StorageMedium> ObjectWriter<M> {
     }
 
     async fn write_size(&mut self, medium: &mut M) -> Result<(), StorageError> {
-        ObjectOps { medium }
-            .set_payload_size(self.location, self.cursor)
-            .await
+        self.object.set_payload_size(medium, self.cursor).await
     }
 
     async fn set_state(&mut self, medium: &mut M, state: ObjectState) -> Result<(), StorageError> {
-        self.object.state = state;
-        ObjectOps { medium }
-            .update_state(self.location, state)
-            .await
+        self.object.update_state(medium, state).await
     }
 
     pub fn payload_size(&self) -> usize {
@@ -548,46 +586,5 @@ impl ObjectIterator {
 
     pub fn current_offset(&self) -> usize {
         self.location.offset
-    }
-}
-
-pub(crate) struct ObjectOps<'a, M> {
-    pub medium: &'a mut M,
-}
-
-impl<'a, M: StorageMedium> ObjectOps<'a, M> {
-    pub(crate) fn new(medium: &'a mut M) -> Self {
-        Self { medium }
-    }
-
-    pub async fn update_state(
-        &mut self,
-        location: ObjectLocation,
-        state: ObjectState,
-    ) -> Result<(), StorageError> {
-        debug_assert!(!state.is_free());
-
-        log::trace!("ObjectOps::update_state({location:?}, {state:?})");
-
-        state.write(location, self.medium).await
-    }
-
-    pub async fn set_payload_size(
-        &mut self,
-        location: ObjectLocation,
-        size: usize,
-    ) -> Result<(), StorageError> {
-        log::trace!("ObjectOps::set_payload_size({location:?}, {size})");
-
-        let bytes = size.to_le_bytes();
-        let offset = M::align(M::object_status_bytes());
-
-        self.medium
-            .write(
-                location.block,
-                location.offset + offset,
-                &bytes[0..M::object_size_bytes()],
-            )
-            .await
     }
 }
