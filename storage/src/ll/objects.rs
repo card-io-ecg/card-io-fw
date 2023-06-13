@@ -138,12 +138,11 @@ impl ObjectLocation {
         self,
         medium: &mut M,
     ) -> Result<MetadataObjectHeader<M>, StorageError> {
-        let Some(info) = ObjectInfo::read(self, medium).await?
-        else {
-            return Err(StorageError::FsCorrupted);
-        };
-
-        info.read_metadata(medium).await
+        if let Some(info) = ObjectInfo::read(self, medium).await? {
+            info.read_metadata(medium).await
+        } else {
+            Err(StorageError::FsCorrupted)
+        }
     }
 }
 
