@@ -268,7 +268,7 @@ where
         let mut file_meta_location = self
             .find_new_object_location(
                 BlockType::Metadata,
-                est_page_count * M::object_location_bytes(),
+                est_page_count * M::align(M::object_location_bytes()),
             )
             .await?;
 
@@ -301,6 +301,8 @@ where
             let max_chunk_len =
                 self.blocks[chunk_location.block].free_space() - ObjectHeader::byte_count::<M>();
 
+            log::debug!("Max chunk len: {max_chunk_len}");
+
             let (chunk, remaining) = data.split_at(data.len().min(max_chunk_len));
             data = remaining;
 
@@ -309,6 +311,7 @@ where
             match self.write_location(&mut meta_writer, chunk_location).await {
                 Ok(()) => {}
                 Err(StorageError::InsufficientSpace) => {
+                    log::debug!("Reallocating metadata object");
                     // Old object's accounting
                     self.blocks[file_meta_location.block].used_bytes += meta_writer.total_size();
 
@@ -362,6 +365,8 @@ where
     }
 
     fn find_alloc_block(&self, ty: BlockType, min_free: usize) -> Result<usize, StorageError> {
+        log::trace!("Storage::find_alloc_block({ty:?}, {min_free})");
+
         // Try to find a used block with enough free space
         if let Some(block) = self.blocks.iter().position(|info| {
             info.header.kind() == BlockHeaderKind::Known(ty)
@@ -388,8 +393,10 @@ where
         ty: BlockType,
         len: usize,
     ) -> Result<ObjectLocation, StorageError> {
+        log::trace!("Storage::find_new_object_location({ty:?}, {len})");
+
         // find block with most free space
-        let block = self.find_alloc_block(ty, ObjectHeader::byte_count::<M>() + len)?;
+        let block = self.find_alloc_block(ty, M::align(ObjectHeader::byte_count::<M>()) + len)?;
 
         if self.blocks[block].header.kind() == BlockHeaderKind::Known(BlockType::Undefined) {
             BlockOps::new(&mut self.medium)
@@ -463,11 +470,11 @@ mod test {
     }
 
     async fn create_word_granularity_fs<const GRANULARITY: usize>(
-    ) -> Storage<RamStorage<256, 32, GRANULARITY>>
+    ) -> Storage<RamStorage<256, 48, GRANULARITY>>
     where
-        [(); RamStorage::<256, 32, GRANULARITY>::BLOCK_COUNT]:,
+        [(); RamStorage::<256, 48, GRANULARITY>::BLOCK_COUNT]:,
     {
-        let medium = RamStorage::<256, 32, GRANULARITY>::new();
+        let medium = RamStorage::<256, 48, GRANULARITY>::new();
         Storage::format_and_mount(medium)
             .await
             .expect("Failed to mount storage")
@@ -636,6 +643,8 @@ mod test {
 
     #[async_std::test]
     async fn fails_to_write_file_if_not_enough_space() {
+        init_test();
+
         let mut storage = create_default_fs().await;
 
         storage.store("foo", LIPSUM).await.expect("Create failed");
