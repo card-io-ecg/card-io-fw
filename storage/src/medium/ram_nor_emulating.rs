@@ -2,22 +2,19 @@ use crate::{medium::StorageMedium, StorageError};
 
 use super::WriteGranularity;
 
-pub struct RamStorage<const STORAGE_SIZE: usize, const BLOCK_SIZE: usize, const GRANULARITY: usize>
-{
+pub struct NorRamStorage<const STORAGE_SIZE: usize, const BLOCK_SIZE: usize> {
     pub(crate) data: [u8; STORAGE_SIZE],
 }
 
-impl<const STORAGE_SIZE: usize, const BLOCK_SIZE: usize, const GRANULARITY: usize> Default
-    for RamStorage<STORAGE_SIZE, BLOCK_SIZE, GRANULARITY>
+impl<const STORAGE_SIZE: usize, const BLOCK_SIZE: usize> Default
+    for NorRamStorage<STORAGE_SIZE, BLOCK_SIZE>
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<const STORAGE_SIZE: usize, const BLOCK_SIZE: usize, const GRANULARITY: usize>
-    RamStorage<STORAGE_SIZE, BLOCK_SIZE, GRANULARITY>
-{
+impl<const STORAGE_SIZE: usize, const BLOCK_SIZE: usize> NorRamStorage<STORAGE_SIZE, BLOCK_SIZE> {
     pub const fn new() -> Self {
         Self {
             data: [0xFF; STORAGE_SIZE],
@@ -42,12 +39,12 @@ impl<const STORAGE_SIZE: usize, const BLOCK_SIZE: usize, const GRANULARITY: usiz
     }
 }
 
-impl<const STORAGE_SIZE: usize, const BLOCK_SIZE: usize, const GRANULARITY: usize> StorageMedium
-    for RamStorage<STORAGE_SIZE, BLOCK_SIZE, GRANULARITY>
+impl<const STORAGE_SIZE: usize, const BLOCK_SIZE: usize> StorageMedium
+    for NorRamStorage<STORAGE_SIZE, BLOCK_SIZE>
 {
     const BLOCK_SIZE: usize = BLOCK_SIZE;
     const BLOCK_COUNT: usize = STORAGE_SIZE / BLOCK_SIZE;
-    const WRITE_GRANULARITY: WriteGranularity = WriteGranularity::Word(GRANULARITY);
+    const WRITE_GRANULARITY: WriteGranularity = WriteGranularity::Bit;
 
     async fn erase(&mut self, block: usize) -> Result<(), StorageError> {
         let offset = Self::offset(block, 0);
@@ -91,8 +88,7 @@ impl<const STORAGE_SIZE: usize, const BLOCK_SIZE: usize, const GRANULARITY: usiz
         let offset = Self::offset(block, offset);
 
         for (src, dst) in data.iter().zip(self.data[offset..].iter_mut()) {
-            assert_eq!(*dst, 0xFF);
-            *dst = *src;
+            *dst &= *src;
         }
 
         Ok(())

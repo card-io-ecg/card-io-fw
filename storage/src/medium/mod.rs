@@ -2,6 +2,7 @@ use crate::StorageError;
 
 pub mod cache;
 pub mod ram;
+pub mod ram_nor_emulating;
 
 fn size_to_bytes(size: usize) -> usize {
     match size {

@@ -415,7 +415,7 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{medium::ram::RamStorage, test::init_test};
+    use crate::{medium::ram_nor_emulating::NorRamStorage, test::init_test};
 
     use super::*;
 
@@ -423,7 +423,7 @@ mod tests {
     async fn empty_block_reports_0_used_bytes() {
         init_test();
 
-        let mut medium = RamStorage::<256, 32>::new();
+        let mut medium = NorRamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
         let info = block_ops.scan_block(0).await.unwrap();
@@ -434,7 +434,7 @@ mod tests {
     async fn test_formatting_empty_block_sets_erase_count_to_0() {
         init_test();
 
-        let mut medium = RamStorage::<256, 32>::new();
+        let mut medium = NorRamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
         block_ops.format_block(3).await.unwrap();
@@ -445,7 +445,7 @@ mod tests {
     async fn formatted_block_reports_some_used_bytes() {
         init_test();
 
-        let mut medium = RamStorage::<256, 32>::new();
+        let mut medium = NorRamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
         block_ops.format_block(0).await.unwrap();
@@ -459,11 +459,11 @@ mod tests {
     async fn test_format_storage_formats_every_block() {
         init_test();
 
-        let mut medium = RamStorage::<256, 32>::new();
+        let mut medium = NorRamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
         block_ops.format_storage().await.unwrap();
-        for block in 0..RamStorage::<256, 32>::BLOCK_COUNT {
+        for block in 0..NorRamStorage::<256, 32>::BLOCK_COUNT {
             assert_eq!(block_ops.read_header(block).await.unwrap().erase_count, 0);
         }
     }
@@ -472,7 +472,7 @@ mod tests {
     async fn test_formatting_formatted_but_empty_block_does_not_increase_erase_count() {
         init_test();
 
-        let mut medium = RamStorage::<256, 32>::new();
+        let mut medium = NorRamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
         block_ops.format_block(3).await.unwrap();
@@ -486,7 +486,7 @@ mod tests {
     async fn test_formatting_written_block_increases_erase_count() {
         init_test();
 
-        let mut medium = RamStorage::<256, 32>::new();
+        let mut medium = NorRamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
         block_ops.format_block(3).await.unwrap();
@@ -502,7 +502,7 @@ mod tests {
     async fn test_written_data_can_be_read() {
         init_test();
 
-        let mut medium = RamStorage::<256, 32>::new();
+        let mut medium = NorRamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
         block_ops.format_block(3).await.unwrap();

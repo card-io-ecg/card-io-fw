@@ -436,6 +436,7 @@ where
 mod test {
     use super::*;
     use medium::ram::RamStorage;
+    use medium::ram_nor_emulating::NorRamStorage;
 
     const LIPSUM: &[u8] = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce in mi scelerisque, porttitor mi amet.";
 
@@ -447,15 +448,26 @@ mod test {
         println!();
     }
 
-    async fn create_default_fs() -> Storage<RamStorage<256, 32>> {
-        let medium = RamStorage::<256, 32>::new();
+    async fn create_default_fs() -> Storage<NorRamStorage<256, 32>> {
+        let medium = NorRamStorage::<256, 32>::new();
         Storage::format_and_mount(medium)
             .await
             .expect("Failed to mount storage")
     }
 
-    async fn create_larger_fs() -> Storage<RamStorage<1024, 256>> {
-        let medium = RamStorage::<1024, 256>::new();
+    async fn create_larger_fs() -> Storage<NorRamStorage<1024, 256>> {
+        let medium = NorRamStorage::<1024, 256>::new();
+        Storage::format_and_mount(medium)
+            .await
+            .expect("Failed to mount storage")
+    }
+
+    async fn create_word_granularity_fs<const GRANULARITY: usize>(
+    ) -> Storage<RamStorage<256, 32, GRANULARITY>>
+    where
+        [(); RamStorage::<256, 32, GRANULARITY>::BLOCK_COUNT]:,
+    {
+        let medium = RamStorage::<256, 32, GRANULARITY>::new();
         Storage::format_and_mount(medium)
             .await
             .expect("Failed to mount storage")
@@ -501,6 +513,10 @@ mod test {
                     test_case_impl(create_default_fs().await).await;
                     log::info!("Running test case with create_larger_fs");
                     test_case_impl(create_larger_fs().await).await;
+                    log::info!("Running test case with create_word_granularity_fs::<1>");
+                    test_case_impl(create_word_granularity_fs::<1>().await).await;
+                    // log::info!("Running test case with create_word_granularity_fs::<4>");
+                    // test_case_impl(create_word_granularity_fs::<4>().await).await;
                 }
             )+
         };
