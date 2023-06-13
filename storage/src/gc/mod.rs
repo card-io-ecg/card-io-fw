@@ -1,9 +1,9 @@
 use crate::{
     ll::{
         blocks::{BlockHeaderKind, BlockInfo, BlockOps},
-        objects::{ObjectIterator, ObjectState},
+        objects::{ObjectHeader, ObjectIterator, ObjectState},
     },
-    medium::{StorageMedium, StoragePrivate},
+    medium::StorageMedium,
     StorageError,
 };
 
@@ -40,7 +40,9 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
                     // clean up objects where the size doesn't match up with the result of the block
                     // scan because that would leave the block in an invalid state.
                     delete = payload_size
-                        != info.used_bytes - object.location.offset - M::object_header_bytes();
+                        != info.used_bytes
+                            - object.location.offset
+                            - ObjectHeader::byte_count::<M>();
                 } else {
                     object
                         .header
@@ -136,7 +138,7 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
         block: usize,
         info: &mut BlockInfo<M>,
     ) -> Result<(), StorageError> {
-        if info.used_bytes >= M::BLOCK_SIZE - M::object_header_bytes() {
+        if info.used_bytes >= M::BLOCK_SIZE - ObjectHeader::byte_count::<M>() {
             return Ok(());
         }
 

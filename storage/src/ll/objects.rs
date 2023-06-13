@@ -6,65 +6,240 @@ use crate::{
     StorageError,
 };
 
+// Add new ones so that ANDing two variant together results in an invalid bit pattern.
+// Do not use 0xFF as it is reserved for the free state.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ObjectType {
+    FileMetadata = 0x8F,
+    FileData = 0x8E,
+}
+
+impl ObjectType {
+    fn parse(byte: u8) -> Option<Self> {
+        match byte {
+            v if v == Self::FileMetadata as u8 => Some(Self::FileMetadata),
+            v if v == Self::FileData as u8 => Some(Self::FileData),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ObjectAllocationState {
+    Free,
+    Allocated(ObjectType),
+}
+
+impl ObjectAllocationState {
+    fn parse(byte: u8) -> Result<Self, StorageError> {
+        match ObjectType::parse(byte) {
+            Some(ty) => Ok(Self::Allocated(ty)),
+            None if byte == 0xFF => Ok(Self::Free),
+            None => {
+                log::warn!("Unknown object type: 0x{byte:02X}");
+                Err(StorageError::FsCorrupted)
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ObjectDataState {
+    Untrusted = 0xFF,
+    Valid = 0xF0,
+    Deleted = 0x00,
+}
+
+impl ObjectDataState {
+    fn parse(byte: u8) -> Result<Self, StorageError> {
+        match byte {
+            v if v == Self::Untrusted as u8 => Ok(Self::Untrusted),
+            v if v == Self::Valid as u8 => Ok(Self::Valid),
+            v if v == Self::Deleted as u8 => Ok(Self::Deleted),
+            _ => {
+                log::warn!("Unknown object data state: 0x{byte:02X}");
+                Err(StorageError::FsCorrupted)
+            }
+        }
+    }
+
+    fn parse_pair(finalized_byte: u8, deleted_byte: u8) -> Result<Self, StorageError> {
+        match (finalized_byte, deleted_byte) {
+            (0xFF, 0xFF) => Ok(Self::Untrusted),
+            (0x00, 0xFF) => Ok(Self::Valid),
+            (0x00, 0x00) => Ok(Self::Deleted),
+            _ => {
+                log::warn!(
+                    "Unknown object data state: (0x{finalized_byte:02X}, 0x{deleted_byte:02X})"
+                );
+                Err(StorageError::FsCorrupted)
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct CompositeObjectState {
+    allocation: ObjectAllocationState,
+    data: ObjectDataState,
+}
+
+impl CompositeObjectState {
+    pub fn visible_state(&self) -> Result<ObjectState, StorageError> {
+        let state = match (self.allocation, self.data) {
+            (ObjectAllocationState::Free, ObjectDataState::Untrusted) => ObjectState::Free,
+            (ObjectAllocationState::Free, _) => {
+                // TODO: this shouldn't be representable
+                log::warn!("Incorrect object state: {self:?}");
+                return Err(StorageError::FsCorrupted);
+            }
+            (_, ObjectDataState::Untrusted) => ObjectState::Allocated,
+            (_, ObjectDataState::Valid) => ObjectState::Finalized,
+            (_, ObjectDataState::Deleted) => ObjectState::Deleted,
+        };
+
+        Ok(state)
+    }
+
+    pub fn transition(
+        self,
+        new_state: ObjectState,
+        object_type: ObjectType,
+    ) -> Result<Self, StorageError> {
+        let current_state = self.visible_state()?;
+
+        if current_state > new_state {
+            // Can't go backwards in state
+            return Err(StorageError::InvalidOperation);
+        }
+
+        if let ObjectAllocationState::Allocated(ty) = self.allocation {
+            // Can't change allocated object type
+            if ty != object_type {
+                return Err(StorageError::InvalidOperation);
+            }
+        }
+
+        let new_alloc_state = ObjectAllocationState::Allocated(object_type);
+        let new_data_state = match new_state {
+            ObjectState::Free => return Err(StorageError::InvalidOperation),
+            ObjectState::Allocated => ObjectDataState::Untrusted,
+            ObjectState::Finalized => ObjectDataState::Valid,
+            ObjectState::Deleted => ObjectDataState::Deleted,
+        };
+
+        Ok(Self {
+            allocation: new_alloc_state,
+            data: new_data_state,
+        })
+    }
+
+    fn byte_count<M: StorageMedium>() -> usize {
+        match M::WRITE_GRANULARITY {
+            WriteGranularity::Bit => 2,
+            WriteGranularity::Word(w) => 3 * w,
+        }
+    }
+
+    pub async fn read<M: StorageMedium>(
+        medium: &mut M,
+        location: ObjectLocation,
+    ) -> Result<Self, StorageError> {
+        log::trace!("CompositeObjectState::read({location:?})");
+        let bytes_read = Self::byte_count::<M>();
+
+        let mut buffer = [0; 12];
+        assert!(bytes_read <= buffer.len());
+        let buffer = &mut buffer[..bytes_read];
+
+        medium.read(location.block, location.offset, buffer).await?;
+
+        let allocation = ObjectAllocationState::parse(buffer[0])?;
+        let data = match M::WRITE_GRANULARITY {
+            WriteGranularity::Bit => ObjectDataState::parse(buffer[1])?,
+            WriteGranularity::Word(w) => ObjectDataState::parse_pair(buffer[w], buffer[2 * w])?,
+        };
+
+        Ok(Self { allocation, data })
+    }
+
+    pub async fn allocate<M: StorageMedium>(
+        medium: &mut M,
+        location: ObjectLocation,
+        object_type: ObjectType,
+    ) -> Result<Self, StorageError> {
+        log::trace!("CompositeObjectState::allocate({location:?}, {object_type:?})");
+        let this = Self::read(medium, location).await?;
+        let this = this.transition(ObjectState::Allocated, object_type)?;
+
+        medium
+            .write(location.block, location.offset, &[object_type as u8])
+            .await?;
+
+        Ok(this)
+    }
+
+    pub async fn finalize<M: StorageMedium>(
+        self,
+        medium: &mut M,
+        location: ObjectLocation,
+        object_type: ObjectType,
+    ) -> Result<Self, StorageError> {
+        log::trace!("CompositeObjectState::finalize({location:?}, {object_type:?})");
+        let this = self.transition(ObjectState::Finalized, object_type)?;
+
+        let (offset, byte) = match M::WRITE_GRANULARITY {
+            WriteGranularity::Bit => (1, ObjectDataState::Valid as u8),
+            WriteGranularity::Word(w) => (w, 0),
+        };
+
+        medium
+            .write(location.block, location.offset + offset, &[byte])
+            .await?;
+
+        Ok(this)
+    }
+
+    pub async fn delete<M: StorageMedium>(
+        self,
+        medium: &mut M,
+        location: ObjectLocation,
+        object_type: ObjectType,
+    ) -> Result<Self, StorageError> {
+        log::trace!("CompositeObjectState::delete({location:?}, {object_type:?})");
+        let this = self.transition(ObjectState::Deleted, object_type)?;
+
+        let (offset, byte) = match M::WRITE_GRANULARITY {
+            WriteGranularity::Bit => (1, ObjectDataState::Deleted as u8),
+            WriteGranularity::Word(w) => (2 * w, 0),
+        };
+
+        medium
+            .write(location.block, location.offset + offset, &[byte])
+            .await?;
+
+        Ok(this)
+    }
+
+    fn object_type(&self) -> Result<ObjectType, StorageError> {
+        match self.allocation {
+            ObjectAllocationState::Allocated(ty) => Ok(ty),
+            ObjectAllocationState::Free => Err(StorageError::InvalidOperation),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Debug)]
 pub enum ObjectState {
-    Free,      // Implicit
-    Allocated, // TODO: make this implicit
+    Free,
+    Allocated,
     Finalized,
     Deleted,
 }
 
 impl ObjectState {
-    // TODO: don't assume 4 bytes per word
-    const FREE_WORDS: &[u8] = &[0xFF; 12];
-    const ALLOCATED_WORDS: &[u8] = &[
-        0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    ];
-    const FINALIZED_WORDS: &[u8] = &[
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF,
-    ];
-    const DELETED_WORDS: &[u8] = &[0; 12];
-
     fn is_free(self) -> bool {
         matches!(self, ObjectState::Free)
-    }
-
-    fn into_bits(self) -> u8 {
-        match self {
-            ObjectState::Free => 0xFF,
-            ObjectState::Allocated => 0xFE,
-            ObjectState::Finalized => 0xFC,
-            ObjectState::Deleted => 0x00,
-        }
-    }
-
-    fn from_bits(bits: u8) -> Result<Self, StorageError> {
-        match bits {
-            0xFF => Ok(ObjectState::Free),
-            0xFE => Ok(ObjectState::Allocated),
-            0xFC => Ok(ObjectState::Finalized),
-            0x00 => Ok(ObjectState::Deleted),
-            _ => Err(StorageError::FsCorrupted),
-        }
-    }
-
-    fn into_words(self) -> &'static [u8] {
-        match self {
-            Self::Free => Self::FREE_WORDS,
-            Self::Allocated => Self::ALLOCATED_WORDS,
-            Self::Finalized => Self::FINALIZED_WORDS,
-            Self::Deleted => Self::DELETED_WORDS,
-        }
-    }
-
-    fn from_words(words: &[u8]) -> Result<Self, StorageError> {
-        match words {
-            Self::FREE_WORDS => Ok(Self::Free),
-            Self::ALLOCATED_WORDS => Ok(Self::Allocated),
-            Self::FINALIZED_WORDS => Ok(Self::Finalized),
-            Self::DELETED_WORDS => Ok(Self::Deleted),
-            _ => Err(StorageError::FsCorrupted),
-        }
     }
 }
 
@@ -108,13 +283,6 @@ impl ObjectLocation {
         }
     }
 
-    pub async fn read_header(
-        self,
-        medium: &mut impl StorageMedium,
-    ) -> Result<ObjectHeader, StorageError> {
-        ObjectHeader::read(self, medium).await
-    }
-
     pub(crate) async fn read_metadata<M: StorageMedium>(
         self,
         medium: &mut M,
@@ -129,51 +297,70 @@ impl ObjectLocation {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ObjectHeader {
-    state: ObjectState,
+    state: CompositeObjectState,
     payload_size: usize, // At most block size - header
     pub location: ObjectLocation,
 }
 
 impl ObjectHeader {
+    pub fn byte_count<M: StorageMedium>() -> usize {
+        CompositeObjectState::byte_count::<M>() + M::object_size_bytes()
+    }
+
     pub async fn read<M: StorageMedium>(
         location: ObjectLocation,
         medium: &mut M,
     ) -> Result<Self, StorageError> {
-        let mut header_bytes = [0; 16];
-        let obj_size_bytes = M::object_size_bytes();
-        let status_bytes = M::object_status_bytes();
-        let header_bytes = &mut header_bytes[0..obj_size_bytes + status_bytes];
+        log::trace!("ObjectHeader::read({location:?})");
+        let state = CompositeObjectState::read(medium, location).await?;
+
+        let mut object_size_bytes = [0; 4];
 
         medium
-            .read(location.block, location.offset, header_bytes)
+            .read(
+                location.block,
+                location.offset + CompositeObjectState::byte_count::<M>(),
+                &mut object_size_bytes[0..M::object_size_bytes()],
+            )
             .await?;
-
-        let (state_slice, size_slice) = header_bytes.split_at(status_bytes);
-
-        let state = match M::WRITE_GRANULARITY {
-            WriteGranularity::Bit => ObjectState::from_bits(state_slice[0])?,
-            WriteGranularity::Word(_) => ObjectState::from_words(state_slice)?,
-        };
-
-        // Extend size bytes and convert to usize.
-        let mut object_size_bytes = [0; 4];
-        object_size_bytes[0..size_slice.len()].copy_from_slice(size_slice);
-        let object_size = u32::from_le_bytes(object_size_bytes) as usize;
 
         Ok(Self {
             state,
-            payload_size: object_size,
+            payload_size: u32::from_le_bytes(object_size_bytes) as usize,
+            location,
+        })
+    }
+
+    pub async fn allocate<M: StorageMedium>(
+        medium: &mut M,
+        location: ObjectLocation,
+        object_type: ObjectType,
+    ) -> Result<Self, StorageError> {
+        log::trace!("ObjectHeader::allocate({location:?}, {object_type:?})",);
+
+        let state = CompositeObjectState::allocate(medium, location, object_type).await?;
+
+        Ok(Self {
+            state,
+            payload_size: Self::unset_payload_size::<M>(),
             location,
         })
     }
 
     pub fn state(&self) -> ObjectState {
-        self.state
+        self.state.visible_state().unwrap()
+    }
+
+    pub fn object_type(&self) -> Result<ObjectType, StorageError> {
+        self.state.object_type()
+    }
+
+    pub fn unset_payload_size<M: StorageMedium>() -> usize {
+        (1 << (M::object_size_bytes() * 8)) - 1
     }
 
     pub fn payload_size<M: StorageMedium>(&self) -> Option<usize> {
-        let unset_object_size = (1 << (M::object_size_bytes() * 8)) - 1;
-        if self.payload_size != unset_object_size {
+        if self.payload_size != Self::unset_payload_size::<M>() {
             Some(self.payload_size)
         } else {
             None
@@ -189,22 +376,27 @@ impl ObjectHeader {
 
         log::trace!("ObjectHeader::update_state({:?}, {state:?})", self.location);
 
-        let offset = M::align(self.location.offset);
-        match M::WRITE_GRANULARITY {
-            WriteGranularity::Bit => {
-                let new_state = state.into_bits();
-                medium
-                    .write(self.location.block, offset, &[new_state])
-                    .await?;
-            }
-
-            WriteGranularity::Word(_) => {
-                let new_state = state.into_words();
-                medium.write(self.location.block, offset, new_state).await?;
-            }
+        if state == self.state.visible_state()? {
+            return Ok(());
         }
 
-        self.state = state;
+        let object_type = self.object_type()?;
+
+        self.state = match state {
+            ObjectState::Finalized => {
+                self.state
+                    .finalize(medium, self.location, object_type)
+                    .await?
+            }
+            ObjectState::Deleted => {
+                self.state
+                    .delete(medium, self.location, object_type)
+                    .await?
+            }
+            ObjectState::Allocated => return Err(StorageError::InvalidOperation),
+            ObjectState::Free => unreachable!(),
+        };
+
         Ok(())
     }
 
@@ -219,11 +411,12 @@ impl ObjectHeader {
         );
 
         if self.payload_size::<M>().is_some() {
+            log::warn!("payload size already set");
             return Err(StorageError::InvalidOperation);
         }
 
         let bytes = size.to_le_bytes();
-        let offset = M::align(M::object_status_bytes());
+        let offset = M::align(CompositeObjectState::byte_count::<M>());
 
         medium
             .write(
@@ -232,7 +425,9 @@ impl ObjectHeader {
                 &bytes[0..M::object_size_bytes()],
             )
             .await?;
+
         self.payload_size = size;
+
         Ok(())
     }
 }
@@ -263,7 +458,7 @@ impl<M: StorageMedium> MetadataObjectHeader<M> {
         medium
             .read(
                 self.location.block,
-                self.location.offset + self.cursor + M::object_header_bytes(),
+                self.location.offset + self.cursor + ObjectHeader::byte_count::<M>(),
                 location_bytes,
             )
             .await?;
@@ -287,17 +482,13 @@ pub struct ObjectWriter<M: StorageMedium> {
 }
 
 impl<M: StorageMedium> ObjectWriter<M> {
-    pub async fn new(location: ObjectLocation, medium: &mut M) -> Result<Self, StorageError> {
-        // We read back the header to ensure that the object is in a valid state.
-        let object = ObjectHeader::read(location, medium).await?;
-
-        if object.state == ObjectState::Allocated {
-            // This is most likely a power loss or a bug.
-            return Err(StorageError::FsCorrupted);
-        }
-
+    pub async fn allocate(
+        location: ObjectLocation,
+        object_type: ObjectType,
+        medium: &mut M,
+    ) -> Result<Self, StorageError> {
         Ok(Self {
-            object,
+            object: ObjectHeader::allocate(medium, location, object_type).await?,
             cursor: 0,
             buffer: heapless::Vec::new(),
             _medium: PhantomData,
@@ -342,24 +533,20 @@ impl<M: StorageMedium> ObjectWriter<M> {
         Ok(())
     }
 
-    pub async fn allocate(&mut self, medium: &mut M) -> Result<(), StorageError> {
-        self.set_state(medium, ObjectState::Allocated).await
-    }
-
     pub async fn write_to(
         location: ObjectLocation,
+        object_type: ObjectType,
         medium: &mut M,
         data: &[u8],
     ) -> Result<usize, StorageError> {
-        let mut this = Self::new(location, medium).await?;
+        let mut this = Self::allocate(location, object_type, medium).await?;
 
-        this.allocate(medium).await?;
         this.write(medium, data).await?;
         this.finalize(medium).await
     }
 
     fn data_write_offset(&self) -> usize {
-        let header_size = M::object_header_bytes();
+        let header_size = ObjectHeader::byte_count::<M>();
         self.object.location.offset + header_size + self.cursor
     }
 
@@ -368,7 +555,7 @@ impl<M: StorageMedium> ObjectWriter<M> {
     }
 
     pub async fn write(&mut self, medium: &mut M, mut data: &[u8]) -> Result<(), StorageError> {
-        if self.object.state != ObjectState::Allocated {
+        if self.object.state() != ObjectState::Allocated {
             return Err(StorageError::InvalidOperation);
         }
 
@@ -417,11 +604,11 @@ impl<M: StorageMedium> ObjectWriter<M> {
     }
 
     pub fn total_size(&self) -> usize {
-        M::object_header_bytes() + self.payload_size()
+        ObjectHeader::byte_count::<M>() + self.payload_size()
     }
 
     pub async fn finalize(mut self, medium: &mut M) -> Result<usize, StorageError> {
-        if self.object.state != ObjectState::Allocated {
+        if self.object.state() != ObjectState::Allocated {
             return Err(StorageError::InvalidOperation);
         }
 
@@ -434,11 +621,11 @@ impl<M: StorageMedium> ObjectWriter<M> {
     }
 
     pub async fn delete(mut self, medium: &mut M) -> Result<(), StorageError> {
-        if let ObjectState::Free | ObjectState::Deleted = self.object.state {
+        if let ObjectState::Free | ObjectState::Deleted = self.object.state() {
             return Ok(());
         }
 
-        if self.object.state == ObjectState::Allocated {
+        if self.object.state() == ObjectState::Allocated {
             self.write_size(medium).await?;
         }
 
@@ -460,11 +647,13 @@ impl<M: StorageMedium> ObjectReader<M> {
         medium: &mut M,
         allow_non_finalized: bool,
     ) -> Result<Self, StorageError> {
+        log::trace!("ObjectReader::new({location:?})");
+
         // We read back the header to ensure that the object is in a valid state.
         let object = ObjectHeader::read(location, medium).await?;
 
-        if object.state != ObjectState::Finalized {
-            if allow_non_finalized && object.state != ObjectState::Free {
+        if object.state() != ObjectState::Finalized {
+            if allow_non_finalized && object.state() != ObjectState::Free {
                 // We can read data from unfinalized/deleted objects if the caller allows it.
             } else {
                 // We can only read data from finalized objects.
@@ -497,7 +686,7 @@ impl<M: StorageMedium> ObjectReader<M> {
     }
 
     pub async fn read(&mut self, medium: &mut M, buf: &mut [u8]) -> Result<usize, StorageError> {
-        let read_offset = self.location.offset + M::object_header_bytes() + self.cursor;
+        let read_offset = self.location.offset + ObjectHeader::byte_count::<M>() + self.cursor;
         let read_size = buf.len().min(self.remaining());
 
         medium
@@ -522,7 +711,7 @@ impl<M: StorageMedium> ObjectInfo<M> {
     }
 
     pub fn total_size(&self) -> usize {
-        self.header.payload_size + M::object_header_bytes()
+        ObjectHeader::byte_count::<M>() + self.header.payload_size::<M>().unwrap_or(0)
     }
 
     pub async fn read_metadata(
@@ -530,7 +719,7 @@ impl<M: StorageMedium> ObjectInfo<M> {
         medium: &mut M,
     ) -> Result<MetadataObjectHeader<M>, StorageError> {
         let mut path_hash_bytes = [0; 4];
-        let path_hash_offset = self.location.offset + M::object_header_bytes();
+        let path_hash_offset = self.location.offset + ObjectHeader::byte_count::<M>();
         medium
             .read(self.location.block, path_hash_offset, &mut path_hash_bytes)
             .await?;
@@ -554,12 +743,13 @@ impl<M: StorageMedium> ObjectInfo<M> {
     }
 
     async fn read(location: ObjectLocation, medium: &mut M) -> Result<Option<Self>, StorageError> {
+        log::trace!("ObjectInfo::read({location:?})");
         if location.offset + BlockHeader::<M>::byte_count() >= M::BLOCK_SIZE {
             return Ok(None);
         }
 
         let object = ObjectHeader::read(location, medium).await?;
-        if object.state.is_free() {
+        if object.state().is_free() {
             return Ok(None);
         }
 

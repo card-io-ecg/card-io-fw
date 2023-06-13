@@ -22,20 +22,8 @@ pub(crate) trait StoragePrivate: StorageMedium {
         size_to_bytes(Self::BLOCK_COUNT)
     }
 
-    fn object_status_bytes() -> usize {
-        match Self::WRITE_GRANULARITY {
-            WriteGranularity::Bit => 1,
-            WriteGranularity::Word(len) => 3 * len,
-        }
-    }
-
     fn object_size_bytes() -> usize {
         size_to_bytes(Self::BLOCK_SIZE)
-    }
-
-    fn object_header_bytes() -> usize {
-        Self::align(Self::object_status_bytes()) // status
-            + Self::align(Self::object_size_bytes()) // payload size
     }
 
     fn object_location_bytes() -> usize {

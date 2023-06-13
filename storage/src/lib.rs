@@ -10,7 +10,7 @@ use crate::{
         blocks::{BlockHeaderKind, BlockInfo, BlockOps, BlockType},
         objects::{
             MetadataObjectHeader, ObjectHeader, ObjectIterator, ObjectLocation, ObjectReader,
-            ObjectState, ObjectWriter,
+            ObjectState, ObjectType, ObjectWriter,
         },
     },
     medium::{StorageMedium, StoragePrivate},
@@ -31,30 +31,30 @@ pub enum StorageError {
     InsufficientSpace,
 }
 
-pub struct Storage<P>
+pub struct Storage<M>
 where
-    P: StorageMedium,
-    [(); P::BLOCK_COUNT]:,
+    M: StorageMedium,
+    [(); M::BLOCK_COUNT]:,
 {
-    medium: P,
-    blocks: [BlockInfo<P>; P::BLOCK_COUNT],
+    medium: M,
+    blocks: [BlockInfo<M>; M::BLOCK_COUNT],
 }
 
-pub struct Reader<P>
+pub struct Reader<M>
 where
-    P: StorageMedium,
-    [(); P::BLOCK_COUNT]:,
+    M: StorageMedium,
+    [(); M::BLOCK_COUNT]:,
 {
-    meta: MetadataObjectHeader<P>,
-    current_object: Option<ObjectReader<P>>,
+    meta: MetadataObjectHeader<M>,
+    current_object: Option<ObjectReader<M>>,
 }
 
-impl<P> Reader<P>
+impl<M> Reader<M>
 where
-    P: StorageMedium,
-    [(); P::BLOCK_COUNT]:,
+    M: StorageMedium,
+    [(); M::BLOCK_COUNT]:,
 {
-    async fn select_next_object(&mut self, medium: &mut P) -> Result<(), StorageError> {
+    async fn select_next_object(&mut self, medium: &mut M) -> Result<(), StorageError> {
         self.current_object = if let Some(object) = self.meta.next_object_location(medium).await? {
             Some(ObjectReader::new(object, medium, false).await?)
         } else {
@@ -66,7 +66,7 @@ where
 
     pub async fn read(
         &mut self,
-        storage: &mut Storage<P>,
+        storage: &mut Storage<M>,
         mut buf: &mut [u8],
     ) -> Result<usize, StorageError> {
         let medium = &mut storage.medium;
@@ -98,13 +98,13 @@ where
     }
 }
 
-impl<P> Storage<P>
+impl<M> Storage<M>
 where
-    P: StorageMedium,
-    [(); P::BLOCK_COUNT]:,
+    M: StorageMedium,
+    [(); M::BLOCK_COUNT]:,
 {
-    pub async fn mount(mut partition: P) -> Result<Self, StorageError> {
-        let mut blocks = [BlockInfo::new_unknown(); P::BLOCK_COUNT];
+    pub async fn mount(mut partition: M) -> Result<Self, StorageError> {
+        let mut blocks = [BlockInfo::new_unknown(); M::BLOCK_COUNT];
 
         let mut ops = BlockOps::new(&mut partition);
         for (idx, block) in blocks.iter_mut().enumerate() {
@@ -117,11 +117,11 @@ where
         })
     }
 
-    pub async fn format(partition: &mut P) -> Result<(), StorageError> {
+    pub async fn format(partition: &mut M) -> Result<(), StorageError> {
         BlockOps::new(partition).format_storage().await
     }
 
-    pub async fn format_and_mount(mut partition: P) -> Result<Self, StorageError> {
+    pub async fn format_and_mount(mut partition: M) -> Result<Self, StorageError> {
         Self::format(&mut partition).await?;
 
         Self::mount(partition).await
@@ -152,7 +152,7 @@ where
         self.lookup(path).await.is_ok()
     }
 
-    pub async fn read(&mut self, path: &str) -> Result<Reader<P>, StorageError> {
+    pub async fn read(&mut self, path: &str) -> Result<Reader<M>, StorageError> {
         log::trace!("Storage::read({path})");
         let object = self.lookup(path).await?;
         Ok(Reader {
@@ -170,7 +170,7 @@ where
             .enumerate()
             .filter_map(|(idx, blk)| blk.is_metadata().then_some(idx))
         {
-            let mut iter = ObjectIterator::new::<P>(block_idx);
+            let mut iter = ObjectIterator::new::<M>(block_idx);
 
             'objs: while let Some(object) = iter.next(&mut self.medium).await? {
                 if object.state() != ObjectState::Finalized {
@@ -243,16 +243,16 @@ where
         data: &[u8],
     ) -> Result<(), StorageError> {
         self.blocks[location.block].used_bytes +=
-            ObjectWriter::write_to(location, &mut self.medium, data).await?;
+            ObjectWriter::write_to(location, ObjectType::FileData, &mut self.medium, data).await?;
         Ok(())
     }
 
     async fn write_location(
         &mut self,
-        meta_writer: &mut ObjectWriter<P>,
+        meta_writer: &mut ObjectWriter<M>,
         location: ObjectLocation,
     ) -> Result<(), StorageError> {
-        let (bytes, byte_count) = location.into_bytes::<P>();
+        let (bytes, byte_count) = location.into_bytes::<M>();
         meta_writer
             .write(&mut self.medium, &bytes[..byte_count])
             .await
@@ -268,7 +268,7 @@ where
         let mut file_meta_location = self
             .find_new_object_location(
                 BlockType::Metadata,
-                est_page_count * P::object_location_bytes(),
+                est_page_count * M::object_location_bytes(),
             )
             .await?;
 
@@ -277,13 +277,16 @@ where
             .find_new_object_location(BlockType::Data, path.len())
             .await?;
 
-        let mut meta_writer = ObjectWriter::new(file_meta_location, &mut self.medium).await?;
-
         self.write_object(filename_location, path.as_bytes())
             .await?;
 
         // Write a non-finalized header obejct
-        meta_writer.allocate(&mut self.medium).await?;
+        let mut meta_writer = ObjectWriter::allocate(
+            file_meta_location,
+            ObjectType::FileMetadata,
+            &mut self.medium,
+        )
+        .await?;
         meta_writer
             .write(&mut self.medium, &path_hash.to_le_bytes())
             .await?;
@@ -296,7 +299,7 @@ where
             // Write file name as data object
             let chunk_location = self.find_new_object_location(BlockType::Data, 0).await?;
             let max_chunk_len =
-                self.blocks[chunk_location.block].free_space() - P::object_header_bytes();
+                self.blocks[chunk_location.block].free_space() - ObjectHeader::byte_count::<M>();
 
             let (chunk, remaining) = data.split_at(data.len().min(max_chunk_len));
             data = remaining;
@@ -312,14 +315,16 @@ where
                     let new_file_meta_location = self
                         .find_new_object_location(
                             BlockType::Metadata,
-                            meta_writer.payload_size() + P::object_location_bytes(),
+                            meta_writer.payload_size() + M::object_location_bytes(),
                         )
                         .await?;
 
-                    let mut new_meta_writer =
-                        ObjectWriter::new(new_file_meta_location, &mut self.medium).await?;
-
-                    new_meta_writer.allocate(&mut self.medium).await?;
+                    let mut new_meta_writer = ObjectWriter::allocate(
+                        new_file_meta_location,
+                        ObjectType::FileMetadata,
+                        &mut self.medium,
+                    )
+                    .await?;
 
                     // TODO: seek over object size when added - it should be the first for simplicity
 
@@ -384,7 +389,7 @@ where
         len: usize,
     ) -> Result<ObjectLocation, StorageError> {
         // find block with most free space
-        let block = self.find_alloc_block(ty, P::object_header_bytes() + len)?;
+        let block = self.find_alloc_block(ty, ObjectHeader::byte_count::<M>() + len)?;
 
         if self.blocks[block].header.kind() == BlockHeaderKind::Known(BlockType::Undefined) {
             BlockOps::new(&mut self.medium)
