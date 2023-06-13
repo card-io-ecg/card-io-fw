@@ -187,7 +187,7 @@ impl ObjectHeader {
     ) -> Result<(), StorageError> {
         debug_assert!(!state.is_free());
 
-        log::trace!("ObjectOps::update_state({:?}, {state:?})", self.location);
+        log::trace!("ObjectHeader::update_state({:?}, {state:?})", self.location);
 
         let offset = M::align(self.location.offset);
         match M::WRITE_GRANULARITY {
@@ -213,7 +213,10 @@ impl ObjectHeader {
         medium: &mut M,
         size: usize,
     ) -> Result<(), StorageError> {
-        log::trace!("ObjectOps::set_payload_size({:?}, {size})", self.location);
+        log::trace!(
+            "ObjectHeader::set_payload_size({:?}, {size})",
+            self.location
+        );
 
         if self.payload_size::<M>().is_some() {
             return Err(StorageError::InvalidOperation);
