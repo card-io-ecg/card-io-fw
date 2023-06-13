@@ -66,25 +66,6 @@ impl ObjectState {
             _ => Err(StorageError::FsCorrupted),
         }
     }
-
-    async fn write<M: StorageMedium>(
-        self,
-        location: ObjectLocation,
-        medium: &mut M,
-    ) -> Result<(), StorageError> {
-        let offset = M::align(location.offset);
-        match M::WRITE_GRANULARITY {
-            WriteGranularity::Bit => {
-                let new_state = self.into_bits();
-                medium.write(location.block, offset, &[new_state]).await
-            }
-
-            WriteGranularity::Word(_) => {
-                let new_state = self.into_words();
-                medium.write(location.block, offset, new_state).await
-            }
-        }
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -195,7 +176,21 @@ impl ObjectHeader {
 
         log::trace!("ObjectOps::update_state({:?}, {state:?})", self.location);
 
-        state.write(self.location, medium).await?;
+        let offset = M::align(self.location.offset);
+        match M::WRITE_GRANULARITY {
+            WriteGranularity::Bit => {
+                let new_state = state.into_bits();
+                medium
+                    .write(self.location.block, offset, &[new_state])
+                    .await?;
+            }
+
+            WriteGranularity::Word(_) => {
+                let new_state = state.into_words();
+                medium.write(self.location.block, offset, new_state).await?;
+            }
+        }
+
         self.state = state;
         Ok(())
     }
