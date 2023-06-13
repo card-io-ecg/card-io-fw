@@ -69,6 +69,8 @@ where
         storage: &mut Storage<M>,
         mut buf: &mut [u8],
     ) -> Result<usize, StorageError> {
+        log::debug!("Reader::read(len = {})", buf.len());
+
         let medium = &mut storage.medium;
 
         if self.current_object.is_none() {
@@ -128,13 +130,13 @@ where
     }
 
     pub async fn delete(&mut self, path: &str) -> Result<(), StorageError> {
-        log::trace!("Storage::delete({path})");
+        log::debug!("Storage::delete({path})");
         let location = self.lookup(path).await?;
         self.delete_file_at(location).await
     }
 
     pub async fn store(&mut self, path: &str, data: &[u8]) -> Result<(), StorageError> {
-        log::trace!("Storage::store({path}, len = {})", data.len());
+        log::debug!("Storage::store({path}, len = {})", data.len());
         let overwritten_location = self.lookup(path).await;
 
         self.create_new_file(path, data).await?;
@@ -148,12 +150,12 @@ where
 
     /// Convenience method for checking if a file exists. Ignores all errors.
     pub async fn exists(&mut self, path: &str) -> bool {
-        log::trace!("Storage::exists({path})");
+        log::debug!("Storage::exists({path})");
         self.lookup(path).await.is_ok()
     }
 
     pub async fn read(&mut self, path: &str) -> Result<Reader<M>, StorageError> {
-        log::trace!("Storage::read({path})");
+        log::debug!("Storage::read({path})");
         let object = self.lookup(path).await?;
         Ok(Reader {
             meta: object.read_metadata(&mut self.medium).await?,
@@ -242,8 +244,9 @@ where
         location: ObjectLocation,
         data: &[u8],
     ) -> Result<(), StorageError> {
-        self.blocks[location.block].used_bytes +=
-            ObjectWriter::write_to(location, ObjectType::FileData, &mut self.medium, data).await?;
+        self.blocks[location.block].add_used_bytes(
+            ObjectWriter::write_to(location, ObjectType::FileData, &mut self.medium, data).await?,
+        );
         Ok(())
     }
 
@@ -313,7 +316,7 @@ where
                 Err(StorageError::InsufficientSpace) => {
                     log::debug!("Reallocating metadata object");
                     // Old object's accounting
-                    self.blocks[file_meta_location.block].used_bytes += meta_writer.total_size();
+                    self.blocks[file_meta_location.block].add_used_bytes(meta_writer.total_size());
 
                     let new_file_meta_location = self
                         .find_new_object_location(
@@ -359,7 +362,7 @@ where
         // TODO: store data length
         // Finalize header object
         let object_total_size = meta_writer.finalize(&mut self.medium).await?;
-        self.blocks[file_meta_location.block].used_bytes += object_total_size;
+        self.blocks[file_meta_location.block].add_used_bytes(object_total_size);
 
         Ok(())
     }
@@ -407,7 +410,7 @@ where
 
         let location = ObjectLocation {
             block,
-            offset: self.blocks[block].used_bytes,
+            offset: self.blocks[block].used_bytes(),
         };
 
         log::trace!("Storage::find_new_object_location({ty:?}, {len}) -> {location:?}");
@@ -470,11 +473,11 @@ mod test {
     }
 
     async fn create_word_granularity_fs<const GRANULARITY: usize>(
-    ) -> Storage<RamStorage<256, 48, GRANULARITY>>
+    ) -> Storage<RamStorage<512, 64, GRANULARITY>>
     where
-        [(); RamStorage::<256, 48, GRANULARITY>::BLOCK_COUNT]:,
+        [(); RamStorage::<512, 64, GRANULARITY>::BLOCK_COUNT]:,
     {
-        let medium = RamStorage::<256, 48, GRANULARITY>::new();
+        let medium = RamStorage::<512, 64, GRANULARITY>::new();
         Storage::format_and_mount(medium)
             .await
             .expect("Failed to mount storage")
@@ -495,7 +498,14 @@ mod test {
             .await
             .expect("Failed to read file");
 
-        assert_eq!(0, reader.read(storage, &mut []).await.unwrap());
+        let mut should_remain_empty = [0; 1];
+        assert_eq!(
+            0,
+            reader
+                .read(storage, &mut should_remain_empty)
+                .await
+                .unwrap()
+        );
         assert_eq!(read, expected.len());
         assert_eq!(contents, expected);
     }
@@ -522,8 +532,8 @@ mod test {
                     test_case_impl(create_larger_fs().await).await;
                     log::info!("Running test case with create_word_granularity_fs::<1>");
                     test_case_impl(create_word_granularity_fs::<1>().await).await;
-                    // log::info!("Running test case with create_word_granularity_fs::<4>");
-                    // test_case_impl(create_word_granularity_fs::<4>().await).await;
+                    log::info!("Running test case with create_word_granularity_fs::<4>");
+                    test_case_impl(create_word_granularity_fs::<4>().await).await;
                 }
             )+
         };

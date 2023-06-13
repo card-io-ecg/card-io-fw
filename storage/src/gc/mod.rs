@@ -35,18 +35,18 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
             if object.state() == ObjectState::Allocated {
                 let mut delete = true;
 
+                let payload_size_based_on_block_data =
+                    info.used_bytes() - object.location.offset - ObjectHeader::byte_count::<M>();
+
                 if let Some(payload_size) = object.header.payload_size::<M>() {
                     // We can clean up objects that seem to have a valid size. However, we can't
                     // clean up objects where the size doesn't match up with the result of the block
                     // scan because that would leave the block in an invalid state.
-                    delete = payload_size
-                        != info.used_bytes
-                            - object.location.offset
-                            - ObjectHeader::byte_count::<M>();
+                    delete = payload_size != payload_size_based_on_block_data;
                 } else {
                     object
                         .header
-                        .set_payload_size(medium, info.used_bytes)
+                        .set_payload_size(medium, payload_size_based_on_block_data)
                         .await?;
                 }
 
@@ -138,7 +138,7 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
         block: usize,
         info: &mut BlockInfo<M>,
     ) -> Result<(), StorageError> {
-        if info.used_bytes >= M::BLOCK_SIZE - ObjectHeader::byte_count::<M>() {
+        if info.used_bytes() >= M::BLOCK_SIZE - ObjectHeader::byte_count::<M>() {
             return Ok(());
         }
 

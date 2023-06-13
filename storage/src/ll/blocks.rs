@@ -196,7 +196,7 @@ impl<M: StorageMedium> BlockHeader<M> {
 pub struct BlockInfo<M: StorageMedium> {
     pub header: BlockHeader<M>,
     /// Includes the header bytes
-    pub used_bytes: usize,
+    used_bytes: usize,
     /// Indicates whether the block is in a good state and new objects can be allocated in it.
     pub allow_alloc: bool,
 }
@@ -248,6 +248,14 @@ impl<M: StorageMedium> BlockInfo<M> {
 
     pub fn free_space(&self) -> usize {
         M::BLOCK_SIZE - self.used_bytes
+    }
+
+    pub fn add_used_bytes(&mut self, object_total_size: usize) {
+        self.used_bytes += M::align(object_total_size);
+    }
+
+    pub fn used_bytes(&self) -> usize {
+        self.used_bytes
     }
 }
 

@@ -287,7 +287,7 @@ pub struct ObjectHeader {
 
 impl ObjectHeader {
     pub fn byte_count<M: StorageMedium>() -> usize {
-        CompositeObjectState::byte_count::<M>() + M::object_size_bytes()
+        M::align(CompositeObjectState::byte_count::<M>()) + M::align(M::object_size_bytes())
     }
 
     pub async fn read<M: StorageMedium>(
@@ -302,7 +302,7 @@ impl ObjectHeader {
         medium
             .read(
                 location.block,
-                location.offset + CompositeObjectState::byte_count::<M>(),
+                location.offset + M::align(CompositeObjectState::byte_count::<M>()),
                 &mut object_size_bytes[0..M::object_size_bytes()],
             )
             .await?;
@@ -421,7 +421,7 @@ pub struct MetadataObjectHeader<M: StorageMedium> {
     pub path_hash: u32,
     pub filename_location: ObjectLocation,
     pub location: ObjectLocation,
-    cursor: usize, // Used to iterate through the list of object locations.
+    data_object_cursor: usize, // Used to iterate through the list of object locations.
     _parent: Option<ObjectLocation>,
     _medium: PhantomData<M>,
 }
@@ -431,7 +431,10 @@ impl<M: StorageMedium> MetadataObjectHeader<M> {
         &mut self,
         medium: &mut M,
     ) -> Result<Option<ObjectLocation>, StorageError> {
-        if self.cursor >= self.object.payload_size {
+        log::trace!("MetadataObjectHeader::next_object_location()");
+
+        let data_offset = 4 + M::object_location_bytes(); // path hash + filename location
+        if self.data_object_cursor >= self.object.payload_size - data_offset {
             return Ok(None);
         }
 
@@ -441,19 +444,21 @@ impl<M: StorageMedium> MetadataObjectHeader<M> {
         medium
             .read(
                 self.location.block,
-                self.location.offset + self.cursor + ObjectHeader::byte_count::<M>(),
+                self.location.offset
+                    + M::align(ObjectHeader::byte_count::<M>())
+                    + data_offset
+                    + self.data_object_cursor,
                 location_bytes,
             )
             .await?;
 
-        self.cursor += location_bytes.len();
+        self.data_object_cursor += location_bytes.len();
 
         Ok(Some(ObjectLocation::from_bytes::<M>(location_bytes)))
     }
 
     pub async fn reset(&mut self) {
-        // 4: path hash
-        self.cursor = 4 + M::object_location_bytes();
+        self.data_object_cursor = 0;
     }
 }
 
@@ -481,7 +486,7 @@ impl<M: StorageMedium> ObjectWriter<M> {
     fn fill_buffer<'d>(&mut self, data: &'d [u8]) -> &'d [u8] {
         // Buffering is not necessary if we can write arbitrary bits.
         match M::WRITE_GRANULARITY {
-            WriteGranularity::Bit => data,
+            WriteGranularity::Bit | WriteGranularity::Word(1) => data,
             WriteGranularity::Word(len) => {
                 let copied = data.len().min(len - self.buffer.len());
                 self.buffer.extend_from_slice(&data[0..copied]).unwrap();
@@ -493,14 +498,14 @@ impl<M: StorageMedium> ObjectWriter<M> {
 
     fn can_flush(&self) -> bool {
         match M::WRITE_GRANULARITY {
-            WriteGranularity::Bit => false,
+            WriteGranularity::Bit | WriteGranularity::Word(1) => false,
             WriteGranularity::Word(len) => self.buffer.len() == len,
         }
     }
 
     async fn flush(&mut self, medium: &mut M) -> Result<(), StorageError> {
         // Buffering is not necessary if we can write arbitrary bits.
-        if M::WRITE_GRANULARITY == WriteGranularity::Bit {
+        if let WriteGranularity::Bit | WriteGranularity::Word(1) = M::WRITE_GRANULARITY {
             return Ok(());
         }
 
@@ -510,6 +515,7 @@ impl<M: StorageMedium> ObjectWriter<M> {
                 .write(self.object.location.block, offset, &self.buffer)
                 .await?;
 
+            self.cursor += self.buffer.len();
             self.buffer.clear();
         }
 
@@ -534,7 +540,7 @@ impl<M: StorageMedium> ObjectWriter<M> {
     }
 
     pub fn space(&self) -> usize {
-        M::BLOCK_SIZE - self.data_write_offset()
+        M::BLOCK_SIZE - self.data_write_offset() - self.buffer.len()
     }
 
     pub async fn write(&mut self, medium: &mut M, mut data: &[u8]) -> Result<(), StorageError> {
@@ -542,9 +548,7 @@ impl<M: StorageMedium> ObjectWriter<M> {
             return Err(StorageError::InvalidOperation);
         }
 
-        let len = data.len();
-
-        if self.space() < len {
+        if self.space() < data.len() {
             return Err(StorageError::InsufficientSpace);
         }
 
@@ -555,7 +559,9 @@ impl<M: StorageMedium> ObjectWriter<M> {
             }
         }
 
-        let remaining = data.len() % M::WRITE_GRANULARITY.width();
+        let len = data.len();
+
+        let remaining = len % M::WRITE_GRANULARITY.width();
         let aligned_bytes = len - remaining;
         medium
             .write(
@@ -569,12 +575,13 @@ impl<M: StorageMedium> ObjectWriter<M> {
 
         debug_assert!(data.is_empty());
 
-        self.cursor += len;
+        self.cursor += aligned_bytes;
 
         Ok(())
     }
 
     async fn write_size(&mut self, medium: &mut M) -> Result<(), StorageError> {
+        self.flush(medium).await?;
         self.object.set_payload_size(medium, self.cursor).await
     }
 
@@ -583,7 +590,7 @@ impl<M: StorageMedium> ObjectWriter<M> {
     }
 
     pub fn payload_size(&self) -> usize {
-        self.cursor
+        self.cursor + self.buffer.len()
     }
 
     pub fn total_size(&self) -> usize {
@@ -597,7 +604,6 @@ impl<M: StorageMedium> ObjectWriter<M> {
 
         // must be two different writes for powerloss safety
         self.write_size(medium).await?;
-        self.flush(medium).await?;
         self.set_state(medium, ObjectState::Finalized).await?;
 
         Ok(self.total_size())
@@ -612,7 +618,6 @@ impl<M: StorageMedium> ObjectWriter<M> {
             self.write_size(medium).await?;
         }
 
-        self.flush(medium).await?;
         self.set_state(medium, ObjectState::Deleted).await
     }
 }
@@ -672,6 +677,8 @@ impl<M: StorageMedium> ObjectReader<M> {
         let read_offset = self.location.offset + ObjectHeader::byte_count::<M>() + self.cursor;
         let read_size = buf.len().min(self.remaining());
 
+        log::debug!("offset = {read_offset} len = {read_size}");
+
         medium
             .read(self.location.block, read_offset, &mut buf[0..read_size])
             .await?;
@@ -702,24 +709,28 @@ impl<M: StorageMedium> ObjectInfo<M> {
         medium: &mut M,
     ) -> Result<MetadataObjectHeader<M>, StorageError> {
         let mut path_hash_bytes = [0; 4];
-        let path_hash_offset = self.location.offset + ObjectHeader::byte_count::<M>();
+        let path_hash_offset = self.location.offset + M::align(ObjectHeader::byte_count::<M>());
         medium
             .read(self.location.block, path_hash_offset, &mut path_hash_bytes)
             .await?;
 
-        let mut location_bytes = [0; 8];
-        let location_bytes = &mut location_bytes[0..M::object_location_bytes()];
+        let mut filename_location_bytes = [0; 8];
+        let filename_location_bytes = &mut filename_location_bytes[0..M::object_location_bytes()];
 
         medium
-            .read(self.location.block, path_hash_offset + 4, location_bytes)
+            .read(
+                self.location.block,
+                path_hash_offset + 4,
+                filename_location_bytes,
+            )
             .await?;
 
         Ok(MetadataObjectHeader {
             object: self.header,
             path_hash: u32::from_le_bytes(path_hash_bytes),
-            filename_location: ObjectLocation::from_bytes::<M>(location_bytes),
+            filename_location: ObjectLocation::from_bytes::<M>(filename_location_bytes),
             location: self.location,
-            cursor: 4 + M::object_location_bytes(), // skip path hash and filename
+            data_object_cursor: 0,
             _parent: None,
             _medium: PhantomData,
         })
@@ -766,7 +777,7 @@ impl ObjectIterator {
     ) -> Result<Option<ObjectInfo<M>>, StorageError> {
         let info = ObjectInfo::read(self.location, medium).await?;
         if let Some(info) = info.as_ref() {
-            self.location.offset += info.total_size();
+            self.location.offset += M::align(info.total_size());
         }
         Ok(info)
     }
