@@ -173,7 +173,7 @@ where
             let mut iter = ObjectIterator::new::<P>(block_idx);
 
             'objs: while let Some(object) = iter.next(&mut self.medium).await? {
-                if object.header.state != ObjectState::Finalized {
+                if object.state() != ObjectState::Finalized {
                     continue 'objs;
                 }
 

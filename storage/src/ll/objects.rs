@@ -129,8 +129,8 @@ impl ObjectLocation {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ObjectHeader {
-    pub state: ObjectState,
-    pub object_size: usize, // At most block size
+    state: ObjectState,
+    payload_size: usize, // At most block size - header
     pub location: ObjectLocation,
 }
 
@@ -162,9 +162,22 @@ impl ObjectHeader {
 
         Ok(Self {
             state,
-            object_size,
+            payload_size: object_size,
             location,
         })
+    }
+
+    pub fn state(&self) -> ObjectState {
+        self.state
+    }
+
+    pub fn payload_size<M: StorageMedium>(&self) -> Option<usize> {
+        let unset_object_size = (1 << (M::object_size_bytes() * 8)) - 1;
+        if self.payload_size != unset_object_size {
+            Some(self.payload_size)
+        } else {
+            None
+        }
     }
 
     pub async fn update_state<M: StorageMedium>(
@@ -202,8 +215,7 @@ impl ObjectHeader {
     ) -> Result<(), StorageError> {
         log::trace!("ObjectOps::set_payload_size({:?}, {size})", self.location);
 
-        let unset_object_size = (1 << (M::object_size_bytes() * 8)) - 1;
-        if self.object_size != unset_object_size {
+        if self.payload_size::<M>().is_some() {
             return Err(StorageError::InvalidOperation);
         }
 
@@ -217,7 +229,7 @@ impl ObjectHeader {
                 &bytes[0..M::object_size_bytes()],
             )
             .await?;
-        self.object_size = size;
+        self.payload_size = size;
         Ok(())
     }
 }
@@ -238,7 +250,7 @@ impl<M: StorageMedium> MetadataObjectHeader<M> {
         &mut self,
         medium: &mut M,
     ) -> Result<Option<ObjectLocation>, StorageError> {
-        if self.cursor >= self.object.object_size {
+        if self.cursor >= self.object.payload_size {
             return Ok(None);
         }
 
@@ -466,7 +478,7 @@ impl<M: StorageMedium> ObjectReader<M> {
     }
 
     pub fn len(&self) -> usize {
-        self.object.object_size
+        self.object.payload_size
     }
 
     pub fn is_empty(&self) -> bool {
@@ -502,8 +514,12 @@ pub struct ObjectInfo<M: StorageMedium> {
 }
 
 impl<M: StorageMedium> ObjectInfo<M> {
+    pub fn state(&self) -> ObjectState {
+        self.header.state()
+    }
+
     pub fn total_size(&self) -> usize {
-        self.header.object_size + M::object_header_bytes()
+        self.header.payload_size + M::object_header_bytes()
     }
 
     pub async fn read_metadata(

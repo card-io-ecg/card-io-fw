@@ -32,20 +32,20 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
         let mut iter = ObjectIterator::new::<M>(block);
 
         while let Some(mut object) = iter.next(medium).await? {
-            if object.header.state == ObjectState::Allocated {
+            if object.state() == ObjectState::Allocated {
                 let mut delete = true;
 
-                if object.header.object_size == u32::MAX as usize {
+                if let Some(payload_size) = object.header.payload_size::<M>() {
+                    // We can clean up objects that seem to have a valid size. However, we can't
+                    // clean up objects where the size doesn't match up with the result of the block
+                    // scan because that would leave the block in an invalid state.
+                    delete = payload_size
+                        != info.used_bytes - object.location.offset - M::object_header_bytes();
+                } else {
                     object
                         .header
                         .set_payload_size(medium, info.used_bytes)
                         .await?;
-                } else {
-                    // We can clean up objects that seem to have a valid size. However, we can't
-                    // clean up objects where the size doesn't match up because that would leave the
-                    // block in an invalid state.
-                    delete = object.header.object_size
-                        != info.used_bytes - object.location.offset - M::object_header_bytes();
                 }
 
                 if !delete {
@@ -90,8 +90,8 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
 
         let mut erase = false;
         while let Some(object) = iter.next(medium).await? {
-            if object.header.state != ObjectState::Deleted {
-                erase = object.header.state == ObjectState::Allocated;
+            if object.state() != ObjectState::Deleted {
+                erase = object.state() == ObjectState::Allocated;
                 break;
             }
         }
@@ -143,7 +143,7 @@ impl<'a, M: StorageMedium> Gc<'a, M> {
         let mut iter = ObjectIterator::new::<M>(block);
 
         while let Some(object) = iter.next(medium).await? {
-            if object.header.state != ObjectState::Deleted {
+            if object.state() != ObjectState::Deleted {
                 return Ok(());
             }
         }

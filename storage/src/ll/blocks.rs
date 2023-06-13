@@ -367,7 +367,7 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
 
             let mut last_object_kind = ObjectState::Free;
             while let Some(object) = iter.next(self.medium).await? {
-                last_object_kind = object.header.state;
+                last_object_kind = object.state();
             }
 
             used_bytes = iter.current_offset();
