@@ -17,6 +17,7 @@ use crate::{
 };
 
 pub mod diag;
+pub mod drivers;
 pub mod fxhash;
 pub mod gc;
 pub mod ll;
