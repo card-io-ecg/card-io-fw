@@ -10,10 +10,7 @@ pub enum Subcommands {
     Run,
     Check,
     ExtraCheck,
-    Example {
-        package: String,
-        name: String
-    },
+    Example { package: String, name: String },
 }
 
 #[derive(Debug, Parser)]
@@ -56,14 +53,24 @@ fn run() -> AnyResult<()> {
 }
 
 fn checks() -> AnyResult<()> {
-    cargo(&["check", "--target=xtensa-esp32s3-none-elf"]).run()?;
+    cargo(&[
+        "check",
+        "--target=xtensa-esp32s3-none-elf",
+        "-Zbuild-std=core,alloc",
+    ])
+    .run()?;
 
     Ok(())
 }
 
 fn extra_checks() -> AnyResult<()> {
     cargo(&["fmt", "--check"]).run()?;
-    cargo(&["clippy", "--target=xtensa-esp32s3-none-elf"]).run()?;
+    cargo(&[
+        "clippy",
+        "--target=xtensa-esp32s3-none-elf",
+        "-Zbuild-std=core,alloc",
+    ])
+    .run()?;
 
     Ok(())
 }
@@ -98,6 +105,6 @@ fn main() -> AnyResult<()> {
         Subcommands::Run => run(),
         Subcommands::Check => checks(),
         Subcommands::ExtraCheck => extra_checks(),
-        Subcommands::Example {package, name} => example(package, name)
+        Subcommands::Example { package, name } => example(package, name),
     }
 }
