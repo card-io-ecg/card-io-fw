@@ -446,8 +446,9 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use medium::ram::RamStorage;
-    use medium::ram_nor_emulating::NorRamStorage;
+    use medium::{
+        ram::RamStorage, ram_aligned::AlignedNorRamStorage, ram_nor_emulating::NorRamStorage,
+    };
 
     const LIPSUM: &[u8] = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce in mi scelerisque, porttitor mi amet.";
 
@@ -468,6 +469,13 @@ mod test {
 
     async fn create_larger_fs() -> Storage<NorRamStorage<1024, 256>> {
         let medium = NorRamStorage::<1024, 256>::new();
+        Storage::format_and_mount(medium)
+            .await
+            .expect("Failed to mount storage")
+    }
+
+    async fn create_aligned_fs() -> Storage<AlignedNorRamStorage<1024, 256>> {
+        let medium = AlignedNorRamStorage::<1024, 256>::new();
         Storage::format_and_mount(medium)
             .await
             .expect("Failed to mount storage")
@@ -535,6 +543,8 @@ mod test {
                     test_case_impl(create_word_granularity_fs::<1>().await).await;
                     log::info!("Running test case with create_word_granularity_fs::<4>");
                     test_case_impl(create_word_granularity_fs::<4>().await).await;
+                    log::info!("Running test case with create_aligned_fs");
+                    test_case_impl(create_aligned_fs().await).await;
                 }
             )+
         };

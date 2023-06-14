@@ -677,8 +677,6 @@ impl<M: StorageMedium> ObjectReader<M> {
         let read_offset = self.location.offset + ObjectHeader::byte_count::<M>() + self.cursor;
         let read_size = buf.len().min(self.remaining());
 
-        log::debug!("offset = {read_offset} len = {read_size}");
-
         medium
             .read(self.location.block, read_offset, &mut buf[0..read_size])
             .await?;
