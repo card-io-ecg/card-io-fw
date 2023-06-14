@@ -65,36 +65,41 @@ where
             let align_amt = offset % 4;
             let aligned_offset = offset - align_amt;
             let unaligned_count = (4 - align_amt).min(data.len());
+            let buffer_range = align_amt..align_amt + unaligned_count;
 
             let mut buffer = AlignedBuffer::from_u32(0);
             self.read_aligned(block, aligned_offset, &mut buffer.data)
                 .await?;
 
-            let (unaligned_data, aligned_data) = data.split_at_mut(unaligned_count);
-            unaligned_data.copy_from_slice(&buffer.data[align_amt..align_amt + unaligned_count]);
-            offset = offset + unaligned_count;
-            data = aligned_data;
+            let (dst, remaining) = data.split_at_mut(unaligned_count);
+            dst.copy_from_slice(&buffer.data[buffer_range]);
+
+            offset += dst.len();
+            data = remaining;
         }
 
         if data.len() > 4 {
             // offset is aligned at this point, data may not be
-            let shift_after_read = 4 - data.as_ptr() as usize % 4;
+            let shift_after_read = (4 - data.as_ptr() as usize % 4) % 4;
             let aligned_buffer = &mut data[shift_after_read..];
             let aligned_len = aligned_buffer.len() - aligned_buffer.len() % 4;
-            let mut aligned_buffer = &mut aligned_buffer[0..aligned_len];
+            let mut aligned_buffer = &mut aligned_buffer[..aligned_len];
 
             // read aligned data, one (maybe partial) page at a time
             while !aligned_buffer.is_empty() {
                 let bytes_in_page = Self::PAGE_SIZE - offset % Self::PAGE_SIZE;
                 let bytes_to_read = bytes_in_page.min(aligned_buffer.len());
-                self.read_aligned(block, offset, &mut aligned_buffer[..bytes_to_read])
-                    .await?;
-                aligned_buffer = &mut aligned_buffer[bytes_to_read..];
-                offset += bytes_to_read;
+
+                let (dst, remaining) = aligned_buffer.split_at_mut(bytes_to_read);
+                self.read_aligned(block, offset, dst).await?;
+
+                offset += dst.len();
+                aligned_buffer = remaining;
             }
 
             // align data in the slice, if we have to
             if shift_after_read != 0 {
+                debug_assert!(shift_after_read < 4);
                 data.copy_within(shift_after_read..shift_after_read + aligned_len, 0);
             }
 
@@ -109,7 +114,8 @@ where
             let copy_len = data.len().min(4);
             let (dst, remaining) = data.split_at_mut(copy_len);
             dst.copy_from_slice(&buffer.data[..copy_len]);
-            offset = offset + copy_len;
+
+            offset += dst.len();
             data = remaining;
         }
 
@@ -126,29 +132,31 @@ where
             let align_amt = offset % 4;
             let aligned_offset = offset - align_amt;
             let unaligned_count = (4 - align_amt).min(data.len());
+            let buffer_range = align_amt..align_amt + unaligned_count;
 
             let mut buffer = AlignedBuffer::from_u32(u32::MAX);
 
-            let (unaligned_data, aligned_data) = data.split_at(unaligned_count);
-            buffer.data[align_amt..align_amt + unaligned_count].copy_from_slice(unaligned_data);
+            let (unaligned_data, remaining) = data.split_at(unaligned_count);
+            buffer.data[buffer_range].copy_from_slice(unaligned_data);
 
             self.write_aligned(block, aligned_offset, &buffer.data)
                 .await?;
 
-            offset = offset + unaligned_count;
-            data = aligned_data;
+            offset += unaligned_count;
+            data = remaining;
         };
 
         if data.as_ptr() as u32 % 4 == 0 {
-            while data.len() >= 4 {
+            while data.len() > 4 {
                 let bytes_in_page = Self::PAGE_SIZE - offset % Self::PAGE_SIZE;
                 let bytes_to_write = bytes_in_page.min(data.len());
-                let bytes_to_write = bytes_to_write - bytes_to_write % 4;
 
-                self.write_aligned(block, offset, &data[..bytes_to_write])
-                    .await?;
-                offset += bytes_to_write;
-                data = &data[bytes_to_write..];
+                let bytes_to_write = bytes_to_write - bytes_to_write % 4;
+                let (src, remaining) = data.split_at(bytes_to_write);
+
+                self.write_aligned(block, offset, src).await?;
+                offset += src.len();
+                data = remaining;
             }
 
             if !data.is_empty() {
@@ -173,9 +181,10 @@ where
                     bytes_to_write += pad;
                 }
 
-                self.write_aligned(block, offset, &buffer.data[..bytes_to_write])
-                    .await?;
-                offset += bytes_to_write;
+                let src = &buffer.data[..bytes_to_write];
+
+                self.write_aligned(block, offset, src).await?;
+                offset += src.len();
                 data = remaining;
             }
         }
