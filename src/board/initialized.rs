@@ -2,6 +2,10 @@ use embassy_executor::SendSpawner;
 use embedded_hal::digital::InputPin;
 use esp32s3_hal::system::PeripheralClockControl;
 use gui::screens::BatteryInfo;
+use storage::{
+    drivers::internal::{InternalDriver, InternalPartition},
+    Storage,
+};
 
 use crate::{
     board::{
@@ -40,6 +44,12 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
     }
 }
 
+pub struct ConfigPartition;
+impl InternalPartition for ConfigPartition {
+    const OFFSET: usize = 0x410000;
+    const SIZE: usize = 4032 * 1024;
+}
+
 pub struct Board {
     pub display: PoweredDisplay,
     pub frontend: EcgFrontend,
@@ -49,4 +59,5 @@ pub struct Board {
     pub battery_monitor: BatteryMonitor<VbusDetect, ChargerStatus>,
     pub wifi: WifiDriver,
     pub config: Config,
+    pub storage: Storage<InternalDriver<ConfigPartition>>,
 }
