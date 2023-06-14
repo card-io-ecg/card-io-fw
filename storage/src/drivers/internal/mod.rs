@@ -54,7 +54,7 @@ impl<P: InternalPartition> InternalDriver<P> {
 
         let mut status = 0x00;
         loop {
-            if implem::esp_rom_spiflash_read_status(implem::CHIP_PTR, &mut status) != 0 {
+            if implem::esp_rom_spiflash_read_user_cmd(&mut status, 0x05) != 0 {
                 return Err(StorageError::Io);
             }
             if status & SR_WIP == 0 {
