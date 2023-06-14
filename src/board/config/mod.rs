@@ -1,7 +1,10 @@
+use serde::{Deserialize, Serialize};
+
 pub mod current;
 
 pub use current::Config;
 
+#[derive(Serialize, Deserialize)]
 pub enum ConfigFile {
     V1(Config),
 }
@@ -20,8 +23,8 @@ impl ConfigFile {
     }
 
     /// Parses config data.
-    pub fn parse(_buffer: &[u8]) -> Result<Self, ()> {
-        Ok(Self::V1(Config::default()))
+    pub fn parse(buffer: &[u8]) -> Result<Self, ()> {
+        postcard::from_bytes(buffer).map_err(|_| ())
     }
 
     /// Migrates config data to newest format.
@@ -29,5 +32,10 @@ impl ConfigFile {
         match self {
             Self::V1(config) => config,
         }
+    }
+
+    /// Serializes config data.
+    pub fn into_vec(self) -> heapless::Vec<u8, { Self::MAX_CONFIG_SIZE }> {
+        postcard::to_vec(&self).unwrap()
     }
 }

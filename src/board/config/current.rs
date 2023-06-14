@@ -2,10 +2,12 @@ use gui::{
     screens::display_menu::{BatteryDisplayStyle, DisplayBrightness},
     widgets::battery_small::BatteryStyle,
 };
+use serde::{Deserialize, Serialize};
 use ssd1306::prelude::Brightness;
 
 use crate::board::BATTERY_MODEL;
 
+#[derive(Serialize, Deserialize)]
 pub struct Config {
     pub battery_display_style: BatteryDisplayStyle,
     pub display_brightness: DisplayBrightness,

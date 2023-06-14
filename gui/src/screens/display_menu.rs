@@ -9,6 +9,7 @@ use embedded_menu::{
     selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
     Menu, SelectValue,
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
     screens::BatteryInfo,
@@ -20,7 +21,7 @@ pub enum DisplayMenuEvents {
     Back,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue, Serialize, Deserialize)]
 pub enum DisplayBrightness {
     Dimmest,
     Dim,
@@ -29,7 +30,7 @@ pub enum DisplayBrightness {
     Brightest,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue, Serialize, Deserialize)]
 pub enum BatteryDisplayStyle {
     #[display_as("Voltage")]
     MilliVolts,

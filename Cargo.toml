@@ -47,6 +47,9 @@ signal-processing = { path = "signal-processing" }
 replace_with = { version = "0.1", default-features = false, features = ["nightly"] }
 bad-server = { path = "bad-server", features = ["embassy"] }
 storage = { path = "storage", features = ["esp32s3"] }
+heapless = "0.7"
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+postcard = { version = "1.0" }
 
 [patch.crates-io]
 # needed because of esp-wifi
