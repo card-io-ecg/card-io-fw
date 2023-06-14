@@ -6,7 +6,7 @@ use crate::{
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::prelude::*;
 use gui::screens::{
-    display_menu::{DisplayBrightness, DisplayMenu, DisplayMenuEvents, DisplayMenuScreen},
+    display_menu::{DisplayMenu, DisplayMenuEvents, DisplayMenuScreen},
     MENU_STYLE,
 };
 
@@ -21,8 +21,7 @@ pub async fn display_menu(board: &mut Board) -> AppState {
         }
     }
     let mut menu_values = DisplayMenu {
-        // TODO: read from some storage
-        brightness: DisplayBrightness::Normal,
+        brightness: board.config.display_brightness,
         battery_display: board.config.battery_display_style,
     };
 
