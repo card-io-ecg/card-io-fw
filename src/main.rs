@@ -158,6 +158,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         },
         wifi: resources.wifi,
         config,
+        config_changed: false,
         storage,
     };
 

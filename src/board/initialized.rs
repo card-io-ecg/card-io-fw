@@ -5,13 +5,15 @@ use gui::screens::BatteryInfo;
 use storage::{
     drivers::internal::{InternalDriver, InternalPartition},
     medium::cache::ReadCache,
-    Storage,
+    OnCollision, Storage,
 };
 
 use crate::{
     board::{
-        config::Config, hal::clock::Clocks, wifi_driver::WifiDriver, ChargerStatus, EcgFrontend,
-        PoweredDisplay, VbusDetect,
+        config::{Config, ConfigFile},
+        hal::clock::Clocks,
+        wifi_driver::WifiDriver,
+        ChargerStatus, EcgFrontend, PoweredDisplay, VbusDetect,
     },
     SharedBatteryState,
 };
@@ -60,5 +62,27 @@ pub struct Board {
     pub battery_monitor: BatteryMonitor<VbusDetect, ChargerStatus>,
     pub wifi: WifiDriver,
     pub config: Config,
+    pub config_changed: bool,
     pub storage: Storage<ReadCache<InternalDriver<ConfigPartition>, 256, 2>>,
+}
+
+impl Board {
+    pub async fn save_config(&mut self) {
+        if !self.config_changed {
+            return;
+        }
+
+        log::info!("Saving config");
+        self.config_changed = false;
+        let config_data = ConfigFile::new(self.config);
+
+        let serialized_config = config_data.into_vec();
+        if let Err(e) = self
+            .storage
+            .store("config", &serialized_config, OnCollision::Overwrite)
+            .await
+        {
+            log::error!("Failed to save config: {:?}", e);
+        }
+    }
 }

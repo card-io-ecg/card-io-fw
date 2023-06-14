@@ -7,7 +7,7 @@ use ssd1306::prelude::Brightness;
 
 use crate::board::BATTERY_MODEL;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Config {
     pub battery_display_style: BatteryDisplayStyle,
     pub display_brightness: DisplayBrightness,
