@@ -48,6 +48,21 @@ impl<P: InternalPartition> InternalDriver<P> {
 
         Ok(())
     }
+
+    async fn wait_idle(&mut self) -> Result<(), StorageError> {
+        const SR_WIP: u32 = 1 << 0;
+
+        let mut status = 0x00;
+        loop {
+            if implem::esp_rom_spiflash_read_status(implem::CHIP_PTR, &mut status) != 0 {
+                return Err(StorageError::Io);
+            }
+            if status & SR_WIP == 0 {
+                return Ok(());
+            }
+            embassy_futures::yield_now().await;
+        }
+    }
 }
 
 impl<P: InternalPartition> AlignedStorage for InternalDriver<P> {
@@ -62,10 +77,8 @@ impl<P: InternalPartition> AlignedStorage for InternalDriver<P> {
         let offset = P::OFFSET / Self::BLOCK_SIZE;
         let block = offset + block;
 
-        if implem::esp_rom_spiflash_erase_block(block as u32) == 0
-            && implem::esp_rom_spiflash_wait_idle(implem::CHIP_PTR) == 0
-        {
-            Ok(())
+        if implem::esp_rom_spiflash_erase_block(block as u32) == 0 {
+            self.wait_idle().await
         } else {
             Err(StorageError::Io)
         }
@@ -100,10 +113,8 @@ impl<P: InternalPartition> AlignedStorage for InternalDriver<P> {
 
         let offset = P::OFFSET + block * Self::BLOCK_SIZE + offset;
 
-        if implem::esp_rom_spiflash_write(offset as u32, ptr, len) == 0
-            && implem::esp_rom_spiflash_wait_idle(implem::CHIP_PTR) == 0
-        {
-            Ok(())
+        if implem::esp_rom_spiflash_write(offset as u32, ptr, len) == 0 {
+            self.wait_idle().await
         } else {
             Err(StorageError::Io)
         }

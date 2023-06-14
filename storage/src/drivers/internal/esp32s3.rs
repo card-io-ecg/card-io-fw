@@ -36,5 +36,6 @@ rom_fn!(
     fn esp_rom_spiflash_erase_sector(sector_number: u32) -> i32 = 0x400009fc,
     fn esp_rom_spiflash_erase_block(block_number: u32) -> i32 = 0x40000a08,
     fn esp_rom_spiflash_write(dest_addr: u32, data: *const u32, len: u32) -> i32 = 0x40000a14,
-    fn esp_rom_spiflash_wait_idle(chip: *const ()) -> i32 = 0x40000960
+    fn esp_rom_spiflash_wait_idle(chip: *const ()) -> i32 = 0x40000960,
+    fn esp_rom_spiflash_read_status(chip: *const (), status: *mut u32) -> i32 = 0x40000ab0
 );
