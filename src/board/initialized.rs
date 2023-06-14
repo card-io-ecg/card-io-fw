@@ -10,7 +10,7 @@ use storage::{
 
 use crate::{
     board::{
-        hal::clock::Clocks, wifi_driver::WifiDriver, ChargerStatus, Config, EcgFrontend,
+        config::Config, hal::clock::Clocks, wifi_driver::WifiDriver, ChargerStatus, EcgFrontend,
         PoweredDisplay, VbusDetect,
     },
     SharedBatteryState,
