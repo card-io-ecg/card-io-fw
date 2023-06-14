@@ -385,6 +385,9 @@ impl<'a, M: StorageMedium> BlockOps<'a, M> {
 
             // TODO: detect if a byte has been written after the last object
         } else {
+            if header.kind().is_empty() {
+                return Err(StorageError::NotFormatted);
+            }
             last_object_reliable = false;
             for offset in 0..M::BLOCK_SIZE {
                 let data = &mut [0];

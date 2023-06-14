@@ -30,6 +30,7 @@ pub enum StorageError {
     Io,
     InvalidOperation,
     InsufficientSpace,
+    NotFormatted,
 }
 
 pub struct Storage<M>
