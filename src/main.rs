@@ -112,6 +112,12 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
 
     let storage = storage.expect("Failed to mount storage");
 
+    log::info!(
+        "Storage: {} / {} used",
+        storage.used_bytes(),
+        storage.capacity()
+    );
+
     let mut board = Board {
         // If the device is awake, the display should be enabled.
         display: resources.display.enable().await.unwrap(),

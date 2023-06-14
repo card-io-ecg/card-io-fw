@@ -218,6 +218,15 @@ where
         Err(StorageError::NotFound)
     }
 
+    pub fn capacity(&self) -> usize {
+        M::BLOCK_COUNT * M::BLOCK_SIZE
+    }
+
+    pub fn used_bytes(&self) -> usize {
+        // TODO: don't count deleted objects
+        self.blocks.iter().map(|blk| blk.used_bytes()).sum()
+    }
+
     async fn delete_file_at(&mut self, meta_location: ObjectLocation) -> Result<(), StorageError> {
         let mut metadata = meta_location.read_metadata(&mut self.medium).await?;
 
