@@ -76,7 +76,7 @@ fn extra_checks() -> AnyResult<()> {
 }
 
 fn test() -> AnyResult<()> {
-    let packages = ["signal-processing", "storage"];
+    let packages = ["signal-processing"];
 
     let mut args = vec!["test"];
 

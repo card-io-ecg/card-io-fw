@@ -12,7 +12,7 @@ use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex, signal::Sign
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_hal::digital::OutputPin;
 use embedded_hal_async::digital::Wait;
-use storage::{drivers::internal::InternalDriver, medium::cache::ReadCache, Storage, StorageError};
+use norfs::{drivers::internal::InternalDriver, medium::cache::ReadCache, Storage, StorageError};
 
 use crate::{
     board::{

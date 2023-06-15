@@ -2,7 +2,7 @@ use embassy_executor::SendSpawner;
 use embedded_hal::digital::InputPin;
 use esp32s3_hal::system::PeripheralClockControl;
 use gui::screens::BatteryInfo;
-use storage::{
+use norfs::{
     drivers::internal::{InternalDriver, InternalPartition},
     medium::cache::ReadCache,
     OnCollision, Storage,
