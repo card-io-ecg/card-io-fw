@@ -575,9 +575,11 @@ where
 
 #[cfg(test)]
 mod test {
+
     use super::*;
     use medium::{
-        ram::RamStorage, ram_aligned::AlignedNorRamStorage, ram_nor_emulating::NorRamStorage,
+        cache::ReadCache, ram::RamStorage, ram_aligned::AlignedNorRamStorage,
+        ram_nor_emulating::NorRamStorage,
     };
 
     const LIPSUM: &[u8] = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce in mi scelerisque, porttitor mi amet.";
@@ -606,6 +608,14 @@ mod test {
 
     async fn create_aligned_fs() -> Storage<AlignedNorRamStorage<1024, 256>> {
         let medium = AlignedNorRamStorage::<1024, 256>::new();
+        Storage::format_and_mount(medium)
+            .await
+            .expect("Failed to mount storage")
+    }
+
+    async fn create_aligned_fs_with_read_cache(
+    ) -> Storage<ReadCache<AlignedNorRamStorage<1024, 256>, 256, 2>> {
+        let medium = ReadCache::new(AlignedNorRamStorage::<1024, 256>::new());
         Storage::format_and_mount(medium)
             .await
             .expect("Failed to mount storage")
@@ -675,6 +685,8 @@ mod test {
                     test_case_impl(create_word_granularity_fs::<4>().await).await;
                     log::info!("Running test case with create_aligned_fs");
                     test_case_impl(create_aligned_fs().await).await;
+                    log::info!("Running test case with create_aligned_fs_with_read_cache");
+                    test_case_impl(create_aligned_fs_with_read_cache().await).await;
                 }
             )+
         };
