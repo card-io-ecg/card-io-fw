@@ -190,6 +190,10 @@ impl<M: StorageMedium> BlockHeader<M> {
     pub fn set_block_type(&mut self, ty: BlockType) {
         self.header = BlockHeaderKind::Known(ty);
     }
+
+    pub fn erase_count(&self) -> u32 {
+        self.erase_count
+    }
 }
 
 /// Block info read when the FS is mounted.

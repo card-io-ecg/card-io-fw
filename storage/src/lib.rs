@@ -500,11 +500,17 @@ where
             return Ok(block);
         }
 
-        // Pick a free block
-        if let Some(block) = self.blocks.iter().position(|info| {
-            info.header.kind() == BlockHeaderKind::Known(BlockType::Undefined)
-                && info.free_space() >= min_free
-        }) {
+        // Pick a free block. Prioritize lesser used blocks.
+        if let Some((block, _)) = self
+            .blocks
+            .iter()
+            .enumerate()
+            .filter(|(_, info)| {
+                info.header.kind() == BlockHeaderKind::Known(BlockType::Undefined)
+                    && info.free_space() >= min_free
+            })
+            .min_by_key(|(_, info)| info.header.erase_count())
+        {
             return Ok(block);
         }
 
