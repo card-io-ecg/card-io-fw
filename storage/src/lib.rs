@@ -23,16 +23,29 @@ pub mod gc;
 pub mod ll;
 pub mod medium;
 
+/// Error values returned by storage operations.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum StorageError {
+    /// The file does not exist.
     NotFound,
-    FsCorrupted,
-    Io,
-    InvalidOperation,
-    InsufficientSpace,
+
+    /// The filesystem is not formatted.
     NotFormatted,
+
+    /// The filesystem state is inconsistent.
+    FsCorrupted,
+
+    /// The underlying driver returned a driver-specific error.
+    Io,
+
+    /// The operation is not permitted.
+    InvalidOperation,
+
+    /// The storage medium is full.
+    InsufficientSpace,
 }
 
+/// A mounted storage partition.
 pub struct Storage<M>
 where
     M: StorageMedium,
@@ -42,12 +55,17 @@ where
     blocks: [BlockInfo<M>; M::BLOCK_COUNT],
 }
 
+/// Controls what happens when storing data to a file that already exists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OnCollision {
+    /// Overwrite the existing file.
     Overwrite,
+
+    /// The operation returns an error.
     Fail,
 }
 
+/// File reader
 pub struct Reader<M>
 where
     M: StorageMedium,
@@ -72,6 +90,11 @@ where
         Ok(())
     }
 
+    /// Reads data from the current position in the file.
+    ///
+    /// Returns the number of bytes read.
+    ///
+    /// `storage` must be the same storage that was used to open the file.
     pub async fn read(
         &mut self,
         storage: &mut Storage<M>,
@@ -113,6 +136,9 @@ where
     M: StorageMedium,
     [(); M::BLOCK_COUNT]:,
 {
+    /// Mounts the filesystem.
+    ///
+    /// Returns an error if the filesystem is not formatted.
     pub async fn mount(mut partition: M) -> Result<Self, StorageError> {
         let mut blocks = [BlockInfo::new_unknown(); M::BLOCK_COUNT];
 
@@ -127,22 +153,41 @@ where
         })
     }
 
+    /// Unconditionally formats the filesystem.
     pub async fn format(partition: &mut M) -> Result<(), StorageError> {
         BlockOps::new(partition).format_storage().await
     }
 
+    /// Unconditionally formats then mounts the filesystem.
     pub async fn format_and_mount(mut partition: M) -> Result<Self, StorageError> {
         Self::format(&mut partition).await?;
 
         Self::mount(partition).await
     }
 
+    /// Returns the total capacity of the filesystem in bytes.
+    pub fn capacity(&self) -> usize {
+        M::BLOCK_COUNT * M::BLOCK_SIZE
+    }
+
+    /// Returns the number of bytes used by the filesystem.
+    pub fn used_bytes(&self) -> usize {
+        // TODO: don't count deleted objects
+        self.blocks.iter().map(|blk| blk.used_bytes()).sum()
+    }
+
+    /// Deletes the file at `path`.
     pub async fn delete(&mut self, path: &str) -> Result<(), StorageError> {
         log::debug!("Storage::delete({path})");
         let location = self.lookup(path).await?;
         self.delete_file_at(location).await
     }
 
+    /// Creates a new file at `path` with the given `data`.
+    ///
+    /// If a file already exists at `path`, the behaviour is determined by `if_exists`.
+    ///  - `OnCollision::Overwrite` will overwrite the existing file.
+    ///  - `OnCollision::Fail` will return an error.
     pub async fn store(
         &mut self,
         path: &str,
@@ -177,6 +222,11 @@ where
         self.lookup(path).await.is_ok()
     }
 
+    /// Opens the file at `path` for reading.
+    ///
+    /// Returns a reader object on success and an error on failure.
+    ///
+    /// Modifying the filesystem while a reader is open results in undefined behaviour.
     pub async fn read(&mut self, path: &str) -> Result<Reader<M>, StorageError> {
         log::debug!("Storage::read({path})");
         let object = self.lookup(path).await?;
@@ -237,15 +287,6 @@ where
 
         // not found
         Err(StorageError::NotFound)
-    }
-
-    pub fn capacity(&self) -> usize {
-        M::BLOCK_COUNT * M::BLOCK_SIZE
-    }
-
-    pub fn used_bytes(&self) -> usize {
-        // TODO: don't count deleted objects
-        self.blocks.iter().map(|blk| blk.used_bytes()).sum()
     }
 
     async fn delete_file_at(&mut self, meta_location: ObjectLocation) -> Result<(), StorageError> {
