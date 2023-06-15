@@ -12,7 +12,7 @@ use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex, signal::Sign
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_hal::digital::OutputPin;
 use embedded_hal_async::digital::Wait;
-use storage::{drivers::internal::InternalDriver, Storage, StorageError};
+use storage::{drivers::internal::InternalDriver, medium::cache::ReadCache, Storage, StorageError};
 
 use crate::{
     board::{
@@ -101,11 +101,15 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
     )
     .unwrap();
 
-    let storage = match Storage::mount(InternalDriver::new(ConfigPartition)).await {
+    let storage = match Storage::mount(ReadCache::<_, 256, 2>::new(InternalDriver::new(
+        ConfigPartition,
+    )))
+    .await
+    {
         Ok(storage) => Ok(storage),
         Err(StorageError::NotFormatted) => {
             log::info!("Formatting storage");
-            Storage::format_and_mount(InternalDriver::new(ConfigPartition)).await
+            Storage::format_and_mount(ReadCache::new(InternalDriver::new(ConfigPartition))).await
         }
         e => e,
     };

@@ -4,6 +4,7 @@ use esp32s3_hal::system::PeripheralClockControl;
 use gui::screens::BatteryInfo;
 use storage::{
     drivers::internal::{InternalDriver, InternalPartition},
+    medium::cache::ReadCache,
     Storage,
 };
 
@@ -59,5 +60,5 @@ pub struct Board {
     pub battery_monitor: BatteryMonitor<VbusDetect, ChargerStatus>,
     pub wifi: WifiDriver,
     pub config: Config,
-    pub storage: Storage<InternalDriver<ConfigPartition>>,
+    pub storage: Storage<ReadCache<InternalDriver<ConfigPartition>, 256, 2>>,
 }
