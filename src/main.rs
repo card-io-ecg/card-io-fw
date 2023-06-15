@@ -112,10 +112,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             log::info!("Formatting storage");
             Storage::format_and_mount(ReadCache::new(InternalDriver::new(ConfigPartition))).await
         }
-        Err(e) => {
-            log::error!("Formatting storage - {e:?}");
-            Storage::format_and_mount(ReadCache::new(InternalDriver::new(ConfigPartition))).await
-        }
+        e => e,
     };
 
     let mut storage = storage.expect("Failed to mount storage");
