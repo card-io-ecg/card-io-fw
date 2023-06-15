@@ -16,10 +16,11 @@ use storage::{drivers::internal::InternalDriver, medium::cache::ReadCache, Stora
 
 use crate::{
     board::{
+        config::{Config, ConfigFile},
         hal::{self, entry},
         initialized::{BatteryMonitor, Board, ConfigPartition},
         startup::StartupResources,
-        BatteryAdc, Config,
+        BatteryAdc,
     },
     sleep::{
         disable_gpio_wakeup, enable_gpio_pullup, enable_gpio_wakeup, start_deep_sleep,
@@ -111,10 +112,34 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             log::info!("Formatting storage");
             Storage::format_and_mount(ReadCache::new(InternalDriver::new(ConfigPartition))).await
         }
-        e => e,
+        Err(e) => {
+            log::error!("Formatting storage - {e:?}");
+            Storage::format_and_mount(ReadCache::new(InternalDriver::new(ConfigPartition))).await
+        }
     };
 
-    let storage = storage.expect("Failed to mount storage");
+    let mut storage = storage.expect("Failed to mount storage");
+
+    let mut buffer = [0; ConfigFile::MAX_CONFIG_SIZE];
+    let config = match storage.read("config").await {
+        Ok(mut config) => match config.read(&mut storage, &mut buffer).await {
+            Ok(bytes) => match ConfigFile::parse(&buffer[..bytes]) {
+                Ok(config) => config.into_config(),
+                Err(e) => {
+                    log::warn!("Failed to parse config file: {e:?}. Reverting to defaults");
+                    Config::default()
+                }
+            },
+            Err(e) => {
+                log::warn!("Failed to read config file: {e:?}. Reverting to defaults");
+                Config::default()
+            }
+        },
+        Err(e) => {
+            log::warn!("Failed to load config: {e:?}. Reverting to defaults");
+            Config::default()
+        }
+    };
 
     log::info!(
         "Storage: {} / {} used",
@@ -135,7 +160,8 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             charger_status: resources.misc_pins.chg_status,
         },
         wifi: resources.wifi,
-        config: Config::default(), // TODO: load config
+        config,
+        config_changed: false,
         storage,
     };
 

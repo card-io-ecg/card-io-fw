@@ -6,7 +6,7 @@ use crate::{
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::prelude::*;
 use gui::screens::{
-    display_menu::{DisplayBrightness, DisplayMenu, DisplayMenuEvents, DisplayMenuScreen},
+    display_menu::{DisplayMenu, DisplayMenuEvents, DisplayMenuScreen},
     MENU_STYLE,
 };
 
@@ -21,8 +21,7 @@ pub async fn display_menu(board: &mut Board) -> AppState {
         }
     }
     let mut menu_values = DisplayMenu {
-        // TODO: read from some storage
-        brightness: DisplayBrightness::Normal,
+        brightness: board.config.display_brightness,
         battery_display: board.config.battery_display_style,
     };
 
@@ -43,7 +42,10 @@ pub async fn display_menu(board: &mut Board) -> AppState {
         }
         if let Some(event) = menu_screen.menu.interact(is_touched) {
             match event {
-                DisplayMenuEvents::Back => return AppState::MainMenu,
+                DisplayMenuEvents::Back => {
+                    board.save_config().await;
+                    return AppState::MainMenu;
+                }
             };
         }
 
@@ -53,7 +55,7 @@ pub async fn display_menu(board: &mut Board) -> AppState {
             log::debug!("Settings changed");
             let new = *menu_screen.menu.data();
             if menu_values.brightness != new.brightness {
-                // TODO: store on exit (note: 2 exit sites)
+                board.config_changed = true;
                 board.config.display_brightness = new.brightness;
                 let _ = board
                     .display
@@ -61,7 +63,7 @@ pub async fn display_menu(board: &mut Board) -> AppState {
                     .await;
             }
             if menu_values.battery_display != new.battery_display {
-                // TODO: store on exit (note: 2 exit sites)
+                board.config_changed = true;
                 board.config.battery_display_style = new.battery_display;
                 menu_screen.battery_style = board.config.battery_style();
             }
@@ -82,5 +84,6 @@ pub async fn display_menu(board: &mut Board) -> AppState {
     }
 
     log::info!("Menu timeout");
+    board.save_config().await;
     AppState::Shutdown
 }
