@@ -383,6 +383,10 @@ where
     }
 
     async fn create_new_file(&mut self, path: &str, mut data: &[u8]) -> Result<(), StorageError> {
+        if path.contains(&['/', '\\'][..]) {
+            return Err(StorageError::InvalidOperation);
+        }
+
         let path_hash = hash_path(path);
 
         // filename + 1 data page
