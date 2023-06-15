@@ -431,14 +431,17 @@ mod tests {
     use super::*;
 
     #[async_std::test]
-    async fn empty_block_reports_0_used_bytes() {
+    async fn empty_block_reports_not_formatted() {
         init_test();
 
         let mut medium = NorRamStorage::<256, 32>::new();
         let mut block_ops = BlockOps::new(&mut medium);
 
-        let info = block_ops.scan_block(0).await.unwrap();
-        assert_eq!(info.used_bytes, 0);
+        let result = block_ops
+            .scan_block(0)
+            .await
+            .expect_err("Scan should return error when the block is not formatted");
+        assert_eq!(result, StorageError::NotFormatted);
     }
 
     #[async_std::test]
