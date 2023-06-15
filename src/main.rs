@@ -115,34 +115,45 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         e => e,
     };
 
-    let mut storage = storage.expect("Failed to mount storage");
+    let mut storage = match storage {
+        Ok(storage) => Some(storage),
+        Err(e) => {
+            log::error!("Failed to mount storage: {:?}", e);
+            None
+        }
+    };
 
-    let mut buffer = [0; ConfigFile::MAX_CONFIG_SIZE];
-    let config = match storage.read("config").await {
-        Ok(mut config) => match config.read(&mut storage, &mut buffer).await {
-            Ok(bytes) => match ConfigFile::parse(&buffer[..bytes]) {
-                Ok(config) => config.into_config(),
+    let config = if let Some(storage) = storage.as_mut() {
+        log::info!(
+            "Storage: {} / {} used",
+            storage.capacity() - storage.free_bytes(),
+            storage.capacity()
+        );
+
+        let mut buffer = [0; ConfigFile::MAX_CONFIG_SIZE];
+        match storage.read("config").await {
+            Ok(mut config) => match config.read(storage, &mut buffer).await {
+                Ok(bytes) => match ConfigFile::parse(&buffer[..bytes]) {
+                    Ok(config) => config.into_config(),
+                    Err(e) => {
+                        log::warn!("Failed to parse config file: {e:?}. Reverting to defaults");
+                        Config::default()
+                    }
+                },
                 Err(e) => {
-                    log::warn!("Failed to parse config file: {e:?}. Reverting to defaults");
+                    log::warn!("Failed to read config file: {e:?}. Reverting to defaults");
                     Config::default()
                 }
             },
             Err(e) => {
-                log::warn!("Failed to read config file: {e:?}. Reverting to defaults");
+                log::warn!("Failed to load config: {e:?}. Reverting to defaults");
                 Config::default()
             }
-        },
-        Err(e) => {
-            log::warn!("Failed to load config: {e:?}. Reverting to defaults");
-            Config::default()
         }
+    } else {
+        log::warn!("Storage unavailable. Using default config");
+        Config::default()
     };
-
-    log::info!(
-        "Storage: {} / {} used",
-        storage.capacity() - storage.free_bytes(),
-        storage.capacity()
-    );
 
     let mut board = Board {
         // If the device is awake, the display should be enabled.

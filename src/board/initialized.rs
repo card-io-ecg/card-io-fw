@@ -63,7 +63,7 @@ pub struct Board {
     pub wifi: WifiDriver,
     pub config: Config,
     pub config_changed: bool,
-    pub storage: Storage<ReadCache<InternalDriver<ConfigPartition>, 256, 2>>,
+    pub storage: Option<Storage<ReadCache<InternalDriver<ConfigPartition>, 256, 2>>>,
 }
 
 impl Board {
@@ -74,15 +74,19 @@ impl Board {
 
         log::info!("Saving config");
         self.config_changed = false;
-        let config_data = ConfigFile::new(self.config);
 
-        let serialized_config = config_data.into_vec();
-        if let Err(e) = self
-            .storage
-            .store("config", &serialized_config, OnCollision::Overwrite)
-            .await
-        {
-            log::error!("Failed to save config: {:?}", e);
+        if let Some(storage) = self.storage.as_mut() {
+            let config_data = ConfigFile::new(self.config);
+
+            let serialized_config = config_data.into_vec();
+            if let Err(e) = storage
+                .store("config", &serialized_config, OnCollision::Overwrite)
+                .await
+            {
+                log::error!("Failed to save config: {:?}", e);
+            }
+        } else {
+            log::warn!("Storage unavailable");
         }
     }
 }
