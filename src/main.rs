@@ -114,7 +114,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
 
     log::info!(
         "Storage: {} / {} used",
-        storage.used_bytes(),
+        storage.capacity() - storage.free_bytes(),
         storage.capacity()
     );
 

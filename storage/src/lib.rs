@@ -170,10 +170,42 @@ where
         M::BLOCK_COUNT * M::BLOCK_SIZE
     }
 
-    /// Returns the number of bytes used by the filesystem.
-    pub fn used_bytes(&self) -> usize {
-        // TODO: don't count deleted objects
-        self.blocks.iter().map(|blk| blk.used_bytes()).sum()
+    /// Returns the number of free bytes in the filesystem.
+    ///
+    /// Note: this function does not count deleted files as free space, so the result will
+    /// not match the value `capacity() - used_bytes()`.
+    pub fn free_bytes(&self) -> usize {
+        self.blocks
+            .iter()
+            .map(|blk| M::BLOCK_SIZE - blk.used_bytes())
+            .sum()
+    }
+
+    /// Returns the number of bytes used in the filesystem.
+    ///
+    /// This function takes filesystem overhead into account, but does not count deleted files.
+    pub async fn used_bytes(&mut self) -> Result<usize, StorageError> {
+        let mut used_bytes = 0;
+
+        for (block_idx, info) in self.blocks.iter().enumerate() {
+            match info.header.kind() {
+                BlockHeaderKind::Empty => {}
+                BlockHeaderKind::Known(BlockType::Undefined) | BlockHeaderKind::Unknown => {
+                    used_bytes += info.used_bytes();
+                }
+                BlockHeaderKind::Known(_) => {
+                    let mut iter = ObjectIterator::new::<M>(block_idx);
+
+                    while let Some(object) = iter.next(&mut self.medium).await? {
+                        if let ObjectState::Finalized = object.header.state() {
+                            used_bytes += object.total_size();
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(used_bytes)
     }
 
     /// Deletes the file at `path`.
