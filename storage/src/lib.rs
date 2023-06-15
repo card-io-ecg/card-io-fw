@@ -236,6 +236,22 @@ where
         })
     }
 
+    /// Returns the content size of the file at `path`.
+    pub async fn file_size(&mut self, path: &str) -> Result<usize, StorageError> {
+        log::debug!("Storage::file_size({path})");
+        let object = self.lookup(path).await?;
+
+        let mut meta = object.read_metadata(&mut self.medium).await?;
+
+        let mut size = 0;
+        while let Some(chunk) = meta.next_object_location(&mut self.medium).await? {
+            let data_object = ObjectReader::new(chunk, &mut self.medium, false).await?;
+            size += data_object.len();
+        }
+
+        Ok(size)
+    }
+
     async fn lookup(&mut self, path: &str) -> Result<ObjectLocation, StorageError> {
         let path_hash = hash_path(path);
 
@@ -724,6 +740,16 @@ mod test {
                 .expect("Failed to read file");
 
             assert_eq!(buf, *LIPSUM);
+        }
+
+        async fn file_size_reports_content_size<M: StorageMedium>(
+            mut storage: Storage<M>,
+        ) {
+            storage.store("foo", LIPSUM, OnCollision::Overwrite).await.expect("Create failed");
+
+            let file_size = storage.file_size("foo").await.expect("Failed to read file size");
+
+            assert_eq!(file_size, LIPSUM.len());
         }
 
         async fn deleted_file_can_no_longer_be_read<M: StorageMedium>(
