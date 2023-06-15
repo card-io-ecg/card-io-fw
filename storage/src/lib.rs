@@ -42,6 +42,12 @@ where
     blocks: [BlockInfo<M>; M::BLOCK_COUNT],
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OnCollision {
+    Overwrite,
+    Fail,
+}
+
 pub struct Reader<M>
 where
     M: StorageMedium,
@@ -137,17 +143,32 @@ where
         self.delete_file_at(location).await
     }
 
-    pub async fn store(&mut self, path: &str, data: &[u8]) -> Result<(), StorageError> {
+    pub async fn store(
+        &mut self,
+        path: &str,
+        data: &[u8],
+        if_exists: OnCollision,
+    ) -> Result<(), StorageError> {
         log::debug!("Storage::store({path}, len = {})", data.len());
         let overwritten_location = self.lookup(path).await;
 
-        self.create_new_file(path, data).await?;
+        let overwritten = match overwritten_location {
+            Ok(location) => Some(location),
+            Err(StorageError::NotFound) => None,
+            Err(e) => return Err(e),
+        };
 
-        if let Ok(location) = overwritten_location {
-            self.delete_file_at(location).await?;
+        if overwritten.is_none() || if_exists == OnCollision::Overwrite {
+            self.create_new_file(path, data).await?;
+
+            if let Some(location) = overwritten {
+                self.delete_file_at(location).await?;
+            }
+
+            Ok(())
+        } else {
+            Err(StorageError::InvalidOperation)
         }
-
-        Ok(())
     }
 
     /// Convenience method for checking if a file exists. Ignores all errors.
@@ -586,7 +607,7 @@ mod test {
             mut storage: Storage<M>,
         ) {
             storage
-                .store("foo", b"barbaz")
+                .store("foo", b"barbaz", OnCollision::Overwrite)
                 .await
                 .expect("Create failed");
 
@@ -606,14 +627,14 @@ mod test {
             mut storage: Storage<M>,
         ) {
             storage
-                .store("foo", b"barbaz")
+                .store("foo", b"barbaz", OnCollision::Overwrite)
                 .await
                 .expect("Create failed");
 
             assert!(storage.exists("foo").await);
 
             storage
-                .store("foo", b"foofoobar")
+                .store("foo", b"foofoobar", OnCollision::Overwrite)
                 .await
                 .expect("Create failed");
 
@@ -622,10 +643,30 @@ mod test {
             assert_file_contents(&mut storage, "foo", b"foofoobar").await;
         }
 
+        async fn failure_to_overwrite_preserves_original_file<M: StorageMedium>(
+            mut storage: Storage<M>,
+        ) {
+            storage
+                .store("foo", b"barbaz", OnCollision::Fail)
+                .await
+                .expect("Create failed");
+
+            assert!(storage.exists("foo").await);
+
+            assert!(
+                storage.store("foo", b"foofoobar", OnCollision::Fail).await.is_err(),
+                "Store succeeded unexpectedly"
+            );
+
+            assert!(storage.exists("foo").await);
+
+            assert_file_contents(&mut storage, "foo", b"barbaz").await;
+        }
+
         async fn content_can_be_longer_than_block_size<M: StorageMedium>(
             mut storage: Storage<M>,
         ) {
-            storage.store("foo", LIPSUM).await.expect("Create failed");
+            storage.store("foo", LIPSUM, OnCollision::Overwrite).await.expect("Create failed");
 
             let mut reader = storage.read("foo").await.expect("Failed to open file");
 
@@ -648,7 +689,7 @@ mod test {
             mut storage: Storage<M>,
         ) {
             storage
-                .store("foo", b"barbaz")
+                .store("foo", b"barbaz", OnCollision::Overwrite)
                 .await
                 .expect("Create failed");
 
@@ -664,8 +705,8 @@ mod test {
         async fn reading_reads_from_the_correct_file<M: StorageMedium>(
             mut storage: Storage<M>,
         ) {
-            storage.store("foo", b"bar").await.expect("Create failed");
-            storage.store("baz", b"asdf").await.expect("Create failed");
+            storage.store("foo", b"bar", OnCollision::Overwrite).await.expect("Create failed");
+            storage.store("baz", b"asdf", OnCollision::Overwrite).await.expect("Create failed");
 
             assert_file_contents(&mut storage, "foo", b"bar").await;
             assert_file_contents(&mut storage, "baz", b"asdf").await;
@@ -678,12 +719,18 @@ mod test {
 
         let mut storage = create_default_fs().await;
 
-        storage.store("foo", LIPSUM).await.expect("Create failed");
+        storage
+            .store("foo", LIPSUM, OnCollision::Overwrite)
+            .await
+            .expect("Create failed");
 
         assert!(storage.exists("foo").await);
 
         assert!(
-            storage.store("bar", LIPSUM).await.is_err(),
+            storage
+                .store("bar", LIPSUM, OnCollision::Overwrite)
+                .await
+                .is_err(),
             "Lookup returned Ok unexpectedly"
         );
     }
