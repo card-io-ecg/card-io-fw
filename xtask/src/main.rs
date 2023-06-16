@@ -1,23 +1,48 @@
 use anyhow::Result as AnyResult;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 use duct::{cmd, Expression};
 
 #[derive(Debug, Subcommand)]
 pub enum Subcommands {
-    Build,
+    Build {
+        hw: Option<HardwareVersion>,
+    },
     Test,
-    Run,
-    Check,
+    Run {
+        hw: Option<HardwareVersion>,
+    },
+    Check {
+        hw: Option<HardwareVersion>,
+    },
     Doc {
+        hw: Option<HardwareVersion>,
         #[clap(long)]
         open: bool,
     },
-    ExtraCheck,
+    ExtraCheck {
+        hw: Option<HardwareVersion>,
+    },
     Example {
         package: String,
         name: String,
     },
+}
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum HardwareVersion {
+    #[default]
+    V1,
+    V2,
+}
+
+impl HardwareVersion {
+    fn feature(&self) -> &str {
+        match self {
+            HardwareVersion::V1 => "hw_v1",
+            HardwareVersion::V2 => "hw_v2",
+        }
+    }
 }
 
 #[derive(Debug, Parser)]
@@ -33,19 +58,20 @@ fn cargo(args: &[&str]) -> Expression {
     cmd("rustup", args_vec)
 }
 
-fn build() -> AnyResult<()> {
+fn build(hw: HardwareVersion) -> AnyResult<()> {
     cargo(&[
         "build",
         "--target=xtensa-esp32s3-none-elf",
         "-Zbuild-std=core,alloc",
         "--release",
+        &format!("--features={}", hw.feature()),
     ])
     .run()?;
 
     Ok(())
 }
 
-fn run() -> AnyResult<()> {
+fn run(hw: HardwareVersion) -> AnyResult<()> {
     cargo(&[
         "espflash",
         "flash",
@@ -53,28 +79,32 @@ fn run() -> AnyResult<()> {
         "--release",
         "--target=xtensa-esp32s3-none-elf",
         "-Zbuild-std=core,alloc",
+        &format!("--features={}", hw.feature()),
     ])
     .run()?;
 
     Ok(())
 }
 
-fn checks() -> AnyResult<()> {
+fn checks(hw: HardwareVersion) -> AnyResult<()> {
     cargo(&[
         "check",
         "--target=xtensa-esp32s3-none-elf",
         "-Zbuild-std=core,alloc",
+        &format!("--features={}", hw.feature()),
     ])
     .run()?;
 
     Ok(())
 }
 
-fn docs(open: bool) -> AnyResult<()> {
+fn docs(open: bool, hw: HardwareVersion) -> AnyResult<()> {
+    let hw = format!("--features={}", hw.feature());
     let mut args = vec![
         "doc",
         "--target=xtensa-esp32s3-none-elf",
         "-Zbuild-std=core,alloc",
+        &hw,
     ];
 
     if open {
@@ -86,12 +116,13 @@ fn docs(open: bool) -> AnyResult<()> {
     Ok(())
 }
 
-fn extra_checks() -> AnyResult<()> {
+fn extra_checks(hw: HardwareVersion) -> AnyResult<()> {
     cargo(&["fmt", "--check"]).run()?;
     cargo(&[
         "clippy",
         "--target=xtensa-esp32s3-none-elf",
         "-Zbuild-std=core,alloc",
+        &format!("--features={}", hw.feature()),
     ])
     .run()?;
 
@@ -123,12 +154,12 @@ fn main() -> AnyResult<()> {
     let cli = Cli::parse();
 
     match cli.subcommand {
-        Subcommands::Build => build(),
+        Subcommands::Build { hw } => build(hw.unwrap_or_default()),
         Subcommands::Test => test(),
-        Subcommands::Run => run(),
-        Subcommands::Check => checks(),
-        Subcommands::Doc { open } => docs(open),
-        Subcommands::ExtraCheck => extra_checks(),
+        Subcommands::Run { hw } => run(hw.unwrap_or_default()),
+        Subcommands::Check { hw } => checks(hw.unwrap_or_default()),
+        Subcommands::Doc { open, hw } => docs(open, hw.unwrap_or_default()),
+        Subcommands::ExtraCheck { hw } => extra_checks(hw.unwrap_or_default()),
         Subcommands::Example { package, name } => example(package, name),
     }
 }

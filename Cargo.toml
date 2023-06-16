@@ -56,7 +56,7 @@ esp32s3-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "s3_ad
 
 
 [features]
-default = ["esp32s3", "hw_v2"]
+default = ["esp32s3"]
 
 battery_adc = []
 battery_max17055 = []
