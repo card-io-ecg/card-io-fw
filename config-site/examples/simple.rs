@@ -29,15 +29,15 @@ pub async fn run() {
         .with_handler(RequestHandler::get("/font", HEADER_FONT))
         .with_handler(RequestHandler::get(
             "/demo",
-            StaticHandler(&[], b"Hello, World!"),
+            StaticHandler::new(&[], b"Hello, World!"),
         ))
         .with_handler(RequestHandler::get(
             "/si",
-            StaticHandler(&[], b"0.1.0-b66903b"),
+            StaticHandler::new(&[], b"0.1.0-b66903b"),
         ))
         .with_handler(RequestHandler::get(
             "/kn",
-            StaticHandler(&[], b"Network1\nNetwork2\nNetwork3"),
+            StaticHandler::new(&[], b"Network1\nNetwork2\nNetwork3"),
         ))
         .listen(&mut socket, 8080)
         .await;

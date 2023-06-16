@@ -2,7 +2,7 @@
 
 use bad_server::{handler::StaticHandler, Header};
 
-pub const INDEX_HANDLER: StaticHandler = StaticHandler(
+pub const INDEX_HANDLER: StaticHandler = StaticHandler::new(
     &[Header {
         name: "Content-Encoding",
         value: b"gzip",
@@ -10,7 +10,7 @@ pub const INDEX_HANDLER: StaticHandler = StaticHandler(
     include_bytes!(concat!(env!("COMPRESS_OUT_DIR"), "/static/index.html.gz")),
 );
 
-pub const HEADER_FONT: StaticHandler = StaticHandler(
+pub const HEADER_FONT: StaticHandler = StaticHandler::new(
     &[Header {
         name: "Content-Encoding",
         value: b"gzip",

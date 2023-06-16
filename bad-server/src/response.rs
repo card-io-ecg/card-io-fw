@@ -7,6 +7,7 @@ use crate::{connector::Connection, HandleError};
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ResponseStatus {
     Ok = 200,
+    NotModified = 304,
     BadRequest = 400,
     NotFound = 404,
     RequestEntityTooLarge = 413,
@@ -18,6 +19,7 @@ impl ResponseStatus {
     pub fn name(self) -> &'static str {
         match self {
             Self::Ok => "OK",
+            Self::NotModified => "Not Modified",
             Self::BadRequest => "Bad Request",
             Self::NotFound => "Not Found",
             Self::RequestEntityTooLarge => "Request Entity Too Large",

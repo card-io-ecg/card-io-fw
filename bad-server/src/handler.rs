@@ -1,5 +1,7 @@
 use core::{fmt::Write as _, marker::PhantomData};
 
+use const_base::ArrayStr;
+use const_fnv1a_hash::fnv1a_hash_32;
 use httparse::Header;
 use object_chain::{Chain, ChainElement, Link};
 
@@ -49,25 +51,68 @@ pub trait RequestHandler<C: Connection>: Sized {
     }
 }
 
-pub struct StaticHandler<'a>(pub &'a [Header<'a>], pub &'a [u8]);
+const BASE64_HASH_LEN: usize = const_base::encoded_len(4, const_base::Config::B64);
+
+pub struct StaticHandler<'a> {
+    headers: &'a [Header<'a>],
+    body: &'a [u8],
+    hash: ArrayStr<BASE64_HASH_LEN>,
+}
+
+impl<'a> StaticHandler<'a> {
+    pub const fn new(headers: &'a [Header<'a>], body: &'a [u8]) -> Self {
+        let hash = fnv1a_hash_32(body, None);
+        let hash = match const_base::encode(&hash.to_le_bytes(), const_base::Config::B64) {
+            Ok(hash) => hash,
+            Err(_err) => panic!("Failed to base64-encode hash"),
+        };
+
+        Self {
+            headers,
+            body,
+            hash,
+        }
+    }
+}
 
 impl<C: Connection> RequestHandler<C> for StaticHandler<'_> {
     async fn handle(&self, request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
-        let mut response = request.send_response(ResponseStatus::Ok).await?;
+        let etag_header = Header {
+            name: "ETag",
+            value: self.hash.as_slice(),
+        };
 
-        let mut length = heapless::String::<12>::new();
-        write!(length, "{}", self.1.len()).unwrap();
+        let status = if let Some(etag) = request.raw_header("if-none-match") {
+            if etag == self.hash.as_slice() {
+                ResponseStatus::NotModified
+            } else {
+                ResponseStatus::Ok
+            }
+        } else {
+            ResponseStatus::Ok
+        };
 
-        response
-            .send_headers(self.0)
-            .await?
-            .send_header(Header {
+        let mut response = request.send_response(status).await?;
+        if status == ResponseStatus::NotModified {
+            response.send_headers(&[]).await?;
+
+            response.start_body().await.map(|_| ())
+        } else {
+            let mut length = heapless::String::<12>::new();
+            write!(length, "{}", self.body.len()).unwrap();
+            let content_length_header = Header {
                 name: "Content-Length",
                 value: length.as_bytes(),
-            })
-            .await?;
+            };
 
-        response.start_body().await?.write_raw(self.1).await
+            response
+                .send_headers(self.headers)
+                .await?
+                .send_headers(&[etag_header, content_length_header])
+                .await?;
+
+            response.start_body().await?.write_raw(self.body).await
+        }
     }
 }
 
