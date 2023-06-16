@@ -177,6 +177,9 @@
         $on("btn_back", "click", $fe.start);
     }
 
+    let dom_loaded = false;
+    let fonts_loaded = false;
+
     $fe = {
         start: () => $page('demo', async (tpl) => {
             let demo = await fetch('/demo');
@@ -191,7 +194,20 @@
         nn: () => $page('nn')
     };
 
-    document.addEventListener("DOMContentLoaded", $fe.start);
+    document.addEventListener("DOMContentLoaded", () => {
+        dom_loaded = true;
+
+        if (fonts_loaded) {
+            $fe.start();
+        }
+    });
+    document.fonts.ready.then(() => {
+        fonts_loaded = true;
+
+        if (dom_loaded) {
+            $fe.start();
+        }
+    });
 </script>
 
 </html>
