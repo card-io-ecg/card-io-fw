@@ -234,11 +234,11 @@ async fn webserver_task(
                 .with_handler(RequestHandler::get("/demo", DemoHandler))
                 .with_handler(RequestHandler::get(
                     "/si",
-                    StaticHandler(&[], env!("FW_VERSION").as_bytes()),
+                    StaticHandler::new(&[], env!("FW_VERSION").as_bytes()),
                 ))
                 .with_handler(RequestHandler::get(
                     "/kn",
-                    StaticHandler(&[], b"Network1\nNetwork2\nNetwork3"),
+                    StaticHandler::new(&[], b"Network1\nNetwork2\nNetwork3"),
                 ))
                 .listen(&mut socket, 8080)
                 .await;
