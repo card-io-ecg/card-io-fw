@@ -5,19 +5,21 @@ use embedded_hal::digital::{InputPin, OutputPin};
 use embedded_hal_async::{digital::Wait, spi::SpiDevice as AsyncSpiDevice};
 use register_access::AsyncRegisterAccess;
 
-pub struct Frontend<S, DRDY, RESET, TOUCH> {
+pub struct Frontend<S, DRDY, RESET, CLKEN, TOUCH> {
     adc: Ads129x<S>,
     drdy: DRDY,
     reset: RESET,
+    clken: CLKEN,
     touch: TOUCH,
 }
 
-impl<S, DRDY, RESET, TOUCH> Frontend<S, DRDY, RESET, TOUCH> {
-    pub const fn new(spi: S, drdy: DRDY, reset: RESET, touch: TOUCH) -> Self {
+impl<S, DRDY, RESET, CLKEN, TOUCH> Frontend<S, DRDY, RESET, CLKEN, TOUCH> {
+    pub const fn new(spi: S, drdy: DRDY, reset: RESET, clken: CLKEN, touch: TOUCH) -> Self {
         Self {
             adc: Ads129x::new(spi),
             drdy,
             reset,
+            clken,
             touch,
         }
     }
@@ -27,11 +29,12 @@ impl<S, DRDY, RESET, TOUCH> Frontend<S, DRDY, RESET, TOUCH> {
     }
 }
 
-impl<S, DRDY, RESET, TOUCH> Frontend<S, DRDY, RESET, TOUCH>
+impl<S, DRDY, RESET, CLKEN, TOUCH> Frontend<S, DRDY, RESET, CLKEN, TOUCH>
 where
     DRDY: InputPin,
     TOUCH: InputPin,
     RESET: OutputPin,
+    CLKEN: OutputPin,
 {
     #[rustfmt::skip]
     fn config(&self) -> ConfigRegisters {
@@ -108,7 +111,7 @@ where
 
     pub async fn enable_async(
         self,
-    ) -> Result<PoweredFrontend<S, DRDY, RESET, TOUCH>, (Self, Error<S::Error>)>
+    ) -> Result<PoweredFrontend<S, DRDY, RESET, CLKEN, TOUCH>, (Self, Error<S::Error>)>
     where
         S: AsyncSpiDevice,
     {
@@ -132,33 +135,40 @@ where
     }
 }
 
-pub struct PoweredFrontend<S, DRDY, RESET, TOUCH>
+pub struct PoweredFrontend<S, DRDY, RESET, CLKEN, TOUCH>
 where
     RESET: OutputPin,
+    CLKEN: OutputPin,
 {
-    frontend: Frontend<S, DRDY, RESET, TOUCH>,
+    frontend: Frontend<S, DRDY, RESET, CLKEN, TOUCH>,
     touched: bool,
 }
 
-impl<S, DRDY, RESET, TOUCH> PoweredFrontend<S, DRDY, RESET, TOUCH>
+impl<S, DRDY, RESET, CLKEN, TOUCH> PoweredFrontend<S, DRDY, RESET, CLKEN, TOUCH>
 where
     DRDY: InputPin,
     TOUCH: InputPin,
     RESET: OutputPin,
+    CLKEN: OutputPin,
 {
     pub fn spi_mut(&mut self) -> &mut S {
         self.frontend.spi_mut()
     }
 }
 
-impl<S, DRDY, RESET, TOUCH> PoweredFrontend<S, DRDY, RESET, TOUCH>
+impl<S, DRDY, RESET, CLKEN, TOUCH> PoweredFrontend<S, DRDY, RESET, CLKEN, TOUCH>
 where
     RESET: OutputPin,
+    CLKEN: OutputPin,
     DRDY: InputPin,
     TOUCH: InputPin,
     S: AsyncSpiDevice,
 {
     async fn enable(&mut self) -> Result<(), Error<S::Error>> {
+        self.frontend.clken.set_high().unwrap();
+
+        Timer::after(Duration::from_millis(1)).await;
+
         self.frontend
             .adc
             .reset_async(&mut self.frontend.reset, &mut Delay)
@@ -217,22 +227,19 @@ where
         self.touched
     }
 
-    pub async fn shut_down(mut self) -> Frontend<S, DRDY, RESET, TOUCH> {
+    pub async fn shut_down(mut self) -> Frontend<S, DRDY, RESET, CLKEN, TOUCH> {
         let _ = self
             .frontend
             .adc
             .write_command_async(Command::STOP, &mut [])
             .await;
 
-        let _ = self
-            .frontend
-            .adc
-            .write_command_async(Command::RESET, &mut [])
-            .await;
+        self.frontend.reset.set_low().unwrap();
 
         Timer::after(Duration::from_millis(1)).await;
 
-        self.frontend.reset.set_low().unwrap();
+        self.frontend.clken.set_low().unwrap();
+
         self.frontend
     }
 }

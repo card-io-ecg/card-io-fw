@@ -67,6 +67,7 @@ pub type AdcSpi<'d> = SpiDeviceWrapper<
     >,
     AdcChipSelect,
 >;
+pub type AdcClockEnable = GpioPin<Output<PushPull>, 38>;
 
 pub type BatteryAdcInput = GpioPin<Analog, 9>;
 pub type BatteryAdcEnable = GpioPin<Output<PushPull>, 8>;
@@ -74,8 +75,9 @@ pub type VbusDetect = GpioPin<Input<Floating>, 17>;
 pub type ChargeCurrentInput = GpioPin<Analog, 10>;
 pub type ChargerStatus = GpioPin<Input<PullUp>, 47>;
 
-pub type EcgFrontend = Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>;
-pub type PoweredEcgFrontend = PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, TouchDetect>;
+pub type EcgFrontend = Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, AdcClockEnable, TouchDetect>;
+pub type PoweredEcgFrontend =
+    PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, AdcClockEnable, TouchDetect>;
 
 pub type Display = DisplayType<DisplayInterface<'static>, DisplayReset>;
 pub type PoweredDisplay = PoweredDisplayType<DisplayInterface<'static>, DisplayReset>;
@@ -177,6 +179,7 @@ impl super::startup::StartupResources {
 
         let adc_drdy = io.pins.gpio4.into_floating_input();
         let adc_reset = io.pins.gpio2.into_push_pull_output();
+        let adc_clock_enable = io.pins.gpio38.into_push_pull_output();
         let touch_detect = io.pins.gpio1.into_floating_input();
         let mut adc_cs = io.pins.gpio18.into_push_pull_output();
 
@@ -206,6 +209,7 @@ impl super::startup::StartupResources {
             ),
             adc_drdy,
             adc_reset,
+            adc_clock_enable,
             touch_detect,
         );
 
