@@ -63,7 +63,7 @@ battery_max17055 = []
 has_frontend_powerdown = []
 
 hw_v1 = ["battery_adc"]
-hw_v2 = ["battery_adc", "has_frontend_powerdown"] # temporarily uses ADC, also v3
+hw_v2 = ["battery_adc"] # temporarily uses ADC, also v3
 
 # MCU options - make sure to update `.cargo/config.toml`!
 # esp32s2 = ["dep:esp32s2", "dep:esp32s2-hal", "esp-backtrace/esp32s2", "esp-println/esp32s2", "rtt"]

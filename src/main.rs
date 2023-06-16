@@ -253,7 +253,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
     }
 }
 
-// Debug task, to be removed
+#[cfg(feature = "battery_adc")]
 #[embassy_executor::task]
 async fn monitor_task(
     mut battery: BatteryAdc,
@@ -297,6 +297,23 @@ async fn monitor_task(
             sample_count += 1;
         }
 
+        timer.next().await;
+    }
+
+    log::debug!("Monitor exited");
+}
+
+#[cfg(feature = "battery_max17055")]
+#[embassy_executor::task]
+async fn monitor_task(
+    mut _battery: BatteryAdc,
+    _battery_state: &'static SharedBatteryState,
+    task_control: &'static Signal<NoopRawMutex, ()>,
+) {
+    let mut timer = Ticker::every(Duration::from_millis(10));
+
+    while !task_control.signaled() {
+        // TODO: use this task to read MAX17055. Alternatively, we could implement in BatteryAdc
         timer.next().await;
     }
 
