@@ -28,7 +28,7 @@ use crate::{
             Rtc, Spi, IO,
         },
         utils::{DummyOutputPin, SpiDeviceWrapper},
-        wifi_driver::WifiDriver,
+        wifi::driver::WifiDriver,
         *,
     },
     heap::init_heap,

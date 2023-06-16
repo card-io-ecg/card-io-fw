@@ -13,7 +13,7 @@ use crate::{
     board::{
         config::{Config, ConfigFile},
         hal::clock::Clocks,
-        wifi_driver::WifiDriver,
+        wifi::driver::WifiDriver,
         ChargerStatus, EcgFrontend, PoweredDisplay, VbusDetect,
     },
     SharedBatteryState,
