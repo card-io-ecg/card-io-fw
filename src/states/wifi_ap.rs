@@ -88,6 +88,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     let connection_task_control = TaskController::new();
     let net_task_control = TaskController::new();
     let webserver_task_control = TaskController::new();
+    let webserver_task_control2 = TaskController::new();
 
     unsafe {
         spawner.must_spawn(connection_task(
@@ -101,6 +102,10 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         spawner.must_spawn(webserver_task(
             as_static_ref(&stack),
             as_static_ref(&webserver_task_control),
+        ));
+        spawner.must_spawn(webserver_task(
+            as_static_ref(&stack),
+            as_static_ref(&webserver_task_control2),
         ));
     }
 
@@ -138,6 +143,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     }
 
     webserver_task_control.stop_from_outside().await;
+    webserver_task_control2.stop_from_outside().await;
 
     join(
         connection_task_control.stop_from_outside(),
@@ -210,7 +216,7 @@ impl<C: Connection> RequestHandler<C> for DemoHandler {
     }
 }
 
-#[embassy_executor::task]
+#[embassy_executor::task(pool_size = 2)]
 async fn webserver_task(
     stack: &'static Stack<WifiDevice<'static>>,
     task_control: &'static TaskController,
