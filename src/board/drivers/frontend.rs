@@ -234,6 +234,12 @@ where
             .write_command_async(Command::STOP, &mut [])
             .await;
 
+        let _ = self
+            .frontend
+            .adc
+            .write_command_async(Command::RESET, &mut [])
+            .await;
+
         self.frontend.reset.set_low().unwrap();
 
         Timer::after(Duration::from_millis(1)).await;
