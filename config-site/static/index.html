@@ -176,15 +176,24 @@
         $on("btn_nn", "click", $fe.nn);
         $on("btn_back", "click", $fe.start);
     }
+    $load = async (url, retry = 5) => {
+        for (let i = 0; i < retry; i++) {
+            try {
+                return await fetch(url);
+            } catch (e) {
+                console.log(e);
+            }
+        }
+    }
 
     let dom_loaded = false;
     let fonts_loaded = false;
 
     $fe = {
         start: () => $page('demo', async (tpl) => {
-            let demo = await fetch('/demo');
-            let system_info = await fetch('/si');
-            let known_networks = await fetch('/kn');
+            let demo = await $load('/demo');
+            let system_info = await $load('/si');
+            let known_networks = await $load('/kn');
 
             tpl.set("data", await demo.text());
             tpl.set("fw", await system_info.text());
