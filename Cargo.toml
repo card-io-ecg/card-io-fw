@@ -54,8 +54,16 @@ heapless = "0.7"
 esp-hal-common = { git = "https://github.com/bugadani/esp-hal.git", branch = "s3_adc_calibration" }
 esp32s3-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "s3_adc_calibration" }
 
+
 [features]
-default = ["esp32s3"]
+default = ["esp32s3", "hw_v2"]
+
+battery_adc = []
+battery_max17055 = []
+has_frontend_powerdown = []
+
+hw_v1 = ["battery_adc"]
+hw_v2 = ["battery_adc", "has_frontend_powerdown"] # temporarily uses ADC
 
 # MCU options - make sure to update `.cargo/config.toml`!
 # esp32s2 = ["dep:esp32s2", "dep:esp32s2-hal", "esp-backtrace/esp32s2", "esp-println/esp32s2", "rtt"]
