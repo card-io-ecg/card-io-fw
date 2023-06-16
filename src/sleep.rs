@@ -33,6 +33,10 @@ pub fn enable_gpio_pullup<MODE, const PIN: u8>(_pin: &GpioPin<MODE, PIN>) {
 
     #[allow(clippy::single_match)]
     match PIN {
+        17 => {
+            rtcio.pad_dac1.modify(|_, w| w.pdac1_rue().set_bit());
+            rtc_ctrl.pad_hold.modify(|_, w| w.pdac1_hold().set_bit())
+        }
         21 => {
             rtcio.rtc_pad21.modify(|_, w| w.rue().set_bit());
             rtc_ctrl.pad_hold.modify(|_, w| w.pad21_hold().set_bit())

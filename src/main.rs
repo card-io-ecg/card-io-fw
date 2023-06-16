@@ -74,6 +74,12 @@ fn main() -> ! {
     // Board::initialize initialized embassy so it must be called first.
     let resources = StartupResources::initialize();
 
+    #[cfg(feature = "hw_v1")]
+    log::info!("Hardware version: v1");
+
+    #[cfg(feature = "hw_v2")]
+    log::info!("Hardware version: v2");
+
     let executor = EXECUTOR.init(Executor::new());
     executor.run(move |spawner| {
         spawner.spawn(main_task(spawner, resources)).ok();
@@ -191,11 +197,17 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
                 task_control.signal(());
 
                 let (_, _, _, mut touch) = board.frontend.split();
+
+                #[cfg(feature = "hw_v1")]
                 let charger_pin = board.battery_monitor.charger_status;
+
+                #[cfg(feature = "hw_v2")]
+                let charger_pin = board.battery_monitor.vbus_detect;
 
                 touch.wait_for_high().await.unwrap();
                 Timer::after(Duration::from_millis(100)).await;
 
+                #[cfg(feature = "hw_v1")]
                 enable_gpio_pullup(&charger_pin);
 
                 enable_gpio_wakeup(&touch, RtcioWakeupType::LowLevel);
@@ -214,12 +226,18 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
                 task_control.signal(());
 
                 let (_, _, _, mut touch) = board.frontend.split();
+
+                #[cfg(feature = "hw_v1")]
                 let charger_pin = board.battery_monitor.charger_status;
+
+                #[cfg(feature = "hw_v2")]
+                let charger_pin = board.battery_monitor.vbus_detect;
 
                 touch.wait_for_high().await.unwrap();
                 Timer::after(Duration::from_millis(100)).await;
 
                 enable_gpio_wakeup(&touch, RtcioWakeupType::LowLevel);
+
                 // FIXME: This is a bit awkward as unplugging then replugging will not wake the
                 // device. Ideally, we'd use the VBUS detect pin, but it's not connected to RTCIO.
                 disable_gpio_wakeup(&charger_pin);
