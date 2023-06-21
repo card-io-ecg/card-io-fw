@@ -12,7 +12,7 @@ use embedded_menu::{
 use norfs::{
     medium::StorageMedium,
     reader::BoundReader,
-    storable::{LoadError, Storable},
+    storable::{LoadError, Loadable, Storable},
     writer::BoundWriter,
     StorageError,
 };
@@ -36,7 +36,7 @@ pub enum DisplayBrightness {
     Brightest,
 }
 
-impl Storable for DisplayBrightness {
+impl Loadable for DisplayBrightness {
     async fn load<M>(reader: &mut BoundReader<'_, M>) -> Result<Self, LoadError>
     where
         M: StorageMedium,
@@ -53,7 +53,9 @@ impl Storable for DisplayBrightness {
 
         Ok(data)
     }
+}
 
+impl Storable for DisplayBrightness {
     async fn store<M>(&self, writer: &mut BoundWriter<'_, M>) -> Result<(), StorageError>
     where
         M: StorageMedium,
@@ -72,7 +74,7 @@ pub enum BatteryDisplayStyle {
     Indicator,
 }
 
-impl Storable for BatteryDisplayStyle {
+impl Loadable for BatteryDisplayStyle {
     async fn load<M>(reader: &mut BoundReader<'_, M>) -> Result<Self, LoadError>
     where
         M: StorageMedium,
@@ -88,7 +90,9 @@ impl Storable for BatteryDisplayStyle {
 
         Ok(data)
     }
+}
 
+impl Storable for BatteryDisplayStyle {
     async fn store<M>(&self, writer: &mut BoundWriter<'_, M>) -> Result<(), StorageError>
     where
         M: StorageMedium,

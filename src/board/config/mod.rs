@@ -5,7 +5,7 @@ pub use current::Config;
 use norfs::{
     medium::StorageMedium,
     reader::BoundReader,
-    storable::{LoadError, Storable},
+    storable::{LoadError, Loadable, Storable},
     writer::BoundWriter,
     StorageError,
 };
@@ -34,7 +34,7 @@ impl ConfigFile {
     }
 }
 
-impl Storable for ConfigFile {
+impl Loadable for ConfigFile {
     async fn load<M>(reader: &mut BoundReader<'_, M>) -> Result<Self, LoadError>
     where
         M: StorageMedium,
@@ -47,7 +47,9 @@ impl Storable for ConfigFile {
 
         Ok(data)
     }
+}
 
+impl Storable for ConfigFile {
     async fn store<M>(&self, writer: &mut BoundWriter<'_, M>) -> Result<(), StorageError>
     where
         M: StorageMedium,
