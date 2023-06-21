@@ -3,7 +3,8 @@
 #![feature(async_fn_in_trait)]
 #![feature(type_alias_impl_trait)]
 #![feature(let_chains)]
-#![allow(incomplete_features)]
+#![feature(generic_const_exprs)] // norfs needs this
+#![allow(incomplete_features)] // generic_const_exprs, async_fn_in_trait
 
 extern crate alloc;
 
@@ -130,16 +131,9 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             storage.capacity()
         );
 
-        let mut buffer = [0; ConfigFile::MAX_CONFIG_SIZE];
         match storage.read("config").await {
-            Ok(mut config) => match config.read(storage, &mut buffer).await {
-                Ok(bytes) => match ConfigFile::parse(&buffer[..bytes]) {
-                    Ok(config) => config.into_config(),
-                    Err(e) => {
-                        log::warn!("Failed to parse config file: {e:?}. Reverting to defaults");
-                        Config::default()
-                    }
-                },
+            Ok(mut config) => match config.read_loadable::<ConfigFile>(storage).await {
+                Ok(config) => config.into_config(),
                 Err(e) => {
                     log::warn!("Failed to read config file: {e:?}. Reverting to defaults");
                     Config::default()

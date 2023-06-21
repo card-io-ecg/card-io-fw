@@ -78,12 +78,11 @@ impl Board {
         if let Some(storage) = self.storage.as_mut() {
             let config_data = ConfigFile::new(self.config);
 
-            let serialized_config = config_data.into_vec();
             if let Err(e) = storage
-                .store("config", &serialized_config, OnCollision::Overwrite)
+                .store_writer("config", &config_data, OnCollision::Overwrite)
                 .await
             {
-                log::error!("Failed to save config: {:?}", e);
+                log::error!("Failed to save config: {e:?}");
             }
         } else {
             log::warn!("Storage unavailable");
