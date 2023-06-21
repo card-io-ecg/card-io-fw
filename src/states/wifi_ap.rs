@@ -165,15 +165,12 @@ async fn connection_task(
             log::debug!("Device capabilities: {:?}", controller.get_capabilities());
 
             loop {
-                match esp_wifi::wifi::get_wifi_state() {
-                    WifiState::ApStart => {
-                        // wait until we're no longer connected
-                        controller.wait_for_event(WifiEvent::ApStop).await;
-                        Timer::after(Duration::from_millis(5000)).await;
+                if let WifiState::ApStart = esp_wifi::wifi::get_wifi_state() {
+                    // wait until we're no longer connected
+                    controller.wait_for_event(WifiEvent::ApStop).await;
+                    Timer::after(Duration::from_millis(5000)).await;
 
-                        // TODO: exit app state if disconnected?
-                    }
-                    _ => {}
+                    // TODO: exit app state if disconnected?
                 }
 
                 if !matches!(controller.is_started(), Ok(true)) {

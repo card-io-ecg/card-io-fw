@@ -49,7 +49,7 @@ fn compress_file(source: impl AsRef<Path>, dst: impl AsRef<Path>) {
     let mut buffer = Vec::new();
     reader.read_to_end(&mut buffer).unwrap();
 
-    if source.as_ref().extension() == Some(&OsStr::new("html")) {
+    if source.as_ref().extension() == Some(OsStr::new("html")) {
         let cfg = minify_html::Cfg {
             do_not_minify_doctype: true,
             minify_css: true,

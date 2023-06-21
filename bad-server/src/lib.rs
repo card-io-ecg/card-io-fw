@@ -41,8 +41,14 @@ pub struct BadServer<
     error_handler: EH,
 }
 
+impl<C: Connection> Default for BadServer<NoHandler<C>, DefaultErrorHandler<C>, 1024, 32> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<C: Connection> BadServer<NoHandler<C>, DefaultErrorHandler<C>, 1024, 32> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             handler: NoHandler(PhantomData),
             error_handler: DefaultErrorHandler(PhantomData),
