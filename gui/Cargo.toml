@@ -12,9 +12,9 @@ embedded-layout = "0.3"
 tinybmp = "0.5"
 
 embedded-menu = { version = "0.1", git = "https://github.com/bugadani/embedded-menu.git" }
+norfs = { git = "https://github.com/card-io-ecg/norfs.git", branch = "complex", features = ["embedded-io"] }
 
 heapless = "0.7"
-serde = { version = "1.0", default-features = false, features = ["derive"] }
 
 signal-processing = { path = "../signal-processing" }
 

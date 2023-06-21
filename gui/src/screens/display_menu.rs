@@ -9,7 +9,13 @@ use embedded_menu::{
     selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
     Menu, SelectValue,
 };
-use serde::{Deserialize, Serialize};
+use norfs::{
+    medium::StorageMedium,
+    reader::BoundReader,
+    storable::{LoadError, Storable},
+    writer::BoundWriter,
+    StorageError,
+};
 
 use crate::{
     screens::BatteryInfo,
@@ -21,7 +27,7 @@ pub enum DisplayMenuEvents {
     Back,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue)]
 pub enum DisplayBrightness {
     Dimmest,
     Dim,
@@ -30,13 +36,66 @@ pub enum DisplayBrightness {
     Brightest,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue, Serialize, Deserialize)]
+impl Storable for DisplayBrightness {
+    async fn load<M>(reader: &mut BoundReader<'_, M>) -> Result<Self, LoadError>
+    where
+        M: StorageMedium,
+        [(); M::BLOCK_COUNT]: Sized,
+    {
+        let data = match u8::load(reader).await? {
+            0 => Self::Dimmest,
+            1 => Self::Dim,
+            2 => Self::Normal,
+            3 => Self::Bright,
+            4 => Self::Brightest,
+            _ => return Err(LoadError::InvalidValue),
+        };
+
+        Ok(data)
+    }
+
+    async fn store<M>(&self, writer: &mut BoundWriter<'_, M>) -> Result<(), StorageError>
+    where
+        M: StorageMedium,
+        [(); M::BLOCK_COUNT]: Sized,
+    {
+        (*self as u8).store(writer).await
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue)]
 pub enum BatteryDisplayStyle {
     #[display_as("Voltage")]
     MilliVolts,
     Percentage,
     Icon,
     Indicator,
+}
+
+impl Storable for BatteryDisplayStyle {
+    async fn load<M>(reader: &mut BoundReader<'_, M>) -> Result<Self, LoadError>
+    where
+        M: StorageMedium,
+        [(); M::BLOCK_COUNT]: Sized,
+    {
+        let data = match u8::load(reader).await? {
+            0 => Self::MilliVolts,
+            1 => Self::Percentage,
+            2 => Self::Icon,
+            3 => Self::Indicator,
+            _ => return Err(LoadError::InvalidValue),
+        };
+
+        Ok(data)
+    }
+
+    async fn store<M>(&self, writer: &mut BoundWriter<'_, M>) -> Result<(), StorageError>
+    where
+        M: StorageMedium,
+        [(); M::BLOCK_COUNT]: Sized,
+    {
+        (*self as u8).store(writer).await
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Menu)]

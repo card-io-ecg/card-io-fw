@@ -1,10 +1,16 @@
-use serde::{Deserialize, Serialize};
-
 pub mod current;
 
 pub use current::Config;
 
-#[derive(Serialize, Deserialize)]
+use norfs::{
+    medium::StorageMedium,
+    reader::BoundReader,
+    storable::{LoadError, Storable},
+    writer::BoundWriter,
+    StorageError,
+};
+
+#[derive(Clone, Copy)]
 pub enum ConfigFile {
     V1(Config),
 }
@@ -16,15 +22,8 @@ impl Default for ConfigFile {
 }
 
 impl ConfigFile {
-    pub const MAX_CONFIG_SIZE: usize = 1 + Config::MAX_CONFIG_SIZE;
-
     pub fn new(config: Config) -> Self {
         Self::V1(config)
-    }
-
-    /// Parses config data.
-    pub fn parse(buffer: &[u8]) -> Result<Self, ()> {
-        postcard::from_bytes(buffer).map_err(|_| ())
     }
 
     /// Migrates config data to newest format.
@@ -33,9 +32,34 @@ impl ConfigFile {
             Self::V1(config) => config,
         }
     }
+}
 
-    /// Serializes config data.
-    pub fn into_vec(self) -> heapless::Vec<u8, { Self::MAX_CONFIG_SIZE }> {
-        postcard::to_vec(&self).unwrap()
+impl Storable for ConfigFile {
+    async fn load<M>(reader: &mut BoundReader<'_, M>) -> Result<Self, LoadError>
+    where
+        M: StorageMedium,
+        [(); M::BLOCK_COUNT]: Sized,
+    {
+        let data = match u8::load(reader).await? {
+            0 => Self::V1(Config::load(reader).await?),
+            _ => return Err(LoadError::InvalidValue),
+        };
+
+        Ok(data)
+    }
+
+    async fn store<M>(&self, writer: &mut BoundWriter<'_, M>) -> Result<(), StorageError>
+    where
+        M: StorageMedium,
+        [(); M::BLOCK_COUNT]: Sized,
+    {
+        match self {
+            Self::V1(config) => {
+                0u8.store(writer).await?;
+                config.store(writer).await?;
+            }
+        }
+
+        Ok(())
     }
 }
