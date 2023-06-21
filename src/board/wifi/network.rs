@@ -6,6 +6,7 @@ use norfs::{
     StorageError,
 };
 
+#[derive(Clone)]
 pub struct WifiNetwork {
     pub ssid: heapless::String<32>,
     pub pass: heapless::String<64>,
