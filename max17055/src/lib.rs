@@ -7,6 +7,10 @@ use embedded_hal::i2c::{I2c, Operation};
 use embedded_hal_async::i2c::I2c as AsyncI2c;
 use register_access::{AsyncRegisterAccess, RegisterAccess};
 
+use crate::descriptors::*;
+
+pub mod descriptors;
+
 #[derive(Debug)]
 pub enum Error<I2cE> {
     Transfer(I2cE),

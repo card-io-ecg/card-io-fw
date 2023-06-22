@@ -121,6 +121,7 @@ macro_rules! impl_fields {
     ($($field:ident($rwt:ty, pos = $pos:literal, width = $width:literal): $type:ty),*) => {
         $(
             #[inline(always)]
+            #[allow(non_snake_case)]
             pub fn $field(self) -> Field<$pos, $width, $type, Self, $rwt> {
                 Field::new(self)
             }
@@ -152,6 +153,7 @@ macro_rules! register {
 
         #[derive(Debug, Copy, Clone)]
         #[must_use]
+        #[allow(non_camel_case_types)]
         pub struct $reg {
             value: $rwt
         }
