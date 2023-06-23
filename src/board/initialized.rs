@@ -19,6 +19,14 @@ use crate::{
     SharedBatteryState,
 };
 
+#[cfg(feature = "battery_adc")]
+use crate::board::drivers::battery_adc::BatteryAdcData;
+
+pub struct BatteryState {
+    #[cfg(feature = "battery_adc")]
+    pub adc_data: Option<BatteryAdcData>,
+}
+
 pub struct BatteryMonitor<VBUS, CHG> {
     pub model: BatteryModel,
     pub battery_state: &'static SharedBatteryState,
@@ -27,16 +35,33 @@ pub struct BatteryMonitor<VBUS, CHG> {
 }
 
 impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
+    #[cfg(feature = "battery_adc")]
     pub async fn battery_data(&mut self) -> Option<BatteryInfo> {
         let state = self.battery_state.lock().await;
 
-        state.map(|mut state| {
-            if !self.is_charging() {
-                state.charge_current = None;
+        state.adc_data.map(|state| {
+            let charge_current = if self.is_charging() {
+                None
+            } else {
+                Some(state.charge_current)
+            };
+            BatteryInfo {
+                voltage: state.voltage,
+                charge_current,
+                percentage: self.model.estimate(state.voltage, charge_current),
+                is_low: state.voltage < LOW_BATTERY_VOLTAGE,
             }
-            state.percentage = self.model.estimate(state.voltage, state.charge_current);
-            state
         })
+    }
+
+    #[cfg(feature = "battery_max17055")]
+    pub async fn battery_data(&mut self) -> Option<BatteryInfo> {
+        unimplemented!()
+    }
+
+    #[cfg(not(any(feature = "battery_max17055", feature = "battery_adc")))]
+    pub async fn battery_data(&mut self) -> Option<BatteryInfo> {
+        None
     }
 
     pub fn is_plugged(&self) -> bool {

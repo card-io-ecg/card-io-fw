@@ -14,7 +14,6 @@ use embassy_time::{Duration, Ticker, Timer};
 #[cfg(feature = "hw_v1")]
 use embedded_hal::digital::OutputPin;
 use embedded_hal_async::digital::Wait;
-use gui::screens::BatteryInfo;
 use norfs::{drivers::internal::InternalDriver, medium::cache::ReadCache, Storage, StorageError};
 
 #[cfg(feature = "battery_adc")]
@@ -25,7 +24,7 @@ use crate::{
     board::{
         config::{Config, ConfigFile},
         hal::{self, entry},
-        initialized::{BatteryMonitor, Board, ConfigPartition},
+        initialized::{BatteryMonitor, BatteryState, Board, ConfigPartition},
         startup::StartupResources,
         BATTERY_MODEL,
     },
@@ -61,7 +60,7 @@ pub enum AppState {
     ShutdownCharging,
 }
 
-pub type SharedBatteryState = Mutex<NoopRawMutex, Option<BatteryInfo>>;
+pub type SharedBatteryState = Mutex<NoopRawMutex, BatteryState>;
 
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static BATTERY_STATE: StaticCell<SharedBatteryState> = StaticCell::new();
@@ -88,7 +87,10 @@ fn main() -> ! {
 async fn main_task(spawner: Spawner, resources: StartupResources) {
     let task_control = &*TASK_CONTROL.init_with(Signal::new);
 
-    let battery_state = BATTERY_STATE.init(Mutex::new(None));
+    let battery_state = BATTERY_STATE.init(Mutex::new(BatteryState {
+        #[cfg(feature = "battery_adc")]
+        adc_data: None,
+    }));
 
     #[cfg(feature = "battery_adc")]
     spawner
@@ -262,8 +264,6 @@ async fn monitor_task(
     battery_state: &'static SharedBatteryState,
     task_control: &'static Signal<NoopRawMutex, ()>,
 ) {
-    use crate::board::LOW_BATTERY_VOLTAGE;
-
     let mut timer = Ticker::every(Duration::from_millis(10));
 
     battery.enable.set_high().unwrap();
@@ -276,27 +276,21 @@ async fn monitor_task(
     const AVG_SAMPLE_COUNT: u32 = 128;
 
     while !task_control.signaled() {
-        let voltage = battery.read_battery_voltage().await;
-        let current = battery.read_charge_current().await;
+        let data = battery.read_data().await.unwrap();
 
-        voltage_accumulator += voltage.unwrap() as u32;
-        current_accumulator += current.unwrap() as u32;
+        voltage_accumulator += data.voltage as u32;
+        current_accumulator += data.charge_current as u32;
 
         if sample_count == AVG_SAMPLE_COUNT {
-            let voltage = (voltage_accumulator / AVG_SAMPLE_COUNT) as u16;
-            let current = (current_accumulator / AVG_SAMPLE_COUNT) as u16;
-
             let mut state = battery_state.lock().await;
 
-            *state = Some(BatteryInfo {
-                voltage,
-                charge_current: Some(current),
-                percentage: 0,
-                is_low: voltage < LOW_BATTERY_VOLTAGE,
-            });
+            let average = crate::board::drivers::battery_adc::BatteryAdcData {
+                voltage: (voltage_accumulator / AVG_SAMPLE_COUNT) as u16,
+                charge_current: (current_accumulator / AVG_SAMPLE_COUNT) as u16,
+            };
+            state.adc_data = Some(average);
 
-            log::debug!("Voltage = {voltage:?}");
-            log::debug!("Current = {current:?}");
+            log::debug!("Battery data: {average:?}");
 
             sample_count = 0;
 
