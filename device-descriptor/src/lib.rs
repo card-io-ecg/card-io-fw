@@ -133,8 +133,7 @@ macro_rules! impl_fields {
 
 #[macro_export]
 macro_rules! define_register_type {
-    // TODO: this must take register type into account. We might extract a wider-than-u8 type
-    ($type:ident {
+    ($rwt:ty, $type:ident {
         $(
             $( #[$variant_attr:meta] )*
             $name:ident = $value:expr
@@ -148,10 +147,10 @@ macro_rules! define_register_type {
             ),+
         }
 
-        impl core::convert::TryFrom<u8> for $type {
-            type Error = u8;
+        impl core::convert::TryFrom<$rwt> for $type {
+            type Error = $rwt;
 
-            fn try_from(data: u8) -> Result<Self, Self::Error> {
+            fn try_from(data: $rwt) -> Result<Self, Self::Error> {
                 match data {
                     $($value => Ok($type::$name)),+,
                     _ => Err(data)
@@ -159,9 +158,9 @@ macro_rules! define_register_type {
             }
         }
 
-        impl From<$type> for u8 {
-            fn from(data: $type) -> u8 {
-                data as u8
+        impl From<$type> for $rwt {
+            fn from(data: $type) -> $rwt {
+                data as $rwt
             }
         }
     }
@@ -241,7 +240,7 @@ macro_rules! register {
         }
     };
 
-    ($reg:ident $proto:tt {
+    ($reg:ident ($rwt:ty, addr = $addr:literal $(, default = $default:literal)?) {
         $( $field:ident(pos = $pos:literal, width = $width:literal): $type:ident $({
             $(
                 $(#[$variant_attr:meta])*
@@ -249,9 +248,10 @@ macro_rules! register {
             ),+
         })? ),*
     } ) => {
-        $(
-            $(
+        $( // for each field
+            $( // if field has embedded type definition
                 $crate::define_register_type!(
+                    $rwt,
                     $type {
                         $(
                             $(#[$variant_attr])*
@@ -262,22 +262,27 @@ macro_rules! register {
             )?
         )*
 
-        $crate::register!($reg $proto { $( $field(pos = $pos, width = $width): $type ),*} );
+        $crate::register!($reg ($rwt, addr = $addr $(, default = $default)?) { $( $field(pos = $pos, width = $width): $type ),*} );
     };
 }
 
+/// This macro will only generate a writeable register if a default value is specified.
 #[macro_export]
 macro_rules! writer_proxy {
     ($reg:ident ($rwt:ty, addr = $addr:literal) {
-        $( $field:ident(pos = $pos:literal, width = $width:literal): $type:ty ),*
+        $( $field:ident(pos = $pos:literal, width = $width:literal): $type:ident $({
+            $( $name:ident = $value:expr),+
+        })? ),*
     } ) => {};
 
     ($reg:ident ($rwt:ty, addr = $addr:literal, default = $default:literal) {
-        $( $field:ident(pos = $pos:literal, width = $width:literal): $type:ty ),*
+        $( $field:ident(pos = $pos:literal, width = $width:literal): $type:ident $({
+            $( $name:ident = $value:expr),+
+        })? ),*
     } ) => {
         #[allow(non_camel_case_types)]
         pub struct $reg {
-            bits: $rwt
+            bits: $rwt,
         }
 
         impl Proxy for $reg {
@@ -285,9 +290,7 @@ macro_rules! writer_proxy {
 
             #[inline(always)]
             fn from_bits(bits: $rwt) -> Self {
-                Self {
-                    bits
-                }
+                Self { bits }
             }
 
             #[inline(always)]
@@ -307,14 +310,6 @@ macro_rules! writer_proxy {
                 self.write_bits($default)
             }
         }
-    };
-
-    ($reg:ident $proto:tt {
-        $( $field:ident(pos = $pos:literal, width = $width:literal): $type:ident $({
-            $( $name:ident = $value:expr),+
-        })? ),*
-    } ) => {
-        $crate::writer_proxy!($reg $proto { $( $field(pos = $pos, width = $width): $type ),*} );
     };
 }
 
