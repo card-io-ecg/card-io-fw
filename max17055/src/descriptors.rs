@@ -175,56 +175,59 @@ device! {
         is(pos = 11, width = 1): Clear,
 
         /// AIN shutdown
-        ainsh(pos = 10, width = 1): bool,
+        ainsh(pos = 10, width = 1): Bit {
+            Set = 1,
+            NotSet = 0
+        },
 
         /// (Enable Temperature Channel): Set to 1 and set ETHRM or FTHRM to 1 to
         /// enable temperature measurements selected by Config.TSel
-        ten(pos = 9, width = 1): bool,
+        ten(pos = 9, width = 1): Bit,
 
         /// (Temperature External): Set to 1 to allow external temperature measurements
         /// to be written to Temp from the host. When set to 0, the IC's
         /// own measurements as used as selected by Config.TSEL.
-        tex(pos = 8, width = 1): bool,
+        tex(pos = 8, width = 1): Bit,
 
         /// (Shutdown): Write this bit to logic 1 to force a shutdown of the device after timeout
         /// of the ShdnTimer register (default 45s delay). SHDN is reset to 0 at power-up and upon
         /// exiting shutdown mode. To command shutdown within 22.5s, write ShdnTimer = 0x001E.
-        shdn(pos = 7, width = 1): bool,
+        shdn(pos = 7, width = 1): Bit,
 
         /// (Communication Shutdown): Set to logic 1 to force the device to enter shutdown mode
         /// if both SDA and SCL are held low for more than timeout of the ShdnTimer register.
         /// This also configures the device to wake up on a rising edge of any communication.
         /// Note that if COMMSH and AINSH are both set to 0, the device wakes up
         /// on any edge of the SDA or SCL pins.
-        commsh(pos = 6, width = 1): bool,
+        commsh(pos = 6, width = 1): Bit,
 
         /// (Enable Thermistor Automatic Bias):. Set to logic 1 to enable
         /// the automatic THRM output bias and AIN measurement.
-        ehtrm(pos = 4, width = 1): bool,
+        ehtrm(pos = 4, width = 1): Bit,
 
         /// (Force Thermistor Bias Switch): This allows the host to control the bias of
         /// the thermistor switch or enable fast detection of battery removal.
         /// Set FTHRM = 1 to always enable the thermistor bias switch.
         /// With a standard 10kΩ thermistor, this adds an additional
         /// 200μA to the current drain of the circuit.
-        fthrm(pos = 3, width = 1): bool,
+        fthrm(pos = 3, width = 1): Bit,
 
         /// (Enable ALRT Pin Output): When Aen = 1, violation of any of the alert threshold
         /// register values by temperature, voltage, current, or SOC triggers an alert.
         /// This bit affects the ALRT pin operation only.
         /// The Smx, Smn, Tmx, Tmn, Vmx, Vmn, Imx, and Imn bits
         /// of the Status register (00h) are not disabled.
-        aen(pos = 2, width = 1): bool,
+        aen(pos = 2, width = 1): Bit,
 
         /// Enable alert on battery insertion when the IC is mounted on the host side.
         /// When Bei = 1, a battery-insertion condition, as detected by the
         /// AIN pin voltage, triggers an alert.
-        bei(pos = 1, width = 1): bool,
+        bei(pos = 1, width = 1): Bit,
 
         /// Enable alert on battery removal when the IC is mounted on the host side.
         /// When Ber = 1, a battery-removal condition, as detected
         /// by the AIN pin voltage, triggers an alert.
-        ber(pos = 0, width = 1): bool
+        ber(pos = 0, width = 1): Bit
     }
     IChgTerm(u16, addr = 0x1E, default = 0x0640) {
         /// The IChgTerm register allows the device to detect when a charge cycle of the cell has
@@ -394,20 +397,20 @@ device! {
         /// (Relaxed Cell Detection): This bit is set to a 1 whenever the ModelGauge m5 algorithm
         /// detects that the cell is in a fully relaxed state. This bit is cleared to 0 whenever a
         /// current greater than the Load threshold is detected.
-        rel_dt(pos = 9, width = 1): bool,
+        rel_dt(pos = 9, width = 1): Bit,
 
         /// (Empty Detection): This bit is set to 1 when the IC detects that the cell empty point
         /// has been reached. This bit is reset to 0 when the cell voltage rises above the recovery
         /// threshold.
-        e_det(pos = 8, width = 1): bool,
+        e_det(pos = 8, width = 1): Bit,
 
         /// (Full Qualified): This bit is set when all charge termination conditions have been met.
-        fq(pos = 7, width = 1): bool,
+        fq(pos = 7, width = 1): Bit,
 
         /// (Long Relaxation): This bit is set to a 1 whenever the ModelGauge m5 algorithm detects
         /// that the cell has been relaxed for a period of 48 to 96 minutes or longer. This bit is
         /// cleared to 0 whenever the cell is no longer in a relaxed state.
-        rel_dt_2(pos = 6, width = 1): bool,
+        rel_dt_2(pos = 6, width = 1): Bit,
 
         /// (Data Not Ready): This bit is set to 1 at cell insertion and remains set until the output
         /// registers have been updated. Afterwards, the IC clears this bit indicating the fuel gauge
@@ -490,24 +493,24 @@ device! {
     Status2(u16, addr = 0xB0, default = 0x0000) {
         /// If AtRateReady = 1, AtRate output registers are filled by
         /// the firmware and ready to be read by the host.
-        at_rate_ready(pos = 13, width = 1): bool,
+        at_rate_ready(pos = 13, width = 1): Bit,
 
         /// If DPReady = 1, Dynamic Power output registers are filled by
         /// the firmware and ready to be read by the host.
-        dp_ready(pos = 12, width = 1): bool,
+        dp_ready(pos = 12, width = 1): Bit,
 
         /// If SNReady = 1, the unique serial number is available over the I2C.
         /// This bit is set to 1 by firmware after serial number is read internally
         /// and placed into RAM.
         /// The serial number overwrites the Dynamic Power and AtRate output registers.
-        sn_ready(pos = 8, width = 1): bool,
+        sn_ready(pos = 8, width = 1): Bit,
 
         /// Full detected.
-        full_det(pos = 5, width = 1): bool,
+        full_det(pos = 5, width = 1): Bit,
 
         /// (Hibernate Status): This bit is set to a 1 when the device is in hibernate mode or 0
         /// when the device is in active mode. Hib is set to 0 at power-up.
-        hib(pos = 1, width = 1): bool
+        hib(pos = 1, width = 1): Bit
     }
     Power(u16, addr = 0xB1) {}
     ID_UserMem2(u16, addr = 0xB2) {}
@@ -536,7 +539,7 @@ device! {
     HibCfg(u16, addr = 0xBA, default = 0x870C) {
         /// When set to 1 the IC enters hibernate mode if conditions are met.
         /// When set to 0 the IC always remains in active mode of operation.
-        en_hib(pos = 15, width = 1): bool,
+        en_hib(pos = 15, width = 1): Bit,
 
         /// The HibCfg register controls hibernate mode functionality.
         /// The MAX17055 enters and exits hibernate when the battery current is
@@ -547,12 +550,12 @@ device! {
     Config2(u16, addr = 0xBB, default = 0x3658) {
         /// (AtRate Enable): When this bit is set to 0, AtRate calculations are disabled and
         /// registers AtQResidual/AtTTE/AtAvSOC/AtAvCap are not updated by AtRate calculations.
-        at_rate_en(pos = 13, width = 1): bool,
+        at_rate_en(pos = 13, width = 1): Bit,
 
         /// (Dynamic Power Enable): When this bit is set to 0, Dynamic Power calculations are
         /// disabled and registers MaxPeakPower/SusPeakPower/MPPCurrent/SPPCurrent are not updated
         /// by Dynamic Power calculations.
-        dp_en(pos = 12, width = 1): bool,
+        dp_en(pos = 12, width = 1): Bit,
 
         /// Sets the time constant for the AvgPower register.
         /// The default POR value of 0100b gives a time constant of 11.25s.
@@ -563,21 +566,21 @@ device! {
         /// (SOC Change Alert Enable): Set this bit to 1 to enable alert output with
         /// the Status.dSOCi bit function. Write this bit to 0 to disable the dSOCi alert output.
         /// This bit is set to 0 at power-up.
-        d_soc_en(pos = 7, width = 1): bool,
+        d_soc_en(pos = 7, width = 1): Bit,
 
         /// (Temperature Alert Enable:): Set this bit to 1 to enable temperature based alerts.
         /// Write this bit to 0 to disable temperature alerts. This bit is set to 1 at power-up.
-        t_alrt_en(pos = 6, width = 1): bool,
+        t_alrt_en(pos = 6, width = 1): Bit,
 
         /// Host sets this bit to 1 to initiate firmware to finish processing a newly loaded model.
         /// Firmware clears this bit to zero to indicate that model loading is finished.
-        ldm_dl(pos = 5, width = 1): bool,
+        ldm_dl(pos = 5, width = 1): Bit,
 
         /// (Constant-Power Mode): Set to 1 to enable constant-power mode. If it is set to 0,
         /// all remaining capacity and remaining time calculations are estimated assuming a
         /// constant-current load. If it is set to 1, the remaining capacity and remaining
         /// time calculations are estimated assuming a constant-power load.
-        cp_mode(pos = 1, width = 1): bool
+        cp_mode(pos = 1, width = 1): Bit
     }
     VRipple(u16, addr = 0xBC, default = 0x0000) {
         /// The VRipple register holds the slow average RMS ripple value of VCell register reading
@@ -622,7 +625,7 @@ device! {
     SOCHold(u16, addr = 0xD3) {
         /// Enable bit for 99% hold feature during charging. When enabled,
         /// RepSOC holds a maximum value of 99% until full qualified is reached.
-        hold_en_99pc(pos = 12, width = 1): bool,
+        hold_en_99pc(pos = 12, width = 1): Bit,
 
         /// The positive voltage offset that is added to VEmpty.
         /// At VCell = VEmpty + EmptyVoltHold point, the empty detection/learning is occurred.
@@ -700,7 +703,7 @@ device! {
     ModelCfg(u16, addr = 0xDB) {
         /// Set 1 to command the model refreshing.
         /// After firmware executes the command, it will be cleared by firmware
-        refresh(pos = 15, width = 1): bool,
+        refresh(pos = 15, width = 1): Bit,
 
         /// Set VChg = 1 for 4.35V or 4.4V models. Set VChg = 0 for 4.2V models.
         v_chg(pos = 10, width = 1): VChg {

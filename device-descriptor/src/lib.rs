@@ -34,17 +34,17 @@ impl RegisterWidthType for u16 {
     }
 }
 
-pub trait ReadOnlyRegister<RWT: RegisterWidthType>: Proxy<RegisterWidth = RWT> + Copy {
+pub trait ReadOnlyRegister: Proxy + Copy {
     const ADDRESS: u8;
     const NAME: &'static str;
 
-    fn value(&self) -> RWT;
+    fn value(&self) -> <Self as Proxy>::RegisterWidth;
 }
 
-pub trait Register<RWT: RegisterWidthType>: ReadOnlyRegister<RWT> {
-    type Writer: WriterProxy<RegisterWidth = RWT>;
+pub trait Register: ReadOnlyRegister {
+    type Writer: WriterProxy<RegisterWidth = Self::RegisterWidth>;
 
-    const DEFAULT_VALUE: RWT;
+    const DEFAULT_VALUE: Self::RegisterWidth;
 
     #[inline(always)]
     fn new(f: impl Fn(Self::Writer) -> Self::Writer) -> Self {
@@ -190,7 +190,7 @@ macro_rules! register {
             value: $rwt
         }
 
-        impl ReadOnlyRegister<$rwt> for $reg {
+        impl ReadOnlyRegister for $reg {
             const ADDRESS: u8 = $addr;
             const NAME: &'static str = stringify!($reg);
 
@@ -231,7 +231,7 @@ macro_rules! register {
             }
         }
 
-        impl Register<$rwt> for $reg {
+        impl Register for $reg {
             type Writer = writer_proxies::$reg;
 
             const DEFAULT_VALUE: $rwt = $default;

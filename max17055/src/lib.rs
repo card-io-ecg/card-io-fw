@@ -2,7 +2,7 @@
 #![feature(async_fn_in_trait)]
 #![allow(incomplete_features)]
 
-use device_descriptor::{ReadOnlyRegister, Register};
+use device_descriptor::{Proxy, ReadOnlyRegister, Register};
 use embedded_hal::i2c::{I2c, Operation};
 use embedded_hal_async::{delay::DelayUs as AsyncDelayUs, i2c::I2c as AsyncI2c};
 use register_access::{AsyncRegisterAccess, RegisterAccess};
@@ -21,32 +21,41 @@ pub struct Max17055<I2C> {
     i2c: I2C,
 }
 
-impl<I2C> RegisterAccess for Max17055<I2C>
+impl<I2C> RegisterAccess<u16> for Max17055<I2C>
 where
     I2C: I2c,
 {
     type Error = Error<I2C::Error>;
 
-    fn read_register<R: ReadOnlyRegister<u8>>(&mut self) -> Result<R, Self::Error> {
+    fn read_register<R>(&mut self) -> Result<R, Self::Error>
+    where
+        R: ReadOnlyRegister + Proxy<RegisterWidth = u16>,
+    {
         let mut buffer = [0];
         self.read_sequential::<R>(&mut buffer)
             .map(|_| R::from_bits(buffer[0]))
     }
 
-    fn read_sequential<R: ReadOnlyRegister<u8>>(
-        &mut self,
-        buffer: &mut [u8],
-    ) -> Result<(), Self::Error> {
+    fn read_sequential<R>(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error>
+    where
+        R: ReadOnlyRegister + Proxy<RegisterWidth = u16>,
+    {
         self.i2c
             .write_read(Self::DEVICE_ADDR, &[R::ADDRESS], buffer)
             .map_err(Error::Transfer)
     }
 
-    fn write_register<R: Register<u8>>(&mut self, reg: R) -> Result<(), Self::Error> {
+    fn write_register<R>(&mut self, reg: R) -> Result<(), Self::Error>
+    where
+        R: Register + Proxy<RegisterWidth = u16>,
+    {
         self.write_sequential::<R>(&mut [reg.bits()])
     }
 
-    fn write_sequential<R: Register<u8>>(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error> {
+    fn write_sequential<R>(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error>
+    where
+        R: Register + Proxy<RegisterWidth = u16>,
+    {
         self.i2c
             .transaction(
                 Self::DEVICE_ADDR,
@@ -56,37 +65,43 @@ where
     }
 }
 
-impl<I2C> AsyncRegisterAccess for Max17055<I2C>
+impl<I2C> AsyncRegisterAccess<u16> for Max17055<I2C>
 where
     I2C: AsyncI2c,
 {
     type Error = Error<I2C::Error>;
 
-    async fn read_register_async<R: ReadOnlyRegister<u8>>(&mut self) -> Result<R, Self::Error> {
+    async fn read_register_async<R>(&mut self) -> Result<R, Self::Error>
+    where
+        R: ReadOnlyRegister + Proxy<RegisterWidth = u16>,
+    {
         let mut buffer = [0];
         self.read_sequential_async::<R>(&mut buffer)
             .await
             .map(|_| R::from_bits(buffer[0]))
     }
 
-    async fn read_sequential_async<R: ReadOnlyRegister<u8>>(
-        &mut self,
-        buffer: &mut [u8],
-    ) -> Result<(), Self::Error> {
+    async fn read_sequential_async<R>(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error>
+    where
+        R: ReadOnlyRegister + Proxy<RegisterWidth = u16>,
+    {
         self.i2c
             .write_read(Self::DEVICE_ADDR, &[R::ADDRESS], buffer)
             .await
             .map_err(Error::Transfer)
     }
 
-    async fn write_register_async<R: Register<u8>>(&mut self, reg: R) -> Result<(), Self::Error> {
+    async fn write_register_async<R>(&mut self, reg: R) -> Result<(), Self::Error>
+    where
+        R: Register + Proxy<RegisterWidth = u16>,
+    {
         self.write_sequential_async::<R>(&mut [reg.bits()]).await
     }
 
-    async fn write_sequential_async<R: Register<u8>>(
-        &mut self,
-        buffer: &mut [u8],
-    ) -> Result<(), Self::Error> {
+    async fn write_sequential_async<R>(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error>
+    where
+        R: Register + Proxy<RegisterWidth = u16>,
+    {
         self.i2c
             .transaction(
                 Self::DEVICE_ADDR,
@@ -109,11 +124,14 @@ impl<I2C> Max17055<I2C>
 where
     I2C: AsyncI2c,
 {
-    async fn write_and_verify_register_async<R: Register<u8>>(
+    async fn write_and_verify_register_async<R>(
         &mut self,
         reg: R,
         delay: &mut impl AsyncDelayUs,
-    ) -> Result<(), Error<I2C::Error>> {
+    ) -> Result<(), Error<I2C::Error>>
+    where
+        R: Register + Proxy<RegisterWidth = u16>,
+    {
         for _ in 0..3 {
             self.write_sequential_async::<R>(&mut [reg.bits()]).await?;
             delay.delay_ms(1).await;
@@ -146,7 +164,7 @@ where
             self.write_register_async(Command::new(|w| w.command().write(CommandKind::SoftWakeup)))
                 .await?; // Exit Hibernate Mode step 1
             self.write_register_async::<HibCfg>(HibCfg::new(|w| {
-                w.en_hib().write(false).hib_config().write(0u32)
+                w.en_hib().write(Bit::NotSet).hib_config().write(0)
             }))
             .await?; // Exit Hibernate Mode step 2
             self.write_register_async(Command::new(|w| w.command().write(CommandKind::Clear)))
@@ -164,8 +182,11 @@ where
 
             // Clear POR flag
             let status = self.read_register_async::<Status>().await?;
-            self.write_and_verify_register_async(status.modify(|reg| reg.por().write(0)), delay)
-                .await?;
+            self.write_and_verify_register_async(
+                status.modify(|reg| reg.por().write(PowerOnReset::NoReset)),
+                delay,
+            )
+            .await?;
         }
 
         // TODO: 4.3-4.10
