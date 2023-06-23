@@ -700,7 +700,7 @@ device! {
         /// The SPPCurrent value is negative and updates every 175ms.
         current(pos = 0, width = 16): u16
     }
-    ModelCfg(u16, addr = 0xDB) {
+    ModelCfg(u16, addr = 0xDB, default = 0x0000) {
         /// Set 1 to command the model refreshing.
         /// After firmware executes the command, it will be cleared by firmware
         refresh(pos = 15, width = 1): Bit,
