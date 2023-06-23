@@ -178,9 +178,10 @@ macro_rules! define_register_type {
 /// Specifying a default value for the register makes the register writeable.
 #[macro_export]
 macro_rules! register {
-    ($reg:ident ($rwt:ty, addr = $addr:literal) {
+    ($(#[$meta:meta])* $reg:ident ($rwt:ty, addr = $addr:literal) {
         $( $field:ident($($field_args:tt)*): $type:ty ),*
     } ) => {
+        $(#[$meta])*
         #[derive(Debug, Copy, Clone)]
         #[must_use]
         #[allow(non_camel_case_types)]
@@ -217,10 +218,10 @@ macro_rules! register {
         }
     };
 
-    ($reg:ident ($rwt:ty, addr = $addr:literal, default = $default:literal) {
+    ($(#[$meta:meta])* $reg:ident ($rwt:ty, addr = $addr:literal, default = $default:literal) {
         $( $field:ident($($field_args:tt)*): $type:ty ),*
     } ) => {
-        $crate::register!($reg($rwt, addr=$addr) { $( $field($($field_args)*): $type ),* });
+        $crate::register!($(#[$meta])* $reg($rwt, addr=$addr) { $( $field($($field_args)*): $type ),* });
 
         impl Default for $reg {
             #[inline(always)]
@@ -240,7 +241,7 @@ macro_rules! register {
         }
     };
 
-    ($reg:ident ($rwt:ty, $($reg_args:tt)*) {
+    ($(#[$meta:meta])* $reg:ident ($rwt:ty, $($reg_args:tt)*) {
         $( $field:ident($($field_args:tt)*): $type:ident $({
             $($field_type_tokens:tt)*
         })? ),*
@@ -256,16 +257,17 @@ macro_rules! register {
             )?
         )*
 
-        $crate::register!($reg ($rwt, $($reg_args)*) { $( $field($($field_args)*): $type ),*} );
+        $crate::register!($(#[$meta])* $reg ($rwt, $($reg_args)*) { $( $field($($field_args)*): $type ),*} );
     };
 }
 
 /// This macro will only generate a writeable register if a default value is specified.
 #[macro_export]
 macro_rules! writer_proxy {
-    ($reg:ident ($rwt:ty, addr = $addr:literal)) => {};
+    ($(#[$meta:meta])* $reg:ident ($rwt:ty, addr = $addr:literal)) => {};
 
-    ($reg:ident ($rwt:ty, addr = $addr:literal, default = $default:literal)) => {
+    ($(#[$meta:meta])* $reg:ident ($rwt:ty, addr = $addr:literal, default = $default:literal)) => {
+        $(#[$meta])*
         #[allow(non_camel_case_types)]
         pub struct $reg {
             bits: $rwt,
@@ -302,7 +304,9 @@ macro_rules! writer_proxy {
 #[macro_export]
 macro_rules! device {
     (
-        $( $reg:ident($($proto:tt)*) {
+        $(
+            $(#[$meta:meta])*
+            $reg:ident($($proto:tt)*) {
             $($fields:tt)*
         } )+
     ) => {
@@ -311,12 +315,12 @@ macro_rules! device {
             use device_descriptor::*;
 
             $(
-                $crate::writer_proxy!( $reg($($proto)*) );
+                $crate::writer_proxy!($(#[$meta])* $reg($($proto)*) );
             )+
         }
 
         $(
-            $crate::register!( $reg($($proto)*) { $($fields)* } );
+            $crate::register!( $(#[$meta])* $reg($($proto)*) { $($fields)* } );
         )+
     }
 }

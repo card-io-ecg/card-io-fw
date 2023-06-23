@@ -1,6 +1,8 @@
 use device_descriptor::device;
 
 device! {
+    /// The Status register maintains all flags related to
+    /// alert thresholds and battery insertion or removal.
     Status(u16, addr = 0x00, default = 0x0002) {
         br(pos = 15, width = 1): BatteryRemoval {
             BatteryRemoved = 1,

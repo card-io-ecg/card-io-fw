@@ -36,6 +36,7 @@ impl From<Command> for ([u8; 2], usize) {
 }
 
 device! {
+    /// Device ID
     Id(u8, addr=0x0) {
         id(pos = 0, width = 8): DeviceId {
             ADS1191 = 0x50,
