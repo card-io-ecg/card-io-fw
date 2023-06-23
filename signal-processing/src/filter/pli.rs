@@ -1,8 +1,8 @@
 //! Power-line interference suppression filter
 //!
-//! Algorithm detailed in https://pdfs.semanticscholar.org/64e4/187ffd6c72e44e849df203e0401f52eb0a27.pdf?_ga=1.255800139.271070806.1489245978
+//! Algorithm detailed in <https://pdfs.semanticscholar.org/64e4/187ffd6c72e44e849df203e0401f52eb0a27.pdf?_ga=1.255800139.271070806.1489245978>
 //!
-//! Implementation loosely based on matlab code found in https://github.com/s-gv/rnicu/blob/master/ecg/adaptive_filter/pll_martens_errorfilt_supp.m
+//! Implementation loosely based on matlab code found in <https://github.com/s-gv/rnicu/blob/master/ecg/adaptive_filter/pll_martens_errorfilt_supp.m>
 
 use crate::{
     filter::{

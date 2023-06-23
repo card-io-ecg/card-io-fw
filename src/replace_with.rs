@@ -1,4 +1,4 @@
-//! Based on replace_with (https://github.com/alecmocatta/replace_with/)
+//! Based on [replace_with](https://github.com/alecmocatta/replace_with/)
 
 use core::{future::Future, mem::ManuallyDrop, ptr};
 

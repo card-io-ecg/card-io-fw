@@ -9,8 +9,15 @@ pub enum Subcommands {
     Test,
     Run,
     Check,
+    Doc {
+        #[clap(long)]
+        open: bool,
+    },
     ExtraCheck,
-    Example { package: String, name: String },
+    Example {
+        package: String,
+        name: String,
+    },
 }
 
 #[derive(Debug, Parser)]
@@ -63,6 +70,22 @@ fn checks() -> AnyResult<()> {
     Ok(())
 }
 
+fn docs(open: bool) -> AnyResult<()> {
+    let mut args = vec![
+        "doc",
+        "--target=xtensa-esp32s3-none-elf",
+        "-Zbuild-std=core,alloc",
+    ];
+
+    if open {
+        args.push("--open");
+    }
+
+    cargo(&args).run()?;
+
+    Ok(())
+}
+
 fn extra_checks() -> AnyResult<()> {
     cargo(&["fmt", "--check"]).run()?;
     cargo(&[
@@ -104,6 +127,7 @@ fn main() -> AnyResult<()> {
         Subcommands::Test => test(),
         Subcommands::Run => run(),
         Subcommands::Check => checks(),
+        Subcommands::Doc { open } => docs(open),
         Subcommands::ExtraCheck => extra_checks(),
         Subcommands::Example { package, name } => example(package, name),
     }
