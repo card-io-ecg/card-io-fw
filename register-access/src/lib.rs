@@ -84,10 +84,10 @@ where
     where
         R: Register<RegisterWidth = RWT>;
 
-    fn read_sequential<R>(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error>
+    fn read_sequential<R>(&mut self, buffer: &mut [RWT]) -> Result<(), Self::Error>
     where
         R: ReadOnlyRegister<RegisterWidth = RWT>;
-    fn write_sequential<R>(&mut self, bytes: &mut [u8]) -> Result<(), Self::Error>
+    fn write_sequential<R>(&mut self, bytes: &mut [RWT]) -> Result<(), Self::Error>
     where
         R: Register<RegisterWidth = RWT>;
 }
@@ -105,10 +105,10 @@ where
     where
         R: Register<RegisterWidth = RWT>;
 
-    async fn read_sequential_async<R>(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error>
+    async fn read_sequential_async<R>(&mut self, buffer: &mut [RWT]) -> Result<(), Self::Error>
     where
         R: ReadOnlyRegister<RegisterWidth = RWT>;
-    async fn write_sequential_async<R>(&mut self, bytes: &mut [u8]) -> Result<(), Self::Error>
+    async fn write_sequential_async<R>(&mut self, bytes: &mut [RWT]) -> Result<(), Self::Error>
     where
         R: Register<RegisterWidth = RWT>;
 }
