@@ -25,4 +25,5 @@ pub const MENU_STYLE: MenuStyle<BinaryColor, AnimatedTriangle, SingleTouch, Anim
 pub struct BatteryInfo {
     pub voltage: u16,
     pub charge_current: Option<u16>,
+    pub is_low: bool,
 }

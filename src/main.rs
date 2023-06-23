@@ -62,6 +62,7 @@ pub enum AppState {
 pub struct BatteryState {
     pub charging_current: Option<u16>,
     pub battery_voltage: Option<u16>,
+    pub is_low: bool,
 }
 
 pub type SharedBatteryState = Mutex<NoopRawMutex, BatteryState>;
@@ -94,6 +95,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
     let battery_state = BATTERY_STATE.init(Mutex::new(BatteryState {
         charging_current: None,
         battery_voltage: None,
+        is_low: false,
     }));
 
     #[cfg(feature = "battery_adc")]
@@ -267,6 +269,8 @@ async fn monitor_task(
     battery_state: &'static SharedBatteryState,
     task_control: &'static Signal<NoopRawMutex, ()>,
 ) {
+    use crate::board::LOW_BATTERY_VOLTAGE;
+
     let mut timer = Ticker::every(Duration::from_millis(10));
 
     battery.enable.set_high().unwrap();
@@ -292,6 +296,7 @@ async fn monitor_task(
             let mut state = battery_state.lock().await;
             state.battery_voltage = Some(voltage);
             state.charging_current = Some(current);
+            state.is_low = voltage < LOW_BATTERY_VOLTAGE;
 
             log::debug!("Voltage = {voltage:?}");
             log::debug!("Current = {current:?}");

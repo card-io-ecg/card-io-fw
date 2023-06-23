@@ -27,14 +27,15 @@ pub struct BatteryMonitor<VBUS, CHG> {
 impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
     pub async fn battery_data(&mut self) -> Option<BatteryInfo> {
         let state = self.battery_state.lock().await;
-        let battery_voltage = state.battery_voltage;
-        let charge_current = state.charging_current;
 
-        let is_plugged = self.is_plugged();
-
-        battery_voltage.map(|voltage| BatteryInfo {
+        state.battery_voltage.map(|voltage| BatteryInfo {
             voltage,
-            charge_current: if is_plugged { charge_current } else { None },
+            charge_current: if self.is_plugged() {
+                state.charging_current
+            } else {
+                None
+            },
+            is_low: state.is_low,
         })
     }
 
