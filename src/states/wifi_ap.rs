@@ -59,14 +59,12 @@ impl TaskController {
 }
 
 pub async fn wifi_ap(board: &mut Board) -> AppState {
+    let (wifi, init) = board
+        .wifi
+        .driver_mut(&board.clocks, &mut board.peripheral_clock_control);
     let (wifi_interface, controller) = esp_wifi::wifi::new_with_mode(
-        unsafe {
-            as_static_mut(
-                board
-                    .wifi
-                    .driver_mut(&board.clocks, &mut board.peripheral_clock_control),
-            )
-        },
+        unsafe { as_static_mut(init) },
+        unsafe { as_static_mut(wifi) },
         WifiMode::Ap,
     );
 

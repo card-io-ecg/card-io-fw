@@ -1,4 +1,5 @@
 use esp32s3_hal::system::{PeripheralClockControl, RadioClockControl};
+use esp_wifi::{EspWifiInitFor, EspWifiInitialization};
 use replace_with::replace_with_or_abort;
 
 use crate::board::hal::{
@@ -18,6 +19,7 @@ pub enum WifiDriver {
     },
     Initialized {
         wifi: Wifi,
+        init: EspWifiInitialization,
     },
 }
 
@@ -26,13 +28,13 @@ impl WifiDriver {
         &'d mut self,
         clocks: &Clocks,
         pcc: &mut PeripheralClockControl,
-    ) -> &'d mut Wifi {
+    ) -> (&'d mut Wifi, &'d mut EspWifiInitialization) {
         if !matches!(self, Self::Initialized { .. }) {
             self.initialize(clocks, pcc);
         }
 
         match self {
-            WifiDriver::Initialized { wifi, .. } => wifi,
+            WifiDriver::Initialized { wifi, init } => (wifi, init),
             WifiDriver::Uninitialized { .. } => unreachable!(),
         }
     }
@@ -47,9 +49,11 @@ impl WifiDriver {
             } => {
                 let timer = TimerGroup::new(timer, clocks, pcc).timer0;
 
-                esp_wifi::initialize(timer, Rng::new(rng), rcc, clocks).unwrap();
+                let init =
+                    esp_wifi::initialize(EspWifiInitFor::Wifi, timer, Rng::new(rng), rcc, clocks)
+                        .unwrap();
 
-                WifiDriver::Initialized { wifi }
+                WifiDriver::Initialized { wifi, init }
             }
             WifiDriver::Initialized { .. } => this,
         })

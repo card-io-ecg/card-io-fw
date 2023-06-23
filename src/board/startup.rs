@@ -24,7 +24,7 @@ use crate::{
 use display_interface_spi::SPIInterface;
 use embassy_executor::SendSpawner;
 use esp_println::logger::init_logger;
-use hal::{system::PeripheralClockControl, systimer::SystemTimer};
+use hal::{system::PeripheralClockControl, timer::TimerGroup};
 
 static INT_EXECUTOR: InterruptExecutor<SwInterrupt0> = InterruptExecutor::new();
 
@@ -57,7 +57,12 @@ impl StartupResources {
         let mut rtc = Rtc::new(peripherals.RTC_CNTL);
         rtc.rwdt.disable();
 
-        embassy::init(&clocks, SystemTimer::new(peripherals.SYSTIMER));
+        let timer_group0 = TimerGroup::new(
+            peripherals.TIMG0,
+            &clocks,
+            &mut system.peripheral_clock_control,
+        );
+        embassy::init(&clocks, timer_group0.timer0);
 
         let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
 
