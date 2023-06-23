@@ -130,6 +130,43 @@ macro_rules! impl_fields {
 }
 
 #[macro_export]
+macro_rules! define_register_type {
+    // TODO: this must take register type into account. We might extract a wider-than-u8 type
+    ($type:ident {
+        $(
+            $( #[$variant_attr:meta] )*
+            $name:ident = $value:expr
+        ),+
+    }) => {
+        #[derive(Debug, PartialEq, Copy, Clone)]
+        pub enum $type {
+            $(
+                $(#[$variant_attr])*
+                $name = $value
+            ),+
+        }
+
+        impl core::convert::TryFrom<u8> for $type {
+            type Error = u8;
+
+            fn try_from(data: u8) -> Result<Self, Self::Error> {
+                match data {
+                    $($value => Ok($type::$name)),+,
+                    _ => Err(data)
+                }
+            }
+        }
+
+        impl From<$type> for u8 {
+            fn from(data: $type) -> u8 {
+                data as u8
+            }
+        }
+    }
+}
+
+/// Specifying a default value for the register makes the register writeable.
+#[macro_export]
 macro_rules! register {
     ($reg:ident ($rwt:ty, addr = $addr:literal) {
         $( $field:ident(pos = $pos:literal, width = $width:literal): $type:ty ),*
@@ -166,7 +203,6 @@ macro_rules! register {
     ($reg:ident ($rwt:ty, addr = $addr:literal, default = $default:literal) {
         $( $field:ident(pos = $pos:literal, width = $width:literal): $type:ty ),*
     } ) => {
-
         $crate::register!($reg($rwt, addr=$addr) { $( $field(pos = $pos, width = $width): $type ),* });
 
         impl Default for $reg {
@@ -203,32 +239,25 @@ macro_rules! register {
 
     ($reg:ident $proto:tt {
         $( $field:ident(pos = $pos:literal, width = $width:literal): $type:ident $({
-            $( $name:ident = $value:expr),+
+            $(
+                $(#[$variant_attr:meta])*
+                $name:ident = $value:expr
+            ),+
         })? ),*
     } ) => {
-        $( $(
-            #[derive(Debug, PartialEq, Copy, Clone)]
-            pub enum $type {
-                $($name = $value),+
-            }
-
-            impl core::convert::TryFrom<u8> for $type {
-                type Error = u8;
-
-                fn try_from(data: u8) -> Result<Self, Self::Error> {
-                    match data {
-                        $($value => Ok($type::$name)),+,
-                        _ => Err(data)
+        $(
+            $(
+                $crate::define_register_type!(
+                    $type {
+                        $(
+                            $(#[$variant_attr])*
+                            $name = $value
+                        ),+
                     }
-                }
-            }
+                );
+            )?
+        )*
 
-            impl From<$type> for u8 {
-                fn from(data: $type) -> u8 {
-                    data as u8
-                }
-            }
-        )? )*
         $crate::register!($reg $proto { $( $field(pos = $pos, width = $width): $type ),*} );
     };
 }
