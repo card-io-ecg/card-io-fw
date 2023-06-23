@@ -242,6 +242,7 @@ macro_rules! writer_proxy {
     ($reg:ident ($rwt:ty, addr = $addr:literal, default = $default:literal) {
         $( $field:ident(pos = $pos:literal, width = $width:literal): $type:ty ),*
     } ) => {
+        #[allow(non_camel_case_types)]
         pub struct $reg {
             bits: $rwt
         }
