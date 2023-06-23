@@ -14,6 +14,7 @@ pub mod descriptors;
 #[derive(Debug)]
 pub enum Error<I2cE> {
     Transfer(I2cE),
+    Verify,
 }
 
 pub struct Max17055<I2C> {
@@ -101,5 +102,47 @@ impl<I2C> Max17055<I2C> {
 
     pub fn new(i2c: I2C) -> Self {
         Self { i2c }
+    }
+}
+
+impl<I2C> Max17055<I2C>
+where
+    I2C: I2c,
+{
+    fn write_and_verify_register<R: Register<u8>>(
+        &mut self,
+        reg: R,
+        delay: &mut impl embedded_hal::delay::DelayUs,
+    ) -> Result<(), Error<I2C>> {
+        for _ in 0..3 {
+            self.write_sequential::<R>(&mut [reg.bits()])?;
+            delay.delay_ms(1);
+            let value = self.read_register::<R>()?;
+            if value == reg {
+                return Ok(());
+            }
+        }
+        Err(Error::Verify)
+    }
+}
+
+impl<I2C> Max17055<I2C>
+where
+    I2C: AsyncI2c,
+{
+    async fn write_and_verify_register_async<R: Register<u8>>(
+        &mut self,
+        reg: R,
+        delay: &mut impl embedded_hal_async::delay::DelayUs,
+    ) -> Result<(), Error<I2C>> {
+        for _ in 0..3 {
+            self.write_sequential_async::<R>(&mut [reg.bits()]).await?;
+            delay.delay_ms(1).await;
+            let value = self.read_register_async::<R>().await?;
+            if value == reg {
+                return Ok(());
+            }
+        }
+        Err(Error::Verify)
     }
 }
