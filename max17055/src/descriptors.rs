@@ -1,4 +1,4 @@
-use device_descriptor::device;
+use device_descriptor::*;
 
 device! {
     /// The Status register maintains all flags related to
@@ -103,10 +103,9 @@ device! {
         /// but provides more stable results.
         time(pos = 0, width = 16): u16
     }
-    QRTable00(u16, addr = 0x12) {
-        /// The QRTable00 to QRTable30 register locations contain characterization information
-        /// regarding cell capacity under different application conditions.
-    }
+    /// The QRTable00 to QRTable30 register locations contain characterization information
+    /// regarding cell capacity under different application conditions.
+    QRTable00(u16, addr = 0x12) {}
     FullSocThr(u16, addr = 0x13, default = 0x5F05) {
         /// The FullSOCThr register gates detection of end-of-charge. VFSOC must be larger than the
         /// FullSOCThr value before IChgTerm is compared to the AvgCurrent register value.
@@ -114,7 +113,7 @@ device! {
         /// is 95% (default, 0x5F05).
         /// For EZ Performance applications the recommendation is 80% (0x5005).
         /// See the IChgTerm register description and the End-Of-Charge Detection section for details
-        percentage(pos = 0, width = 16): u16 /// mask off 3 lowest bits
+        percentage(pos = 0, width = 16): u16 // mask off 3 lowest bits
     }
     RCell(u16, addr = 0x14, default = 0x0290) {
         /// The RCell register provides the calculated internal resistance of the cell. RCell is
@@ -133,11 +132,11 @@ device! {
         /// register has a full range of 0 to 655.35 cycles with a 1% LSb.
         cycles_percentage(pos = 0, width = 16): u16
     }
-    DesignCap(u16, addr = 0x18) {
+    DesignCap(u16, addr = 0x18, default = 0x0000) {
         /// The DesignCap register holds the expected capacity of the cell.
         /// This value is used to determine age and health of the cell by comparing
         /// against the measured present cell capacity.
-        capcaity(pos = 0, width = 16): u16
+        capacity(pos = 0, width = 16): u16
     }
     AvgVCell(u16, addr = 0x19) {}
     MaxMinTemp(u16, addr = 0x1A) {}
@@ -254,14 +253,13 @@ device! {
         /// in the application.
         time(pos = 0, width = 16): u16
     }
-    DevName(u16, addr = 0x21, default = 0x4010) {
+    DevName(u16, addr = 0x21) {
         /// The DevName register holds revision information. The initial silicon is DevName = 0x4010.
         revision(pos = 0, width = 16): u16
     }
-    QRTable10(u16, addr = 0x22) {
-        /// The QRTable00 to QRTable30 register locations contain characterization information
-        /// regarding cell capacity under different application conditions.
-    }
+    /// The QRTable00 to QRTable30 register locations contain characterization information
+    /// regarding cell capacity under different application conditions.
+    QRTable10(u16, addr = 0x22) {}
     FullCapNom(u16, addr = 0x23) {
         /// This register holds the calculated full capacity of the cell, not including temperature
         /// and empty compensation. A new full-capacity nominal value is calculated each time a cell
@@ -365,10 +363,9 @@ device! {
 
     // Reserved(u16, addr = 0x30) {}
     // Reserved(u16, addr = 0x31) {}
-    QRTable20(u16, addr = 0x32) {
-        /// The QRTable00 to QRTable30 register locations contain characterization information
-        /// regarding cell capacity under different application conditions.
-    }
+    /// The QRTable00 to QRTable30 register locations contain characterization information
+    /// regarding cell capacity under different application conditions.
+    QRTable20(u16, addr = 0x32) {}
     // Reserved(u16, addr = 0x33) {}
     DieTemp(u16, addr = 0x34) {}
     FullCap(u16, addr = 0x35) {
@@ -379,14 +376,12 @@ device! {
     }
     // Reserved(u16, addr = 0x36) {}
     // Reserved(u16, addr = 0x37) {}
-    RComp0(u16, addr = 0x38) {
-        /// The RComp0 register holds characterization information critical to computing the
-        /// open-circuit voltage of a cell under loaded conditions.
-    }
-    TempCo(u16, addr = 0x39) {
-        /// The TempCo register holds temperature compensation information
-        /// for the RComp0 register value.
-    }
+    /// The RComp0 register holds characterization information critical to computing the
+    /// open-circuit voltage of a cell under loaded conditions.
+    RComp0(u16, addr = 0x38) {}
+    /// The TempCo register holds temperature compensation information
+    /// for the RComp0 register value.
+    TempCo(u16, addr = 0x39) {}
     VEmpty(u16, addr = 0x3A, default = 0xA561) {
         /// Empty Voltage Target, During Load
         ve(pos = 7, width = 9): u16,
@@ -409,7 +404,7 @@ device! {
         /// (Full Qualified): This bit is set when all charge termination conditions have been met.
         fq(pos = 7, width = 1): bool,
 
-        /// Long Relaxation): This bit is set to a 1 whenever the ModelGauge m5 algorithm detects
+        /// (Long Relaxation): This bit is set to a 1 whenever the ModelGauge m5 algorithm detects
         /// that the cell has been relaxed for a period of 48 to 96 minutes or longer. This bit is
         /// cleared to 0 whenever the cell is no longer in a relaxed state.
         rel_dt_2(pos = 6, width = 1): bool,
@@ -444,10 +439,9 @@ device! {
 
     UserMem1(u16, addr = 0x40) {}
     // Reserved(u16, addr = 0x41) {}
-    QRTable30(u16, addr = 0x42) {
-        /// The QRTable00 to QRTable30 register locations contain characterization information
-        /// regarding cell capacity under different application conditions.
-    }
+    /// The QRTable00 to QRTable30 register locations contain characterization information
+    /// regarding cell capacity under different application conditions.
+    QRTable30(u16, addr = 0x42) {}
     RGain(u16, addr = 0x43, default = 0x8080) {
         /// Gain resistance used for peak current and power calculation.
         /// RGain1 = 80% + 0.15625% x RG1. The range of RGain1 is between 80~120%.
@@ -474,10 +468,9 @@ device! {
     }
     // Reserved(u16, addr = 0x47) {}
     // Reserved(u16, addr = 0x48) {}
-    ConvgCfg(u16, addr = 0x49, default = 0x2241) {
-        /// The ConvgCfg register configures operation of the converge-to-empty feature.
-        /// The default and recommended value for ConvgCfg is 0x2241
-    }
+    /// The ConvgCfg register configures operation of the converge-to-empty feature.
+    /// The default and recommended value for ConvgCfg is 0x2241
+    ConvgCfg(u16, addr = 0x49, default = 0x2241) {}
     VFRemCap(u16, addr = 0x4A) {
         /// The VFRemCap register holds the remaining capacity of the cell as determined by the
         /// voltage fuel gauge before any empty compensation adjustments are performed.
@@ -749,7 +742,7 @@ device! {
         capacity(pos = 0, width = 16): u16
     }
 
-    VFSOC(u16, addr = 0xFB) {
+    VFOCV(u16, addr = 0xFB) {
         /// The VFOCV register contains the calculated open-circuit voltage of the cell as determined
         /// by the voltage fuel gauge. This value is used in other internal calculations.
         voltage(pos = 0, width = 16): u16
@@ -761,7 +754,7 @@ device! {
     }
 
     Command(u16, addr = 0x60, default = 0x0000) {
-        command(pos = 0, width = 16): Command {
+        command(pos = 0, width = 16): CommandKind {
             Clear = 0x0000,
             SoftWakeup = 0x0090
         }
