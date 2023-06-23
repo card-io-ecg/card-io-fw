@@ -37,6 +37,8 @@ impl RegisterWidthType for u16 {
 pub trait ReadOnlyRegister<RWT: RegisterWidthType>: Proxy<RegisterWidth = RWT> + Copy {
     const ADDRESS: u8;
     const NAME: &'static str;
+
+    fn value(&self) -> RWT;
 }
 
 pub trait Register<RWT: RegisterWidthType>: ReadOnlyRegister<RWT> {
@@ -44,8 +46,15 @@ pub trait Register<RWT: RegisterWidthType>: ReadOnlyRegister<RWT> {
 
     const DEFAULT_VALUE: RWT;
 
-    fn new(f: impl Fn(Self::Writer) -> Self::Writer) -> Self;
-    fn modify(self, f: impl Fn(Self::Writer) -> Self::Writer) -> Self;
+    #[inline(always)]
+    fn new(f: impl Fn(Self::Writer) -> Self::Writer) -> Self {
+        Self::from_bits(f(Self::Writer::from_bits(Self::DEFAULT_VALUE)).bits())
+    }
+
+    #[inline(always)]
+    fn modify(self, f: impl Fn(Self::Writer) -> Self::Writer) -> Self {
+        Self::from_bits(f(Self::Writer::from_bits(self.value())).bits())
+    }
 }
 
 pub trait Proxy {
@@ -170,11 +179,23 @@ macro_rules! define_register_type {
 #[macro_export]
 macro_rules! register {
     ($reg:ident ($rwt:ty, addr = $addr:literal) {
-        $( $field:ident(pos = $pos:literal, width = $width:literal): $type:ty ),*
+        $( $field:ident($($field_args:tt)*): $type:ty ),*
     } ) => {
+        #[derive(Debug, Copy, Clone)]
+        #[must_use]
+        #[allow(non_camel_case_types)]
+        pub struct $reg {
+            value: $rwt
+        }
+
         impl ReadOnlyRegister<$rwt> for $reg {
             const ADDRESS: u8 = $addr;
             const NAME: &'static str = stringify!($reg);
+
+            #[inline(always)]
+            fn value(&self) -> $rwt {
+                self.value
+            }
         }
 
         impl Proxy for $reg {
@@ -191,22 +212,15 @@ macro_rules! register {
             }
         }
 
-        #[derive(Debug, Copy, Clone)]
-        #[must_use]
-        #[allow(non_camel_case_types)]
-        pub struct $reg {
-            value: $rwt
-        }
-
         impl $reg {
-            $crate::impl_fields! { $($field($rwt, pos = $pos, width = $width): $type),* }
+            $crate::impl_fields! { $($field($rwt, $($field_args)*): $type),* }
         }
     };
 
     ($reg:ident ($rwt:ty, addr = $addr:literal, default = $default:literal) {
-        $( $field:ident(pos = $pos:literal, width = $width:literal): $type:ty ),*
+        $( $field:ident($($field_args:tt)*): $type:ty ),*
     } ) => {
-        $crate::register!($reg($rwt, addr=$addr) { $( $field(pos = $pos, width = $width): $type ),* });
+        $crate::register!($reg($rwt, addr=$addr) { $( $field($($field_args)*): $type ),* });
 
         impl Default for $reg {
             #[inline(always)]
@@ -219,33 +233,16 @@ macro_rules! register {
             type Writer = writer_proxies::$reg;
 
             const DEFAULT_VALUE: $rwt = $default;
-
-            #[inline(always)]
-            fn new(f: impl Fn(Self::Writer) -> Self::Writer) -> Self {
-                Self::from_bits(
-                    f(Self::Writer::from_bits(Self::DEFAULT_VALUE)).bits()
-                )
-            }
-
-            #[inline(always)]
-            fn modify(self, f: impl Fn(Self::Writer) -> Self::Writer) -> Self {
-                Self::from_bits(
-                    f(Self::Writer::from_bits(self.value)).bits()
-                )
-            }
         }
 
         impl writer_proxies::$reg {
-            $crate::impl_fields! { $($field($rwt, pos = $pos, width = $width): $type),* }
+            $crate::impl_fields! { $($field($rwt, $($field_args)*): $type),* }
         }
     };
 
-    ($reg:ident ($rwt:ty, addr = $addr:literal $(, default = $default:literal)?) {
-        $( $field:ident(pos = $pos:literal, width = $width:literal): $type:ident $({
-            $(
-                $(#[$variant_attr:meta])*
-                $name:ident = $value:expr
-            ),+
+    ($reg:ident ($rwt:ty, $($reg_args:tt)*) {
+        $( $field:ident($($field_args:tt)*): $type:ident $({
+            $($field_type_tokens:tt)*
         })? ),*
     } ) => {
         $( // for each field
@@ -253,33 +250,22 @@ macro_rules! register {
                 $crate::define_register_type!(
                     $rwt,
                     $type {
-                        $(
-                            $(#[$variant_attr])*
-                            $name = $value
-                        ),+
+                        $($field_type_tokens)*
                     }
                 );
             )?
         )*
 
-        $crate::register!($reg ($rwt, addr = $addr $(, default = $default)?) { $( $field(pos = $pos, width = $width): $type ),*} );
+        $crate::register!($reg ($rwt, $($reg_args)*) { $( $field($($field_args)*): $type ),*} );
     };
 }
 
 /// This macro will only generate a writeable register if a default value is specified.
 #[macro_export]
 macro_rules! writer_proxy {
-    ($reg:ident ($rwt:ty, addr = $addr:literal) {
-        $( $field:ident(pos = $pos:literal, width = $width:literal): $type:ident $({
-            $( $name:ident = $value:expr),+
-        })? ),*
-    } ) => {};
+    ($reg:ident ($rwt:ty, addr = $addr:literal)) => {};
 
-    ($reg:ident ($rwt:ty, addr = $addr:literal, default = $default:literal) {
-        $( $field:ident(pos = $pos:literal, width = $width:literal): $type:ident $({
-            $( $name:ident = $value:expr),+
-        })? ),*
-    } ) => {
+    ($reg:ident ($rwt:ty, addr = $addr:literal, default = $default:literal)) => {
         #[allow(non_camel_case_types)]
         pub struct $reg {
             bits: $rwt,
@@ -325,12 +311,12 @@ macro_rules! device {
             use device_descriptor::*;
 
             $(
-                $crate::writer_proxy!($reg($($proto)*) { $($fields)* } );
+                $crate::writer_proxy!( $reg($($proto)*) );
             )+
         }
 
         $(
-            $crate::register!($reg($($proto)*) { $($fields)* } );
+            $crate::register!( $reg($($proto)*) { $($fields)* } );
         )+
     }
 }
