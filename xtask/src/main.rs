@@ -31,8 +31,8 @@ pub enum Subcommands {
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum HardwareVersion {
-    #[default]
     V1,
+    #[default]
     V2,
 }
 
