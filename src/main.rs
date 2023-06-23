@@ -14,6 +14,7 @@ use embassy_time::{Duration, Ticker, Timer};
 #[cfg(feature = "hw_v1")]
 use embedded_hal::digital::OutputPin;
 use embedded_hal_async::digital::Wait;
+use gui::screens::BatteryInfo;
 use norfs::{drivers::internal::InternalDriver, medium::cache::ReadCache, Storage, StorageError};
 
 #[cfg(feature = "battery_adc")]
@@ -59,13 +60,7 @@ pub enum AppState {
     ShutdownCharging,
 }
 
-pub struct BatteryState {
-    pub charging_current: Option<u16>,
-    pub battery_voltage: Option<u16>,
-    pub is_low: bool,
-}
-
-pub type SharedBatteryState = Mutex<NoopRawMutex, BatteryState>;
+pub type SharedBatteryState = Mutex<NoopRawMutex, Option<BatteryInfo>>;
 
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static BATTERY_STATE: StaticCell<SharedBatteryState> = StaticCell::new();
@@ -92,11 +87,7 @@ fn main() -> ! {
 async fn main_task(spawner: Spawner, resources: StartupResources) {
     let task_control = &*TASK_CONTROL.init_with(Signal::new);
 
-    let battery_state = BATTERY_STATE.init(Mutex::new(BatteryState {
-        charging_current: None,
-        battery_voltage: None,
-        is_low: false,
-    }));
+    let battery_state = BATTERY_STATE.init(Mutex::new(None));
 
     #[cfg(feature = "battery_adc")]
     spawner
@@ -294,9 +285,12 @@ async fn monitor_task(
             let current = (current_accumulator / AVG_SAMPLE_COUNT) as u16;
 
             let mut state = battery_state.lock().await;
-            state.battery_voltage = Some(voltage);
-            state.charging_current = Some(current);
-            state.is_low = voltage < LOW_BATTERY_VOLTAGE;
+
+            *state = Some(BatteryInfo {
+                voltage,
+                charge_current: Some(current),
+                is_low: voltage < LOW_BATTERY_VOLTAGE,
+            });
 
             log::debug!("Voltage = {voltage:?}");
             log::debug!("Current = {current:?}");
