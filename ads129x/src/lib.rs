@@ -3,7 +3,7 @@
 #![allow(incomplete_features)]
 
 use byteorder::{BigEndian, ByteOrder};
-use device_descriptor::{Proxy, ReadOnlyRegister, Register};
+use device_descriptor::{ReadOnlyRegister, ReaderProxy, Register};
 use embedded_hal::{
     digital::OutputPin,
     spi::{Operation, SpiDevice},
@@ -121,7 +121,7 @@ where
 
     fn read_register<R>(&mut self) -> Result<R, Self::Error>
     where
-        R: ReadOnlyRegister + Proxy<RegisterWidth = u8>,
+        R: ReadOnlyRegister<RegisterWidth = u8>,
     {
         let mut buffer = [0];
         self.read_sequential::<R>(&mut buffer)
@@ -130,21 +130,21 @@ where
 
     fn read_sequential<R>(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error>
     where
-        R: ReadOnlyRegister + Proxy<RegisterWidth = u8>,
+        R: ReadOnlyRegister<RegisterWidth = u8>,
     {
         self.write_command(Self::start_read_command::<R>(buffer), buffer)
     }
 
     fn write_register<R>(&mut self, reg: R) -> Result<(), Self::Error>
     where
-        R: Register + Proxy<RegisterWidth = u8>,
+        R: Register<RegisterWidth = u8>,
     {
         self.write_sequential::<R>(&mut [reg.bits()])
     }
 
     fn write_sequential<R>(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error>
     where
-        R: Register + Proxy<RegisterWidth = u8>,
+        R: Register<RegisterWidth = u8>,
     {
         self.write_command(Self::start_write_command::<R>(buffer), buffer)
     }
@@ -158,7 +158,7 @@ where
 
     async fn read_register_async<R>(&mut self) -> Result<R, Self::Error>
     where
-        R: ReadOnlyRegister + Proxy<RegisterWidth = u8>,
+        R: ReadOnlyRegister<RegisterWidth = u8>,
     {
         let mut buffer = [0];
         self.read_sequential_async::<R>(&mut buffer)
@@ -168,7 +168,7 @@ where
 
     async fn read_sequential_async<R>(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error>
     where
-        R: ReadOnlyRegister + Proxy<RegisterWidth = u8>,
+        R: ReadOnlyRegister<RegisterWidth = u8>,
     {
         self.write_command_async(Self::start_read_command::<R>(buffer), buffer)
             .await
@@ -176,14 +176,14 @@ where
 
     async fn write_register_async<R>(&mut self, reg: R) -> Result<(), Self::Error>
     where
-        R: Register + Proxy<RegisterWidth = u8>,
+        R: Register<RegisterWidth = u8>,
     {
         self.write_sequential_async::<R>(&mut [reg.bits()]).await
     }
 
     async fn write_sequential_async<R>(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error>
     where
-        R: Register + Proxy<RegisterWidth = u8>,
+        R: Register<RegisterWidth = u8>,
     {
         self.write_command_async(Self::start_write_command::<R>(buffer), buffer)
             .await
