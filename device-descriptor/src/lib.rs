@@ -129,8 +129,9 @@ where
 macro_rules! impl_fields {
     () => {};
 
-    ($($field:ident($rwt:ty, pos = $pos:literal, width = $width:literal): $type:ty),*) => {
+    ($($(#[$field_meta:meta])* $field:ident($rwt:ty, pos = $pos:literal, width = $width:literal): $type:ty),*) => {
         $(
+            $(#[$field_meta])*
             #[inline(always)]
             #[allow(non_snake_case)]
             pub fn $field(self) -> Field<$pos, $width, $type, Self, $rwt> {
@@ -179,7 +180,7 @@ macro_rules! define_register_type {
 #[macro_export]
 macro_rules! register {
     ($(#[$meta:meta])* $reg:ident ($rwt:ty, addr = $addr:literal) {
-        $( $field:ident($($field_args:tt)*): $type:ty ),*
+        $($(#[$field_meta:meta])* $field:ident($($field_args:tt)*): $type:ty ),*
     } ) => {
         $(#[$meta])*
         #[derive(Debug, Copy, Clone)]
@@ -214,12 +215,12 @@ macro_rules! register {
         }
 
         impl $reg {
-            $crate::impl_fields! { $($field($rwt, $($field_args)*): $type),* }
+            $crate::impl_fields! { $($(#[$field_meta])* $field($rwt, $($field_args)*): $type),* }
         }
     };
 
     ($(#[$meta:meta])* $reg:ident ($rwt:ty, addr = $addr:literal, default = $default:literal) {
-        $( $field:ident($($field_args:tt)*): $type:ty ),*
+        $($(#[$field_meta:meta])* $field:ident($($field_args:tt)*): $type:ty ),*
     } ) => {
         $crate::register!($(#[$meta])* $reg($rwt, addr=$addr) { $( $field($($field_args)*): $type ),* });
 
@@ -237,12 +238,12 @@ macro_rules! register {
         }
 
         impl writer_proxies::$reg {
-            $crate::impl_fields! { $($field($rwt, $($field_args)*): $type),* }
+            $crate::impl_fields! { $($(#[$field_meta])* $field($rwt, $($field_args)*): $type),* }
         }
     };
 
     ($(#[$meta:meta])* $reg:ident ($rwt:ty, $($reg_args:tt)*) {
-        $( $field:ident($($field_args:tt)*): $type:ident $({
+        $($(#[$field_meta:meta])* $field:ident($($field_args:tt)*): $type:ident $({
             $($field_type_tokens:tt)*
         })? ),*
     } ) => {
