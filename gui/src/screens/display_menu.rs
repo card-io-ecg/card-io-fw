@@ -6,6 +6,7 @@ use embedded_graphics::{
 use embedded_layout::prelude::{horizontal, vertical, Align};
 use embedded_menu::{
     interaction::single_touch::SingleTouch,
+    items::select::SelectValue,
     selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
     Menu, SelectValue,
 };
@@ -65,16 +66,26 @@ impl Storable for DisplayBrightness {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue)]
-pub enum BatteryDisplayStyle {
-    #[display_as("Voltage")]
-    MilliVolts,
-    Percentage,
-    Icon,
-    Indicator,
+impl SelectValue for BatteryStyle {
+    fn next(&self) -> Self {
+        match self {
+            Self::MilliVolts => Self::Percentage,
+            Self::Percentage => Self::Icon,
+            Self::Icon => Self::LowIndicator,
+            Self::LowIndicator => Self::MilliVolts,
+        }
+    }
+    fn name(&self) -> &'static str {
+        match self {
+            Self::MilliVolts => "MilliVolts",
+            Self::Percentage => "Percentage",
+            Self::Icon => "Icon",
+            Self::LowIndicator => "Indicator",
+        }
+    }
 }
 
-impl Loadable for BatteryDisplayStyle {
+impl Loadable for BatteryStyle {
     async fn load<M>(reader: &mut BoundReader<'_, M>) -> Result<Self, LoadError>
     where
         M: StorageMedium,
@@ -84,7 +95,7 @@ impl Loadable for BatteryDisplayStyle {
             0 => Self::MilliVolts,
             1 => Self::Percentage,
             2 => Self::Icon,
-            3 => Self::Indicator,
+            3 => Self::LowIndicator,
             _ => return Err(LoadError::InvalidValue),
         };
 
@@ -92,7 +103,7 @@ impl Loadable for BatteryDisplayStyle {
     }
 }
 
-impl Storable for BatteryDisplayStyle {
+impl Storable for BatteryStyle {
     async fn store<M>(&self, writer: &mut BoundWriter<'_, M>) -> Result<(), StorageError>
     where
         M: StorageMedium,
@@ -114,7 +125,7 @@ impl Storable for BatteryDisplayStyle {
 )]
 pub struct DisplayMenu {
     pub brightness: DisplayBrightness,
-    pub battery_display: BatteryDisplayStyle,
+    pub battery_display: BatteryStyle,
 }
 
 pub struct DisplayMenuScreen {

@@ -27,6 +27,7 @@ use crate::{
         hal::{self, entry},
         initialized::{BatteryMonitor, Board, ConfigPartition},
         startup::StartupResources,
+        BATTERY_MODEL,
     },
     sleep::{disable_gpio_wakeup, enable_gpio_wakeup, start_deep_sleep, RtcioWakeupType},
     states::{
@@ -163,6 +164,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         peripheral_clock_control: resources.peripheral_clock_control,
         high_prio_spawner: resources.high_prio_spawner,
         battery_monitor: BatteryMonitor {
+            model: BATTERY_MODEL,
             battery_state,
             vbus_detect: resources.misc_pins.vbus_detect,
             charger_status: resources.misc_pins.chg_status,
@@ -289,6 +291,7 @@ async fn monitor_task(
             *state = Some(BatteryInfo {
                 voltage,
                 charge_current: Some(current),
+                percentage: 0,
                 is_low: voltage < LOW_BATTERY_VOLTAGE,
             });
 

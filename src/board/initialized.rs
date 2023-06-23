@@ -7,6 +7,7 @@ use norfs::{
     medium::cache::ReadCache,
     OnCollision, Storage,
 };
+use signal_processing::battery::BatteryModel;
 
 use crate::{
     board::{
@@ -19,6 +20,7 @@ use crate::{
 };
 
 pub struct BatteryMonitor<VBUS, CHG> {
+    pub model: BatteryModel,
     pub battery_state: &'static SharedBatteryState,
     pub vbus_detect: VBUS,
     pub charger_status: CHG,
@@ -32,6 +34,7 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
             if !self.is_charging() {
                 state.charge_current = None;
             }
+            state.percentage = self.model.estimate(state.voltage, state.charge_current);
             state
         })
     }
