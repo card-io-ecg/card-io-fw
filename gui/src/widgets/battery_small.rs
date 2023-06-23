@@ -150,7 +150,7 @@ impl BatteryStyle {
 
                 self.draw_text(target, &string)?
             }
-            BatteryStyle::LowIndicator if data.charge_current.is_none() => {
+            BatteryStyle::LowIndicator if !data.is_charging => {
                 if data.percentage < 25 {
                     let top_right = target.bounding_box().anchor_point(AnchorPoint::TopRight);
                     let box_top_left = self.draw_battery_outline(target, top_right)?;
@@ -186,7 +186,7 @@ impl BatteryStyle {
             }
         };
 
-        if data.charge_current.is_some() {
+        if data.is_charging {
             self.draw_charging_indicator(target, battery_data_width)?;
         }
 

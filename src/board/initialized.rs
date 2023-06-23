@@ -37,6 +37,8 @@ pub struct BatteryMonitor<VBUS, CHG> {
 impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
     #[cfg(feature = "battery_adc")]
     pub async fn battery_data(&mut self) -> Option<BatteryInfo> {
+        use crate::board::LOW_BATTERY_VOLTAGE;
+
         let state = self.battery_state.lock().await;
 
         state.adc_data.map(|state| {
@@ -47,7 +49,7 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
             };
             BatteryInfo {
                 voltage: state.voltage,
-                charge_current,
+                is_charging: self.is_charging(),
                 percentage: self.model.estimate(state.voltage, charge_current),
                 is_low: state.voltage < LOW_BATTERY_VOLTAGE,
             }

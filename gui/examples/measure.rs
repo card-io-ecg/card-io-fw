@@ -12,7 +12,6 @@ use gui::{
     screens::{measure::EcgScreen, BatteryInfo},
     widgets::battery_small::BatteryStyle,
 };
-use signal_processing::battery::BatteryModel;
 
 fn main() -> Result<(), Infallible> {
     let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(128, 64));
@@ -29,13 +28,12 @@ fn main() -> Result<(), Infallible> {
     screen.update_heart_rate(67);
     screen.battery_voltage = Some(3650);
     screen.battery_data = Some(BatteryInfo {
-        voltage: 3650,
-        charge_current: None,
+        voltage: 4200,
+        percentage: 100,
+        is_charging: true,
+        is_low: false,
     });
-    screen.battery_style = BatteryStyle::Percentage(BatteryModel {
-        voltage: (3300, 4200),
-        charge_current: (0, 1000),
-    });
+    screen.battery_style = BatteryStyle::Percentage;
 
     let mut progress = 0;
     'running: loop {

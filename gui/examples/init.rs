@@ -12,7 +12,6 @@ use gui::{
     screens::{init::StartupScreen, BatteryInfo},
     widgets::battery_small::BatteryStyle,
 };
-use signal_processing::battery::BatteryModel;
 
 fn main() -> Result<(), Infallible> {
     let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(128, 64));
@@ -38,12 +37,11 @@ fn main() -> Result<(), Infallible> {
             max_progress: 255,
             battery_data: Some(BatteryInfo {
                 voltage: 4200,
-                charge_current: Some(100),
+                percentage: 100,
+                is_charging: true,
+                is_low: false,
             }),
-            battery_style: BatteryStyle::Icon(BatteryModel {
-                voltage: (3300, 4200),
-                charge_current: (0, 1000),
-            }),
+            battery_style: BatteryStyle::Icon,
         }
         .draw(&mut display)
         .unwrap();

@@ -24,7 +24,7 @@ pub const MENU_STYLE: MenuStyle<BinaryColor, AnimatedTriangle, SingleTouch, Anim
 #[derive(Clone, Copy, PartialEq)]
 pub struct BatteryInfo {
     pub voltage: u16,
-    pub charge_current: Option<u16>,
     pub percentage: u8,
+    pub is_charging: bool,
     pub is_low: bool,
 }
