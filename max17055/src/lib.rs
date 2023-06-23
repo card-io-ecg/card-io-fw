@@ -182,7 +182,7 @@ where
                     break;
                 }
 
-                delay.wait_ms(10).await?;
+                delay.delay_ms(10).await;
             }
 
             let hib_cfg = self.read_register_async::<HibCfg>().await?;
