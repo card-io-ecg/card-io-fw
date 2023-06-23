@@ -34,13 +34,13 @@ impl RegisterWidthType for u16 {
     }
 }
 
-pub trait ReadOnlyRegister<RWT: RegisterWidthType>: Proxy<RWT> + Copy {
+pub trait ReadOnlyRegister<RWT: RegisterWidthType>: Proxy<RegisterWidth = RWT> + Copy {
     const ADDRESS: u8;
     const NAME: &'static str;
 }
 
 pub trait Register<RWT: RegisterWidthType>: ReadOnlyRegister<RWT> {
-    type Writer: WriterProxy<RWT>;
+    type Writer: WriterProxy<RegisterWidth = RWT>;
 
     const DEFAULT_VALUE: RWT;
 
@@ -48,13 +48,15 @@ pub trait Register<RWT: RegisterWidthType>: ReadOnlyRegister<RWT> {
     fn modify(self, f: impl Fn(Self::Writer) -> Self::Writer) -> Self;
 }
 
-pub trait Proxy<RWT: RegisterWidthType> {
-    fn bits(&self) -> RWT;
-    fn from_bits(bits: RWT) -> Self;
+pub trait Proxy {
+    type RegisterWidth: RegisterWidthType;
+
+    fn bits(&self) -> Self::RegisterWidth;
+    fn from_bits(bits: Self::RegisterWidth) -> Self;
 }
 
-pub trait WriterProxy<RWT: RegisterWidthType>: Proxy<RWT> {
-    fn write_bits(self, bits: RWT) -> Self;
+pub trait WriterProxy: Proxy {
+    fn write_bits(self, bits: Self::RegisterWidth) -> Self;
     fn reset(self) -> Self;
 }
 
@@ -66,7 +68,7 @@ pub struct Field<const POS: u8, const WIDTH: u8, DataType, Writer, RWT> {
 impl<const POS: u8, const WIDTH: u8, DataType, P, RWT> Field<POS, WIDTH, DataType, P, RWT>
 where
     DataType: TryFrom<RWT> + Into<RWT>,
-    P: Proxy<RWT>,
+    P: Proxy<RegisterWidth = RWT>,
     RWT: RegisterWidthType,
 {
     const _CONST_CHECK: () = assert!(POS + WIDTH <= RWT::WIDTH);
@@ -92,7 +94,7 @@ where
 impl<const POS: u8, const WIDTH: u8, DataType, P, RWT> Field<POS, WIDTH, DataType, P, RWT>
 where
     DataType: TryFrom<RWT> + Into<RWT>,
-    P: WriterProxy<RWT>,
+    P: WriterProxy<RegisterWidth = RWT>,
     RWT: RegisterWidthType,
 {
     #[inline(always)]
@@ -176,7 +178,9 @@ macro_rules! register {
             const NAME: &'static str = stringify!($reg);
         }
 
-        impl Proxy<$rwt> for $reg {
+        impl Proxy for $reg {
+            type RegisterWidth = $rwt;
+
             #[inline(always)]
             fn from_bits(bits: $rwt) -> Self {
                 Self { value: bits }
@@ -276,7 +280,9 @@ macro_rules! writer_proxy {
             bits: $rwt
         }
 
-        impl Proxy<$rwt> for $reg {
+        impl Proxy for $reg {
+            type RegisterWidth = $rwt;
+
             #[inline(always)]
             fn from_bits(bits: $rwt) -> Self {
                 Self {
@@ -290,7 +296,7 @@ macro_rules! writer_proxy {
             }
         }
 
-        impl WriterProxy<$rwt> for $reg {
+        impl WriterProxy for $reg {
             #[inline(always)]
             fn write_bits(self, bits: $rwt) -> Self {
                 Self::from_bits(bits)
