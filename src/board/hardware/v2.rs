@@ -1,18 +1,22 @@
+#[cfg(feature = "battery_adc")]
+use crate::board::{
+    drivers::battery_adc::BatteryAdc as BatteryAdcType,
+    hal::{adc::ADC1, gpio::Analog},
+};
+
 use crate::{
     board::{
         drivers::{
-            battery_adc::BatteryAdc as BatteryAdcType,
             display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
             frontend::{Frontend, PoweredFrontend},
         },
         hal::{
             self,
-            adc::ADC1,
             clock::{ClockControl, CpuClock},
             dma::{ChannelRx, ChannelTx, DmaPriority},
             embassy,
             gdma::*,
-            gpio::{Analog, Floating, GpioPin, Input, Output, PullUp, PushPull},
+            gpio::{Floating, GpioPin, Input, Output, PullUp, PushPull},
             interrupt,
             peripherals::{self, Peripherals},
             prelude::*,
@@ -69,9 +73,12 @@ pub type AdcSpi<'d> = SpiDeviceWrapper<
 >;
 pub type AdcClockEnable = GpioPin<Output<PushPull>, 38>;
 
+#[cfg(feature = "battery_adc")]
 pub type BatteryAdcInput = GpioPin<Analog, 9>;
+#[cfg(feature = "battery_adc")]
 pub type BatteryAdcEnable = GpioPin<Output<PushPull>, 8>;
 pub type VbusDetect = GpioPin<Input<Floating>, 17>;
+#[cfg(feature = "battery_adc")]
 pub type ChargeCurrentInput = GpioPin<Analog, 10>;
 pub type ChargerStatus = GpioPin<Input<PullUp>, 47>;
 
@@ -82,6 +89,7 @@ pub type PoweredEcgFrontend =
 pub type Display = DisplayType<DisplayInterface<'static>, DisplayReset>;
 pub type PoweredDisplay = PoweredDisplayType<DisplayInterface<'static>, DisplayReset>;
 
+#[cfg(feature = "battery_adc")]
 pub type BatteryAdc = BatteryAdcType<BatteryAdcInput, ChargeCurrentInput, BatteryAdcEnable, ADC1>;
 
 static INT_EXECUTOR: InterruptExecutor<SwInterrupt0> = InterruptExecutor::new();
@@ -213,21 +221,25 @@ impl super::startup::StartupResources {
             touch_detect,
         );
 
-        // Battery measurement
-        let batt_adc_in = io.pins.gpio9.into_analog();
-        let batt_adc_en = io.pins.gpio8.into_push_pull_output();
+        #[cfg(feature = "battery_adc")]
+        let battery_adc = {
+            // Battery measurement
+            let batt_adc_in = io.pins.gpio9.into_analog();
+            let batt_adc_en = io.pins.gpio8.into_push_pull_output();
+
+            let chg_current = io.pins.gpio10.into_analog();
+
+            // Battery ADC
+            let analog = peripherals.SENS.split();
+
+            BatteryAdc::new(analog.adc1, batt_adc_in, chg_current, batt_adc_en)
+        };
 
         // Charger
         let vbus_detect = io.pins.gpio17.into_floating_input();
-        let chg_current = io.pins.gpio10.into_analog();
         let chg_status = io.pins.gpio47.into_pull_up_input();
 
         let high_prio_spawner = INT_EXECUTOR.start();
-
-        // Battery ADC
-        let analog = peripherals.SENS.split();
-
-        let battery_adc = BatteryAdc::new(analog.adc1, batt_adc_in, chg_current, batt_adc_en);
 
         // Wifi
         let (wifi, _) = peripherals.RADIO.split();
@@ -235,6 +247,7 @@ impl super::startup::StartupResources {
         Self {
             display,
             frontend: adc,
+            #[cfg(feature = "battery_adc")]
             battery_adc,
             high_prio_spawner,
             wifi: WifiDriver::Uninitialized {

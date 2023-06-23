@@ -11,22 +11,23 @@ extern crate alloc;
 use embassy_executor::{Executor, Spawner, _export::StaticCell};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex, signal::Signal};
 use embassy_time::{Duration, Ticker, Timer};
+#[cfg(feature = "hw_v1")]
 use embedded_hal::digital::OutputPin;
 use embedded_hal_async::digital::Wait;
 use norfs::{drivers::internal::InternalDriver, medium::cache::ReadCache, Storage, StorageError};
 
+#[cfg(feature = "battery_adc")]
+use crate::board::BatteryAdc;
+#[cfg(feature = "hw_v1")]
+use crate::sleep::enable_gpio_pullup;
 use crate::{
     board::{
         config::{Config, ConfigFile},
         hal::{self, entry},
         initialized::{BatteryMonitor, Board, ConfigPartition},
         startup::StartupResources,
-        BatteryAdc,
     },
-    sleep::{
-        disable_gpio_wakeup, enable_gpio_pullup, enable_gpio_wakeup, start_deep_sleep,
-        RtcioWakeupType,
-    },
+    sleep::{disable_gpio_wakeup, enable_gpio_wakeup, start_deep_sleep, RtcioWakeupType},
     states::{
         adc_setup, app_error, charging, display_menu, initialize, main_menu, measure, wifi_ap,
     },
@@ -95,12 +96,18 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         battery_voltage: None,
     }));
 
+    #[cfg(feature = "battery_adc")]
     spawner
         .spawn(monitor_task(
             resources.battery_adc,
             battery_state,
             task_control,
         ))
+        .ok();
+
+    #[cfg(feature = "battery_max17055")]
+    spawner
+        .spawn(monitor_task(battery_state, task_control))
         .ok();
 
     hal::interrupt::enable(
@@ -306,7 +313,6 @@ async fn monitor_task(
 #[cfg(feature = "battery_max17055")]
 #[embassy_executor::task]
 async fn monitor_task(
-    mut _battery: BatteryAdc,
     _battery_state: &'static SharedBatteryState,
     task_control: &'static Signal<NoopRawMutex, ()>,
 ) {
