@@ -4,7 +4,7 @@
 
 use device_descriptor::{ReadOnlyRegister, Register};
 use embedded_hal::i2c::{I2c, Operation};
-use embedded_hal_async::i2c::I2c as AsyncI2c;
+use embedded_hal_async::{delay::DelayUs as AsyncDelayUs, i2c::I2c as AsyncI2c};
 use register_access::{AsyncRegisterAccess, RegisterAccess};
 
 use crate::descriptors::*;
@@ -107,42 +107,69 @@ impl<I2C> Max17055<I2C> {
 
 impl<I2C> Max17055<I2C>
 where
-    I2C: I2c,
-{
-    fn write_and_verify_register<R: Register<u8>>(
-        &mut self,
-        reg: R,
-        delay: &mut impl embedded_hal::delay::DelayUs,
-    ) -> Result<(), Error<I2C>> {
-        for _ in 0..3 {
-            self.write_sequential::<R>(&mut [reg.bits()])?;
-            delay.delay_ms(1);
-            let value = self.read_register::<R>()?;
-            if value == reg {
-                return Ok(());
-            }
-        }
-        Err(Error::Verify)
-    }
-}
-
-impl<I2C> Max17055<I2C>
-where
     I2C: AsyncI2c,
 {
     async fn write_and_verify_register_async<R: Register<u8>>(
         &mut self,
         reg: R,
-        delay: &mut impl embedded_hal_async::delay::DelayUs,
-    ) -> Result<(), Error<I2C>> {
+        delay: &mut impl AsyncDelayUs,
+    ) -> Result<(), Error<I2C::Error>> {
         for _ in 0..3 {
             self.write_sequential_async::<R>(&mut [reg.bits()]).await?;
             delay.delay_ms(1).await;
             let value = self.read_register_async::<R>().await?;
-            if value == reg {
+            if value.bits() == reg.bits() {
                 return Ok(());
             }
         }
         Err(Error::Verify)
+    }
+
+    /// This function implements the Initialize Registers to Recommended Configuration
+    /// procedure from the datasheet.
+    pub async fn load_initial_config_async(
+        &mut self,
+        delay: &mut impl AsyncDelayUs,
+    ) -> Result<(), Error<I2C::Error>> {
+        let por_status = self.read_register_async::<Status>().await?;
+        if por_status.por().read() == Some(PowerOnReset::Reset) {
+            loop {
+                let fstat = self.read_register_async::<FStat>().await?;
+                if fstat.dnr().read() == Some(DataNotReady::Ready) {
+                    break;
+                }
+
+                delay.wait_ms(10).await?;
+            }
+
+            let hib_cfg = self.read_register_async::<HibCfg>().await?;
+            self.write_register_async(Command::new(|w| w.command().write(CommandKind::SoftWakeup)))
+                .await?; // Exit Hibernate Mode step 1
+            self.write_register_async::<HibCfg>(HibCfg::new(|w| {
+                w.en_hib().write(false).hib_config().write(0u32)
+            }))
+            .await?; // Exit Hibernate Mode step 2
+            self.write_register_async(Command::new(|w| w.command().write(CommandKind::Clear)))
+                .await?; // Exit Hibernate Mode step 3
+
+            // EZ config
+            // TODO: scale capacity
+            const CAPACITY: u16 = 320;
+            self.write_register_async(DesignCap::new(|w| w.capacity().write(CAPACITY)))
+                .await?;
+            self.write_register_async(dQAcc::new(|w| w.capacity().write(CAPACITY / 16)))
+                .await?;
+            self.write_register_async(IChgTerm::new(|w| w)).await?;
+            self.write_register_async(VEmpty::new(|w| w)).await?;
+
+            // Clear POR flag
+            let status = self.read_register_async::<Status>().await?;
+            self.write_and_verify_register_async(status.modify(|reg| reg.por().write(0)), delay)
+                .await?;
+        }
+
+        // TODO: 4.3-4.10
+
+        Ok(())
     }
 }
