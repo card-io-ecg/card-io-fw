@@ -12,6 +12,7 @@ use norfs::{
 };
 
 #[derive(Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum ConfigFile {
     V1(v1::Config),
     V2(Config),

@@ -84,7 +84,7 @@
             <span class="data"></span><br />
             Firmware version: <span class="fw"></span>
             Known networks: <span class="kn"></span>
-            <!--button id="btn_nn">Add network</button-->
+            <button id="btn_nn">Add network</button>
         </div>
     </div>
 
@@ -100,8 +100,8 @@
                 <input type="text" id="ssid" name="ssid" /><br />
                 <label for="password">Password</label><br />
                 <input type="password" id="password" name="password" /><br />
-                <input type="submit" value="Submit" />
             </form>
+            <button onclick="$fe.add_new_network();">Submit</button>
             <button id="btn_back">Back</button>
         </div>
     </div>
@@ -215,7 +215,20 @@
             tpl.set_list("kn", "network", await known_networks.text());
         }),
 
-        nn: () => $page('nn')
+        nn: () => $page('nn'),
+
+        add_new_network: async () => {
+            let form = $id("content").querySelector("#form");
+            let ssid = form.querySelector("#ssid").value;
+            let pass = form.querySelector("#password").value;
+
+            await fetch('/nn', {
+                method: 'POST',
+                body: ssid + "\n" + pass
+            });
+
+            $fe.start();
+        }
     };
 
     document.addEventListener("DOMContentLoaded", () => {

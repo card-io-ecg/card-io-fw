@@ -9,6 +9,7 @@ edition = "2021"
 bad-server = { path = "../bad-server" }
 embassy-sync = { version = "0.2", optional = true }
 heapless = "0.7"
+log = "0.4"
 norfs = { git = "https://github.com/card-io-ecg/norfs.git", branch = "complex", optional = true }
 smol = { version = "1.3", optional = true }
 
@@ -21,7 +22,6 @@ name = "simple"
 required-features = ["bad-server/std"]
 
 [dev-dependencies]
-log = "0.4"
 simple_logger = "4.1"
 smol = "1"
 

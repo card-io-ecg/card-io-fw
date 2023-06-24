@@ -111,24 +111,30 @@ pub struct Buffer<'buf, 's, C: Connection> {
 }
 
 impl<'s, C: Connection> Buffer<'_, 's, C> {
-    fn flush_loaded<'r>(&mut self, dst: &'r mut [u8]) -> &'r mut [u8] {
+    fn flush_loaded(&mut self, dst: &mut [u8]) -> usize {
         let bytes = self.buffer.len().min(dst.len());
 
         let (buffer, remaining) = self.buffer.split_at(bytes);
         dst[..bytes].copy_from_slice(buffer);
         self.buffer = remaining;
 
-        &mut dst[bytes..]
+        bytes
     }
 
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize, C::Error> {
-        let buffer_to_fill = self.flush_loaded(buf);
-        self.socket.read(buffer_to_fill).await
+        let read = self.flush_loaded(buf);
+        // Read wants to read at least one byte which will block
+        // if we already loaded the complete body.
+        if read == 0 {
+            self.socket.read(&mut buf[read..]).await
+        } else {
+            Ok(read)
+        }
     }
 
     async fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), ReadExactError<C::Error>> {
-        let buffer_to_fill = self.flush_loaded(buf);
-        self.socket.read_exact(buffer_to_fill).await
+        let read = self.flush_loaded(buf);
+        self.socket.read_exact(&mut buf[read..]).await
     }
 
     async fn read_one(&mut self) -> Result<Option<u8>, C::Error> {

@@ -9,7 +9,10 @@ use bad_server::{
 };
 use config_site::{
     data::{SharedWebContext, WebContext},
-    handlers::{list_known_networks::ListKnownNetworks, HEADER_FONT, INDEX_HANDLER},
+    handlers::{
+        add_new_network::AddNewNetwork, list_known_networks::ListKnownNetworks, HEADER_FONT,
+        INDEX_HANDLER,
+    },
 };
 use embassy_executor::Spawner;
 use embassy_futures::{join::join, select::select};
@@ -252,6 +255,7 @@ async fn webserver_task(
                     StaticHandler::new(&[], env!("FW_VERSION").as_bytes()),
                 ))
                 .with_handler(RequestHandler::get("/kn", ListKnownNetworks { context }))
+                .with_handler(RequestHandler::post("/nn", AddNewNetwork { context }))
                 .listen(&mut socket, 8080)
                 .await;
         })

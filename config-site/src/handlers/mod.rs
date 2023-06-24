@@ -1,3 +1,4 @@
+pub mod add_new_network;
 pub mod list_known_networks;
 
 use bad_server::{handler::StaticHandler, Header};
