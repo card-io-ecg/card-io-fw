@@ -7,7 +7,7 @@ use bad_server::{
     BadServer,
 };
 use config_site::{
-    data::{SharedWebContext, WebContext},
+    data::{network::WifiNetwork, SharedWebContext, WebContext},
     handlers::{list_known_networks::ListKnownNetworks, HEADER_FONT, INDEX_HANDLER},
 };
 use log::LevelFilter;
@@ -25,9 +25,22 @@ fn main() {
 pub async fn run() {
     let mut socket = StdTcpSocket::new();
 
-    let context = SharedWebContext::new(WebContext {
-        known_networks: heapless::Vec::new(),
-    });
+    let mut known_networks = heapless::Vec::<_, 8>::new();
+
+    known_networks
+        .push(WifiNetwork {
+            ssid: heapless::String::from("Demo network 1"),
+            pass: heapless::String::new(),
+        })
+        .unwrap();
+    known_networks
+        .push(WifiNetwork {
+            ssid: heapless::String::from("Demo network 2"),
+            pass: heapless::String::new(),
+        })
+        .unwrap();
+
+    let context = SharedWebContext::new(WebContext { known_networks });
 
     BadServer::new()
         .with_request_buffer_size::<2048>()

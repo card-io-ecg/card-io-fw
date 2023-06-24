@@ -117,19 +117,29 @@
         let c = $id(id);
         if (c) c.addEventListener(evt, cb);
     }
+
+    // Substitute `value` into `tpl`, replacing the inner html of the element with class `name`.
+    // If `sep` is specified, `value` is split on `sep` and each element is substituted into
+    // the corresponding element with class `name-<index>`.
+    $set = (tpl, name, value, sep = undefined) => {
+        if (sep) {
+            for (let [i, field] of line.split(sep).entries()) {
+                $set(tpl, name + "-" + i, field);
+            }
+        } else {
+            tpl.querySelector("." + name).innerHTML = value;
+        }
+    }
+
     $tpl = (id) => {
         let tpl = $id(id).cloneNode(true);
         tpl.classList.remove("tpl");
 
         let c = tpl.querySelector(".content");
         if (c) {
-            c.set = (name, value) => {
-                // TODO: support multiple fields
-                tpl.querySelector("." + name).innerHTML = value;
-            }
-            c.set_list = (name, item_tpl, value) => {
+            c.set = (name, value, sep = undefined) => $set(tpl, name, value, sep);
+            c.set_list = (name, item_tpl, value, sep = undefined) => {
                 // value is a newline-delimited list of items
-                // TODO: support multiple fields
                 let item_template = $tpl(item_tpl);
                 let list_node = tpl.querySelector("." + name);
 
@@ -141,7 +151,7 @@
 
                 for (let line of lines) {
                     let node = item_template.cloneNode(true);
-                    node.querySelector(".data").innerHTML = line;
+                    $set(node, "data", line, sep);
                     list_node.appendChild(node);
                 }
             }
@@ -191,8 +201,8 @@
         }
     }
 
-    let dom_loaded = false;
-    let fonts_loaded = false;
+    let dom_rdy = false;
+    let fonts_rdy = false;
 
     $fe = {
         start: () => $page('demo', async (tpl) => {
@@ -209,16 +219,16 @@
     };
 
     document.addEventListener("DOMContentLoaded", () => {
-        dom_loaded = true;
+        dom_rdy = true;
 
-        if (fonts_loaded) {
+        if (fonts_rdy) {
             $fe.start();
         }
     });
     document.fonts.ready.then(() => {
-        fonts_loaded = true;
+        fonts_rdy = true;
 
-        if (dom_loaded) {
+        if (dom_rdy) {
             $fe.start();
         }
     });
