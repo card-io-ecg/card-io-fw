@@ -18,6 +18,13 @@ use norfs::{drivers::internal::InternalDriver, medium::cache::ReadCache, Storage
 
 #[cfg(feature = "battery_adc")]
 use crate::board::BatteryAdc;
+
+#[cfg(feature = "battery_max17055")]
+use crate::board::BatteryFgI2c;
+
+#[cfg(feature = "battery_max17055")]
+use max17055::Max17055;
+
 #[cfg(feature = "hw_v1")]
 use crate::sleep::enable_gpio_pullup;
 use crate::{
@@ -90,11 +97,13 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
     let battery_state = BATTERY_STATE.init(Mutex::new(BatteryState {
         #[cfg(feature = "battery_adc")]
         adc_data: None,
+        #[cfg(feature = "battery_max17055")]
+        fg_data: None,
     }));
 
     #[cfg(feature = "battery_adc")]
     spawner
-        .spawn(monitor_task(
+        .spawn(monitor_task_adc(
             resources.battery_adc,
             battery_state,
             task_control,
@@ -103,7 +112,11 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
 
     #[cfg(feature = "battery_max17055")]
     spawner
-        .spawn(monitor_task(battery_state, task_control))
+        .spawn(monitor_task_fg(
+            resources.battery_fg,
+            battery_state,
+            task_control,
+        ))
         .ok();
 
     hal::interrupt::enable(
@@ -259,11 +272,13 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
 
 #[cfg(feature = "battery_adc")]
 #[embassy_executor::task]
-async fn monitor_task(
+async fn monitor_task_adc(
     mut battery: BatteryAdc,
     battery_state: &'static SharedBatteryState,
     task_control: &'static Signal<NoopRawMutex, ()>,
 ) {
+    use crate::board::drivers::battery_adc::BatteryAdcData;
+
     let mut timer = Ticker::every(Duration::from_millis(10));
 
     battery.enable.set_high().unwrap();
@@ -284,7 +299,7 @@ async fn monitor_task(
         if sample_count == AVG_SAMPLE_COUNT {
             let mut state = battery_state.lock().await;
 
-            let average = crate::board::drivers::battery_adc::BatteryAdcData {
+            let average = BatteryAdcData {
                 voltage: (voltage_accumulator / AVG_SAMPLE_COUNT) as u16,
                 charge_current: (current_accumulator / AVG_SAMPLE_COUNT) as u16,
             };
@@ -308,14 +323,35 @@ async fn monitor_task(
 
 #[cfg(feature = "battery_max17055")]
 #[embassy_executor::task]
-async fn monitor_task(
-    _battery_state: &'static SharedBatteryState,
+async fn monitor_task_fg(
+    mut fuel_gauge: Max17055<BatteryFgI2c>,
+    battery_state: &'static SharedBatteryState,
     task_control: &'static Signal<NoopRawMutex, ()>,
 ) {
-    let mut timer = Ticker::every(Duration::from_millis(10));
+    use crate::board::initialized::BatteryFgData;
+    use embassy_time::Delay;
+
+    let mut timer = Ticker::every(Duration::from_secs(1));
+
+    fuel_gauge
+        .load_initial_config_async(&mut Delay)
+        .await
+        .unwrap();
 
     while !task_control.signaled() {
-        // TODO: use this task to read MAX17055. Alternatively, we could implement in BatteryAdc
+        let voltage_uv = fuel_gauge.read_vcell().await.unwrap();
+        let percentage = fuel_gauge.read_reported_soc().await.unwrap();
+
+        let data = BatteryFgData {
+            voltage: (voltage_uv / 1000) as u16, // mV
+            percentage,
+        };
+        {
+            let mut state = battery_state.lock().await;
+            state.fg_data = Some(data);
+        }
+        log::debug!("Battery data: {data:?}");
+
         timer.next().await;
     }
 

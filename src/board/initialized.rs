@@ -22,9 +22,21 @@ use crate::{
 #[cfg(feature = "battery_adc")]
 use crate::board::drivers::battery_adc::BatteryAdcData;
 
+#[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
+use crate::board::LOW_BATTERY_VOLTAGE;
+
+#[cfg(feature = "battery_max17055")]
+#[derive(Clone, Copy, Debug)]
+pub struct BatteryFgData {
+    pub voltage: u16,
+    pub percentage: u8,
+}
+
 pub struct BatteryState {
     #[cfg(feature = "battery_adc")]
     pub adc_data: Option<BatteryAdcData>,
+    #[cfg(feature = "battery_max17055")]
+    pub fg_data: Option<BatteryFgData>,
 }
 
 pub struct BatteryMonitor<VBUS, CHG> {
@@ -37,8 +49,6 @@ pub struct BatteryMonitor<VBUS, CHG> {
 impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
     #[cfg(feature = "battery_adc")]
     pub async fn battery_data(&mut self) -> Option<BatteryInfo> {
-        use crate::board::LOW_BATTERY_VOLTAGE;
-
         let state = self.battery_state.lock().await;
 
         state.adc_data.map(|state| {
@@ -58,7 +68,14 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
 
     #[cfg(feature = "battery_max17055")]
     pub async fn battery_data(&mut self) -> Option<BatteryInfo> {
-        unimplemented!()
+        let state = self.battery_state.lock().await;
+
+        state.fg_data.map(|state| BatteryInfo {
+            voltage: state.voltage,
+            is_charging: self.is_charging(),
+            percentage: state.percentage,
+            is_low: state.voltage < LOW_BATTERY_VOLTAGE,
+        })
     }
 
     #[cfg(not(any(feature = "battery_max17055", feature = "battery_adc")))]
