@@ -61,9 +61,15 @@ device! {
         percentage(pos = 0, width = 16): u16
     }
     Temp(u16, addr = 0x08) {}
-    VCell(u16, addr = 0x09) {}
-    Current(u16, addr = 0x0A) {}
-    AvgCurrent(u16, addr = 0x0B) {}
+    VCell(u16, addr = 0x09) {
+        voltage(pos = 0, width = 16): u16
+    }
+    Current(u16, addr = 0x0A) {
+        current(pos = 0, width = 16): u16
+    }
+    AvgCurrent(u16, addr = 0x0B) {
+        current(pos = 0, width = 16): u16
+    }
     QResidual(u16, addr = 0x0C) {
         /// The QResidual register provides the calculated amount of charge in mAh that is presently
         /// inside of, but cannot be removed from the cell under present application conditions
@@ -83,13 +89,13 @@ device! {
         /// can be caused by abrupt changes in load current or temperature.
         percentage(pos = 0, width = 16): u16
     }
-    MixCap(u16, addr = 0x0F) {
+    MixCap(u16, addr = 0x0F, default = 0x0000) {
         /// The MixCap and MixSOC registers holds the calculated remaining capacity and percentage
         /// of the cell before any empty compensation adjustments are performed.
         capacity(pos = 0, width = 16): u16
     }
 
-    FullCapRep(u16, addr = 0x10) {
+    FullCapRep(u16, addr = 0x10, default = 0x0000) {
         /// This register reports the full capacity that goes with RepCap, generally used for
         /// reporting to the GUI. Most applications should only monitor FullCapRep, instead of
         /// FullCap or FullCapNom. A new full-capacity value is calculated at the end of every
@@ -123,7 +129,7 @@ device! {
     }
     // Reserved(u16, addr = 0x15) {}
     AvgTA(u16, addr = 0x16) {}
-    Cycles(u16, addr = 0x17) {
+    Cycles(u16, addr = 0x17, default = 0x0000) {
         /// The Cycles register maintains a total count of the number of charge/discharge cycles of
         /// the cell that have occurred. The result is stored as a percentage of a full cycle.
         /// For example, a full charge/discharge cycle results in the Cycles register incrementing
@@ -138,7 +144,9 @@ device! {
         /// against the measured present cell capacity.
         capacity(pos = 0, width = 16): u16
     }
-    AvgVCell(u16, addr = 0x19) {}
+    AvgVCell(u16, addr = 0x19) {
+        voltage(pos = 0, width = 16): u16
+    }
     MaxMinTemp(u16, addr = 0x1A) {}
     MaxMinVolt(u16, addr = 0x1B) {}
     MaxMinCurr(u16, addr = 0x1C) {}
@@ -263,7 +271,7 @@ device! {
     /// The QRTable00 to QRTable30 register locations contain characterization information
     /// regarding cell capacity under different application conditions.
     QRTable10(u16, addr = 0x22) {}
-    FullCapNom(u16, addr = 0x23) {
+    FullCapNom(u16, addr = 0x23, default = 0x0000) {
         /// This register holds the calculated full capacity of the cell, not including temperature
         /// and empty compensation. A new full-capacity nominal value is calculated each time a cell
         /// relaxation event is detected.
@@ -381,10 +389,10 @@ device! {
     // Reserved(u16, addr = 0x37) {}
     /// The RComp0 register holds characterization information critical to computing the
     /// open-circuit voltage of a cell under loaded conditions.
-    RComp0(u16, addr = 0x38) {}
+    RComp0(u16, addr = 0x38, default = 0x0000) {}
     /// The TempCo register holds temperature compensation information
     /// for the RComp0 register value.
-    TempCo(u16, addr = 0x39) {}
+    TempCo(u16, addr = 0x39, default = 0x0000) {}
     VEmpty(u16, addr = 0x3A, default = 0xA561) {
         /// Empty Voltage Target, During Load
         ve(pos = 7, width = 9): u16,

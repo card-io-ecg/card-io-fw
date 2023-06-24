@@ -3,7 +3,7 @@
 #![allow(incomplete_features)]
 
 use byte_slice_cast::{AsByteSlice, AsMutByteSlice};
-use device_descriptor::{ReadOnlyRegister, Register};
+use device_descriptor::{ReadOnlyRegister, ReaderProxy, Register};
 use embedded_hal::i2c::{I2c, Operation};
 use embedded_hal_async::{delay::DelayUs as AsyncDelayUs, i2c::I2c as AsyncI2c};
 use register_access::{AsyncRegisterAccess, RegisterAccess};
@@ -18,7 +18,7 @@ pub enum Error<I2cE> {
     Verify,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct DesignData {
     /// Design capacity
     /// LSB = 5μVH/r_sense
@@ -43,6 +43,85 @@ pub struct DesignData {
 
     /// LSB = 1mOhm
     pub r_sense: u32,
+}
+
+impl DesignData {
+    /// Converts the raw register value to a current value in μA.
+    ///
+    /// ```rust
+    /// # use max17055::DesignData;
+    /// let design_data = DesignData {
+    ///    r_sense: 20,
+    ///   ..Default::default()
+    /// };
+    ///
+    /// assert_eq!(design_data.raw_current_to_uA(0), 0);
+    /// assert_eq!(design_data.raw_current_to_uA(1), 78);
+    /// assert_eq!(design_data.raw_current_to_uA(0xFFFF), -78);
+    ///
+    /// let design_data = DesignData {
+    ///    r_sense: 10,
+    ///   ..Default::default()
+    /// };
+    ///
+    /// assert_eq!(design_data.raw_current_to_uA(0), 0);
+    /// assert_eq!(design_data.raw_current_to_uA(1), 156);
+    /// assert_eq!(design_data.raw_current_to_uA(0xFFFF), -156);
+    /// ```
+    #[allow(non_snake_case)]
+    pub fn raw_current_to_uA(&self, raw: u16) -> i32 {
+        let raw = raw as i16 as i32;
+        let rsense = self.r_sense as i32;
+
+        raw * 1_5625 / (rsense * 10)
+    }
+
+    /// Converts the raw register value to a capacity value in μAh.
+    ///
+    /// ```rust
+    /// # use max17055::DesignData;
+    /// let design_data = DesignData {
+    ///    r_sense: 20,
+    ///   ..Default::default()
+    /// };
+    ///
+    /// assert_eq!(design_data.raw_capacity_to_uAh(0), 0);
+    /// assert_eq!(design_data.raw_capacity_to_uAh(1), 250);
+    /// assert_eq!(design_data.raw_capacity_to_uAh(65535), 16_383_750);
+    /// ```
+    #[allow(non_snake_case)]
+    pub fn raw_capacity_to_uAh(&self, raw: u16) -> u32 {
+        let raw = raw as u32;
+        let rsense = self.r_sense as u32;
+
+        raw * 5_0000 / (rsense * 10)
+    }
+
+    /// Converts the raw register value to a voltage value in μV.
+    ///
+    /// ```rust
+    /// # use max17055::DesignData;
+    /// let design_data = DesignData {
+    ///   r_sense: 20,
+    ///  ..Default::default()
+    /// };
+    ///
+    /// assert_eq!(design_data.raw_voltage_to_uV(0), 0);
+    /// assert_eq!(design_data.raw_voltage_to_uV(1), 78);
+    /// assert_eq!(design_data.raw_voltage_to_uV(65535), 5_119_921);
+    /// ```
+    #[allow(non_snake_case)]
+    pub fn raw_voltage_to_uV(&self, raw: u16) -> u32 {
+        (raw as u32 * 625) / 8
+    }
+}
+
+pub struct LearnedParams {
+    pub rcomp0: u16,
+    pub temp_co: u16,
+    pub full_cap_rep: u16,
+    pub cycles: u16,
+    pub full_cap_nom: u16,
 }
 
 pub struct Max17055<I2C> {
@@ -166,7 +245,7 @@ where
 }
 
 impl<I2C> Max17055<I2C> {
-    const DEVICE_ADDR: u8 = 0x36; // or << 1
+    const DEVICE_ADDR: u8 = 0x36;
 
     pub fn new(i2c: I2C, config: DesignData) -> Self {
         Self { i2c, config }
@@ -310,6 +389,115 @@ where
             }))
             .await?;
         }
+
+        Ok(())
+    }
+
+    /// Returns the reported capacity in μAh.
+    pub async fn read_reported_capacity(&mut self) -> Result<u32, Error<I2C::Error>> {
+        let reg = self.read_register_async::<RepCap>().await?;
+        let raw = reg.capacity().read().unwrap_or(0);
+        Ok(self.config.raw_capacity_to_uAh(raw))
+    }
+
+    /// Returns the reported state of charge %.
+    pub async fn read_reported_soc(&mut self) -> Result<u8, Error<I2C::Error>> {
+        let reg = self.read_register_async::<RepSOC>().await?;
+        let raw = reg.percentage().read().unwrap_or(0);
+        Ok((raw >> 8) as u8)
+    }
+
+    /// Returns the number of charge cycles in %.
+    pub async fn read_charge_cycles(&mut self) -> Result<u8, Error<I2C::Error>> {
+        let reg = self.read_register_async::<Cycles>().await?;
+        let raw = reg.cycles_percentage().read().unwrap_or(0);
+        Ok((raw >> 8) as u8)
+    }
+
+    /// Returns the cell voltage in μV.
+    pub async fn read_vcell(&mut self) -> Result<u32, Error<I2C::Error>> {
+        let reg = self.read_register_async::<VCell>().await?;
+        let raw = reg.voltage().read().unwrap_or(0);
+        Ok(self.config.raw_voltage_to_uV(raw))
+    }
+
+    /// Returns the average cell voltage in μV.
+    pub async fn read_avg_vcell(&mut self) -> Result<u32, Error<I2C::Error>> {
+        let reg = self.read_register_async::<AvgVCell>().await?;
+        let raw = reg.voltage().read().unwrap_or(0);
+        Ok(self.config.raw_voltage_to_uV(raw))
+    }
+
+    /// Returns the battery current in μA.
+    pub async fn read_current(&mut self) -> Result<i32, Error<I2C::Error>> {
+        let reg = self.read_register_async::<Current>().await?;
+        let taw = reg.current().read().unwrap_or(0);
+        Ok(self.config.raw_current_to_uA(taw))
+    }
+
+    /// Returns the average battery current in μA.
+    pub async fn read_avg_current(&mut self) -> Result<i32, Error<I2C::Error>> {
+        let reg = self.read_register_async::<AvgCurrent>().await?;
+        let taw = reg.current().read().unwrap_or(0);
+        Ok(self.config.raw_current_to_uA(taw))
+    }
+
+    /// Save Learned Parameters Function for battery Fuel Gauge model.
+    ///
+    /// It is recommended to save the learned capacity parameters every
+    /// time bit 2 of the Cycles register toggles
+    /// (so that it is saved every 64% change in the battery)
+    /// so that if power is lost the values can easily be restored. Make sure
+    /// the data is saved on a non-volatile memory. Call this function after first initialization
+    /// for reference in future function calls.
+    /// Max number of cycles is 655.35 cycles with a LSB of 1% for the cycles register
+    pub async fn read_learned_params(&mut self) -> Result<LearnedParams, Error<I2C::Error>> {
+        Ok(LearnedParams {
+            rcomp0: self.read_register_async::<RComp0>().await?.value(),
+            temp_co: self.read_register_async::<TempCo>().await?.value(),
+            full_cap_rep: self.read_register_async::<FullCap>().await?.value(),
+            cycles: self.read_register_async::<Cycles>().await?.value(),
+            full_cap_nom: self.read_register_async::<FullCapNom>().await?.value(),
+        })
+    }
+
+    /// Restore Parameters Function for battery Fuel Gauge model.
+    ///
+    /// If power is lost, then the capacity information can be easily restored with this function.
+    pub async fn restore_learned_params(
+        &mut self,
+        params: &LearnedParams,
+        delay: &mut impl AsyncDelayUs,
+    ) -> Result<(), Error<I2C::Error>> {
+        self.write_and_verify_register_async(RComp0::from_bits(params.rcomp0), delay)
+            .await?;
+        self.write_and_verify_register_async(TempCo::from_bits(params.temp_co), delay)
+            .await?;
+        self.write_and_verify_register_async(FullCapNom::from_bits(params.full_cap_nom), delay)
+            .await?;
+        delay.delay_ms(350).await;
+
+        let full_cap_nom = self.read_register_async::<FullCapNom>().await?;
+        let mixsoc = self.read_register_async::<MixSOC>().await?;
+
+        let mix_cap_calc = (mixsoc.percentage().read_field_bits() as u32
+            * full_cap_nom.capacity().read_field_bits() as u32)
+            / 25600;
+
+        self.write_and_verify_register_async(MixCap::from_bits(mix_cap_calc as u16), delay)
+            .await?;
+        self.write_and_verify_register_async(FullCapRep::from_bits(params.full_cap_rep), delay)
+            .await?;
+
+        self.write_and_verify_register_async(dPAcc::from_bits(0x0C80), delay)
+            .await?; // 200%
+        self.write_and_verify_register_async(dQAcc::from_bits(params.full_cap_nom / 16), delay)
+            .await?;
+
+        delay.delay_ms(350).await;
+
+        self.write_and_verify_register_async(Cycles::from_bits(params.cycles), delay)
+            .await?;
 
         Ok(())
     }
