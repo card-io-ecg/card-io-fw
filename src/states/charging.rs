@@ -1,5 +1,5 @@
 use crate::{
-    board::{initialized::Board, BATTERY_MODEL},
+    board::initialized::Board,
     states::{MIN_FRAME_TIME, TARGET_FPS},
     AppState,
 };
@@ -15,7 +15,6 @@ pub async fn charging(board: &mut Board) -> AppState {
 
     let mut charging_screen = ChargingScreen {
         battery_data: board.battery_monitor.battery_data().await,
-        model: BATTERY_MODEL,
         is_charging: board.battery_monitor.is_charging(),
         frames: 0,
         fps: TARGET_FPS,

@@ -11,22 +11,31 @@ extern crate alloc;
 use embassy_executor::{Executor, Spawner, _export::StaticCell};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex, signal::Signal};
 use embassy_time::{Duration, Ticker, Timer};
+#[cfg(any(feature = "hw_v1", feature = "battery_adc"))]
 use embedded_hal::digital::OutputPin;
 use embedded_hal_async::digital::Wait;
 use norfs::{drivers::internal::InternalDriver, medium::cache::ReadCache, Storage, StorageError};
 
+#[cfg(feature = "battery_adc")]
+use crate::board::{drivers::battery_adc::BatteryAdcData, BatteryAdc};
+
+#[cfg(feature = "battery_max17055")]
+use crate::board::{initialized::BatteryFgData, BatteryFgI2c};
+
+#[cfg(feature = "battery_max17055")]
+use max17055::Max17055;
+
+#[cfg(feature = "hw_v1")]
+use crate::sleep::enable_gpio_pullup;
 use crate::{
     board::{
         config::{Config, ConfigFile},
         hal::{self, entry},
-        initialized::{BatteryMonitor, Board, ConfigPartition},
+        initialized::{BatteryMonitor, BatteryState, Board, ConfigPartition},
         startup::StartupResources,
-        BatteryAdc,
+        BATTERY_MODEL,
     },
-    sleep::{
-        disable_gpio_wakeup, enable_gpio_pullup, enable_gpio_wakeup, start_deep_sleep,
-        RtcioWakeupType,
-    },
+    sleep::{disable_gpio_wakeup, enable_gpio_wakeup, start_deep_sleep, RtcioWakeupType},
     states::{
         adc_setup, app_error, charging, display_menu, initialize, main_menu, measure, wifi_ap,
     },
@@ -58,21 +67,25 @@ pub enum AppState {
     ShutdownCharging,
 }
 
-pub struct BatteryState {
-    pub charging_current: Option<u16>,
-    pub battery_voltage: Option<u16>,
-}
-
 pub type SharedBatteryState = Mutex<NoopRawMutex, BatteryState>;
 
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static BATTERY_STATE: StaticCell<SharedBatteryState> = StaticCell::new();
-static TASK_CONTROL: StaticCell<Signal<NoopRawMutex, ()>> = StaticCell::new();
+#[cfg(feature = "battery_adc")]
+static ADC_TASK_CONTROL: StaticCell<Signal<NoopRawMutex, ()>> = StaticCell::new();
+#[cfg(feature = "battery_max17055")]
+static FG_TASK_CONTROL: StaticCell<Signal<NoopRawMutex, ()>> = StaticCell::new();
 
 #[entry]
 fn main() -> ! {
     // Board::initialize initialized embassy so it must be called first.
     let resources = StartupResources::initialize();
+
+    #[cfg(feature = "hw_v1")]
+    log::info!("Hardware version: v1");
+
+    #[cfg(feature = "hw_v2")]
+    log::info!("Hardware version: v2");
 
     let executor = EXECUTOR.init(Executor::new());
     executor.run(move |spawner| {
@@ -82,18 +95,34 @@ fn main() -> ! {
 
 #[embassy_executor::task]
 async fn main_task(spawner: Spawner, resources: StartupResources) {
-    let task_control = &*TASK_CONTROL.init_with(Signal::new);
+    #[cfg(feature = "battery_adc")]
+    let adc_task_control = &*ADC_TASK_CONTROL.init_with(Signal::new);
+
+    #[cfg(feature = "battery_max17055")]
+    let fg_task_control = &*FG_TASK_CONTROL.init_with(Signal::new);
 
     let battery_state = BATTERY_STATE.init(Mutex::new(BatteryState {
-        charging_current: None,
-        battery_voltage: None,
+        #[cfg(feature = "battery_adc")]
+        adc_data: None,
+        #[cfg(feature = "battery_max17055")]
+        fg_data: None,
     }));
 
+    #[cfg(feature = "battery_adc")]
     spawner
-        .spawn(monitor_task(
+        .spawn(monitor_task_adc(
             resources.battery_adc,
             battery_state,
-            task_control,
+            adc_task_control,
+        ))
+        .ok();
+
+    #[cfg(feature = "battery_max17055")]
+    spawner
+        .spawn(monitor_task_fg(
+            resources.battery_fg,
+            battery_state,
+            fg_task_control,
         ))
         .ok();
 
@@ -157,6 +186,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         peripheral_clock_control: resources.peripheral_clock_control,
         high_prio_spawner: resources.high_prio_spawner,
         battery_monitor: BatteryMonitor {
+            model: BATTERY_MODEL,
             battery_state,
             vbus_detect: resources.misc_pins.vbus_detect,
             charger_status: resources.misc_pins.chg_status,
@@ -188,14 +218,23 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             AppState::Shutdown => {
                 let _ = board.display.shut_down();
 
-                task_control.signal(());
+                #[cfg(feature = "battery_adc")]
+                adc_task_control.signal(());
+                #[cfg(feature = "battery_max17055")]
+                fg_task_control.signal(());
 
                 let (_, _, _, mut touch) = board.frontend.split();
+
+                #[cfg(feature = "hw_v1")]
                 let charger_pin = board.battery_monitor.charger_status;
+
+                #[cfg(feature = "hw_v2")]
+                let charger_pin = board.battery_monitor.vbus_detect;
 
                 touch.wait_for_high().await.unwrap();
                 Timer::after(Duration::from_millis(100)).await;
 
+                #[cfg(feature = "hw_v1")]
                 enable_gpio_pullup(&charger_pin);
 
                 enable_gpio_wakeup(&touch, RtcioWakeupType::LowLevel);
@@ -211,15 +250,24 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             AppState::ShutdownCharging => {
                 let _ = board.display.shut_down();
 
-                task_control.signal(());
+                #[cfg(feature = "battery_adc")]
+                adc_task_control.signal(());
+                #[cfg(feature = "battery_max17055")]
+                fg_task_control.signal(());
 
                 let (_, _, _, mut touch) = board.frontend.split();
+
+                #[cfg(feature = "hw_v1")]
                 let charger_pin = board.battery_monitor.charger_status;
+
+                #[cfg(feature = "hw_v2")]
+                let charger_pin = board.battery_monitor.vbus_detect;
 
                 touch.wait_for_high().await.unwrap();
                 Timer::after(Duration::from_millis(100)).await;
 
                 enable_gpio_wakeup(&touch, RtcioWakeupType::LowLevel);
+
                 // FIXME: This is a bit awkward as unplugging then replugging will not wake the
                 // device. Ideally, we'd use the VBUS detect pin, but it's not connected to RTCIO.
                 disable_gpio_wakeup(&charger_pin);
@@ -235,14 +283,15 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
     }
 }
 
-// Debug task, to be removed
+#[cfg(feature = "battery_adc")]
 #[embassy_executor::task]
-async fn monitor_task(
+async fn monitor_task_adc(
     mut battery: BatteryAdc,
     battery_state: &'static SharedBatteryState,
     task_control: &'static Signal<NoopRawMutex, ()>,
 ) {
     let mut timer = Ticker::every(Duration::from_millis(10));
+    log::debug!("ADC monitor started");
 
     battery.enable.set_high().unwrap();
 
@@ -254,22 +303,21 @@ async fn monitor_task(
     const AVG_SAMPLE_COUNT: u32 = 128;
 
     while !task_control.signaled() {
-        let voltage = battery.read_battery_voltage().await;
-        let current = battery.read_charge_current().await;
+        let data = battery.read_data().await.unwrap();
 
-        voltage_accumulator += voltage.unwrap() as u32;
-        current_accumulator += current.unwrap() as u32;
+        voltage_accumulator += data.voltage as u32;
+        current_accumulator += data.charge_current as u32;
 
         if sample_count == AVG_SAMPLE_COUNT {
-            let voltage = (voltage_accumulator / AVG_SAMPLE_COUNT) as u16;
-            let current = (current_accumulator / AVG_SAMPLE_COUNT) as u16;
-
             let mut state = battery_state.lock().await;
-            state.battery_voltage = Some(voltage);
-            state.charging_current = Some(current);
 
-            log::debug!("Voltage = {voltage:?}");
-            log::debug!("Current = {current:?}");
+            let average = BatteryAdcData {
+                voltage: (voltage_accumulator / AVG_SAMPLE_COUNT) as u16,
+                charge_current: (current_accumulator / AVG_SAMPLE_COUNT) as u16,
+            };
+            state.adc_data = Some(average);
+
+            log::debug!("Battery data: {average:?}");
 
             sample_count = 0;
 
@@ -278,6 +326,43 @@ async fn monitor_task(
         } else {
             sample_count += 1;
         }
+
+        timer.next().await;
+    }
+
+    log::debug!("Monitor exited");
+}
+
+#[cfg(feature = "battery_max17055")]
+#[embassy_executor::task]
+async fn monitor_task_fg(
+    mut fuel_gauge: Max17055<BatteryFgI2c>,
+    battery_state: &'static SharedBatteryState,
+    task_control: &'static Signal<NoopRawMutex, ()>,
+) {
+    use embassy_time::Delay;
+
+    let mut timer = Ticker::every(Duration::from_secs(1));
+    log::debug!("Fuel gauge monitor started");
+
+    fuel_gauge
+        .load_initial_config_async(&mut Delay)
+        .await
+        .unwrap();
+
+    while !task_control.signaled() {
+        let voltage_uv = fuel_gauge.read_vcell().await.unwrap();
+        let percentage = fuel_gauge.read_reported_soc().await.unwrap();
+
+        let data = BatteryFgData {
+            voltage: (voltage_uv / 1000) as u16, // mV
+            percentage,
+        };
+        {
+            let mut state = battery_state.lock().await;
+            state.fg_data = Some(data);
+        }
+        log::debug!("Battery data: {data:?}");
 
         timer.next().await;
     }

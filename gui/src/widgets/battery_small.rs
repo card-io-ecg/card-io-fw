@@ -11,28 +11,18 @@ use embedded_graphics::{
     Drawable,
 };
 use embedded_layout::prelude::*;
-use signal_processing::battery::BatteryModel;
 
-use crate::screens::{display_menu::BatteryDisplayStyle, BatteryInfo};
+use crate::screens::BatteryInfo;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BatteryStyle {
     MilliVolts,
-    Percentage(BatteryModel),
-    Icon(BatteryModel),
-    LowIndicator(BatteryModel),
+    Percentage,
+    Icon,
+    LowIndicator,
 }
 
 impl BatteryStyle {
-    pub fn new(style: BatteryDisplayStyle, model: BatteryModel) -> Self {
-        match style {
-            BatteryDisplayStyle::MilliVolts => Self::MilliVolts,
-            BatteryDisplayStyle::Percentage => Self::Percentage(model),
-            BatteryDisplayStyle::Icon => Self::Icon(model),
-            BatteryDisplayStyle::Indicator => Self::LowIndicator(model),
-        }
-    }
-
     fn text_style() -> MonoTextStyle<'static, BinaryColor> {
         MonoTextStyleBuilder::new()
             .font(&FONT_6X10)
@@ -48,15 +38,13 @@ impl BatteryStyle {
                     .bounding_box
                     .size
             }
-            BatteryStyle::Percentage(_) => {
+            BatteryStyle::Percentage => {
                 Self::text_style()
                     .measure_string("C000%", Point::zero(), Baseline::Top)
                     .bounding_box
                     .size
             }
-            BatteryStyle::Icon(_) | BatteryStyle::LowIndicator(_) => {
-                Size::new(13, 10) + Size::new(6, 10)
-            }
+            BatteryStyle::Icon | BatteryStyle::LowIndicator => Size::new(13, 10) + Size::new(6, 10),
         }
     }
 
@@ -155,17 +143,15 @@ impl BatteryStyle {
 
                 self.draw_text(target, &string)?
             }
-            BatteryStyle::Percentage(model) => {
+            BatteryStyle::Percentage => {
                 let mut string = heapless::String::<4>::new();
 
-                let percentage = model.estimate(data.voltage, data.charge_current);
-                write!(&mut string, "{percentage}%").ok();
+                write!(&mut string, "{}%", data.percentage).ok();
 
                 self.draw_text(target, &string)?
             }
-            BatteryStyle::LowIndicator(model) if data.charge_current.is_none() => {
-                let percentage = model.estimate(data.voltage, data.charge_current);
-                if percentage < 25 {
+            BatteryStyle::LowIndicator if !data.is_charging => {
+                if data.percentage < 25 {
                     let top_right = target.bounding_box().anchor_point(AnchorPoint::TopRight);
                     let box_top_left = self.draw_battery_outline(target, top_right)?;
 
@@ -181,9 +167,8 @@ impl BatteryStyle {
                     0
                 }
             }
-            BatteryStyle::Icon(model) | BatteryStyle::LowIndicator(model) => {
-                let percentage = model.estimate(data.voltage, data.charge_current);
-                let bars = (percentage.saturating_sub(1)) / 25;
+            BatteryStyle::Icon | BatteryStyle::LowIndicator => {
+                let bars = (data.percentage.saturating_sub(1)) / 25;
 
                 let top_right = target.bounding_box().anchor_point(AnchorPoint::TopRight);
                 let box_top_left = self.draw_battery_outline(target, top_right)?;
@@ -201,7 +186,7 @@ impl BatteryStyle {
             }
         };
 
-        if data.charge_current.is_some() {
+        if data.is_charging {
             self.draw_charging_indicator(target, battery_data_width)?;
         }
 

@@ -6,6 +6,12 @@ use embassy_futures::yield_now;
 use embedded_hal_old::adc::{Channel, OneShot};
 use esp32s3_hal::{efuse::Efuse, peripheral::Peripheral};
 
+#[derive(Clone, Copy, Debug)]
+pub struct BatteryAdcData {
+    pub voltage: u16,
+    pub charge_current: u16,
+}
+
 struct AdcCalibration {
     // Assumption is that this is the ADC output @ 850mV
     calibration_factor: u32,
@@ -75,5 +81,12 @@ where
                 Err(nb::Error::WouldBlock) => yield_now().await,
             }
         }
+    }
+
+    pub async fn read_data(&mut self) -> Result<BatteryAdcData, ()> {
+        Ok(BatteryAdcData {
+            voltage: self.read_battery_voltage().await?,
+            charge_current: self.read_charge_current().await?,
+        })
     }
 }

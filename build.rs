@@ -19,4 +19,22 @@ fn main() {
         .trim();
 
     println!("cargo:rustc-env=FW_VERSION={pkg_version}-{git_hash_str}");
+
+    #[allow(unused_mut)]
+    let mut count = 0;
+    #[cfg(feature = "hw_v1")]
+    {
+        count += 1;
+    }
+    #[cfg(feature = "hw_v2")]
+    {
+        count += 1;
+    }
+    if count != 1 {
+        println!(
+            "cargo:warning=Exactly one of the following features must be selected: hw_v1, hw_v2"
+        );
+
+        panic!("Exactly one of the following features must be selected: hw_v1, hw_v2");
+    }
 }

@@ -1,7 +1,4 @@
-use gui::{
-    screens::display_menu::{BatteryDisplayStyle, DisplayBrightness},
-    widgets::battery_small::BatteryStyle,
-};
+use gui::{screens::display_menu::DisplayBrightness, widgets::battery_small::BatteryStyle};
 use norfs::{
     medium::StorageMedium,
     reader::BoundReader,
@@ -11,18 +8,16 @@ use norfs::{
 };
 use ssd1306::prelude::Brightness;
 
-use crate::board::BATTERY_MODEL;
-
 #[derive(Clone, Copy)]
 pub struct Config {
-    pub battery_display_style: BatteryDisplayStyle,
+    pub battery_display_style: BatteryStyle,
     pub display_brightness: DisplayBrightness,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            battery_display_style: BatteryDisplayStyle::Indicator,
+            battery_display_style: BatteryStyle::LowIndicator,
             display_brightness: DisplayBrightness::Normal,
         }
     }
@@ -30,7 +25,7 @@ impl Default for Config {
 
 impl Config {
     pub fn battery_style(&self) -> BatteryStyle {
-        BatteryStyle::new(self.battery_display_style, BATTERY_MODEL)
+        self.battery_display_style
     }
 
     pub fn display_brightness(&self) -> Brightness {
@@ -51,7 +46,7 @@ impl Loadable for Config {
         [(); M::BLOCK_COUNT]: Sized,
     {
         let data = Self {
-            battery_display_style: BatteryDisplayStyle::load(reader).await?,
+            battery_display_style: BatteryStyle::load(reader).await?,
             display_brightness: DisplayBrightness::load(reader).await?,
         };
 

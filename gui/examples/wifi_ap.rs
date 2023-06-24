@@ -9,10 +9,12 @@ use embedded_graphics_simulator::{
     BinaryColorTheme, OutputSettingsBuilder, SimulatorDisplay, SimulatorEvent, Window,
 };
 use gui::{
-    screens::{wifi_ap::WifiApScreen, BatteryInfo},
+    screens::{
+        wifi_ap::{ApMenu, WifiApScreen},
+        BatteryInfo, MENU_STYLE,
+    },
     widgets::battery_small::BatteryStyle,
 };
-use signal_processing::battery::BatteryModel;
 
 fn main() -> Result<(), Infallible> {
     let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(128, 64));
@@ -30,12 +32,12 @@ fn main() -> Result<(), Infallible> {
         WifiApScreen {
             battery_data: Some(BatteryInfo {
                 voltage: 4200,
-                charge_current: Some(100),
+                percentage: 100,
+                is_charging: true,
+                is_low: false,
             }),
-            battery_style: BatteryStyle::Icon(BatteryModel {
-                voltage: (3300, 4200),
-                charge_current: (0, 1000),
-            }),
+            battery_style: BatteryStyle::Icon,
+            menu: ApMenu {}.create_menu_with_style(MENU_STYLE),
         }
         .draw(&mut display)
         .unwrap();

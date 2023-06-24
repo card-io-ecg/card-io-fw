@@ -3,7 +3,7 @@
 #![allow(incomplete_features)]
 
 use byteorder::{BigEndian, ByteOrder};
-use device_descriptor::{Proxy, ReadOnlyRegister, Register};
+use device_descriptor::{ReadOnlyRegister, ReaderProxy, Register};
 use embedded_hal::{
     digital::OutputPin,
     spi::{Operation, SpiDevice},
@@ -113,63 +113,78 @@ pub struct Ads129x<SPI> {
     spi: SPI,
 }
 
-impl<SPI> RegisterAccess for Ads129x<SPI>
+impl<SPI> RegisterAccess<u8> for Ads129x<SPI>
 where
     SPI: SpiDevice,
 {
     type Error = Error<SPI::Error>;
 
-    fn read_register<R: ReadOnlyRegister<u8>>(&mut self) -> Result<R, Self::Error> {
+    fn read_register<R>(&mut self) -> Result<R, Self::Error>
+    where
+        R: ReadOnlyRegister<RegisterWidth = u8>,
+    {
         let mut buffer = [0];
         self.read_sequential::<R>(&mut buffer)
             .map(|_| R::from_bits(buffer[0]))
     }
 
-    fn read_sequential<R: ReadOnlyRegister<u8>>(
-        &mut self,
-        buffer: &mut [u8],
-    ) -> Result<(), Self::Error> {
+    fn read_sequential<R>(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error>
+    where
+        R: ReadOnlyRegister<RegisterWidth = u8>,
+    {
         self.write_command(Self::start_read_command::<R>(buffer), buffer)
     }
 
-    fn write_register<R: Register<u8>>(&mut self, reg: R) -> Result<(), Self::Error> {
+    fn write_register<R>(&mut self, reg: R) -> Result<(), Self::Error>
+    where
+        R: Register<RegisterWidth = u8>,
+    {
         self.write_sequential::<R>(&mut [reg.bits()])
     }
 
-    fn write_sequential<R: Register<u8>>(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error> {
+    fn write_sequential<R>(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error>
+    where
+        R: Register<RegisterWidth = u8>,
+    {
         self.write_command(Self::start_write_command::<R>(buffer), buffer)
     }
 }
 
-impl<SPI> AsyncRegisterAccess for Ads129x<SPI>
+impl<SPI> AsyncRegisterAccess<u8> for Ads129x<SPI>
 where
     SPI: AsyncSpiDevice,
 {
     type Error = Error<SPI::Error>;
 
-    async fn read_register_async<R: ReadOnlyRegister<u8>>(&mut self) -> Result<R, Self::Error> {
+    async fn read_register_async<R>(&mut self) -> Result<R, Self::Error>
+    where
+        R: ReadOnlyRegister<RegisterWidth = u8>,
+    {
         let mut buffer = [0];
         self.read_sequential_async::<R>(&mut buffer)
             .await
             .map(|_| R::from_bits(buffer[0]))
     }
 
-    async fn read_sequential_async<R: ReadOnlyRegister<u8>>(
-        &mut self,
-        buffer: &mut [u8],
-    ) -> Result<(), Self::Error> {
+    async fn read_sequential_async<R>(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error>
+    where
+        R: ReadOnlyRegister<RegisterWidth = u8>,
+    {
         self.write_command_async(Self::start_read_command::<R>(buffer), buffer)
             .await
     }
 
-    async fn write_register_async<R: Register<u8>>(&mut self, reg: R) -> Result<(), Self::Error> {
+    async fn write_register_async<R>(&mut self, reg: R) -> Result<(), Self::Error>
+    where
+        R: Register<RegisterWidth = u8>,
+    {
         self.write_sequential_async::<R>(&mut [reg.bits()]).await
     }
 
-    async fn write_sequential_async<R: Register<u8>>(
-        &mut self,
-        buffer: &mut [u8],
-    ) -> Result<(), Self::Error> {
+    async fn write_sequential_async<R>(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error>
+    where
+        R: Register<RegisterWidth = u8>,
+    {
         self.write_command_async(Self::start_write_command::<R>(buffer), buffer)
             .await
     }
@@ -185,11 +200,11 @@ impl<SPI> Ads129x<SPI> {
         Self { spi }
     }
 
-    fn start_write_command<R: Register<u8>>(buf: &[u8]) -> Command {
+    fn start_write_command<R: Register>(buf: &[u8]) -> Command {
         Command::WREG(R::ADDRESS, buf.len() as u8)
     }
 
-    fn start_read_command<R: ReadOnlyRegister<u8>>(buf: &[u8]) -> Command {
+    fn start_read_command<R: ReadOnlyRegister>(buf: &[u8]) -> Command {
         Command::RREG(R::ADDRESS, buf.len() as u8)
     }
 

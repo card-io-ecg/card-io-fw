@@ -20,11 +20,7 @@ use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi};
 use esp_wifi::wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState};
 use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen};
 
-use crate::{
-    board::{initialized::Board, LOW_BATTERY_VOLTAGE},
-    states::MIN_FRAME_TIME,
-    AppState,
-};
+use crate::{board::initialized::Board, states::MIN_FRAME_TIME, AppState};
 
 unsafe fn as_static_ref<T>(what: &T) -> &'static T {
     core::mem::transmute(what)
@@ -117,7 +113,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         let battery_data = board.battery_monitor.battery_data().await;
 
         if let Some(battery) = battery_data {
-            if battery.voltage < LOW_BATTERY_VOLTAGE {
+            if battery.is_low {
                 // Enabling wifi modifies ADC readings and board shuts down
                 // return AppState::Shutdown;
             }

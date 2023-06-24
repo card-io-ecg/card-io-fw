@@ -1,8 +1,4 @@
-use crate::{
-    board::{initialized::Board, LOW_BATTERY_VOLTAGE},
-    states::MIN_FRAME_TIME,
-    AppState,
-};
+use crate::{board::initialized::Board, states::MIN_FRAME_TIME, AppState};
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
 use gui::screens::init::StartupScreen;
@@ -25,7 +21,7 @@ pub async fn initialize(board: &mut Board) -> AppState {
         let battery_data = board.battery_monitor.battery_data().await;
 
         if let Some(battery) = battery_data {
-            if battery.voltage < LOW_BATTERY_VOLTAGE {
+            if battery.is_low {
                 return AppState::Shutdown;
             }
         }

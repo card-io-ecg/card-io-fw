@@ -5,8 +5,6 @@ use embedded_graphics::{
 };
 use embedded_layout::prelude::{horizontal, vertical, Align};
 
-use signal_processing::battery::BatteryModel;
-
 use crate::{
     screens::BatteryInfo,
     widgets::{battery::Battery, progress_bar::ProgressBar},
@@ -14,7 +12,6 @@ use crate::{
 
 pub struct ChargingScreen {
     pub battery_data: Option<BatteryInfo>,
-    pub model: BatteryModel,
     pub is_charging: bool,
     pub frames: u32,
     pub fps: u32,
@@ -43,8 +40,7 @@ impl Drawable for ChargingScreen {
 
     fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
         if let Some(data) = self.battery_data {
-            let percentage = self.model.estimate(data.voltage, data.charge_current);
-            let n_bars = (percentage.saturating_sub(1)) / 20; // 0-4 solid bars
+            let n_bars = (data.percentage.saturating_sub(1)) / 20; // 0-4 solid bars
 
             let period = self.fps * 3 / 2;
             let blinking_on = self.is_charging && self.frames % period < period / 2;
