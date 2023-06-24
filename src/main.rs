@@ -17,10 +17,10 @@ use embedded_hal_async::digital::Wait;
 use norfs::{drivers::internal::InternalDriver, medium::cache::ReadCache, Storage, StorageError};
 
 #[cfg(feature = "battery_adc")]
-use crate::board::BatteryAdc;
+use crate::board::{drivers::battery_adc::BatteryAdcData, BatteryAdc};
 
 #[cfg(feature = "battery_max17055")]
-use crate::board::BatteryFgI2c;
+use crate::board::{initialized::BatteryFgData, BatteryFgI2c};
 
 #[cfg(feature = "battery_max17055")]
 use max17055::Max17055;
@@ -71,7 +71,10 @@ pub type SharedBatteryState = Mutex<NoopRawMutex, BatteryState>;
 
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static BATTERY_STATE: StaticCell<SharedBatteryState> = StaticCell::new();
-static TASK_CONTROL: StaticCell<Signal<NoopRawMutex, ()>> = StaticCell::new();
+#[cfg(feature = "battery_adc")]
+static ADC_TASK_CONTROL: StaticCell<Signal<NoopRawMutex, ()>> = StaticCell::new();
+#[cfg(feature = "battery_max17055")]
+static FG_TASK_CONTROL: StaticCell<Signal<NoopRawMutex, ()>> = StaticCell::new();
 
 #[entry]
 fn main() -> ! {
@@ -92,7 +95,11 @@ fn main() -> ! {
 
 #[embassy_executor::task]
 async fn main_task(spawner: Spawner, resources: StartupResources) {
-    let task_control = &*TASK_CONTROL.init_with(Signal::new);
+    #[cfg(feature = "battery_adc")]
+    let adc_task_control = &*ADC_TASK_CONTROL.init_with(Signal::new);
+
+    #[cfg(feature = "battery_max17055")]
+    let fg_task_control = &*FG_TASK_CONTROL.init_with(Signal::new);
 
     let battery_state = BATTERY_STATE.init(Mutex::new(BatteryState {
         #[cfg(feature = "battery_adc")]
@@ -106,7 +113,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         .spawn(monitor_task_adc(
             resources.battery_adc,
             battery_state,
-            task_control,
+            adc_task_control,
         ))
         .ok();
 
@@ -115,7 +122,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         .spawn(monitor_task_fg(
             resources.battery_fg,
             battery_state,
-            task_control,
+            fg_task_control,
         ))
         .ok();
 
@@ -211,7 +218,10 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             AppState::Shutdown => {
                 let _ = board.display.shut_down();
 
-                task_control.signal(());
+                #[cfg(feature = "battery_adc")]
+                adc_task_control.signal(());
+                #[cfg(feature = "battery_max17055")]
+                fg_task_control.signal(());
 
                 let (_, _, _, mut touch) = board.frontend.split();
 
@@ -240,7 +250,10 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             AppState::ShutdownCharging => {
                 let _ = board.display.shut_down();
 
-                task_control.signal(());
+                #[cfg(feature = "battery_adc")]
+                adc_task_control.signal(());
+                #[cfg(feature = "battery_max17055")]
+                fg_task_control.signal(());
 
                 let (_, _, _, mut touch) = board.frontend.split();
 
@@ -277,9 +290,8 @@ async fn monitor_task_adc(
     battery_state: &'static SharedBatteryState,
     task_control: &'static Signal<NoopRawMutex, ()>,
 ) {
-    use crate::board::drivers::battery_adc::BatteryAdcData;
-
     let mut timer = Ticker::every(Duration::from_millis(10));
+    log::debug!("ADC monitor started");
 
     battery.enable.set_high().unwrap();
 
@@ -328,10 +340,10 @@ async fn monitor_task_fg(
     battery_state: &'static SharedBatteryState,
     task_control: &'static Signal<NoopRawMutex, ()>,
 ) {
-    use crate::board::initialized::BatteryFgData;
     use embassy_time::Delay;
 
     let mut timer = Ticker::every(Duration::from_secs(1));
+    log::debug!("Fuel gauge monitor started");
 
     fuel_gauge
         .load_initial_config_async(&mut Delay)
