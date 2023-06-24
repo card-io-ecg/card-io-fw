@@ -298,11 +298,15 @@ where
         &mut self,
         delay: &mut impl AsyncDelayUs,
     ) -> Result<(), Error<I2C::Error>> {
+        log::trace!("Loading initial configuration");
+
         let por_status = self.read_register_async::<Status>().await?;
         if por_status.por().read() != Some(PowerOnReset::Reset) {
+            log::debug!("No power-on reset");
             return Ok(());
         }
 
+        log::debug!("Power-on reset, initializing");
         self.poll_async::<FStat>(delay, |reg| reg.dnr().read() == Some(DataNotReady::Ready))
             .await?;
 
@@ -361,6 +365,7 @@ where
         let cap = config.capacity as u32;
 
         if config.v_charge > CHG_THRESHOLD {
+            log::debug!("Configuring 4.4V battery");
             self.write_register_async(dPAcc::new(|w| {
                 w.percentage().write((cap / 32 * CHG_V_HIGH / cap) as u16)
             }))
@@ -375,6 +380,7 @@ where
             }))
             .await?;
         } else {
+            log::debug!("Configuring 4.2V battery");
             self.write_register_async(dPAcc::new(|w| {
                 w.percentage().write((cap / 32 * CHG_V_LOW / cap) as u16)
             }))
