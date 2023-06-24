@@ -249,7 +249,7 @@ impl super::startup::StartupResources {
                 peripherals.I2C0,
                 io.pins.gpio35,
                 io.pins.gpio36,
-                400u32.kHz(),
+                100u32.kHz(),
                 &mut system.peripheral_clock_control,
                 &clocks,
             );
