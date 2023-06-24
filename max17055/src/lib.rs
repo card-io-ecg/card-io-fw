@@ -30,7 +30,7 @@ pub struct DesignData {
     pub i_chg_term: u16,
 
     /// Empty Voltage Target, During Load.
-    /// LSB = 1mV
+    /// LSB = 10mV
     pub v_empty: u16,
 
     /// Recovery voltage

@@ -38,6 +38,11 @@ use crate::{
 use display_interface_spi::SPIInterface;
 use esp_println::logger::init_logger;
 
+#[cfg(feature = "battery_max17055")]
+use hal::i2c::I2C;
+#[cfg(feature = "battery_max17055")]
+use max17055::{DesignData, Max17055};
+
 pub type DisplaySpi<'d> = SpiDeviceWrapper<
     SpiDma<
         'd,
@@ -91,6 +96,9 @@ pub type PoweredDisplay = PoweredDisplayType<DisplayInterface<'static>, DisplayR
 
 #[cfg(feature = "battery_adc")]
 pub type BatteryAdc = BatteryAdcType<BatteryAdcInput, ChargeCurrentInput, BatteryAdcEnable, ADC1>;
+
+#[cfg(feature = "battery_max17055")]
+pub type BatteryFgI2c = I2C<'static, hal::peripherals::I2C0>;
 
 static INT_EXECUTOR: InterruptExecutor<SwInterrupt0> = InterruptExecutor::new();
 
@@ -235,6 +243,42 @@ impl super::startup::StartupResources {
             BatteryAdc::new(analog.adc1, batt_adc_in, chg_current, batt_adc_en)
         };
 
+        #[cfg(feature = "battery_max17055")]
+        let battery_fg = {
+            let i2c0 = I2C::new(
+                peripherals.I2C0,
+                io.pins.gpio35,
+                io.pins.gpio36,
+                400u32.kHz(),
+                &mut system.peripheral_clock_control,
+                &clocks,
+            );
+
+            interrupt::enable(
+                peripherals::Interrupt::I2C_EXT0,
+                interrupt::Priority::Priority1,
+            )
+            .unwrap();
+
+            // MCP73832T-2ACI/OT
+            // - ITerm/Ireg = 7.5%
+            // - Vreg = 4.2
+            // R_prog = 4.7k
+            // i_chg = 1000/4.7 = 212mA
+            // i_chg_term = 212 * 0.0075 = 1.59mA
+            // LSB = 1.5625μV/20mOhm = 78.125μA/LSB
+
+            let design = DesignData {
+                capacity: 320,
+                i_chg_term: 20, // 1.5625mA
+                v_empty: 300,
+                v_recovery: 97, // 3880mV
+                v_charge: 4200,
+                r_sense: 20,
+            };
+            Max17055::new(i2c0, design)
+        };
+
         // Charger
         let vbus_detect = io.pins.gpio17.into_floating_input();
         let chg_status = io.pins.gpio47.into_pull_up_input();
@@ -249,6 +293,8 @@ impl super::startup::StartupResources {
             frontend: adc,
             #[cfg(feature = "battery_adc")]
             battery_adc,
+            #[cfg(feature = "battery_max17055")]
+            battery_fg,
             high_prio_spawner,
             wifi: WifiDriver::Uninitialized {
                 wifi,

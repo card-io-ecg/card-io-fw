@@ -394,9 +394,14 @@ device! {
     /// for the RComp0 register value.
     TempCo(u16, addr = 0x39, default = 0x0000) {}
     VEmpty(u16, addr = 0x3A, default = 0xA561) {
-        /// Empty Voltage Target, During Load
+        /// (Empty Voltage Target, During Load): The fuel gauge provides capacity and percentage
+        /// relative to the empty voltage target, eventually declaring 0% at VE. A 10mV resolution
+        /// gives a 0 to 5.11V range. This value is written to 3.3V after reset
         ve(pos = 7, width = 9): u16,
-        /// Recovery voltage
+        /// (Recovery Voltage): Sets the voltage level for clearing empty detection. Once the cell
+        /// voltage rises above this point, empty voltage detection is reenabled. A 40mV resolution
+        /// gives a 0 to 5.08V range. This value is written to 3.88V, which is recommended for most
+        /// applications.
         vr(pos = 0, width = 7): u16
     }
     // Reserved(u16, addr = 0x3B) {}
