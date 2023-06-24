@@ -20,7 +20,11 @@ use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi};
 use esp_wifi::wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState};
 use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen};
 
-use crate::{board::initialized::Board, states::MIN_FRAME_TIME, AppState};
+use crate::{
+    board::{initialized::Board, wifi::network::WifiNetwork},
+    states::MIN_FRAME_TIME,
+    AppState,
+};
 
 unsafe fn as_static_ref<T>(what: &T) -> &'static T {
     core::mem::transmute(what)
@@ -30,7 +34,9 @@ unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
     core::mem::transmute(what)
 }
 
-pub struct WebContext {}
+pub struct WebContext {
+    known_networks: heapless::Vec<WifiNetwork, 8>,
+}
 pub type SharedWebContext = Mutex<NoopRawMutex, WebContext>;
 
 struct TaskController {
@@ -87,7 +93,9 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     let webserver_task_control = TaskController::new();
     let webserver_task_control2 = TaskController::new();
 
-    let context = SharedWebContext::new(WebContext {});
+    let context = SharedWebContext::new(WebContext {
+        known_networks: board.config.known_networks.clone(),
+    });
 
     unsafe {
         spawner.must_spawn(connection_task(
@@ -151,6 +159,14 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         net_task_control.stop_from_outside(),
     )
     .await;
+
+    {
+        let context = context.lock().await;
+        if context.known_networks != board.config.known_networks {
+            board.config.known_networks = context.known_networks.clone();
+            board.save_config().await;
+        }
+    }
 
     AppState::MainMenu
 }
