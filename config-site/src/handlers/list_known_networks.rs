@@ -3,7 +3,7 @@ use bad_server::{
     HandleError,
 };
 
-use crate::states::wifi_ap::SharedWebContext;
+use crate::data::SharedWebContext;
 
 pub struct ListKnownNetworks<'a> {
     pub context: &'a SharedWebContext,

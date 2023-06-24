@@ -1,4 +1,4 @@
-use crate::board::wifi::network::WifiNetwork;
+use config_site::data::network::WifiNetwork;
 use gui::{screens::display_menu::DisplayBrightness, widgets::battery_small::BatteryStyle};
 use norfs::{
     medium::StorageMedium,

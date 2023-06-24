@@ -35,7 +35,7 @@ ssd1306 = { git = "https://github.com/bugadani/ssd1306.git", branch = "async", f
 
 embedded-graphics = "0.8.0"
 
-config-site = { path = "config-site" }
+config-site = { path = "config-site", features = ["norfs"] }
 critical-section = "1.1"
 device-descriptor = { path = "device-descriptor" }
 register-access = { path = "register-access" }

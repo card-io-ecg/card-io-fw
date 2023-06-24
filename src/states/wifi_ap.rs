@@ -1,5 +1,3 @@
-mod list_known_networks;
-
 use core::future::Future;
 
 use bad_server::{
@@ -9,24 +7,23 @@ use bad_server::{
     response::ResponseStatus,
     BadServer, HandleError, Header,
 };
-use config_site::{HEADER_FONT, INDEX_HANDLER};
+use config_site::{
+    data::{SharedWebContext, WebContext},
+    handlers::{list_known_networks::ListKnownNetworks, HEADER_FONT, INDEX_HANDLER},
+};
 use embassy_executor::Spawner;
 use embassy_futures::{join::join, select::select};
 use embassy_net::{
     tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StackResources, StaticConfig,
 };
-use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex, signal::Signal};
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
 use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi};
 use esp_wifi::wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState};
 use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen};
 
-use crate::{
-    board::{initialized::Board, wifi::network::WifiNetwork},
-    states::{wifi_ap::list_known_networks::ListKnownNetworks, MIN_FRAME_TIME},
-    AppState,
-};
+use crate::{board::initialized::Board, states::MIN_FRAME_TIME, AppState};
 
 unsafe fn as_static_ref<T>(what: &T) -> &'static T {
     core::mem::transmute(what)
@@ -35,11 +32,6 @@ unsafe fn as_static_ref<T>(what: &T) -> &'static T {
 unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
     core::mem::transmute(what)
 }
-
-pub struct WebContext {
-    known_networks: heapless::Vec<WifiNetwork, 8>,
-}
-pub type SharedWebContext = Mutex<NoopRawMutex, WebContext>;
 
 struct TaskController {
     token: Signal<NoopRawMutex, ()>,

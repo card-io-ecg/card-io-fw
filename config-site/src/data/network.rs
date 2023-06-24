@@ -1,3 +1,4 @@
+#[cfg(feature = "norfs")]
 use norfs::{
     medium::StorageMedium,
     reader::BoundReader,
@@ -12,6 +13,7 @@ pub struct WifiNetwork {
     pub pass: heapless::String<64>,
 }
 
+#[cfg(feature = "norfs")]
 impl Loadable for WifiNetwork {
     async fn load<M>(reader: &mut BoundReader<'_, M>) -> Result<Self, LoadError>
     where
@@ -24,6 +26,7 @@ impl Loadable for WifiNetwork {
     }
 }
 
+#[cfg(feature = "norfs")]
 impl Storable for WifiNetwork {
     async fn store<M>(&self, writer: &mut BoundWriter<'_, M>) -> Result<(), StorageError>
     where

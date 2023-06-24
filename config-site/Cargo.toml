@@ -7,6 +7,9 @@ edition = "2021"
 
 [dependencies]
 bad-server = { path = "../bad-server" }
+embassy-sync = "0.2"
+heapless = "0.7"
+norfs = { git = "https://github.com/card-io-ecg/norfs.git", branch = "complex", optional = true }
 
 [build-dependencies]
 libflate = "1.4.0"
@@ -20,3 +23,6 @@ required-features = ["bad-server/std"]
 log = "0.4"
 simple_logger = "4.1"
 smol = "1"
+
+[features]
+norfs = ["dep:norfs"]
