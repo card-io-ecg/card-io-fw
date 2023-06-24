@@ -11,7 +11,7 @@ extern crate alloc;
 use embassy_executor::{Executor, Spawner, _export::StaticCell};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex, signal::Signal};
 use embassy_time::{Duration, Ticker, Timer};
-#[cfg(feature = "hw_v1")]
+#[cfg(any(feature = "hw_v1", feature = "battery_adc"))]
 use embedded_hal::digital::OutputPin;
 use embedded_hal_async::digital::Wait;
 use norfs::{drivers::internal::InternalDriver, medium::cache::ReadCache, Storage, StorageError};
