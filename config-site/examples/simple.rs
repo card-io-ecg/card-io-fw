@@ -6,7 +6,10 @@ use bad_server::{
     handler::{RequestHandler, StaticHandler},
     BadServer,
 };
-use config_site::{HEADER_FONT, INDEX_HANDLER};
+use config_site::{
+    data::{SharedWebContext, WebContext},
+    handlers::{list_known_networks::ListKnownNetworks, HEADER_FONT, INDEX_HANDLER},
+};
 use log::LevelFilter;
 
 fn main() {
@@ -21,6 +24,10 @@ fn main() {
 
 pub async fn run() {
     let mut socket = StdTcpSocket::new();
+
+    let context = SharedWebContext::new(WebContext {
+        known_networks: heapless::Vec::new(),
+    });
 
     BadServer::new()
         .with_request_buffer_size::<2048>()
@@ -37,7 +44,7 @@ pub async fn run() {
         ))
         .with_handler(RequestHandler::get(
             "/kn",
-            StaticHandler::new(&[], b"Network1\nNetwork2\nNetwork3"),
+            ListKnownNetworks { context: &context },
         ))
         .listen(&mut socket, 8080)
         .await;

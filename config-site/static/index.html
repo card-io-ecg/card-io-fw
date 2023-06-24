@@ -89,7 +89,7 @@
     </div>
 
     <div id="network" class="tpl">
-        Known network <span class="data"></span>
+        SSID: <span class="data"></span>
     </div>
 
     <div id="nn" class="tpl">
@@ -134,6 +134,11 @@
                 let list_node = tpl.querySelector("." + name);
 
                 let lines = value.split("\n");
+
+                if (lines.length && lines[lines.length - 1].trim() == "") {
+                    lines.pop();
+                }
+
                 for (let line of lines) {
                     let node = item_template.cloneNode(true);
                     node.querySelector(".data").innerHTML = line;
