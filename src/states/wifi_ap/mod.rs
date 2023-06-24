@@ -1,3 +1,5 @@
+mod list_known_networks;
+
 use core::future::Future;
 
 use bad_server::{
@@ -22,7 +24,7 @@ use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen};
 
 use crate::{
     board::{initialized::Board, wifi::network::WifiNetwork},
-    states::MIN_FRAME_TIME,
+    states::{wifi_ap::list_known_networks::ListKnownNetworks, MIN_FRAME_TIME},
     AppState,
 };
 
@@ -233,7 +235,7 @@ impl<C: Connection> RequestHandler<C> for DemoHandler {
 #[embassy_executor::task(pool_size = 2)]
 async fn webserver_task(
     stack: &'static Stack<WifiDevice<'static>>,
-    _context: &'static SharedWebContext,
+    context: &'static SharedWebContext,
     task_control: &'static TaskController,
 ) {
     task_control
@@ -257,10 +259,7 @@ async fn webserver_task(
                     "/si",
                     StaticHandler::new(&[], env!("FW_VERSION").as_bytes()),
                 ))
-                .with_handler(RequestHandler::get(
-                    "/kn",
-                    StaticHandler::new(&[], b"Network1\nNetwork2\nNetwork3"),
-                ))
+                .with_handler(RequestHandler::get("/kn", ListKnownNetworks { context }))
                 .listen(&mut socket, 8080)
                 .await;
         })
