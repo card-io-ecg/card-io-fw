@@ -13,7 +13,7 @@ use embassy_futures::{join::join, select::select};
 use embassy_net::{
     tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StackResources, StaticConfig,
 };
-use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex, signal::Signal};
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
 use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi};
@@ -29,6 +29,9 @@ unsafe fn as_static_ref<T>(what: &T) -> &'static T {
 unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
     core::mem::transmute(what)
 }
+
+pub struct WebContext {}
+pub type SharedWebContext = Mutex<NoopRawMutex, WebContext>;
 
 struct TaskController {
     token: Signal<NoopRawMutex, ()>,
@@ -84,6 +87,8 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     let webserver_task_control = TaskController::new();
     let webserver_task_control2 = TaskController::new();
 
+    let context = SharedWebContext::new(WebContext {});
+
     unsafe {
         spawner.must_spawn(connection_task(
             controller,
@@ -95,10 +100,12 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         ));
         spawner.must_spawn(webserver_task(
             as_static_ref(&stack),
+            as_static_ref(&context),
             as_static_ref(&webserver_task_control),
         ));
         spawner.must_spawn(webserver_task(
             as_static_ref(&stack),
+            as_static_ref(&context),
             as_static_ref(&webserver_task_control2),
         ));
     }
@@ -210,6 +217,7 @@ impl<C: Connection> RequestHandler<C> for DemoHandler {
 #[embassy_executor::task(pool_size = 2)]
 async fn webserver_task(
     stack: &'static Stack<WifiDevice<'static>>,
+    _context: &'static SharedWebContext,
     task_control: &'static TaskController,
 ) {
     task_control
