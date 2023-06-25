@@ -249,7 +249,6 @@ async fn webserver_task(
                 .with_header_count::<48>()
                 .with_handler(RequestHandler::get("/", INDEX_HANDLER))
                 .with_handler(RequestHandler::get("/font", HEADER_FONT))
-                .with_handler(RequestHandler::get("/demo", DemoHandler))
                 .with_handler(RequestHandler::get(
                     "/si",
                     StaticHandler::new(&[], env!("FW_VERSION").as_bytes()),

@@ -51,10 +51,6 @@ pub async fn run() {
         .with_handler(RequestHandler::get("/", INDEX_HANDLER))
         .with_handler(RequestHandler::get("/font", HEADER_FONT))
         .with_handler(RequestHandler::get(
-            "/demo",
-            StaticHandler::new(&[], b"Hello, World!"),
-        ))
-        .with_handler(RequestHandler::get(
             "/si",
             StaticHandler::new(&[], b"0.1.0-b66903b"),
         ))

@@ -78,10 +78,10 @@
         <div id="content"></div>
     </div>
 
+    <!-- templates -->
     <div id="demo" class="tpl">
         <h1 class="header">Welcome!</h1>
         <div class="content">
-            <span class="data"></span><br />
             Firmware version: <span class="fw"></span>
             Known networks: <span class="kn"></span>
             <button id="btn_nn">Add network</button>
@@ -206,11 +206,9 @@
 
     $fe = {
         start: () => $page('demo', async (tpl) => {
-            let demo = await $load('/demo');
             let system_info = await $load('/si');
             let known_networks = await $load('/kn');
 
-            tpl.set("data", await demo.text());
             tpl.set("fw", await system_info.text());
             tpl.set_list("kn", "network", await known_networks.text());
         }),
