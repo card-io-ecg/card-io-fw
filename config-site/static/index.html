@@ -126,7 +126,7 @@
     </div>
 
     <div id="network" class="tpl">
-        SSID: <span class="data"></span>
+        SSID #<span class="index"></span>: <span class="data"></span>
     </div>
 
     <div id="nn" class="tpl">
@@ -184,7 +184,9 @@
                     $set(tpl, name + "-" + i, field);
                 }
             } else {
-                tpl.$("." + name).innerHTML = value;
+                for (field of tpl.querySelectorAll("." + name)) {
+                    field.innerHTML = value;
+                }
             }
         }
 
@@ -205,9 +207,10 @@
                         lines.pop();
                     }
 
-                    for (let line of lines) {
+                    for (let [i, line] of lines.entries()) {
                         let node = $clone(item_template);
                         $set(node, "data", line, sep);
+                        $set(node, "index", i);
                         list_node.appendChild(node);
                     }
                 }
