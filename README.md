@@ -17,4 +17,4 @@ Tools you need to build the firmware:
 Tips
 ----
 
-To run the config site on your PC, run `cargo watch -x "run -p config-site --example simple"` and open `127.0.0.1:8080`.
+To run the config site on your PC, run `cargo watch -x "run -p config-site --example simple --features=std"` and open `127.0.0.1:8080`.

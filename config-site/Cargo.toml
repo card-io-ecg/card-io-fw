@@ -26,6 +26,6 @@ simple_logger = "4.1"
 smol = "1"
 
 [features]
-default = ["std"]
+default = []
 embedded = ["dep:norfs", "dep:embassy-sync"]
 std = ["dep:smol", "bad-server/std"]

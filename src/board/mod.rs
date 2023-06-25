@@ -1,5 +1,9 @@
 #[cfg_attr(feature = "hw_v1", path = "hardware/v1.rs")]
 #[cfg_attr(feature = "hw_v2", path = "hardware/v2.rs")]
+#[cfg_attr( // We default to hw_v2 if no feature is selected to help rust-analyzer for example
+    not(any(feature = "hw_v1", feature = "hw_v2")),
+    path = "hardware/v2.rs"
+)]
 pub mod hardware;
 
 pub mod config;

@@ -30,11 +30,9 @@ fn main() {
     {
         count += 1;
     }
-    if count != 1 {
-        println!(
-            "cargo:warning=Exactly one of the following features must be selected: hw_v1, hw_v2"
-        );
+    if count > 1 {
+        println!("cargo:warning=Can't select more than one of: hw_v1, hw_v2");
 
-        panic!("Exactly one of the following features must be selected: hw_v1, hw_v2");
+        panic!("Can't select more than one of: hw_v1, hw_v2");
     }
 }
