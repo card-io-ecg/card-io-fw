@@ -14,6 +14,8 @@ use crate::{
     },
     ComplExt,
 };
+
+#[cfg(feature = "nostd")]
 use micromath::F32Ext;
 
 struct FilterCore {
@@ -118,6 +120,8 @@ pub mod adaptation_blocking {
         },
         sliding::SlidingWindow,
     };
+
+    #[cfg(feature = "nostd")]
     use micromath::F32Ext;
 
     pub trait AdaptationBlockingTrait: Default {

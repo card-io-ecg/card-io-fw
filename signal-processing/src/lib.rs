@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(feature = "nostd", no_std)]
 
 pub mod battery;
 pub mod filter;
@@ -7,6 +7,7 @@ pub mod lerp;
 pub mod moving;
 pub mod sliding;
 
+#[cfg(feature = "nostd")]
 use micromath::F32Ext;
 use num_complex::Complex;
 
