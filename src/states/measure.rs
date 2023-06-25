@@ -138,7 +138,7 @@ pub async fn measure(board: &mut Board) -> AppState {
                     Message::End(frontend, _result) => {
                         board.frontend = frontend.shut_down().await;
 
-                        return (AppState::Shutdown, board);
+                        return (AppState::UploadOrStore, board);
                     }
                 }
             }

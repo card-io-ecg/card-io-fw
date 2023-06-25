@@ -4,6 +4,7 @@ mod error;
 mod init;
 mod measure;
 mod menu;
+mod upload_or_store_measurement;
 mod wifi_ap;
 
 use core::mem::MaybeUninit;
@@ -26,6 +27,7 @@ pub use error::app_error;
 pub use init::initialize;
 pub use measure::measure;
 pub use menu::{display::display_menu, main::main_menu};
+pub use upload_or_store_measurement::upload_or_store_measurement;
 pub use wifi_ap::wifi_ap;
 
 const TARGET_FPS: u32 = 100;
