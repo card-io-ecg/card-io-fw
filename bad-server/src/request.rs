@@ -48,6 +48,17 @@ impl<'req, 's, C: Connection> Request<'req, 's, C> {
         self.body.read(buf).await
     }
 
+    pub async fn read_all<'b>(&mut self, buffer: &'b mut [u8]) -> ReadResult<&'b mut [u8], C> {
+        let mut read = 0;
+
+        while !self.is_complete() && !buffer.is_empty() {
+            read += self.read(&mut buffer[read..]).await?;
+        }
+        log::debug!("Read {read} bytes");
+
+        Ok(&mut buffer[..read])
+    }
+
     pub fn raw_header(&self, name: &str) -> Option<&[u8]> {
         self.headers
             .iter()
