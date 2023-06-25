@@ -38,7 +38,8 @@ use crate::{
     interrupt::{InterruptExecutor, SwInterrupt0},
     sleep::{enable_gpio_wakeup, start_deep_sleep, RtcioWakeupType},
     states::{
-        adc_setup, app_error, charging, display_menu, initialize, main_menu, measure, wifi_ap,
+        adc_setup, app_error, charging, display_menu, initialize, main_menu, measure,
+        upload_or_store_measurement, wifi_ap,
     },
 };
 
@@ -67,6 +68,7 @@ pub enum AppState {
     WifiAP,
     Error(AppError),
     Shutdown,
+    UploadOrStore,
 }
 
 pub type SharedBatteryState = Mutex<NoopRawMutex, BatteryState>;
@@ -246,6 +248,9 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             AppState::DisplayMenu => display_menu(&mut board).await,
             AppState::WifiAP => wifi_ap(&mut board).await,
             AppState::Error(error) => app_error(&mut board, error).await,
+            AppState::UploadOrStore => {
+                upload_or_store_measurement(&mut board, AppState::Shutdown).await
+            }
             AppState::Shutdown => break,
         };
     }
