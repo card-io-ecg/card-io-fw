@@ -1,11 +1,8 @@
 use core::future::Future;
 
 use bad_server::{
-    connector::Connection,
     handler::{RequestHandler, StaticHandler},
-    request::Request,
-    response::ResponseStatus,
-    BadServer, HandleError, Header,
+    BadServer,
 };
 use config_site::{
     data::{SharedWebContext, WebContext},
@@ -209,22 +206,6 @@ async fn net_task(
     task_control: &'static TaskController,
 ) {
     task_control.run_cancellable(stack.run()).await;
-}
-
-struct DemoHandler;
-impl<C: Connection> RequestHandler<C> for DemoHandler {
-    async fn handle(&self, request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
-        let mut response = request.send_response(ResponseStatus::Ok).await?;
-        response
-            .send_header(Header {
-                name: "Content-Length",
-                value: b"13",
-            })
-            .await?;
-        let mut response = response.start_body().await?;
-        response.write_string("Hello, world!").await?;
-        Ok(())
-    }
 }
 
 #[embassy_executor::task(pool_size = 2)]
