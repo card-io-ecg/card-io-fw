@@ -49,6 +49,10 @@ pub enum Subcommands {
 
         /// Which example to run.
         name: String,
+
+        /// Whether to watch for changes and re-run.
+        #[clap(long)]
+        watch: bool,
     },
 }
 
@@ -167,13 +171,19 @@ fn test() -> AnyResult<()> {
     Ok(())
 }
 
-fn example(package: String, name: String) -> AnyResult<()> {
+fn example(package: String, name: String, watch: bool) -> AnyResult<()> {
     let mut args = vec!["run", "--example", &name, "-p", &package];
 
     // Add required features, etc.
     match (package.as_str(), name.as_str()) {
         ("config-site", "simple") => args.extend_from_slice(&["--features=std"]),
         _ => {}
+    }
+
+    let program;
+    if watch {
+        program = args.join(" ");
+        args = vec!["watch", "-x", &program];
     }
 
     // We want to run examples with the default toolchain, not the ESP one.
@@ -192,6 +202,10 @@ fn main() -> AnyResult<()> {
         Subcommands::Check { hw } => checks(hw.unwrap_or_default()),
         Subcommands::Doc { open, hw } => docs(open, hw.unwrap_or_default()),
         Subcommands::ExtraCheck { hw } => extra_checks(hw.unwrap_or_default()),
-        Subcommands::Example { package, name } => example(package, name),
+        Subcommands::Example {
+            package,
+            name,
+            watch,
+        } => example(package, name, watch),
     }
 }

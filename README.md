@@ -13,7 +13,8 @@ Tools you need to build the firmware:
 
 - Espressif's Xtensa-enabled rust compiler - [espup](https://github.com/esp-rs/espup)
   > Make sure to run `. ~/export-esp.sh` before trying to work with the firmware
-- [cargo-espflash](https://github.com/esp-rs/espflash) - install using `cargo install cargo-espflash`
+- `cargo install cargo-espflash`
+- `cargo install cargo-watch`
 
 Commands
 --------
@@ -27,6 +28,7 @@ Commands
 - `cargo xclippy <hw>`: runs `cargo clippy`
 - `cargo xdoc <hw> [--open]`: runs `cargo doc` and optionally opens the generated documentation.
 - `cargo xtest`: runs `cargo test`.
-- `cargo example <package> <example>`: runs an example
+- `cargo example <package> <example> [--watch]`: runs an example.
+  Use `--watch` to enable automatic reload when a file changes.
 - To run the config site on your PC, run `cargo watch -x "example config-site simple"`
   and open `127.0.0.1:8080` in a browser.
