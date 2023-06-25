@@ -57,6 +57,10 @@ impl TaskController {
     }
 }
 
+static mut TX_BUFFER: [[u8; 4096]; 2] = [[0; 4096]; 2];
+static mut RX_BUFFER: [[u8; 4096]; 2] = [[0; 4096]; 2];
+static mut REQ_BUFFER: [[u8; 2048]; 2] = [[0; 2048]; 2];
+
 pub async fn wifi_ap(board: &mut Board) -> AppState {
     let (wifi, init) = board
         .wifi
@@ -104,11 +108,17 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
             as_static_ref(&stack),
             as_static_ref(&context),
             as_static_ref(&webserver_task_control),
+            &mut TX_BUFFER[0],
+            &mut RX_BUFFER[0],
+            &mut REQ_BUFFER[0],
         ));
         spawner.must_spawn(webserver_task(
             as_static_ref(&stack),
             as_static_ref(&context),
             as_static_ref(&webserver_task_control2),
+            &mut TX_BUFFER[1],
+            &mut RX_BUFFER[1],
+            &mut REQ_BUFFER[1],
         ));
     }
 
@@ -213,6 +223,9 @@ async fn webserver_task(
     stack: &'static Stack<WifiDevice<'static>>,
     context: &'static SharedWebContext,
     task_control: &'static TaskController,
+    tx_buffer: &'static mut [u8],
+    rx_buffer: &'static mut [u8],
+    req_buffer: &'static mut [u8],
 ) {
     task_control
         .run_cancellable(async {
@@ -220,13 +233,11 @@ async fn webserver_task(
                 Timer::after(Duration::from_millis(500)).await;
             }
 
-            let mut rx_buffer = [0; 4096];
-            let mut tx_buffer = [0; 4096];
-            let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
+            let mut socket = TcpSocket::new(stack, rx_buffer, tx_buffer);
             socket.set_timeout(Some(embassy_net::SmolDuration::from_secs(10)));
 
             BadServer::new()
-                .with_request_buffer_size::<2048>()
+                .with_request_buffer(req_buffer)
                 .with_header_count::<48>()
                 .with_handler(RequestHandler::get("/", INDEX_HANDLER))
                 .with_handler(RequestHandler::get("/font", HEADER_FONT))

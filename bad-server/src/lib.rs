@@ -31,50 +31,60 @@ pub mod request;
 pub mod request_body;
 pub mod response;
 
-pub struct BadServer<
-    H: Handler,
-    EH: ErrorHandler,
-    const REQUEST_BUFFER: usize,
-    const MAX_HEADERS: usize,
-> {
-    handler: H,
-    error_handler: EH,
+pub trait RequestBuffer {
+    fn buffer(&mut self) -> &mut [u8];
 }
 
-impl<C: Connection> Default for BadServer<NoHandler<C>, DefaultErrorHandler<C>, 1024, 32> {
+impl<const N: usize> RequestBuffer for [u8; N] {
+    fn buffer(&mut self) -> &mut [u8] {
+        self
+    }
+}
+
+impl RequestBuffer for &mut [u8] {
+    fn buffer(&mut self) -> &mut [u8] {
+        self
+    }
+}
+
+pub struct BadServer<H: Handler, EH: ErrorHandler, RB: RequestBuffer, const MAX_HEADERS: usize> {
+    handler: H,
+    error_handler: EH,
+    buffer: RB,
+}
+
+impl<C: Connection> Default for BadServer<NoHandler<C>, DefaultErrorHandler<C>, [u8; 1024], 32> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<C: Connection> BadServer<NoHandler<C>, DefaultErrorHandler<C>, 1024, 32> {
+impl<C: Connection> BadServer<NoHandler<C>, DefaultErrorHandler<C>, [u8; 1024], 32> {
     pub const fn new() -> Self {
         Self {
             handler: NoHandler(PhantomData),
             error_handler: DefaultErrorHandler(PhantomData),
+            buffer: [0; 1024],
         }
     }
 }
 
-impl<C, EH, const REQUEST_BUFFER: usize, const MAX_HEADERS: usize>
-    BadServer<NoHandler<C>, EH, REQUEST_BUFFER, MAX_HEADERS>
+impl<C, EH, RB: RequestBuffer, const MAX_HEADERS: usize>
+    BadServer<NoHandler<C>, EH, RB, MAX_HEADERS>
 where
     C: Connection,
     EH: ErrorHandler,
 {
-    pub fn with_handler<H: Handler>(
-        self,
-        handler: H,
-    ) -> BadServer<Chain<H>, EH, REQUEST_BUFFER, MAX_HEADERS> {
+    pub fn with_handler<H: Handler>(self, handler: H) -> BadServer<Chain<H>, EH, RB, MAX_HEADERS> {
         BadServer {
             handler: Chain::new(handler),
             error_handler: self.error_handler,
+            buffer: self.buffer,
         }
     }
 }
 
-impl<H, EH, const REQUEST_BUFFER: usize, const MAX_HEADERS: usize>
-    BadServer<Chain<H>, EH, REQUEST_BUFFER, MAX_HEADERS>
+impl<H, EH, RB: RequestBuffer, const MAX_HEADERS: usize> BadServer<Chain<H>, EH, RB, MAX_HEADERS>
 where
     H: Handler,
     EH: ErrorHandler,
@@ -82,16 +92,17 @@ where
     pub fn with_handler<H2: Handler<Connection = H::Connection>>(
         self,
         handler: H2,
-    ) -> BadServer<Link<H2, Chain<H>>, EH, REQUEST_BUFFER, MAX_HEADERS> {
+    ) -> BadServer<Link<H2, Chain<H>>, EH, RB, MAX_HEADERS> {
         BadServer {
             handler: self.handler.append(handler),
             error_handler: self.error_handler,
+            buffer: self.buffer,
         }
     }
 }
 
-impl<H, EH, P, const REQUEST_BUFFER: usize, const MAX_HEADERS: usize>
-    BadServer<Link<H, P>, EH, REQUEST_BUFFER, MAX_HEADERS>
+impl<H, EH, P, RB: RequestBuffer, const MAX_HEADERS: usize>
+    BadServer<Link<H, P>, EH, RB, MAX_HEADERS>
 where
     H: Handler,
     P: ChainElement + Handler<Connection = H::Connection>,
@@ -100,10 +111,11 @@ where
     pub fn with_handler<H2: Handler<Connection = H::Connection>>(
         self,
         handler: H2,
-    ) -> BadServer<Link<H2, Link<H, P>>, EH, REQUEST_BUFFER, MAX_HEADERS> {
+    ) -> BadServer<Link<H2, Link<H, P>>, EH, RB, MAX_HEADERS> {
         BadServer {
             handler: self.handler.append(handler),
             error_handler: self.error_handler,
+            buffer: self.buffer,
         }
     }
 }
@@ -135,44 +147,53 @@ where
     }
 }
 
-impl<H, EH, const REQUEST_BUFFER: usize, const MAX_HEADERS: usize>
-    BadServer<H, EH, REQUEST_BUFFER, MAX_HEADERS>
+impl<H, EH, RB: RequestBuffer, const MAX_HEADERS: usize> BadServer<H, EH, RB, MAX_HEADERS>
 where
     H: Handler,
     EH: ErrorHandler<Connection = H::Connection>,
 {
     pub fn with_request_buffer_size<const NEW_BUFFER_SIZE: usize>(
         self,
-    ) -> BadServer<H, EH, NEW_BUFFER_SIZE, MAX_HEADERS> {
+    ) -> BadServer<H, EH, [u8; NEW_BUFFER_SIZE], MAX_HEADERS> {
         BadServer {
             handler: self.handler,
             error_handler: self.error_handler,
+            buffer: [0; NEW_BUFFER_SIZE],
+        }
+    }
+    pub fn with_request_buffer<RB2: RequestBuffer>(
+        self,
+        buffer: RB2,
+    ) -> BadServer<H, EH, RB2, MAX_HEADERS> {
+        BadServer {
+            handler: self.handler,
+            error_handler: self.error_handler,
+            buffer,
         }
     }
 
     pub fn with_header_count<const NEW_HEADER_COUNT: usize>(
         self,
-    ) -> BadServer<H, EH, REQUEST_BUFFER, NEW_HEADER_COUNT> {
+    ) -> BadServer<H, EH, RB, NEW_HEADER_COUNT> {
         BadServer {
             handler: self.handler,
             error_handler: self.error_handler,
+            buffer: self.buffer,
         }
     }
 
-    pub fn with_error_handler<EH2>(
-        self,
-        error_handler: EH2,
-    ) -> BadServer<H, EH2, REQUEST_BUFFER, MAX_HEADERS>
+    pub fn with_error_handler<EH2>(self, error_handler: EH2) -> BadServer<H, EH2, RB, MAX_HEADERS>
     where
         EH2: ErrorHandler<Connection = H::Connection>,
     {
         BadServer {
             handler: self.handler,
             error_handler,
+            buffer: self.buffer,
         }
     }
 
-    pub async fn listen(&self, socket: &mut H::Connection, port: u16) {
+    pub async fn listen(&mut self, socket: &mut H::Connection, port: u16) {
         loop {
             log::info!("Wait for connection");
 
@@ -200,7 +221,6 @@ where
     }
 
     async fn load_headers<'b>(
-        &self,
         buffer: &'b mut [u8],
         socket: &mut H::Connection,
     ) -> Result<(&'b [u8], &'b [u8]), HandleError<H::Connection>> {
@@ -244,10 +264,11 @@ where
         Err(HandleError::TooManyHeaders)
     }
 
-    async fn handle(&self, socket: &mut H::Connection) -> Result<(), HandleError<H::Connection>> {
-        let mut buffer = [0u8; REQUEST_BUFFER];
-
-        let status = match self.load_headers(&mut buffer, socket).await {
+    async fn handle(
+        &mut self,
+        socket: &mut H::Connection,
+    ) -> Result<(), HandleError<H::Connection>> {
+        let status = match Self::load_headers(self.buffer.buffer(), socket).await {
             Ok((header, body)) => {
                 let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
                 let mut req = httparse::Request::new(&mut headers);
