@@ -1,8 +1,10 @@
 #![cfg_attr(feature = "nostd", no_std)]
 
 pub mod battery;
+pub mod buffer;
 pub mod filter;
 pub mod heart_rate;
+pub mod i24;
 pub mod lerp;
 pub mod moving;
 pub mod sliding;

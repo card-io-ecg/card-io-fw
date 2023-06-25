@@ -26,6 +26,7 @@ use signal_processing::{
         pli::{adaptation_blocking::AdaptationBlocking, PowerLineFilter},
         Filter,
     },
+    i24::i24,
     moving::sum::Sum,
 };
 
@@ -69,6 +70,7 @@ pub async fn measure(board: &mut Board) -> AppState {
 
     ecg.downsampler.clear();
     ecg.filter.clear();
+    ecg.buffer.clear();
 
     replace_with_or_abort_and_return_async(board, |mut board| async {
         let mut frontend = match board.frontend.enable_async().await {
@@ -126,7 +128,7 @@ pub async fn measure(board: &mut Board) -> AppState {
                 match message {
                     Message::Sample(sample) => {
                         samples += 1;
-                        // TODO: store in raw buffer
+                        ecg.buffer.push(i24::from_i32_lossy(sample.raw()));
                         if let Some(filtered) = ecg.filter.update(sample.voltage()) {
                             ecg.heart_rate_calculator.update(filtered);
                             if let Some(downsampled) = ecg.downsampler.update(filtered) {

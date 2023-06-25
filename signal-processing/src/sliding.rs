@@ -1,9 +1,9 @@
 //! Sliding window
 
+use crate::buffer::Buffer;
+
 pub struct SlidingWindow<const N: usize> {
-    buffer: [f32; N],
-    idx: usize,
-    full: bool,
+    buffer: Buffer<f32, N>,
 }
 
 impl<const N: usize> Default for SlidingWindow<N> {
@@ -14,62 +14,36 @@ impl<const N: usize> Default for SlidingWindow<N> {
 }
 
 impl<const N: usize> SlidingWindow<N> {
-    pub const DEFAULT: Self = Self {
-        buffer: [0.0; N],
-        idx: 0,
-        full: false,
-    };
+    pub const DEFAULT: Self = Self::new();
 
     #[inline(always)]
     pub const fn new() -> Self {
-        Self::DEFAULT
-    }
-
-    pub fn from_initial(buffer: [f32; N]) -> Self {
         Self {
-            buffer,
-            idx: 0,
-            full: true,
+            buffer: Buffer::new(),
         }
     }
 
     pub fn clear(&mut self) {
-        self.idx = 0;
-        self.full = false;
+        self.buffer.clear();
     }
 
     pub fn len(&self) -> usize {
-        if self.full {
-            N
-        } else {
-            self.idx
-        }
+        self.buffer.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        self.buffer.is_empty()
     }
 
     pub fn is_full(&self) -> bool {
-        self.full
+        self.buffer.is_full()
     }
 
     pub fn push(&mut self, sample: f32) -> Option<f32> {
-        let old = self.full.then_some(self.buffer[self.idx]);
-
-        self.buffer[self.idx] = sample;
-        self.idx = (self.idx + 1) % self.buffer.len();
-        if self.idx == 0 {
-            self.full = true;
-        }
-
-        old
+        self.buffer.push(sample)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = f32> + Clone + '_ {
-        (self.idx..self.buffer.len())
-            .chain(0..self.idx)
-            .map(|i| self.buffer[i])
-            .take(self.len())
+        self.buffer.iter()
     }
 }

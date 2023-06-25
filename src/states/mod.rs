@@ -13,10 +13,12 @@ use embassy_net::StackResources;
 use embassy_time::Duration;
 use object_chain::{Chain, ChainElement};
 use signal_processing::{
+    buffer::Buffer,
     filter::{
         downsample::DownSampler, iir::precomputed::HIGH_PASS_CUTOFF_1_59HZ, pli::PowerLineFilter,
     },
     heart_rate::HeartRateCalculator,
+    i24::i24,
 };
 
 pub use adc_setup::adc_setup;
@@ -48,10 +50,13 @@ impl WebserverResources {
     };
 }
 
+const ECG_BUFFER_SIZE: usize = 30_000;
+
 pub struct EcgObjects {
     pub filter: EcgFilter,
     pub downsampler: EcgDownsampler,
     pub heart_rate_calculator: HeartRateCalculator,
+    pub buffer: Buffer<i24, ECG_BUFFER_SIZE>,
 }
 
 impl EcgObjects {
@@ -66,6 +71,7 @@ impl EcgObjects {
                 .append(DownSampler::new())
                 .append(DownSampler::new());
             (*this).heart_rate_calculator = HeartRateCalculator::new(1000.0);
+            (*this).buffer = Buffer::EMPTY;
         }
     }
 }
