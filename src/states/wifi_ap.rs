@@ -238,7 +238,7 @@ async fn webserver_task(
 
             BadServer::new()
                 .with_request_buffer(req_buffer)
-                .with_header_count::<48>()
+                .with_header_count::<24>()
                 .with_handler(RequestHandler::get("/", INDEX_HANDLER))
                 .with_handler(RequestHandler::get("/font", HEADER_FONT))
                 .with_handler(RequestHandler::get(
