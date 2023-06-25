@@ -3,6 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Card/IO configuration</title>
     <style type="text/css">
         @font-face {
@@ -133,9 +135,9 @@
         <h1 class="header">Add network</h1>
         <div class="content">
             <label for="ssid">SSID</label><br />
-            <input type="text" id="netssid" /><br />
+            <input type="text" id="netssid" placeholder="Network SSID" /><br />
             <label for="password">Password</label><br />
-            <input type="password" id="netpass" /><br />
+            <input type="password" id="netpass" placeholder="Network password" /><br />
             <button onclick="$fe.an();">Submit</button>
             <button onclick="$fe.start();">Back</button>
         </div>
