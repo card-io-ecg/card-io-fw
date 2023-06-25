@@ -5,26 +5,49 @@ use duct::{cmd, Expression};
 
 #[derive(Debug, Subcommand)]
 pub enum Subcommands {
+    /// Builds the firmware.
     Build {
+        /// Which hardware version to build for.
         hw: Option<HardwareVersion>,
     },
+
+    /// Runs tests.
     Test,
+
+    /// Builds, flashes and runs the firmware on a connected device.
     Run {
+        /// Which hardware version to run on.
         hw: Option<HardwareVersion>,
     },
+
+    /// Checks the project for errors.
     Check {
+        /// Which hardware version to check for.
         hw: Option<HardwareVersion>,
     },
+
+    /// Builds the documentation.
     Doc {
+        /// Which hardware version to build for.
         hw: Option<HardwareVersion>,
+
+        /// Whether to open the documentation in a browser.
         #[clap(long)]
         open: bool,
     },
+
+    /// Runs extra checks (clippy).
     ExtraCheck {
+        /// Which hardware version to check for.
         hw: Option<HardwareVersion>,
     },
+
+    /// Runs an example.
     Example {
+        /// Which package to run the example from.
         package: String,
+
+        /// Which example to run.
         name: String,
     },
 }
