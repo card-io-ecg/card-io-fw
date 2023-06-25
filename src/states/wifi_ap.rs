@@ -23,7 +23,11 @@ use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi};
 use esp_wifi::wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState};
 use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen};
 
-use crate::{board::initialized::Board, states::MIN_FRAME_TIME, AppState};
+use crate::{
+    board::initialized::Board,
+    states::{WebserverResources, BIG_OBJECTS, MIN_FRAME_TIME},
+    AppState,
+};
 
 unsafe fn as_static_ref<T>(what: &T) -> &'static T {
     core::mem::transmute(what)
@@ -56,10 +60,6 @@ impl TaskController {
         self.exited.signal(())
     }
 }
-
-static mut TX_BUFFER: [[u8; 4096]; 2] = [[0; 4096]; 2];
-static mut RX_BUFFER: [[u8; 4096]; 2] = [[0; 4096]; 2];
-static mut REQ_BUFFER: [[u8; 2048]; 2] = [[0; 2048]; 2];
 
 pub async fn wifi_ap(board: &mut Board) -> AppState {
     let (wifi, init) = board
@@ -96,6 +96,8 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     });
 
     unsafe {
+        let [resources_1, resources_2] = BIG_OBJECTS.as_wifi_ap_resources();
+
         spawner.must_spawn(connection_task(
             controller,
             as_static_ref(&connection_task_control),
@@ -108,17 +110,13 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
             as_static_ref(&stack),
             as_static_ref(&context),
             as_static_ref(&webserver_task_control),
-            &mut TX_BUFFER[0],
-            &mut RX_BUFFER[0],
-            &mut REQ_BUFFER[0],
+            resources_1,
         ));
         spawner.must_spawn(webserver_task(
             as_static_ref(&stack),
             as_static_ref(&context),
             as_static_ref(&webserver_task_control2),
-            &mut TX_BUFFER[1],
-            &mut RX_BUFFER[1],
-            &mut REQ_BUFFER[1],
+            resources_2,
         ));
     }
 
@@ -218,14 +216,12 @@ async fn net_task(
     task_control.run_cancellable(stack.run()).await;
 }
 
-#[embassy_executor::task(pool_size = 2)]
+#[embassy_executor::task(pool_size = 2)] // WEBSERVER_TASKS
 async fn webserver_task(
     stack: &'static Stack<WifiDevice<'static>>,
     context: &'static SharedWebContext,
     task_control: &'static TaskController,
-    tx_buffer: &'static mut [u8],
-    rx_buffer: &'static mut [u8],
-    req_buffer: &'static mut [u8],
+    buffers: &'static mut WebserverResources,
 ) {
     task_control
         .run_cancellable(async {
@@ -233,11 +229,11 @@ async fn webserver_task(
                 Timer::after(Duration::from_millis(500)).await;
             }
 
-            let mut socket = TcpSocket::new(stack, rx_buffer, tx_buffer);
+            let mut socket = TcpSocket::new(stack, &mut buffers.rx_buffer, &mut buffers.tx_buffer);
             socket.set_timeout(Some(embassy_net::SmolDuration::from_secs(10)));
 
             BadServer::new()
-                .with_request_buffer(req_buffer)
+                .with_request_buffer(&mut buffers.request_buffer[..])
                 .with_header_count::<24>()
                 .with_handler(RequestHandler::get("/", INDEX_HANDLER))
                 .with_handler(RequestHandler::get("/font", HEADER_FONT))

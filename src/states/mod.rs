@@ -19,3 +19,44 @@ pub use wifi_ap::wifi_ap;
 
 const TARGET_FPS: u32 = 100;
 const MIN_FRAME_TIME: Duration = Duration::from_hz(TARGET_FPS as u64);
+
+const WEBSERVER_TASKS: usize = 2;
+
+#[derive(Clone, Copy)]
+pub struct WebserverResources {
+    tx_buffer: [u8; 4096],
+    rx_buffer: [u8; 4096],
+    request_buffer: [u8; 2048],
+}
+
+impl WebserverResources {
+    const ZERO: Self = Self {
+        tx_buffer: [0; 4096],
+        rx_buffer: [0; 4096],
+        request_buffer: [0; 2048],
+    };
+}
+
+pub enum BigObjects {
+    Unused,
+    WifiApResources {
+        resources: [WebserverResources; WEBSERVER_TASKS],
+    },
+}
+
+impl BigObjects {
+    pub fn as_wifi_ap_resources(&mut self) -> &mut [WebserverResources; WEBSERVER_TASKS] {
+        if !matches!(self, Self::WifiApResources { .. }) {
+            *self = Self::WifiApResources {
+                resources: [WebserverResources::ZERO; 2],
+            }
+        }
+
+        match self {
+            Self::WifiApResources { resources } => resources,
+            _ => unreachable!(),
+        }
+    }
+}
+
+pub static mut BIG_OBJECTS: BigObjects = BigObjects::Unused;
