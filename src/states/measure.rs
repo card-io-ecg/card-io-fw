@@ -84,7 +84,7 @@ pub type EcgDownsampler = chain! {
     DownSampler
 };
 
-const ECG_BUFFER_SIZE: usize = 90_000;
+pub const ECG_BUFFER_SIZE: usize = 90_000;
 
 struct EcgObjects {
     pub filter: EcgFilter,
@@ -127,7 +127,7 @@ pub async fn measure(board: &mut Board) -> AppState {
 async fn measure_impl(
     mut board: Board,
     ecg: &mut EcgObjects,
-    ecg_buffer: &mut CompressingBuffer<ECG_BUFFER_SIZE>,
+    ecg_buffer: &'static mut CompressingBuffer<ECG_BUFFER_SIZE>,
 ) -> (AppState, Board) {
     let mut frontend = match board.frontend.enable_async().await {
         Ok(frontend) => Box::new(frontend),
@@ -214,7 +214,7 @@ async fn measure_impl(
                     return if result.is_ok() && !shutdown_timer.is_elapsed() {
                         (AppState::Menu(AppMenu::Main), board)
                     } else {
-                        (AppState::Shutdown, board)
+                        (AppState::UploadOrStore(ecg_buffer), board)
                     };
                 }
             }

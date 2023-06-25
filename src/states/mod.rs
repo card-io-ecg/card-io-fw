@@ -4,6 +4,7 @@ mod error;
 mod init;
 mod measure;
 mod menu;
+mod upload_or_store_measurement;
 
 use embassy_time::Duration;
 
@@ -11,12 +12,14 @@ pub use adc_setup::adc_setup;
 pub use charging::charging;
 pub use error::app_error;
 pub use init::initialize;
-pub use measure::measure;
+pub use measure::{measure, ECG_BUFFER_SIZE};
 #[cfg(feature = "battery_max17055")]
 pub use menu::battery_info::battery_info_menu;
 pub use menu::{
-    about::about_menu, display::display_menu, main::main_menu, wifi_ap::wifi_ap, wifi_sta::wifi_sta,
+    about::about_menu, display::display_menu, main::main_menu, wifi_ap::wifi_ap,
+    wifi_sta::wifi_sta, AppMenu,
 };
+pub use upload_or_store_measurement::upload_or_store_measurement;
 
 const TARGET_FPS: u32 = 100;
 const MIN_FRAME_TIME: Duration = Duration::from_hz(TARGET_FPS as u64);
@@ -26,7 +29,6 @@ const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
 // The max number of webserver tasks.
 const WEBSERVER_TASKS: usize = 2;
 
-pub use menu::AppMenu;
 use signal_processing::lerp::interpolate;
 
 use crate::board::EcgFrontend;
