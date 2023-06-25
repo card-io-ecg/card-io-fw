@@ -16,13 +16,16 @@ impl<'a> AddNewNetwork<'a> {
         &self,
         request: Request<'_, '_, C>,
         status: ResponseStatus,
+        message: &str,
     ) -> Result<(), HandleError<C>> {
+        log::warn!("Request error: {status:?}, {message}");
         request
             .send_response(status)
             .await?
             .start_body()
+            .await?
+            .write_string(message)
             .await
-            .map(|_| ())
     }
 }
 
@@ -34,9 +37,12 @@ impl<C: Connection> RequestHandler<C> for AddNewNetwork<'_> {
         let post_data = request.read_all(&mut buf).await?;
 
         if !request.is_complete() {
-            log::warn!("POST body too large");
             return self
-                .request_error(request, ResponseStatus::RequestEntityTooLarge)
+                .request_error(
+                    request,
+                    ResponseStatus::RequestEntityTooLarge,
+                    "POST body too large",
+                )
                 .await;
         }
 
@@ -45,7 +51,11 @@ impl<C: Connection> RequestHandler<C> for AddNewNetwork<'_> {
             Err(err) => {
                 log::warn!("Invalid UTF-8 in POST body: {err}");
                 return self
-                    .request_error(request, ResponseStatus::BadRequest)
+                    .request_error(
+                        request,
+                        ResponseStatus::BadRequest,
+                        "Input is not valid text",
+                    )
                     .await;
             }
         };
@@ -55,25 +65,23 @@ impl<C: Connection> RequestHandler<C> for AddNewNetwork<'_> {
 
         let Ok(ssid) = heapless::String::<32>::from_str(ssid.trim())
         else {
-            log::warn!("SSID too long: {ssid}");
-            return self.request_error(request,ResponseStatus::BadRequest).await;
+            return self.request_error(request,ResponseStatus::BadRequest, "SSID too long").await;
         };
 
         let Ok(pass) = heapless::String::<64>::from_str(pass.trim())
         else {
-            log::warn!("Password too long: {pass}");
-            return self.request_error(request,ResponseStatus::BadRequest).await;
+            return self.request_error(request,ResponseStatus::BadRequest, "Password too long").await;
         };
 
         let result = {
+            // Scope-limit the lock guard
             let mut context = self.context.lock().await;
             context.known_networks.push(WifiNetwork { ssid, pass })
         };
 
         if result.is_err() {
-            log::warn!("Too many networks");
             return self
-                .request_error(request, ResponseStatus::BadRequest)
+                .request_error(request, ResponseStatus::BadRequest, "Too many networks")
                 .await;
         }
 
