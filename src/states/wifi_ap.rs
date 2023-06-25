@@ -13,29 +13,22 @@ use config_site::{
 };
 use embassy_executor::Spawner;
 use embassy_futures::{join::join, select::select};
-use embassy_net::{
-    tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StackResources, StaticConfig,
-};
+use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StaticConfig};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
 use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi};
-use esp_wifi::wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState};
+use esp_wifi::wifi::{WifiController, WifiDevice, WifiEvent, WifiState};
 use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen};
 
 use crate::{
-    board::initialized::Board,
+    board::{
+        initialized::Board,
+        wifi::driver::{as_static_mut, as_static_ref},
+    },
     states::{WebserverResources, BIG_OBJECTS, MIN_FRAME_TIME},
     AppState,
 };
-
-unsafe fn as_static_ref<T>(what: &T) -> &'static T {
-    core::mem::transmute(what)
-}
-
-unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
-    core::mem::transmute(what)
-}
 
 struct TaskController {
     token: Signal<NoopRawMutex, ()>,
@@ -62,27 +55,15 @@ impl TaskController {
 }
 
 pub async fn wifi_ap(board: &mut Board) -> AppState {
-    let (wifi, init) = board
+    board
         .wifi
-        .driver_mut(&board.clocks, &mut board.peripheral_clock_control);
-    let (wifi_interface, controller) = esp_wifi::wifi::new_with_mode(
-        unsafe { as_static_mut(init) },
-        unsafe { as_static_mut(wifi) },
-        WifiMode::Ap,
-    );
+        .initialize(&board.clocks, &mut board.peripheral_clock_control);
 
-    let config = Config::Static(StaticConfig {
+    let (stack, controller) = board.wifi.configure_ap(Config::Static(StaticConfig {
         address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
         gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
         dns_servers: Default::default(),
-    });
-    let mut stack_resources = StackResources::<3>::new();
-    let stack = Stack::new(
-        wifi_interface,
-        config,
-        unsafe { as_static_mut(&mut stack_resources) },
-        1234,
-    );
+    }));
 
     let spawner = Spawner::for_current_executor().await;
 
@@ -99,21 +80,21 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         let [resources_1, resources_2] = BIG_OBJECTS.as_wifi_ap_resources();
 
         spawner.must_spawn(connection_task(
-            controller,
+            as_static_mut(controller),
             as_static_ref(&connection_task_control),
         ));
         spawner.must_spawn(net_task(
-            as_static_ref(&stack),
+            as_static_ref(stack),
             as_static_ref(&net_task_control),
         ));
         spawner.must_spawn(webserver_task(
-            as_static_ref(&stack),
+            as_static_ref(stack),
             as_static_ref(&context),
             as_static_ref(&webserver_task_control),
             resources_1,
         ));
         spawner.must_spawn(webserver_task(
-            as_static_ref(&stack),
+            as_static_ref(stack),
             as_static_ref(&context),
             as_static_ref(&webserver_task_control2),
             resources_2,
@@ -175,7 +156,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
 #[embassy_executor::task]
 async fn connection_task(
-    mut controller: WifiController<'static>,
+    controller: &'static mut WifiController<'static>,
     task_control: &'static TaskController,
 ) {
     task_control
