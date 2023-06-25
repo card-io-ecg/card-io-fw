@@ -145,7 +145,16 @@ fn test() -> AnyResult<()> {
 }
 
 fn example(package: String, name: String) -> AnyResult<()> {
-    cargo(&["run", "--example", &name, "-p", &package]).run()?;
+    let mut args = vec!["run", "--example", &name, "-p", &package];
+
+    // Add required features, etc.
+    match (package.as_str(), name.as_str()) {
+        ("config-site", "simple") => args.extend_from_slice(&["--features=std"]),
+        _ => {}
+    }
+
+    // We want to run examples with the default toolchain, not the ESP one.
+    cmd("cargo", &args).run()?;
 
     Ok(())
 }

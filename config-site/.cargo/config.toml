@@ -1,6 +1,0 @@
-# necessary for as long as this is in the firmware workspace
-[build]
-target = "x86_64-pc-windows-msvc"
-
-[unstable]
-build-std = ["alloc", "core", "std"]
