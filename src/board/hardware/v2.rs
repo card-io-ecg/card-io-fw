@@ -109,8 +109,8 @@ fn FROM_CPU_INTR0() {
 
 impl super::startup::StartupResources {
     pub fn initialize() -> Self {
-        init_heap();
         init_logger(log::LevelFilter::Info);
+        init_heap();
 
         let peripherals = Peripherals::take();
 
