@@ -201,7 +201,7 @@ async fn net_task(
     task_control.run_cancellable(stack.run()).await;
 }
 
-#[embassy_executor::task(pool_size = 2)] // WEBSERVER_TASKS
+#[embassy_executor::task(pool_size = super::WEBSERVER_TASKS)]
 async fn webserver_task(
     stack: &'static Stack<WifiDevice<'static>>,
     context: &'static SharedWebContext,
