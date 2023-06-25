@@ -296,12 +296,12 @@ impl super::startup::StartupResources {
             #[cfg(feature = "battery_max17055")]
             battery_fg,
             high_prio_spawner,
-            wifi: WifiDriver::Uninitialized {
+            wifi: WifiDriver::new(
                 wifi,
-                timer: peripherals.TIMG1,
-                rng: peripherals.RNG,
-                rcc: system.radio_clock_control,
-            },
+                peripherals.TIMG1,
+                peripherals.RNG,
+                system.radio_clock_control,
+            ),
             clocks,
             peripheral_clock_control: system.peripheral_clock_control,
 
