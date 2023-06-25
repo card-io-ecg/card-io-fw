@@ -37,6 +37,7 @@ impl WebserverResources {
     };
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum BigObjects {
     Unused,
     WifiApResources {
