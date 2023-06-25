@@ -9,8 +9,8 @@ use bad_server::{
 use config_site::{
     data::{network::WifiNetwork, SharedWebContext, WebContext},
     handlers::{
-        add_new_network::AddNewNetwork, list_known_networks::ListKnownNetworks, HEADER_FONT,
-        INDEX_HANDLER,
+        add_new_network::AddNewNetwork, delete_network::DeleteNetwork,
+        list_known_networks::ListKnownNetworks, HEADER_FONT, INDEX_HANDLER,
     },
 };
 use log::LevelFilter;
@@ -61,6 +61,10 @@ pub async fn run() {
         .with_handler(RequestHandler::post(
             "/nn",
             AddNewNetwork { context: &context },
+        ))
+        .with_handler(RequestHandler::post(
+            "/dn",
+            DeleteNetwork { context: &context },
         ))
         .listen(&mut socket, 8080)
         .await;

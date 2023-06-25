@@ -126,7 +126,7 @@
     </div>
 
     <div id="network" class="tpl">
-        SSID #<span class="index"></span>: <span class="data"></span>
+        SSID #<span class="index"></span>: <span class="data"></span><button onclick="$fe.dn(this)">Delete</button>
     </div>
 
     <div id="nn" class="tpl">
@@ -310,6 +310,21 @@
                     $fe.start();
                 } catch (e) {
                     $toast(`Failed to add network: ${e.message}`);
+                }
+            },
+
+            dn: async (el) => {
+                let container = el.parentElement;
+                let index = container.$(".index").innerHTML;
+
+                try {
+                    await $fetch('/dn', {
+                        method: 'POST',
+                        body: index
+                    });
+                    $fe.start();
+                } catch (e) {
+                    $toast(`Failed to delete network: ${e.message}`);
                 }
             }
         }

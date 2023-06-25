@@ -10,8 +10,8 @@ use bad_server::{
 use config_site::{
     data::{SharedWebContext, WebContext},
     handlers::{
-        add_new_network::AddNewNetwork, list_known_networks::ListKnownNetworks, HEADER_FONT,
-        INDEX_HANDLER,
+        add_new_network::AddNewNetwork, delete_network::DeleteNetwork,
+        list_known_networks::ListKnownNetworks, HEADER_FONT, INDEX_HANDLER,
     },
 };
 use embassy_executor::Spawner;
@@ -255,6 +255,7 @@ async fn webserver_task(
                 ))
                 .with_handler(RequestHandler::get("/kn", ListKnownNetworks { context }))
                 .with_handler(RequestHandler::post("/nn", AddNewNetwork { context }))
+                .with_handler(RequestHandler::post("/dn", DeleteNetwork { context }))
                 .listen(&mut socket, 8080)
                 .await;
         })
