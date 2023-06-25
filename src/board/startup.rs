@@ -9,7 +9,7 @@ use crate::board::BatteryAdc;
 use crate::board::BatteryFgI2c;
 use crate::board::{
     hal::{clock::Clocks, system::PeripheralClockControl},
-    wifi_driver::WifiDriver,
+    wifi::driver::WifiDriver,
     Display, EcgFrontend, MiscPins,
 };
 

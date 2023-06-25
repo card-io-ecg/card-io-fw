@@ -1,22 +1,7 @@
 #![no_std]
+#![feature(async_fn_in_trait)]
+#![feature(generic_const_exprs)]
+#![allow(incomplete_features)]
 
-use bad_server::{handler::StaticHandler, Header};
-
-pub const INDEX_HANDLER: StaticHandler = StaticHandler::new(
-    &[Header {
-        name: "Content-Encoding",
-        value: b"gzip",
-    }],
-    include_bytes!(concat!(env!("COMPRESS_OUT_DIR"), "/static/index.html.gz")),
-);
-
-pub const HEADER_FONT: StaticHandler = StaticHandler::new(
-    &[Header {
-        name: "Content-Encoding",
-        value: b"gzip",
-    }],
-    include_bytes!(concat!(
-        env!("COMPRESS_OUT_DIR"),
-        "/static/Poppins-Regular.ttf.gz"
-    )),
-);
+pub mod data;
+pub mod handlers;

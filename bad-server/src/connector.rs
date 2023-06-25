@@ -29,6 +29,7 @@ pub mod embassy_net_compat {
         fn close(&mut self) {
             TcpSocket::close(self);
             TcpSocket::abort(self);
+            log::debug!("Socket closed");
         }
     }
 }
@@ -111,7 +112,14 @@ pub mod std_compat {
         }
 
         fn close(&mut self) {
-            self.socket.take();
+            let Some(socket) = self.socket.take()
+            else {
+                return;
+            };
+            let socket = socket.into_inner().unwrap();
+
+            socket.shutdown(std::net::Shutdown::Both).unwrap();
+            log::debug!("Socket closed");
         }
     }
 }

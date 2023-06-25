@@ -7,7 +7,13 @@ use bad_server::{
     response::ResponseStatus,
     BadServer, HandleError, Header,
 };
-use config_site::{HEADER_FONT, INDEX_HANDLER};
+use config_site::{
+    data::{SharedWebContext, WebContext},
+    handlers::{
+        add_new_network::AddNewNetwork, delete_network::DeleteNetwork,
+        list_known_networks::ListKnownNetworks, HEADER_FONT, INDEX_HANDLER,
+    },
+};
 use embassy_executor::Spawner;
 use embassy_futures::{join::join, select::select};
 use embassy_net::{
@@ -84,6 +90,10 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     let webserver_task_control = TaskController::new();
     let webserver_task_control2 = TaskController::new();
 
+    let context = SharedWebContext::new(WebContext {
+        known_networks: board.config.known_networks.clone(),
+    });
+
     unsafe {
         spawner.must_spawn(connection_task(
             controller,
@@ -95,10 +105,12 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         ));
         spawner.must_spawn(webserver_task(
             as_static_ref(&stack),
+            as_static_ref(&context),
             as_static_ref(&webserver_task_control),
         ));
         spawner.must_spawn(webserver_task(
             as_static_ref(&stack),
+            as_static_ref(&context),
             as_static_ref(&webserver_task_control2),
         ));
     }
@@ -144,6 +156,14 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         net_task_control.stop_from_outside(),
     )
     .await;
+
+    {
+        let context = context.lock().await;
+        if context.known_networks != board.config.known_networks {
+            board.config.known_networks = context.known_networks.clone();
+            board.save_config().await;
+        }
+    }
 
     AppState::MainMenu
 }
@@ -210,6 +230,7 @@ impl<C: Connection> RequestHandler<C> for DemoHandler {
 #[embassy_executor::task(pool_size = 2)]
 async fn webserver_task(
     stack: &'static Stack<WifiDevice<'static>>,
+    context: &'static SharedWebContext,
     task_control: &'static TaskController,
 ) {
     task_control
@@ -228,15 +249,13 @@ async fn webserver_task(
                 .with_header_count::<48>()
                 .with_handler(RequestHandler::get("/", INDEX_HANDLER))
                 .with_handler(RequestHandler::get("/font", HEADER_FONT))
-                .with_handler(RequestHandler::get("/demo", DemoHandler))
                 .with_handler(RequestHandler::get(
                     "/si",
                     StaticHandler::new(&[], env!("FW_VERSION").as_bytes()),
                 ))
-                .with_handler(RequestHandler::get(
-                    "/kn",
-                    StaticHandler::new(&[], b"Network1\nNetwork2\nNetwork3"),
-                ))
+                .with_handler(RequestHandler::get("/kn", ListKnownNetworks { context }))
+                .with_handler(RequestHandler::post("/nn", AddNewNetwork { context }))
+                .with_handler(RequestHandler::post("/dn", DeleteNetwork { context }))
                 .listen(&mut socket, 8080)
                 .await;
         })

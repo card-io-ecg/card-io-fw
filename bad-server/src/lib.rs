@@ -115,6 +115,12 @@ pub enum HandleError<C: Io> {
     RequestParse(httparse::Error),
 }
 
+impl<C: Io> From<ReadError<C>> for HandleError<C> {
+    fn from(value: ReadError<C>) -> Self {
+        HandleError::Read(value)
+    }
+}
+
 impl<C> Debug for HandleError<C>
 where
     C: Io,

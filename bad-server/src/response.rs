@@ -4,7 +4,7 @@ use httparse::Header;
 
 use crate::{connector::Connection, HandleError};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ResponseStatus {
     Ok = 200,
     NotModified = 304,

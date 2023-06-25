@@ -1,4 +1,5 @@
 pub mod current;
+pub mod v1;
 
 pub use current::Config;
 
@@ -10,9 +11,11 @@ use norfs::{
     StorageError,
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum ConfigFile {
-    V1(Config),
+    V1(v1::Config),
+    V2(Config),
 }
 
 impl Default for ConfigFile {
@@ -23,13 +26,18 @@ impl Default for ConfigFile {
 
 impl ConfigFile {
     pub fn new(config: Config) -> Self {
-        Self::V1(config)
+        Self::V2(config)
     }
 
     /// Migrates config data to newest format.
-    pub fn into_config(self) -> Config {
+    pub fn into_config(mut self) -> Config {
+        if let Self::V1(config) = self {
+            self = Self::V2(Config::from(config));
+        }
+
         match self {
-            Self::V1(config) => config,
+            Self::V2(config) => config,
+            _ => unreachable!(),
         }
     }
 }
@@ -41,7 +49,8 @@ impl Loadable for ConfigFile {
         [(); M::BLOCK_COUNT]: Sized,
     {
         let data = match u8::load(reader).await? {
-            0 => Self::V1(Config::load(reader).await?),
+            0 => Self::V1(v1::Config::load(reader).await?),
+            1 => Self::V2(Config::load(reader).await?),
             _ => return Err(LoadError::InvalidValue),
         };
 
@@ -58,6 +67,10 @@ impl Storable for ConfigFile {
         match self {
             Self::V1(config) => {
                 0u8.store(writer).await?;
+                config.store(writer).await?;
+            }
+            Self::V2(config) => {
+                1u8.store(writer).await?;
                 config.store(writer).await?;
             }
         }

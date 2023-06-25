@@ -3,6 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Card/IO configuration</title>
     <style type="text/css">
         @font-face {
@@ -15,6 +17,40 @@
             font-family: Arial, Helvetica, sans-serif;
             font-size: 14px;
             padding: 1em;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        #toast {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 2em;
+            max-width: 800px;
+        }
+
+        #toast div {
+            background-color: #555;
+            border-radius: 2em;
+            color: #fff;
+            padding: 1em;
+        }
+
+        .fade {
+            animation: fade 3s;
+        }
+
+        @keyframes fade {
+            0% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0;
+            }
         }
 
         #frame {
@@ -59,6 +95,9 @@
 </head>
 
 <body>
+    <div id="toast" class="hidden">
+        <div><!-- Toast message will be substituted here --></div>
+    </div>
     <div id="frame">
         <div id="header-container">
             <span id="header"></span>
@@ -78,31 +117,29 @@
         <div id="content"></div>
     </div>
 
-    <div id="demo" class="tpl">
+    <!-- templates -->
+    <div id="start" class="tpl">
         <h1 class="header">Welcome!</h1>
         <div class="content">
-            <span class="data"></span><br />
             Firmware version: <span class="fw"></span>
             Known networks: <span class="kn"></span>
-            <!--button id="btn_nn">Add network</button-->
+            <button onclick="$fe.nn();">Add network</button>
         </div>
     </div>
 
     <div id="network" class="tpl">
-        Known network <span class="data"></span>
+        SSID #<span class="index"></span>: <span class="data"></span><button onclick="$fe.dn(this)">Delete</button>
     </div>
 
     <div id="nn" class="tpl">
         <h1 class="header">Add network</h1>
         <div class="content">
-            <form id="form">
-                <label for="ssid">SSID</label><br />
-                <input type="text" id="ssid" name="ssid" /><br />
-                <label for="password">Password</label><br />
-                <input type="password" id="password" name="password" /><br />
-                <input type="submit" value="Submit" />
-            </form>
-            <button id="btn_back">Back</button>
+            <label for="ssid">SSID</label><br />
+            <input type="text" id="netssid" placeholder="Network SSID" /><br />
+            <label for="password">Password</label><br />
+            <input type="password" id="netpass" placeholder="Network password" /><br />
+            <button onclick="$fe.an();">Submit</button>
+            <button onclick="$fe.start();">Back</button>
         </div>
     </div>
 
@@ -112,108 +149,202 @@
 </body>
 
 <script>
-    $id = (id) => document.getElementById(id);
-    $on = (id, evt, cb) => {
-        let c = $id(id);
-        if (c) c.addEventListener(evt, cb);
-    }
-    $tpl = (id) => {
-        let tpl = $id(id).cloneNode(true);
-        tpl.classList.remove("tpl");
+    $fe = (() => {
+        // Creates a shorthand function that runs `querySelector` and adds
+        // utility methods to the result.
+        let $$ = (el) => (selector) => {
+            let ch = el.querySelector(selector);
+            if (ch) ch.$ = $$(ch);
+            return ch;
+        }
 
-        let c = tpl.querySelector(".content");
-        if (c) {
-            c.set = (name, value) => {
-                // TODO: support multiple fields
-                tpl.querySelector("." + name).innerHTML = value;
-            }
-            c.set_list = (name, item_tpl, value) => {
-                // value is a newline-delimited list of items
-                // TODO: support multiple fields
-                let item_template = $tpl(item_tpl);
-                let list_node = tpl.querySelector("." + name);
+        // Utility functions. They are not methods because method names are not minified.
 
-                let lines = value.split("\n");
-                for (let line of lines) {
-                    let node = item_template.cloneNode(true);
-                    node.querySelector(".data").innerHTML = line;
-                    list_node.appendChild(node);
+        // Clones `ch` and adds `$()` to the result.
+        let $clone = (ch) => {
+            let ch2 = ch.cloneNode(true);
+            ch2.$ = $$(ch2);
+            return ch2;
+        }
+
+        // Adds a CSS class to the element
+        let $addClass = (el, name) => el.classList.add(name);
+
+        // Removes a CSS class from the element
+        let $removeClass = (el, name) => el.classList.remove(name);
+
+        let $ = $$(document);
+
+        // Substitute `value` into `tpl`, replacing the inner html of the element with class `name`.
+        // If `sep` is specified, `value` is split on `sep` and each element is substituted into
+        // the corresponding element with class `name-<index>`.
+        let $set = (tpl, name, value, sep = undefined) => {
+            if (sep) {
+                for (let [i, field] of line.split(sep).entries()) {
+                    $set(tpl, name + "-" + i, field);
+                }
+            } else {
+                for (field of tpl.querySelectorAll("." + name)) {
+                    field.innerHTML = value;
                 }
             }
         }
 
-        return tpl;
-    }
-    $show = (id, n) => {
-        let e = $id(id);
-        while (e.firstChild) {
-            e.removeChild(e.lastChild);
-        }
-        e.appendChild(n);
-    }
-    $page = async (tpln, fn) => {
-        let tpl = $tpl(tpln);
+        let $tpl = (id) => {
+            let tpl = $clone($("#" + id));
+            $removeClass(tpl, "tpl");
 
-        $show("header", tpl.querySelector(".header"));
+            let c = tpl.$(".content");
+            if (c) {
+                c.set = (name, value, sep = undefined) => $set(tpl, name, value, sep);
+                c.set_list = (name, item_tpl, value, sep = undefined) => {
+                    // value is a newline-delimited list of items
+                    let item_template = $tpl(item_tpl);
+                    let list_node = tpl.$("." + name);
 
-        // Prevent rapid flashing
-        let delay;
-        let loaded;
-        new Promise((res) => setTimeout(res, 100)).then(() => {
-            if (!loaded) {
-                delay = new Promise((res) => setTimeout(res, 500));
-                $show("content", $tpl("spinner"));
+                    let lines = value.split("\n");
+                    if (lines.length && lines[lines.length - 1].trim() == "") {
+                        lines.pop();
+                    }
+
+                    for (let [i, line] of lines.entries()) {
+                        let node = $clone(item_template);
+                        $set(node, "data", line, sep);
+                        $set(node, "index", i);
+                        list_node.appendChild(node);
+                    }
+                }
             }
-        });
 
-        let node = tpl.querySelector(".content");
-        if (fn) await fn(node);
-        loaded = true;
-        if (delay) await delay;
+            return tpl;
+        }
+        let $show = (id, n) => {
+            let e = $("#" + id);
+            while (e.lastChild) e.removeChild(e.lastChild);
+            e.appendChild(n);
+        }
+        let $page = async (tpln, fn) => {
+            let tpl = $tpl(tpln);
 
-        $show("content", node);
+            $show("header", tpl.$(".header"));
 
-        $on("btn_nn", "click", $fe.nn);
-        $on("btn_back", "click", $fe.start);
-    }
-    $load = async (url, retry = 5) => {
-        for (let i = 0; i < retry; i++) {
-            try {
-                return await fetch(url);
-            } catch (e) {
-                console.log(e);
+            // Prevent rapid flashing
+            let delay;
+            let loaded;
+            new Promise((res) => setTimeout(res, 100)).then(() => {
+                if (!loaded) {
+                    delay = new Promise((res) => setTimeout(res, 500));
+                    $show("content", $tpl("spinner"));
+                }
+            });
+
+            let node = tpl.$(".content");
+            if (fn) await fn(node);
+            loaded = true;
+            if (delay) await delay;
+
+            $show("content", node);
+        }
+        let $load = async (url, retry = 5) => {
+            for (let i = 0; i < retry; i++) {
+                try {
+                    return await $fetch(url);
+                } catch (e) {
+                    if (i == retry - 1) {
+                        $toast(`Failed to load page: ${e.message}`);
+                    } else {
+                        console.log(e);
+                    }
+                }
             }
         }
-    }
 
-    let dom_loaded = false;
-    let fonts_loaded = false;
+        var toastTimeout;
+        let $toast = (message) => {
+            console.log(`[toast] ${message}`);
 
-    $fe = {
-        start: () => $page('demo', async (tpl) => {
-            let demo = await $load('/demo');
-            let system_info = await $load('/si');
-            let known_networks = await $load('/kn');
+            let toast = $("#toast");
+            toast.lastChild.innerHTML = message;
+            $removeClass(toast, "hidden");
+            $removeClass(toast, "fade");
 
-            tpl.set("data", await demo.text());
-            tpl.set("fw", await system_info.text());
-            tpl.set_list("kn", "network", await known_networks.text());
-        }),
+            if (toastTimeout) clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                $addClass(toast, "fade");
+                toastTimeout = setTimeout(() => {
+                    $addClass(toast, "hidden");
+                    $removeClass(toast, "fade");
+                }, 3000);
+            }, 1000);
+        }
+        let $fetch = async (url, params = undefined) => {
+            let result = await fetch(url, params);
 
-        nn: () => $page('nn')
-    };
+            if (!result.ok) {
+                let message = await result.text();
+                throw new Error(`[${result.status}] ${message}`);
+            }
 
+            return result;
+        }
+
+        return {
+            start: () => $page('start', async (tpl) => {
+                let system_info = await $load('/si');
+                let known_networks = await $load('/kn');
+
+                tpl.set("fw", await system_info.text());
+                tpl.set_list("kn", "network", await known_networks.text());
+            }),
+
+            nn: () => $page('nn'),
+
+            an: async () => {
+                let form = $("#content");
+                let ssid = form.$("#netssid").value;
+                let pass = form.$("#netpass").value;
+
+                try {
+                    await $fetch('/nn', {
+                        method: 'POST',
+                        body: ssid + "\n" + pass
+                    });
+                    $fe.start();
+                } catch (e) {
+                    $toast(`Failed to add network: ${e.message}`);
+                }
+            },
+
+            dn: async (el) => {
+                let container = el.parentElement;
+                let index = container.$(".index").innerHTML;
+
+                try {
+                    await $fetch('/dn', {
+                        method: 'POST',
+                        body: index
+                    });
+                    $fe.start();
+                } catch (e) {
+                    $toast(`Failed to delete network: ${e.message}`);
+                }
+            }
+        }
+    })();
+
+    let dom_rdy = false;
+    let fonts_rdy = false;
     document.addEventListener("DOMContentLoaded", () => {
-        dom_loaded = true;
+        dom_rdy = true;
 
-        if (fonts_loaded) {
+        if (fonts_rdy) {
             $fe.start();
         }
     });
     document.fonts.ready.then(() => {
-        fonts_loaded = true;
+        fonts_rdy = true;
 
-        if (dom_loaded) {
+        if (dom_rdy) {
             $fe.start();
         }
     });

@@ -13,7 +13,7 @@ use crate::{
     board::{
         config::{Config, ConfigFile},
         hal::clock::Clocks,
-        wifi_driver::WifiDriver,
+        wifi::driver::WifiDriver,
         ChargerStatus, EcgFrontend, PoweredDisplay, VbusDetect,
     },
     SharedBatteryState,
@@ -121,7 +121,7 @@ impl Board {
         self.config_changed = false;
 
         if let Some(storage) = self.storage.as_mut() {
-            let config_data = ConfigFile::new(self.config);
+            let config_data = ConfigFile::new(self.config.clone());
 
             if let Err(e) = storage
                 .store_writer("config", &config_data, OnCollision::Overwrite)
