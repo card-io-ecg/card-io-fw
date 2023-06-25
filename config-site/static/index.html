@@ -132,12 +132,10 @@
     <div id="nn" class="tpl">
         <h1 class="header">Add network</h1>
         <div class="content">
-            <form id="form">
-                <label for="ssid">SSID</label><br />
-                <input type="text" id="ssid" name="ssid" /><br />
-                <label for="password">Password</label><br />
-                <input type="password" id="password" name="password" /><br />
-            </form>
+            <label for="ssid">SSID</label><br />
+            <input type="text" id="netssid" /><br />
+            <label for="password">Password</label><br />
+            <input type="password" id="netpass" /><br />
             <button onclick="$fe.an();">Submit</button>
             <button onclick="$fe.start();">Back</button>
         </div>
@@ -220,9 +218,7 @@
         }
         let $show = (id, n) => {
             let e = $("#" + id);
-            while (e.firstChild) {
-                e.removeChild(e.lastChild);
-            }
+            while (e.lastChild) e.removeChild(e.lastChild);
             e.appendChild(n);
         }
         let $page = async (tpln, fn) => {
@@ -302,9 +298,9 @@
             nn: () => $page('nn'),
 
             an: async () => {
-                let form = $("#content #form");
-                let ssid = form.$("#ssid").value;
-                let pass = form.$("#password").value;
+                let form = $("#content");
+                let ssid = form.$("#netssid").value;
+                let pass = form.$("#netpass").value;
 
                 try {
                     await $fetch('/nn', {
