@@ -63,6 +63,12 @@ impl<C: Connection> RequestHandler<C> for AddNewNetwork<'_> {
 
         let (ssid, pass) = post_body.split_once('\n').unwrap_or((post_body, ""));
 
+        if ssid.is_empty() {
+            return self
+                .request_error(request, ResponseStatus::BadRequest, "SSID is empty")
+                .await;
+        }
+
         let Ok(ssid) = heapless::String::<32>::from_str(ssid.trim())
         else {
             return self.request_error(request,ResponseStatus::BadRequest, "SSID too long").await;
