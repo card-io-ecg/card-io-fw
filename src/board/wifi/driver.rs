@@ -24,7 +24,6 @@ pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
 
 pub struct WifiDriver {
     wifi: Wifi,
-    resources: StackResources<3>,
     state: WifiDriverState,
 }
 
@@ -49,7 +48,6 @@ impl WifiDriver {
     pub fn new(wifi: Wifi, timer: TIMG1, rng: RNG, rcc: RadioClockControl) -> Self {
         Self {
             wifi,
-            resources: StackResources::new(),
             state: WifiDriverState::Uninitialized { timer, rng, rcc },
         }
     }
@@ -57,6 +55,7 @@ impl WifiDriver {
     pub fn configure_ap<'d>(
         &'d mut self,
         config: Config,
+        resources: &'static mut StackResources<3>,
     ) -> (
         &'d mut Stack<WifiDevice<'static>>,
         &'d mut WifiController<'static>,
@@ -70,13 +69,8 @@ impl WifiDriver {
                     WifiMode::Ap,
                 );
 
-                self.resources = StackResources::new();
-                let stack = Stack::new(
-                    wifi_interface,
-                    config,
-                    unsafe { as_static_mut(&mut self.resources) },
-                    1234,
-                );
+                *resources = StackResources::new();
+                let stack = Stack::new(wifi_interface, config, resources, 1234);
 
                 WifiDriverState::AP {
                     controller,

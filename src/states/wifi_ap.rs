@@ -59,11 +59,17 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         .wifi
         .initialize(&board.clocks, &mut board.peripheral_clock_control);
 
-    let (stack, controller) = board.wifi.configure_ap(Config::Static(StaticConfig {
-        address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
-        gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
-        dns_servers: Default::default(),
-    }));
+    let ([resources_1, resources_2], stack_resources) =
+        unsafe { BIG_OBJECTS.as_wifi_ap_resources() };
+
+    let (stack, controller) = board.wifi.configure_ap(
+        Config::Static(StaticConfig {
+            address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
+            gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
+            dns_servers: Default::default(),
+        }),
+        stack_resources,
+    );
 
     let spawner = Spawner::for_current_executor().await;
 
@@ -77,8 +83,6 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     });
 
     unsafe {
-        let [resources_1, resources_2] = BIG_OBJECTS.as_wifi_ap_resources();
-
         spawner.must_spawn(connection_task(
             as_static_mut(controller),
             as_static_ref(&connection_task_control),
