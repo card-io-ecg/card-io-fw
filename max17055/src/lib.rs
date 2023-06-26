@@ -2,9 +2,9 @@
 #![feature(async_fn_in_trait)]
 #![allow(incomplete_features)]
 
-use byte_slice_cast::{AsByteSlice, AsMutByteSlice};
+use byte_slice_cast::AsMutByteSlice;
 use device_descriptor::{ReadOnlyRegister, ReaderProxy, Register};
-use embedded_hal::i2c::{I2c, Operation};
+use embedded_hal::i2c::I2c;
 use embedded_hal_async::{delay::DelayUs as AsyncDelayUs, i2c::I2c as AsyncI2c};
 use register_access::{AsyncRegisterAccess, RegisterAccess};
 
@@ -171,17 +171,9 @@ where
         R: Register<RegisterWidth = u16>,
     {
         for el in buffer.iter_mut() {
-            *el = el.to_le();
+            self.write_one(R::ADDRESS, *el)?;
         }
-        self.i2c
-            .transaction(
-                Self::DEVICE_ADDR,
-                &mut [
-                    Operation::Write(&[R::ADDRESS]),
-                    Operation::Write(buffer.as_byte_slice()),
-                ],
-            )
-            .map_err(Error::Transfer)
+        Ok(())
     }
 }
 
@@ -229,18 +221,10 @@ where
         R: Register<RegisterWidth = u16>,
     {
         for el in buffer.iter_mut() {
-            *el = el.to_le();
+            self.write_one_async(R::ADDRESS, *el).await?;
         }
-        self.i2c
-            .transaction(
-                Self::DEVICE_ADDR,
-                &mut [
-                    Operation::Write(&[R::ADDRESS]),
-                    Operation::Write(buffer.as_byte_slice()),
-                ],
-            )
-            .await
-            .map_err(Error::Transfer)
+
+        Ok(())
     }
 }
 
@@ -254,8 +238,28 @@ impl<I2C> Max17055<I2C> {
 
 impl<I2C> Max17055<I2C>
 where
+    I2C: I2c,
+{
+    fn write_one(&mut self, addr: u8, value: u16) -> Result<(), Error<I2C::Error>> {
+        let value = value.to_le_bytes();
+        self.i2c
+            .write(Self::DEVICE_ADDR, &[addr, value[0], value[1]])
+            .map_err(Error::Transfer)
+    }
+}
+
+impl<I2C> Max17055<I2C>
+where
     I2C: AsyncI2c,
 {
+    async fn write_one_async(&mut self, addr: u8, value: u16) -> Result<(), Error<I2C::Error>> {
+        let value = value.to_le_bytes();
+        self.i2c
+            .write(Self::DEVICE_ADDR, &[addr, value[0], value[1]])
+            .await
+            .map_err(Error::Transfer)
+    }
+
     async fn write_and_verify_register_async<R>(
         &mut self,
         reg: R,
