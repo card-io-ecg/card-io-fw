@@ -92,7 +92,7 @@ impl DesignData {
     #[allow(non_snake_case)]
     pub fn raw_capacity_to_uAh(&self, raw: u16) -> u32 {
         let raw = raw as u32;
-        let rsense = self.r_sense as u32;
+        let rsense = self.r_sense;
 
         raw * 5_0000 / (rsense * 10)
     }

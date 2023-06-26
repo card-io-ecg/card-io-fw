@@ -35,6 +35,7 @@ pub struct StartupResources {
 
 impl StartupResources {
     #[inline(always)]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_display_driver(
         display_dma_channel: DisplayDmaChannel,
         dma_in_interrupt: peripherals::Interrupt,
@@ -81,6 +82,7 @@ impl StartupResources {
     }
 
     #[inline(always)]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_frontend_driver(
         adc_dma_channel: AdcDmaChannel,
         dma_in_interrupt: peripherals::Interrupt,
