@@ -1,5 +1,9 @@
+use embassy_net::{Config, Stack, StackResources};
 use esp32s3_hal::system::{PeripheralClockControl, RadioClockControl};
-use esp_wifi::{EspWifiInitFor, EspWifiInitialization};
+use esp_wifi::{
+    wifi::{WifiController, WifiDevice, WifiMode},
+    EspWifiInitFor, EspWifiInitialization,
+};
 use replace_with::replace_with_or_abort;
 
 use crate::board::hal::{
@@ -10,11 +14,20 @@ use crate::board::hal::{
     Rng,
 };
 
+pub unsafe fn as_static_ref<T>(what: &T) -> &'static T {
+    core::mem::transmute(what)
+}
+
+pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
+    core::mem::transmute(what)
+}
+
 pub struct WifiDriver {
     wifi: Wifi,
     state: WifiDriverState,
 }
 
+#[allow(clippy::large_enum_variant)]
 enum WifiDriverState {
     Uninitialized {
         timer: TIMG1,
@@ -23,6 +36,11 @@ enum WifiDriverState {
     },
     Initialized {
         init: EspWifiInitialization,
+    },
+    AP {
+        _init: EspWifiInitialization,
+        controller: WifiController<'static>,
+        stack: Stack<WifiDevice<'static>>,
     },
 }
 
@@ -34,22 +52,46 @@ impl WifiDriver {
         }
     }
 
-    pub fn driver_mut<'d>(
+    pub fn configure_ap<'d>(
         &'d mut self,
-        clocks: &Clocks,
-        pcc: &mut PeripheralClockControl,
-    ) -> (&'d mut Wifi, &'d mut EspWifiInitialization) {
-        if matches!(self.state, WifiDriverState::Uninitialized { .. }) {
-            self.initialize(clocks, pcc);
-        }
+        config: Config,
+        resources: &'static mut StackResources<3>,
+    ) -> (
+        &'d mut Stack<WifiDevice<'static>>,
+        &'d mut WifiController<'static>,
+    ) {
+        replace_with_or_abort(&mut self.state, |this| match this {
+            WifiDriverState::Uninitialized { .. } => unreachable!(),
+            WifiDriverState::Initialized { init } => {
+                let (wifi_interface, controller) = esp_wifi::wifi::new_with_mode(
+                    &init,
+                    unsafe { as_static_mut(&mut self.wifi) },
+                    WifiMode::Ap,
+                );
+
+                *resources = StackResources::new();
+                let stack = Stack::new(wifi_interface, config, resources, 1234);
+
+                WifiDriverState::AP {
+                    controller,
+                    stack,
+                    _init: init,
+                }
+            }
+            WifiDriverState::AP { .. } => this,
+        });
 
         match &mut self.state {
-            WifiDriverState::Initialized { init } => (&mut self.wifi, init),
-            WifiDriverState::Uninitialized { .. } => unreachable!(),
+            WifiDriverState::Uninitialized { .. } | WifiDriverState::Initialized { .. } => {
+                unreachable!()
+            }
+            WifiDriverState::AP {
+                controller, stack, ..
+            } => (stack, controller),
         }
     }
 
-    fn initialize(&mut self, clocks: &Clocks, pcc: &mut PeripheralClockControl) {
+    pub fn initialize(&mut self, clocks: &Clocks, pcc: &mut PeripheralClockControl) {
         replace_with_or_abort(&mut self.state, |this| match this {
             WifiDriverState::Uninitialized { timer, rng, rcc } => {
                 let timer = TimerGroup::new(timer, clocks, pcc).timer0;
@@ -60,7 +102,7 @@ impl WifiDriver {
 
                 WifiDriverState::Initialized { init }
             }
-            WifiDriverState::Initialized { .. } => this,
+            _ => this,
         })
     }
 }

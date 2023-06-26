@@ -6,6 +6,7 @@ mod measure;
 mod menu;
 mod wifi_ap;
 
+use embassy_net::StackResources;
 use embassy_time::Duration;
 
 pub use adc_setup::adc_setup;
@@ -20,6 +21,7 @@ pub use wifi_ap::wifi_ap;
 const TARGET_FPS: u32 = 100;
 const MIN_FRAME_TIME: Duration = Duration::from_hz(TARGET_FPS as u64);
 
+// The max number of webserver tasks.
 const WEBSERVER_TASKS: usize = 2;
 
 #[derive(Clone, Copy)]
@@ -42,19 +44,29 @@ pub enum BigObjects {
     Unused,
     WifiApResources {
         resources: [WebserverResources; WEBSERVER_TASKS],
+        stack_resources: StackResources<3>,
     },
 }
 
 impl BigObjects {
-    pub fn as_wifi_ap_resources(&mut self) -> &mut [WebserverResources; WEBSERVER_TASKS] {
+    pub fn as_wifi_ap_resources(
+        &mut self,
+    ) -> (
+        &mut [WebserverResources; WEBSERVER_TASKS],
+        &mut StackResources<3>,
+    ) {
         if !matches!(self, Self::WifiApResources { .. }) {
             *self = Self::WifiApResources {
                 resources: [WebserverResources::ZERO; 2],
+                stack_resources: StackResources::new(),
             }
         }
 
         match self {
-            Self::WifiApResources { resources } => resources,
+            Self::WifiApResources {
+                resources,
+                stack_resources,
+            } => (resources, stack_resources),
             _ => unreachable!(),
         }
     }
