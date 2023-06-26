@@ -151,6 +151,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         let context = context.lock().await;
         if context.known_networks != board.config.known_networks {
             board.config.known_networks = context.known_networks.clone();
+            board.config_changed = true;
             board.save_config().await;
         }
     }
