@@ -20,10 +20,7 @@ use norfs::{drivers::internal::InternalDriver, medium::cache::ReadCache, Storage
 use crate::board::{drivers::battery_adc::BatteryAdcData, BatteryAdc};
 
 #[cfg(feature = "battery_max17055")]
-use crate::board::{initialized::BatteryFgData, BatteryFgI2c};
-
-#[cfg(feature = "battery_max17055")]
-use max17055::Max17055;
+use crate::board::BatteryFg;
 
 #[cfg(feature = "hw_v1")]
 use crate::sleep::enable_gpio_pullup;
@@ -336,7 +333,7 @@ async fn monitor_task_adc(
 #[cfg(feature = "battery_max17055")]
 #[embassy_executor::task]
 async fn monitor_task_fg(
-    mut fuel_gauge: Max17055<BatteryFgI2c>,
+    mut fuel_gauge: BatteryFg,
     battery_state: &'static SharedBatteryState,
     task_control: &'static Signal<NoopRawMutex, ()>,
 ) {
@@ -345,19 +342,11 @@ async fn monitor_task_fg(
     let mut timer = Ticker::every(Duration::from_secs(1));
     log::debug!("Fuel gauge monitor started");
 
-    fuel_gauge
-        .load_initial_config_async(&mut Delay)
-        .await
-        .unwrap();
+    fuel_gauge.enable(&mut Delay).await;
 
     while !task_control.signaled() {
-        let voltage_uv = fuel_gauge.read_vcell().await.unwrap();
-        let percentage = fuel_gauge.read_reported_soc().await.unwrap();
+        let data = fuel_gauge.read_data().await.unwrap();
 
-        let data = BatteryFgData {
-            voltage: (voltage_uv / 1000) as u16, // mV
-            percentage,
-        };
         {
             let mut state = battery_state.lock().await;
             state.fg_data = Some(data);
