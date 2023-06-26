@@ -148,12 +148,15 @@ where
     where
         R: ReadOnlyRegister<RegisterWidth = u16>,
     {
-        for el in buffer.iter_mut() {
-            *el = el.to_le();
-        }
         self.i2c
             .write_read(Self::DEVICE_ADDR, &[R::ADDRESS], buffer.as_mut_byte_slice())
-            .map_err(Error::Transfer)
+            .map_err(Error::Transfer)?;
+
+        for el in buffer.iter_mut() {
+            *el = u16::from_le(*el);
+        }
+
+        Ok(())
     }
 
     fn write_register<R>(&mut self, reg: R) -> Result<(), Self::Error>
@@ -167,6 +170,9 @@ where
     where
         R: Register<RegisterWidth = u16>,
     {
+        for el in buffer.iter_mut() {
+            *el = el.to_le();
+        }
         self.i2c
             .transaction(
                 Self::DEVICE_ADDR,
@@ -175,13 +181,7 @@ where
                     Operation::Write(buffer.as_byte_slice()),
                 ],
             )
-            .map_err(Error::Transfer)?;
-
-        for el in buffer.iter_mut() {
-            *el = u16::from_le(*el);
-        }
-
-        Ok(())
+            .map_err(Error::Transfer)
     }
 }
 
@@ -205,13 +205,16 @@ where
     where
         R: ReadOnlyRegister<RegisterWidth = u16>,
     {
-        for el in buffer.iter_mut() {
-            *el = el.to_le();
-        }
         self.i2c
             .write_read(Self::DEVICE_ADDR, &[R::ADDRESS], buffer.as_mut_byte_slice())
             .await
-            .map_err(Error::Transfer)
+            .map_err(Error::Transfer)?;
+
+        for el in buffer.iter_mut() {
+            *el = u16::from_le(*el);
+        }
+
+        Ok(())
     }
 
     async fn write_register_async<R>(&mut self, reg: R) -> Result<(), Self::Error>
@@ -225,6 +228,9 @@ where
     where
         R: Register<RegisterWidth = u16>,
     {
+        for el in buffer.iter_mut() {
+            *el = el.to_le();
+        }
         self.i2c
             .transaction(
                 Self::DEVICE_ADDR,
@@ -234,13 +240,7 @@ where
                 ],
             )
             .await
-            .map_err(Error::Transfer)?;
-
-        for el in buffer.iter_mut() {
-            *el = u16::from_le(*el);
-        }
-
-        Ok(())
+            .map_err(Error::Transfer)
     }
 }
 
