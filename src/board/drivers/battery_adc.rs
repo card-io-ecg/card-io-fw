@@ -1,8 +1,13 @@
-use crate::board::hal::{
-    adc::{AdcConfig, AdcPin, Attenuation, RegisterAccess, ADC},
-    prelude::*,
+use crate::{
+    board::hal::{
+        adc::{AdcConfig, AdcPin, Attenuation, RegisterAccess, ADC},
+        prelude::*,
+    },
+    SharedBatteryState,
 };
 use embassy_futures::yield_now;
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
+use embassy_time::{Duration, Ticker};
 use embedded_hal_old::adc::{Channel, OneShot};
 use esp32s3_hal::{efuse::Efuse, peripheral::Peripheral};
 
@@ -89,4 +94,55 @@ where
             charge_current: self.read_charge_current().await?,
         })
     }
+}
+
+#[embassy_executor::task]
+pub async fn monitor_task_adc(
+    mut battery: crate::board::BatteryAdc,
+    battery_state: &'static SharedBatteryState,
+    task_control: &'static Signal<NoopRawMutex, ()>,
+) {
+    let mut timer = Ticker::every(Duration::from_millis(10));
+    log::info!("ADC monitor started");
+
+    battery.enable.set_high().unwrap();
+
+    let mut voltage_accumulator = 0;
+    let mut current_accumulator = 0;
+
+    let mut sample_count = 0;
+
+    const AVG_SAMPLE_COUNT: u32 = 128;
+
+    while !task_control.signaled() {
+        let data = battery.read_data().await.unwrap();
+
+        voltage_accumulator += data.voltage as u32;
+        current_accumulator += data.charge_current as u32;
+
+        if sample_count == AVG_SAMPLE_COUNT {
+            let mut state = battery_state.lock().await;
+
+            let average = BatteryAdcData {
+                voltage: (voltage_accumulator / AVG_SAMPLE_COUNT) as u16,
+                charge_current: (current_accumulator / AVG_SAMPLE_COUNT) as u16,
+            };
+            state.adc_data = Some(average);
+
+            log::debug!("Battery data: {average:?}");
+
+            sample_count = 0;
+
+            voltage_accumulator = 0;
+            current_accumulator = 0;
+        } else {
+            sample_count += 1;
+        }
+
+        timer.next().await;
+    }
+
+    battery.enable.set_low().unwrap();
+
+    log::info!("Monitor exited");
 }

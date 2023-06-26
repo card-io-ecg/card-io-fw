@@ -1,6 +1,10 @@
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
+use embassy_time::{Delay, Duration, Ticker};
 use embedded_hal::digital::OutputPin;
 use embedded_hal_async::{delay::DelayUs, i2c::I2c};
 use max17055::Max17055;
+
+use crate::SharedBatteryState;
 
 #[derive(Clone, Copy, Debug)]
 pub struct BatteryFgData {
@@ -41,4 +45,32 @@ where
     pub fn disable(&mut self) {
         self.enable.set_low().unwrap();
     }
+}
+
+#[embassy_executor::task]
+pub async fn monitor_task_fg(
+    mut fuel_gauge: crate::board::BatteryFg,
+    battery_state: &'static SharedBatteryState,
+    task_control: &'static Signal<NoopRawMutex, ()>,
+) {
+    let mut timer = Ticker::every(Duration::from_secs(1));
+    log::info!("Fuel gauge monitor started");
+
+    fuel_gauge.enable(&mut Delay).await;
+
+    while !task_control.signaled() {
+        let data = fuel_gauge.read_data().await.unwrap();
+
+        {
+            let mut state = battery_state.lock().await;
+            state.fg_data = Some(data);
+        }
+        log::debug!("Battery data: {data:?}");
+
+        timer.next().await;
+    }
+
+    fuel_gauge.disable();
+
+    log::info!("Monitor exited");
 }
