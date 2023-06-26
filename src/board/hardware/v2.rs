@@ -158,16 +158,15 @@ impl super::startup::StartupResources {
 
         #[cfg(feature = "battery_adc")]
         let battery_adc = {
-            // Battery measurement
-            let batt_adc_in = io.pins.gpio9.into_analog();
-            let batt_adc_en = io.pins.gpio8.into_push_pull_output();
-
-            let chg_current = io.pins.gpio10.into_analog();
-
             // Battery ADC
             let analog = peripherals.SENS.split();
 
-            BatteryAdc::new(analog.adc1, batt_adc_in, chg_current, batt_adc_en)
+            BatteryAdc::new(
+                analog.adc1,
+                io.pins.gpio9.into_analog(),
+                io.pins.gpio10.into_analog(),
+                io.pins.gpio8.into_push_pull_output(),
+            )
         };
 
         #[cfg(feature = "battery_max17055")]
@@ -194,9 +193,6 @@ impl super::startup::StartupResources {
             // i_chg = 1000/4.7 = 212mA
             // i_chg_term = 212 * 0.0075 = 1.59mA
             // LSB = 1.5625μV/20mOhm = 78.125μA/LSB
-
-            let batt_pullup_en = io.pins.gpio8.into_push_pull_output();
-
             let design = DesignData {
                 capacity: 320,
                 i_chg_term: 20, // 1.5625mA
@@ -205,7 +201,10 @@ impl super::startup::StartupResources {
                 v_charge: 4200,
                 r_sense: 20,
             };
-            BatteryFg::new(Max17055::new(i2c0, design), batt_pullup_en)
+            BatteryFg::new(
+                Max17055::new(i2c0, design),
+                io.pins.gpio8.into_push_pull_output(),
+            )
         };
 
         // Charger

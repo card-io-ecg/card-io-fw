@@ -137,19 +137,19 @@ impl super::startup::StartupResources {
             &clocks,
         );
 
-        // Battery measurement
-        let batt_adc_in = io.pins.gpio17.into_analog();
-        let batt_adc_en = io.pins.gpio8.into_push_pull_output();
-
         // Charger
         let vbus_detect = io.pins.gpio47.into_floating_input();
-        let chg_current = io.pins.gpio14.into_analog();
         let chg_status = io.pins.gpio21.into_pull_up_input();
 
         // Battery ADC
         let analog = peripherals.SENS.split();
 
-        let battery_adc = BatteryAdc::new(analog.adc2, batt_adc_in, chg_current, batt_adc_en);
+        let battery_adc = BatteryAdc::new(
+            analog.adc2,
+            io.pins.gpio17.into_analog(),
+            io.pins.gpio14.into_analog(),
+            io.pins.gpio8.into_push_pull_output(),
+        );
 
         // Wifi
         let (wifi, _) = peripherals.RADIO.split();
