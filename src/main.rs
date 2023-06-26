@@ -327,6 +327,8 @@ async fn monitor_task_adc(
         timer.next().await;
     }
 
+    battery.enable.set_low().unwrap();
+
     log::debug!("Monitor exited");
 }
 
@@ -355,6 +357,8 @@ async fn monitor_task_fg(
 
         timer.next().await;
     }
+
+    fuel_gauge.disable();
 
     log::debug!("Monitor exited");
 }

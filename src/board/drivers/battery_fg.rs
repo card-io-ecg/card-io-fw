@@ -37,4 +37,8 @@ where
             percentage,
         })
     }
+
+    pub fn disable(&mut self) {
+        self.enable.set_low().unwrap();
+    }
 }
