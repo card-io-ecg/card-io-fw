@@ -4,6 +4,11 @@ use crate::board::{
     hal::{adc::ADC1, gpio::Analog},
 };
 
+#[cfg(feature = "battery_max17055")]
+use crate::board::{drivers::battery_fg::BatteryFg as BatteryFgType, hal::i2c::I2C};
+#[cfg(feature = "battery_max17055")]
+use max17055::{DesignData, Max17055};
+
 use crate::{
     board::{
         drivers::{
@@ -37,11 +42,6 @@ use crate::{
 
 use display_interface_spi::SPIInterface;
 use esp_println::logger::init_logger;
-
-#[cfg(feature = "battery_max17055")]
-use hal::i2c::I2C;
-#[cfg(feature = "battery_max17055")]
-use max17055::{DesignData, Max17055};
 
 pub type DisplaySpi<'d> = SpiDeviceWrapper<
     SpiDma<
@@ -80,7 +80,7 @@ pub type AdcClockEnable = GpioPin<Output<PushPull>, 38>;
 
 #[cfg(feature = "battery_adc")]
 pub type BatteryAdcInput = GpioPin<Analog, 9>;
-#[cfg(feature = "battery_adc")]
+#[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
 pub type BatteryAdcEnable = GpioPin<Output<PushPull>, 8>;
 pub type VbusDetect = GpioPin<Input<Floating>, 17>;
 #[cfg(feature = "battery_adc")]
@@ -99,6 +99,8 @@ pub type BatteryAdc = BatteryAdcType<BatteryAdcInput, ChargeCurrentInput, Batter
 
 #[cfg(feature = "battery_max17055")]
 pub type BatteryFgI2c = I2C<'static, hal::peripherals::I2C0>;
+#[cfg(feature = "battery_max17055")]
+pub type BatteryFg = BatteryFgType<BatteryFgI2c, BatteryAdcEnable>;
 
 static INT_EXECUTOR: InterruptExecutor<SwInterrupt0> = InterruptExecutor::new();
 
@@ -268,6 +270,8 @@ impl super::startup::StartupResources {
             // i_chg_term = 212 * 0.0075 = 1.59mA
             // LSB = 1.5625μV/20mOhm = 78.125μA/LSB
 
+            let batt_pullup_en = io.pins.gpio8.into_push_pull_output();
+
             let design = DesignData {
                 capacity: 320,
                 i_chg_term: 20, // 1.5625mA
@@ -276,7 +280,7 @@ impl super::startup::StartupResources {
                 v_charge: 4200,
                 r_sense: 20,
             };
-            Max17055::new(i2c0, design)
+            BatteryFg::new(Max17055::new(i2c0, design), batt_pullup_en)
         };
 
         // Charger

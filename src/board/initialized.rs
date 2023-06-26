@@ -22,15 +22,11 @@ use crate::{
 #[cfg(feature = "battery_adc")]
 use crate::board::drivers::battery_adc::BatteryAdcData;
 
+#[cfg(feature = "battery_max17055")]
+use crate::board::drivers::battery_fg::BatteryFgData;
+
 #[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
 use crate::board::LOW_BATTERY_VOLTAGE;
-
-#[cfg(feature = "battery_max17055")]
-#[derive(Clone, Copy, Debug)]
-pub struct BatteryFgData {
-    pub voltage: u16,
-    pub percentage: u8,
-}
 
 pub struct BatteryState {
     #[cfg(feature = "battery_adc")]
