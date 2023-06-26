@@ -26,7 +26,7 @@ use crate::{
             peripherals::{self, Peripherals},
             prelude::*,
             spi::{
-                dma::{SpiDma, WithDmaSpi2, WithDmaSpi3},
+                dma::{SpiDma, WithDmaSpi3},
                 FullDuplexMode, SpiMode,
             },
             systimer::SystemTimer,
@@ -45,7 +45,7 @@ use esp_println::logger::init_logger;
 pub type DisplaySpi<'d> = SpiDeviceWrapper<
     SpiDma<
         'd,
-        hal::peripherals::SPI2,
+        DisplaySpiInstance,
         ChannelTx<'d, Channel0TxImpl, Channel0>,
         ChannelRx<'d, Channel0RxImpl, Channel0>,
         SuitablePeripheral0,
@@ -54,9 +54,13 @@ pub type DisplaySpi<'d> = SpiDeviceWrapper<
     DummyOutputPin,
 >;
 
+pub type DisplaySpiInstance = hal::peripherals::SPI2;
+pub type DisplayDmaChannel = ChannelCreator0;
 pub type DisplayDataCommand = GpioPin<Output<PushPull>, 13>;
 pub type DisplayChipSelect = GpioPin<Output<PushPull>, 11>;
 pub type DisplayReset = GpioPin<Output<PushPull>, 12>;
+pub type DisplaySclk = GpioPin<Output<PushPull>, 14>;
+pub type DisplayMosi = GpioPin<Output<PushPull>, 21>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommand>;
 
@@ -120,54 +124,18 @@ impl super::startup::StartupResources {
 
         let dma = Gdma::new(peripherals.DMA, &mut system.peripheral_clock_control);
 
-        // Display
-        let display_dma_channel = dma.channel0;
-        interrupt::enable(
+        let display = Self::create_display_driver(
+            dma.channel0,
             peripherals::Interrupt::DMA_IN_CH0,
-            interrupt::Priority::Priority1,
-        )
-        .unwrap();
-        interrupt::enable(
             peripherals::Interrupt::DMA_OUT_CH0,
-            interrupt::Priority::Priority1,
-        )
-        .unwrap();
-
-        let display_reset = io.pins.gpio12.into_push_pull_output();
-        let display_dc = io.pins.gpio13.into_push_pull_output();
-
-        let mut display_cs: DisplayChipSelect = io.pins.gpio11.into_push_pull_output();
-        let display_sclk = io.pins.gpio14;
-        let display_mosi = io.pins.gpio21;
-
-        let display_spi = peripherals.SPI2;
-
-        display_cs.connect_peripheral_to_output(display_spi.cs_signal());
-
-        static mut DISPLAY_SPI_DESCRIPTORS: [u32; 3] = [0; 3];
-        static mut DISPLAY_SPI_RX_DESCRIPTORS: [u32; 3] = [0; 3];
-        let display_spi = Spi::new_no_cs_no_miso(
-            display_spi,
-            display_sclk,
-            display_mosi,
-            40u32.MHz(),
-            SpiMode::Mode0,
+            peripherals.SPI2,
+            io.pins.gpio12.into_push_pull_output(),
+            io.pins.gpio13.into_push_pull_output(),
+            io.pins.gpio11.into_push_pull_output(),
+            io.pins.gpio14.into_push_pull_output(),
+            io.pins.gpio21.into_push_pull_output(),
             &mut system.peripheral_clock_control,
             &clocks,
-        )
-        .with_dma(display_dma_channel.configure(
-            false,
-            unsafe { &mut DISPLAY_SPI_DESCRIPTORS },
-            unsafe { &mut DISPLAY_SPI_RX_DESCRIPTORS },
-            DmaPriority::Priority0,
-        ));
-
-        let display = Display::new(
-            SPIInterface::new(
-                SpiDeviceWrapper::new(display_spi, DummyOutputPin),
-                display_dc,
-            ),
-            display_reset,
         );
 
         // ADC
