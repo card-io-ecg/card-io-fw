@@ -288,7 +288,7 @@ async fn monitor_task_adc(
     task_control: &'static Signal<NoopRawMutex, ()>,
 ) {
     let mut timer = Ticker::every(Duration::from_millis(10));
-    log::debug!("ADC monitor started");
+    log::info!("ADC monitor started");
 
     battery.enable.set_high().unwrap();
 
@@ -329,7 +329,7 @@ async fn monitor_task_adc(
 
     battery.enable.set_low().unwrap();
 
-    log::debug!("Monitor exited");
+    log::info!("Monitor exited");
 }
 
 #[cfg(feature = "battery_max17055")]
@@ -342,7 +342,7 @@ async fn monitor_task_fg(
     use embassy_time::Delay;
 
     let mut timer = Ticker::every(Duration::from_secs(1));
-    log::debug!("Fuel gauge monitor started");
+    log::info!("Fuel gauge monitor started");
 
     fuel_gauge.enable(&mut Delay).await;
 
@@ -360,5 +360,5 @@ async fn monitor_task_fg(
 
     fuel_gauge.disable();
 
-    log::debug!("Monitor exited");
+    log::info!("Monitor exited");
 }
