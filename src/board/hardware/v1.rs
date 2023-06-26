@@ -28,7 +28,6 @@ use crate::{
         *,
     },
     heap::init_heap,
-    interrupt::{InterruptExecutor, SwInterrupt0},
 };
 
 use display_interface_spi::SPIInterface;
@@ -83,13 +82,6 @@ pub type Display = DisplayType<DisplayInterface<'static>, DisplayReset>;
 pub type PoweredDisplay = PoweredDisplayType<DisplayInterface<'static>, DisplayReset>;
 
 pub type BatteryAdc = BatteryAdcType<BatteryAdcInput, ChargeCurrentInput, BatteryAdcEnable, ADC2>;
-
-static INT_EXECUTOR: InterruptExecutor<SwInterrupt0> = InterruptExecutor::new();
-
-#[interrupt]
-fn FROM_CPU_INTR0() {
-    unsafe { INT_EXECUTOR.on_interrupt() }
-}
 
 impl super::startup::StartupResources {
     pub fn initialize() -> Self {
@@ -222,8 +214,6 @@ impl super::startup::StartupResources {
         let chg_current = io.pins.gpio14.into_analog();
         let chg_status = io.pins.gpio21.into_pull_up_input();
 
-        let high_prio_spawner = INT_EXECUTOR.start();
-
         // Battery ADC
         let analog = peripherals.SENS.split();
 
@@ -236,7 +226,6 @@ impl super::startup::StartupResources {
             display,
             frontend: adc,
             battery_adc,
-            high_prio_spawner,
             wifi: WifiDriver::new(
                 wifi,
                 peripherals.TIMG1,

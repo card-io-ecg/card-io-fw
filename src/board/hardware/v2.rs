@@ -37,7 +37,6 @@ use crate::{
         *,
     },
     heap::init_heap,
-    interrupt::{InterruptExecutor, SwInterrupt0},
 };
 
 use display_interface_spi::SPIInterface;
@@ -101,13 +100,6 @@ pub type BatteryAdc = BatteryAdcType<BatteryAdcInput, ChargeCurrentInput, Batter
 pub type BatteryFgI2c = I2C<'static, hal::peripherals::I2C0>;
 #[cfg(feature = "battery_max17055")]
 pub type BatteryFg = BatteryFgType<BatteryFgI2c, BatteryAdcEnable>;
-
-static INT_EXECUTOR: InterruptExecutor<SwInterrupt0> = InterruptExecutor::new();
-
-#[interrupt]
-fn FROM_CPU_INTR0() {
-    unsafe { INT_EXECUTOR.on_interrupt() }
-}
 
 impl super::startup::StartupResources {
     pub fn initialize() -> Self {
@@ -287,8 +279,6 @@ impl super::startup::StartupResources {
         let vbus_detect = io.pins.gpio17.into_floating_input();
         let chg_status = io.pins.gpio47.into_pull_up_input();
 
-        let high_prio_spawner = INT_EXECUTOR.start();
-
         // Wifi
         let (wifi, _) = peripherals.RADIO.split();
 
@@ -299,7 +289,6 @@ impl super::startup::StartupResources {
             battery_adc,
             #[cfg(feature = "battery_max17055")]
             battery_fg,
-            high_prio_spawner,
             wifi: WifiDriver::new(
                 wifi,
                 peripherals.TIMG1,

@@ -1,5 +1,3 @@
-use embassy_executor::SendSpawner;
-
 #[cfg(feature = "battery_adc")]
 use crate::board::BatteryAdc;
 #[cfg(feature = "battery_max17055")]
@@ -23,6 +21,5 @@ pub struct StartupResources {
     pub battery_fg: BatteryFg,
 
     pub misc_pins: MiscPins,
-    pub high_prio_spawner: SendSpawner,
     pub wifi: WifiDriver,
 }
