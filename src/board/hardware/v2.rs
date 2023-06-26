@@ -144,8 +144,8 @@ impl super::startup::StartupResources {
 
         display_cs.connect_peripheral_to_output(display_spi.cs_signal());
 
-        static mut DISPLAY_SPI_DESCRIPTORS: [u32; 24] = [0u32; 8 * 3];
-        static mut DISPLAY_SPI_RX_DESCRIPTORS: [u32; 24] = [0u32; 8 * 3];
+        static mut DISPLAY_SPI_DESCRIPTORS: [u32; 3] = [0; 3];
+        static mut DISPLAY_SPI_RX_DESCRIPTORS: [u32; 3] = [0; 3];
         let display_spi = Spi::new_no_cs_no_miso(
             display_spi,
             display_sclk,
@@ -195,8 +195,8 @@ impl super::startup::StartupResources {
 
         adc_cs.set_high().unwrap();
 
-        static mut ADC_SPI_DESCRIPTORS: [u32; 24] = [0u32; 8 * 3];
-        static mut ADC_SPI_RX_DESCRIPTORS: [u32; 24] = [0u32; 8 * 3];
+        static mut ADC_SPI_DESCRIPTORS: [u32; 3] = [0; 3];
+        static mut ADC_SPI_RX_DESCRIPTORS: [u32; 3] = [0; 3];
         let adc = Frontend::new(
             SpiDeviceWrapper::new(
                 Spi::new_no_cs(
