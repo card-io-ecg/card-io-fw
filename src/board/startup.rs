@@ -6,14 +6,16 @@ use crate::board::BatteryAdc;
 use crate::board::BatteryFg;
 
 use crate::board::{
+    drivers::frontend::Frontend,
     hal::{
-        clock::Clocks, dma::DmaPriority, interrupt, peripherals, prelude::*, spi::SpiMode,
-        system::PeripheralClockControl, Spi,
+        clock::Clocks, dma::DmaPriority, interrupt, peripherals, prelude::*, spi::dma::WithDmaSpi3,
+        spi::SpiMode, system::PeripheralClockControl, Spi,
     },
     utils::{DummyOutputPin, SpiDeviceWrapper},
     wifi::driver::WifiDriver,
-    Display, DisplayChipSelect, DisplayDataCommand, DisplayDmaChannel, DisplayMosi, DisplayReset,
-    DisplaySclk, DisplaySpiInstance, EcgFrontend, MiscPins,
+    AdcChipSelect, AdcClockEnable, AdcDmaChannel, AdcDrdy, AdcMiso, AdcMosi, AdcReset, AdcSclk,
+    AdcSpiInstance, Display, DisplayChipSelect, DisplayDataCommand, DisplayDmaChannel, DisplayMosi,
+    DisplayReset, DisplaySclk, DisplaySpiInstance, EcgFrontend, MiscPins, TouchDetect,
 };
 
 pub struct StartupResources {
@@ -75,6 +77,59 @@ impl StartupResources {
                 display_dc,
             ),
             display_reset,
+        )
+    }
+
+    #[inline(always)]
+    pub(crate) fn create_frontend_driver(
+        adc_dma_channel: AdcDmaChannel,
+        dma_in_interrupt: peripherals::Interrupt,
+        dma_out_interrupt: peripherals::Interrupt,
+        adc_spi: AdcSpiInstance,
+        adc_sclk: AdcSclk,
+        adc_mosi: AdcMosi,
+        adc_miso: AdcMiso,
+
+        adc_drdy: AdcDrdy,
+        adc_reset: AdcReset,
+        adc_clock_enable: AdcClockEnable,
+        touch_detect: TouchDetect,
+        mut adc_cs: AdcChipSelect,
+
+        pcc: &mut PeripheralClockControl,
+        clocks: &Clocks,
+    ) -> EcgFrontend {
+        interrupt::enable(dma_in_interrupt, interrupt::Priority::Priority1).unwrap();
+        interrupt::enable(dma_out_interrupt, interrupt::Priority::Priority1).unwrap();
+
+        adc_cs.set_high().unwrap();
+
+        static mut ADC_SPI_DESCRIPTORS: [u32; 3] = [0; 3];
+        static mut ADC_SPI_RX_DESCRIPTORS: [u32; 3] = [0; 3];
+        Frontend::new(
+            SpiDeviceWrapper::new(
+                Spi::new_no_cs(
+                    adc_spi,
+                    adc_sclk,
+                    adc_mosi,
+                    adc_miso,
+                    1u32.MHz(),
+                    SpiMode::Mode1,
+                    pcc,
+                    clocks,
+                )
+                .with_dma(adc_dma_channel.configure(
+                    false,
+                    unsafe { &mut ADC_SPI_DESCRIPTORS },
+                    unsafe { &mut ADC_SPI_RX_DESCRIPTORS },
+                    DmaPriority::Priority1,
+                )),
+                adc_cs,
+            ),
+            adc_drdy,
+            adc_reset,
+            adc_clock_enable,
+            touch_detect,
         )
     }
 }

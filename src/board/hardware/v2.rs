@@ -18,19 +18,16 @@ use crate::{
         hal::{
             self,
             clock::{ClockControl, CpuClock},
-            dma::{ChannelRx, ChannelTx, DmaPriority},
+            dma::{ChannelRx, ChannelTx},
             embassy,
             gdma::*,
             gpio::{Floating, GpioPin, Input, Output, PullUp, PushPull},
             interrupt,
             peripherals::{self, Peripherals},
             prelude::*,
-            spi::{
-                dma::{SpiDma, WithDmaSpi3},
-                FullDuplexMode, SpiMode,
-            },
+            spi::{dma::SpiDma, FullDuplexMode},
             systimer::SystemTimer,
-            Rtc, Spi, IO,
+            Rtc, IO,
         },
         utils::{DummyOutputPin, SpiDeviceWrapper},
         wifi::driver::WifiDriver,
@@ -42,6 +39,15 @@ use crate::{
 use display_interface_spi::SPIInterface;
 use esp_println::logger::init_logger;
 
+pub type DisplaySpiInstance = hal::peripherals::SPI2;
+pub type DisplayDmaChannel = ChannelCreator0;
+pub type DisplayDataCommand = GpioPin<Output<PushPull>, 13>;
+pub type DisplayChipSelect = GpioPin<Output<PushPull>, 11>;
+pub type DisplayReset = GpioPin<Output<PushPull>, 12>;
+pub type DisplaySclk = GpioPin<Output<PushPull>, 14>;
+pub type DisplayMosi = GpioPin<Output<PushPull>, 21>;
+
+pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommand>;
 pub type DisplaySpi<'d> = SpiDeviceWrapper<
     SpiDma<
         'd,
@@ -54,24 +60,20 @@ pub type DisplaySpi<'d> = SpiDeviceWrapper<
     DummyOutputPin,
 >;
 
-pub type DisplaySpiInstance = hal::peripherals::SPI2;
-pub type DisplayDmaChannel = ChannelCreator0;
-pub type DisplayDataCommand = GpioPin<Output<PushPull>, 13>;
-pub type DisplayChipSelect = GpioPin<Output<PushPull>, 11>;
-pub type DisplayReset = GpioPin<Output<PushPull>, 12>;
-pub type DisplaySclk = GpioPin<Output<PushPull>, 14>;
-pub type DisplayMosi = GpioPin<Output<PushPull>, 21>;
-
-pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommand>;
-
+pub type AdcDmaChannel = ChannelCreator1;
+pub type AdcSpiInstance = hal::peripherals::SPI3;
+pub type AdcSclk = GpioPin<Output<PushPull>, 6>;
+pub type AdcMosi = GpioPin<Output<PushPull>, 7>;
+pub type AdcMiso = GpioPin<Input<Floating>, 5>;
+pub type AdcChipSelect = GpioPin<Output<PushPull>, 18>;
+pub type AdcClockEnable = GpioPin<Output<PushPull>, 38>;
 pub type AdcDrdy = GpioPin<Input<Floating>, 4>;
 pub type AdcReset = GpioPin<Output<PushPull>, 2>;
 pub type TouchDetect = GpioPin<Input<Floating>, 1>;
-pub type AdcChipSelect = GpioPin<Output<PushPull>, 18>;
 pub type AdcSpi<'d> = SpiDeviceWrapper<
     SpiDma<
         'd,
-        hal::peripherals::SPI3,
+        AdcSpiInstance,
         ChannelTx<'d, Channel1TxImpl, Channel1>,
         ChannelRx<'d, Channel1RxImpl, Channel1>,
         SuitablePeripheral1,
@@ -79,7 +81,6 @@ pub type AdcSpi<'d> = SpiDeviceWrapper<
     >,
     AdcChipSelect,
 >;
-pub type AdcClockEnable = GpioPin<Output<PushPull>, 38>;
 
 #[cfg(feature = "battery_adc")]
 pub type BatteryAdcInput = GpioPin<Analog, 9>;
@@ -138,57 +139,21 @@ impl super::startup::StartupResources {
             &clocks,
         );
 
-        // ADC
-        let adc_dma_channel = dma.channel1;
-        interrupt::enable(
+        let adc = Self::create_frontend_driver(
+            dma.channel1,
             peripherals::Interrupt::DMA_IN_CH1,
-            interrupt::Priority::Priority2,
-        )
-        .unwrap();
-        interrupt::enable(
             peripherals::Interrupt::DMA_OUT_CH1,
-            interrupt::Priority::Priority2,
-        )
-        .unwrap();
-
-        let adc_sclk = io.pins.gpio6;
-        let adc_mosi = io.pins.gpio7;
-        let adc_miso = io.pins.gpio5;
-
-        let adc_drdy = io.pins.gpio4.into_floating_input();
-        let adc_reset = io.pins.gpio2.into_push_pull_output();
-        let adc_clock_enable = io.pins.gpio38.into_push_pull_output();
-        let touch_detect = io.pins.gpio1.into_floating_input();
-        let mut adc_cs = io.pins.gpio18.into_push_pull_output();
-
-        adc_cs.set_high().unwrap();
-
-        static mut ADC_SPI_DESCRIPTORS: [u32; 3] = [0; 3];
-        static mut ADC_SPI_RX_DESCRIPTORS: [u32; 3] = [0; 3];
-        let adc = Frontend::new(
-            SpiDeviceWrapper::new(
-                Spi::new_no_cs(
-                    peripherals.SPI3,
-                    adc_sclk,
-                    adc_mosi,
-                    adc_miso,
-                    1u32.MHz(),
-                    SpiMode::Mode1,
-                    &mut system.peripheral_clock_control,
-                    &clocks,
-                )
-                .with_dma(adc_dma_channel.configure(
-                    false,
-                    unsafe { &mut ADC_SPI_DESCRIPTORS },
-                    unsafe { &mut ADC_SPI_RX_DESCRIPTORS },
-                    DmaPriority::Priority1,
-                )),
-                adc_cs,
-            ),
-            adc_drdy,
-            adc_reset,
-            adc_clock_enable,
-            touch_detect,
+            peripherals.SPI3,
+            io.pins.gpio6.into_push_pull_output(),
+            io.pins.gpio7.into_push_pull_output(),
+            io.pins.gpio5.into_floating_input(),
+            io.pins.gpio4.into_floating_input(),
+            io.pins.gpio2.into_push_pull_output(),
+            io.pins.gpio38.into_push_pull_output(),
+            io.pins.gpio1.into_floating_input(),
+            io.pins.gpio18.into_push_pull_output(),
+            &mut system.peripheral_clock_control,
+            &clocks,
         );
 
         #[cfg(feature = "battery_adc")]
