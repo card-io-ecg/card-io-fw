@@ -1,4 +1,4 @@
-use display_interface::{AsyncWriteOnlyDataCommand, DisplayError};
+use display_interface::DisplayError;
 use embassy_executor::_export::StaticCell;
 use embassy_time::Delay;
 use embedded_graphics::{

@@ -39,6 +39,8 @@ impl WebserverResources {
     };
 }
 
+pub struct EcgObjects {}
+
 #[allow(clippy::large_enum_variant)]
 pub enum BigObjects {
     Unused,
@@ -46,6 +48,7 @@ pub enum BigObjects {
         resources: [WebserverResources; WEBSERVER_TASKS],
         stack_resources: StackResources<3>,
     },
+    Ecg(EcgObjects),
 }
 
 impl BigObjects {
@@ -67,6 +70,17 @@ impl BigObjects {
                 resources,
                 stack_resources,
             } => (resources, stack_resources),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn as_ecg(&mut self) -> &mut EcgObjects {
+        if !matches!(self, Self::Ecg { .. }) {
+            *self = Self::Ecg(EcgObjects {})
+        }
+
+        match self {
+            Self::Ecg(ecg) => ecg,
             _ => unreachable!(),
         }
     }
