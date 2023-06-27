@@ -1,8 +1,10 @@
 [target.xtensa-esp32s3-none-elf]
 rustflags = [
-  "-C", "link-arg=-Tlinkall.x",
   "-C", "link-arg=-nostartfiles",
   "-C", "link-arg=-Trom_functions.x",
+  "-C", "link-arg=-Tld/esp32s3_custom.x",
+  "-C", "link-arg=-Thal-defaults.x",
+  "-C", "link-arg=-Trom-functions.x",
 
   # for esp32-s2, uncomment these lines:
   ## tell the core library have atomics even though it's not specified in the target definition
