@@ -15,6 +15,7 @@ Tools you need to build the firmware:
   > Make sure to run `. ~/export-esp.sh` before trying to work with the firmware
 - `cargo install cargo-espflash`
 - `cargo install cargo-watch`
+- `cargo install flip-link`
 
 Commands
 --------

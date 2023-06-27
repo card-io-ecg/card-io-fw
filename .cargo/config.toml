@@ -1,5 +1,6 @@
 [target.xtensa-esp32s3-none-elf]
 rustflags = [
+  "-C", "linker=flip-link",
   "-C", "link-arg=-Tlinkall.x",
   "-C", "link-arg=-nostartfiles",
   "-C", "link-arg=-Trom_functions.x",
