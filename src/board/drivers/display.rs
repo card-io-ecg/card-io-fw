@@ -1,4 +1,5 @@
 use display_interface::{AsyncWriteOnlyDataCommand, DisplayError};
+use embassy_executor::_export::StaticCell;
 use embassy_time::Delay;
 use embedded_graphics::{
     pixelcolor::BinaryColor,
@@ -12,27 +13,35 @@ use ssd1306::{
     size::DisplaySize128x64, Ssd1306,
 };
 
-pub struct Display<DI, RESET> {
-    display: Ssd1306<DI, DisplaySize128x64, BufferedGraphicsMode<DisplaySize128x64>>,
+use crate::board::DisplayInterface;
+
+static DISPLAY: StaticCell<
+    Ssd1306<DisplayInterface, DisplaySize128x64, BufferedGraphicsMode<DisplaySize128x64>>,
+> = StaticCell::new();
+
+pub struct Display<RESET> {
+    display: &'static mut Ssd1306<
+        DisplayInterface<'static>,
+        DisplaySize128x64,
+        BufferedGraphicsMode<DisplaySize128x64>,
+    >,
     reset: RESET,
 }
 
-impl<DI, RESET> Display<DI, RESET>
+impl<RESET> Display<RESET>
 where
     RESET: OutputPin,
 {
-    pub fn new(spi: DI, reset: RESET) -> Self {
-        Self {
-            display: Ssd1306::new(spi, DisplaySize128x64, DisplayRotation::Rotate0)
-                .into_buffered_graphics_mode(),
-            reset,
-        }
+    pub fn new(spi: DisplayInterface<'static>, reset: RESET) -> Self {
+        let display = DISPLAY.init_with(|| {
+            Ssd1306::new(spi, DisplaySize128x64, DisplayRotation::Rotate0)
+                .into_buffered_graphics_mode()
+        });
+
+        Self { display, reset }
     }
 
-    pub async fn enable(mut self) -> Result<PoweredDisplay<DI, RESET>, DisplayError>
-    where
-        DI: AsyncWriteOnlyDataCommand,
-    {
+    pub async fn enable(mut self) -> Result<PoweredDisplay<RESET>, DisplayError> {
         self.display
             .reset_async::<_, Delay>(&mut self.reset, &mut Delay)
             .await
@@ -48,17 +57,17 @@ where
     }
 }
 
-pub struct PoweredDisplay<DI, RESET> {
-    display: Display<DI, RESET>,
+pub struct PoweredDisplay<RESET> {
+    display: Display<RESET>,
 }
 
-impl<DI, RESET> Dimensions for PoweredDisplay<DI, RESET> {
+impl<RESET> Dimensions for PoweredDisplay<RESET> {
     fn bounding_box(&self) -> Rectangle {
         self.display.display.bounding_box()
     }
 }
 
-impl<DI, RESET> DrawTarget for PoweredDisplay<DI, RESET> {
+impl<RESET> DrawTarget for PoweredDisplay<RESET> {
     type Color = BinaryColor;
     type Error = DisplayError;
 
@@ -74,10 +83,7 @@ impl<DI, RESET> DrawTarget for PoweredDisplay<DI, RESET> {
     }
 }
 
-impl<DI, RESET> PoweredDisplay<DI, RESET>
-where
-    DI: AsyncWriteOnlyDataCommand,
-{
+impl<RESET> PoweredDisplay<RESET> {
     pub async fn frame(
         &mut self,
         render: impl FnOnce(&mut Self) -> Result<(), DisplayError>,
@@ -101,11 +107,11 @@ where
     }
 }
 
-impl<DI, RESET> PoweredDisplay<DI, RESET>
+impl<RESET> PoweredDisplay<RESET>
 where
     RESET: OutputPin,
 {
-    pub fn shut_down(mut self) -> Display<DI, RESET> {
+    pub fn shut_down(mut self) -> Display<RESET> {
         self.display.reset.set_low().unwrap();
         self.display
     }

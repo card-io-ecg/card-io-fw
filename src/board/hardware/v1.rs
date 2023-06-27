@@ -82,8 +82,8 @@ pub type EcgFrontend = Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, AdcClockEnab
 pub type PoweredEcgFrontend =
     PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, AdcClockEnable, TouchDetect>;
 
-pub type Display = DisplayType<DisplayInterface<'static>, DisplayReset>;
-pub type PoweredDisplay = PoweredDisplayType<DisplayInterface<'static>, DisplayReset>;
+pub type Display = DisplayType<DisplayReset>;
+pub type PoweredDisplay = PoweredDisplayType<DisplayReset>;
 
 pub type BatteryAdc = BatteryAdcType<BatteryAdcInput, ChargeCurrentInput, BatteryAdcEnable, ADC2>;
 
