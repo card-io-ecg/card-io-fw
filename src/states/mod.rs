@@ -16,7 +16,16 @@ pub use init::initialize;
 pub use measure::measure;
 pub use menu::display::display_menu;
 pub use menu::main::main_menu;
+use object_chain::{Chain, ChainElement};
+use signal_processing::filter::pli::adaptation_blocking::AdaptationBlocking;
+use signal_processing::filter::pli::PowerLineFilter;
+use signal_processing::filter::{
+    downsample::DownSampler, iir::precomputed::HIGH_PASS_CUTOFF_1_59HZ,
+};
+use signal_processing::moving::sum::Sum;
 pub use wifi_ap::wifi_ap;
+
+use crate::states::measure::{EcgDownsampler, EcgFilter};
 
 const TARGET_FPS: u32 = 100;
 const MIN_FRAME_TIME: Duration = Duration::from_hz(TARGET_FPS as u64);
@@ -39,7 +48,10 @@ impl WebserverResources {
     };
 }
 
-pub struct EcgObjects {}
+pub struct EcgObjects {
+    pub filter: EcgFilter,
+    pub downsampler: EcgDownsampler,
+}
 
 #[allow(clippy::large_enum_variant)]
 pub enum BigObjects {
@@ -76,7 +88,17 @@ impl BigObjects {
 
     pub fn as_ecg(&mut self) -> &mut EcgObjects {
         if !matches!(self, Self::Ecg { .. }) {
-            *self = Self::Ecg(EcgObjects {})
+            *self = Self::Ecg(EcgObjects {
+                filter: Chain::new(HIGH_PASS_CUTOFF_1_59HZ).append(PowerLineFilter::<
+                    AdaptationBlocking<Sum<1200>, 50, 20>,
+                    1,
+                >::new(
+                    1000.0, [50.0]
+                )),
+                downsampler: Chain::new(DownSampler::new())
+                    .append(DownSampler::new())
+                    .append(DownSampler::new()),
+            })
         }
 
         match self {

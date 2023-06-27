@@ -5,7 +5,7 @@ use crate::{
         PoweredEcgFrontend, LOW_BATTERY_VOLTAGE,
     },
     replace_with::replace_with_or_abort_and_return_async,
-    states::MIN_FRAME_TIME,
+    states::{BIG_OBJECTS, MIN_FRAME_TIME},
     AppError, AppState,
 };
 use ads129x::{descriptors::PinState, Error, Sample};
@@ -18,11 +18,11 @@ use embassy_sync::{
 use embassy_time::{Duration, Instant, Ticker, Timer};
 use embedded_graphics::Drawable;
 use gui::screens::measure::EcgScreen;
-use object_chain::{Chain, ChainElement};
+use object_chain::{chain, Chain, Link};
 use signal_processing::{
     filter::{
         downsample::DownSampler,
-        iir::precomputed::HIGH_PASS_CUTOFF_1_59HZ,
+        iir::{HighPass, Iir},
         pli::{adaptation_blocking::AdaptationBlocking, PowerLineFilter},
         Filter,
     },
@@ -50,7 +50,27 @@ struct EcgTaskParams {
 
 unsafe impl Send for EcgTaskParams {} // SAFETY: yolo
 
+// PLI filtering algo is probably overkill for displaying, but it's fancy
+// this is a huge amount of data to block adaptation, but exact summation gives
+// better result than estimation (TODO: revisit later, as estimated sum had a bug)
+pub type EcgFilter = chain! {
+    Iir<'static, HighPass, 2>,
+    PowerLineFilter<AdaptationBlocking<Sum<1200>, 50, 20>, 1>
+};
+
+// Downsample by 8 to display around 1 second
+pub type EcgDownsampler = chain! {
+    DownSampler,
+    DownSampler,
+    DownSampler
+};
+
 pub async fn measure(board: &mut Board) -> AppState {
+    let ecg = unsafe { BIG_OBJECTS.as_ecg() };
+
+    ecg.downsampler.clear();
+    ecg.filter.clear();
+
     replace_with_or_abort_and_return_async(board, |mut board| async {
         let mut frontend = match board.frontend.enable_async().await {
             Ok(frontend) => frontend,
@@ -93,19 +113,6 @@ pub async fn measure(board: &mut Board) -> AppState {
                 frontend,
             }));
 
-        // Downsample by 8 to display around 1 second
-        let mut downsampler = Chain::new(DownSampler::new())
-            .append(DownSampler::new())
-            .append(DownSampler::new());
-
-        // PLI filtering algo is probably overkill for displaying, but it's fancy
-        // this is a huge amount of data to block adaptation, but exact summation gives
-        // better result than estimation (TODO: revisit later, as estimated sum had a bug)
-        let mut filter = Chain::new(HIGH_PASS_CUTOFF_1_59HZ)
-            .append(
-                PowerLineFilter::<AdaptationBlocking<Sum<1200>, 50, 20>, 1>::new(1000.0, [50.0]),
-            );
-
         let mut heart_rate_calculator = HeartRateCalculator::new(1000.0);
 
         let mut screen = EcgScreen::new(96); // discard transient
@@ -121,9 +128,9 @@ pub async fn measure(board: &mut Board) -> AppState {
                     Message::Sample(sample) => {
                         samples += 1;
                         // TODO: store in raw buffer
-                        if let Some(filtered) = filter.update(sample.voltage()) {
+                        if let Some(filtered) = ecg.filter.update(sample.voltage()) {
                             heart_rate_calculator.update(filtered);
-                            if let Some(downsampled) = downsampler.update(filtered) {
+                            if let Some(downsampled) = ecg.downsampler.update(filtered) {
                                 screen.push(downsampled);
                             }
                         }
