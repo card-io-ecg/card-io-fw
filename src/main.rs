@@ -8,6 +8,8 @@
 
 extern crate alloc;
 
+use core::ptr::addr_of;
+
 use embassy_executor::{Executor, Spawner, _export::StaticCell};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex, signal::Signal};
 use embassy_time::{Duration, Timer};
@@ -42,6 +44,7 @@ mod heap;
 mod interrupt;
 mod replace_with;
 mod sleep;
+mod stack_protection;
 mod states;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -79,10 +82,23 @@ fn FROM_CPU_INTR0() {
     unsafe { INT_EXECUTOR.on_interrupt() }
 }
 
+extern "C" {
+    static mut _stack_start_cpu0: u8;
+    static mut _stack_end_cpu0: u8;
+
+    static mut _stack_start_cpu1: u8;
+    static mut _stack_end_cpu1: u8;
+}
+
 #[entry]
 fn main() -> ! {
     // Board::initialize initialized embassy so it must be called first.
     let resources = StartupResources::initialize();
+
+    // We only use a single core for now, so we can write both stack regions.
+    let stack_start = unsafe { addr_of!(_stack_start_cpu1) as u32 };
+    let stack_end = unsafe { addr_of!(_stack_end_cpu0) as u32 };
+    let _stack_protection = stack_protection::StackMonitor::protect(stack_start..stack_end);
 
     #[cfg(feature = "hw_v1")]
     log::info!("Hardware version: v1");

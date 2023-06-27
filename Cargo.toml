@@ -24,7 +24,7 @@ embedded-svc = { version = "0.25", default-features = false, features = [] }
 esp32s3-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "s3_adc_calibration", optional = true, features = ["rt", "async", "embassy", "embassy-time-systick", "eh1"] }
 # esp32s2 = { version = "0.14.0", optional = true }
 esp32s3 = { version = "0.18.0", optional = true }
-esp-backtrace = { version = "0.7.0", features = ["panic-handler", "exception-handler"] }
+esp-backtrace = { version = "0.7.0", features = ["panic-handler", "exception-handler"] } # add "halt-cores"
 esp-println = { version = "0.5.0", default-features = false, features = ["critical-section", "colors", "log"] }
 esp-alloc = { version = "0.3.0" }
 esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", features = ["esp32s3", "phy-enable-usb", "wifi", "embedded-svc", "async", "embassy-net"] }
