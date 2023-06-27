@@ -1,4 +1,5 @@
 use display_interface_spi::SPIInterface;
+use embassy_executor::_export::StaticCell;
 
 #[cfg(feature = "battery_adc")]
 use crate::board::BatteryAdc;
@@ -18,6 +19,8 @@ use crate::board::{
     DisplayReset, DisplaySclk, DisplaySpiInstance, EcgFrontend, MiscPins, TouchDetect,
 };
 
+pub static WIFI_DRIVER: StaticCell<WifiDriver> = StaticCell::new();
+
 pub struct StartupResources {
     pub display: Display,
     pub frontend: EcgFrontend,
@@ -30,7 +33,7 @@ pub struct StartupResources {
     pub battery_fg: BatteryFg,
 
     pub misc_pins: MiscPins,
-    pub wifi: WifiDriver,
+    pub wifi: &'static mut WifiDriver,
 }
 
 impl StartupResources {

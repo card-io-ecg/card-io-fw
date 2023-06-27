@@ -29,6 +29,7 @@ use crate::{
             systimer::SystemTimer,
             Rtc, IO,
         },
+        startup::WIFI_DRIVER,
         utils::{DummyOutputPin, SpiDeviceWrapper},
         wifi::driver::WifiDriver,
         *,
@@ -221,12 +222,14 @@ impl super::startup::StartupResources {
             battery_adc,
             #[cfg(feature = "battery_max17055")]
             battery_fg,
-            wifi: WifiDriver::new(
-                wifi,
-                peripherals.TIMG1,
-                peripherals.RNG,
-                system.radio_clock_control,
-            ),
+            wifi: WIFI_DRIVER.init_with(|| {
+                WifiDriver::new(
+                    wifi,
+                    peripherals.TIMG1,
+                    peripherals.RNG,
+                    system.radio_clock_control,
+                )
+            }),
             clocks,
             peripheral_clock_control: system.peripheral_clock_control,
 

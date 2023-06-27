@@ -101,7 +101,7 @@ pub struct Board {
     pub peripheral_clock_control: PeripheralClockControl,
     pub high_prio_spawner: SendSpawner,
     pub battery_monitor: BatteryMonitor<VbusDetect, ChargerStatus>,
-    pub wifi: WifiDriver,
+    pub wifi: &'static mut WifiDriver,
     pub config: Config,
     pub config_changed: bool,
     pub storage: Option<Storage<ReadCache<InternalDriver<ConfigPartition>, 256, 2>>>,
