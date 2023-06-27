@@ -9,8 +9,13 @@ use crate::board::BatteryFg;
 use crate::board::{
     drivers::frontend::Frontend,
     hal::{
-        clock::Clocks, dma::DmaPriority, interrupt, peripherals, prelude::*, spi::dma::WithDmaSpi3,
-        spi::SpiMode, system::PeripheralClockControl, Spi,
+        clock::Clocks,
+        dma::DmaPriority,
+        interrupt, peripherals,
+        prelude::*,
+        spi::{dma::WithDmaSpi3, SpiMode},
+        system::PeripheralClockControl,
+        Spi,
     },
     utils::{DummyOutputPin, SpiDeviceWrapper},
     wifi::driver::WifiDriver,

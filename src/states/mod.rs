@@ -14,15 +14,16 @@ pub use charging::charging;
 pub use error::app_error;
 pub use init::initialize;
 pub use measure::measure;
-pub use menu::display::display_menu;
-pub use menu::main::main_menu;
+pub use menu::{display::display_menu, main::main_menu};
 use object_chain::{Chain, ChainElement};
-use signal_processing::filter::pli::adaptation_blocking::AdaptationBlocking;
-use signal_processing::filter::pli::PowerLineFilter;
-use signal_processing::filter::{
-    downsample::DownSampler, iir::precomputed::HIGH_PASS_CUTOFF_1_59HZ,
+use signal_processing::{
+    filter::{
+        downsample::DownSampler,
+        iir::precomputed::HIGH_PASS_CUTOFF_1_59HZ,
+        pli::{adaptation_blocking::AdaptationBlocking, PowerLineFilter},
+    },
+    moving::sum::Sum,
 };
-use signal_processing::moving::sum::Sum;
 pub use wifi_ap::wifi_ap;
 
 use crate::states::measure::{EcgDownsampler, EcgFilter};

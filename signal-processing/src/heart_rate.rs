@@ -1,6 +1,5 @@
 use crate::filter::{fir::Fir, median::MedianFilter, Filter};
-use qrs_detector::sampling::SamplingFrequency;
-use qrs_detector::QrsDetector;
+use qrs_detector::{sampling::SamplingFrequency, QrsDetector};
 
 #[allow(clippy::excessive_precision)]
 const LP_COEFFS: [f32; 113] = [
