@@ -16,13 +16,8 @@ pub use init::initialize;
 pub use measure::measure;
 pub use menu::{display::display_menu, main::main_menu};
 use object_chain::{Chain, ChainElement};
-use signal_processing::{
-    filter::{
-        downsample::DownSampler,
-        iir::precomputed::HIGH_PASS_CUTOFF_1_59HZ,
-        pli::{adaptation_blocking::AdaptationBlocking, PowerLineFilter},
-    },
-    moving::sum::Sum,
+use signal_processing::filter::{
+    downsample::DownSampler, iir::precomputed::HIGH_PASS_CUTOFF_1_59HZ, pli::PowerLineFilter,
 };
 pub use wifi_ap::wifi_ap;
 
@@ -90,12 +85,8 @@ impl BigObjects {
     pub fn as_ecg(&mut self) -> &mut EcgObjects {
         if !matches!(self, Self::Ecg { .. }) {
             *self = Self::Ecg(EcgObjects {
-                filter: Chain::new(HIGH_PASS_CUTOFF_1_59HZ).append(PowerLineFilter::<
-                    AdaptationBlocking<Sum<1200>, 50, 20>,
-                    1,
-                >::new(
-                    1000.0, [50.0]
-                )),
+                filter: Chain::new(HIGH_PASS_CUTOFF_1_59HZ)
+                    .append(PowerLineFilter::new(1000.0, [50.0])),
                 downsampler: Chain::new(DownSampler::new())
                     .append(DownSampler::new())
                     .append(DownSampler::new()),
