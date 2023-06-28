@@ -14,6 +14,9 @@ pub enum Subcommands {
     /// Runs tests.
     Test,
 
+    /// Connects to the Card/IO device to display serial output.
+    Monitor,
+
     /// Builds, flashes and runs the firmware on a connected device.
     Run {
         /// Which hardware version to run on.
@@ -113,6 +116,12 @@ fn run(hw: HardwareVersion) -> AnyResult<()> {
     Ok(())
 }
 
+fn monitor() -> AnyResult<()> {
+    cargo(&["espflash", "monitor"]).run()?;
+
+    Ok(())
+}
+
 fn checks(hw: HardwareVersion) -> AnyResult<()> {
     cargo(&[
         "check",
@@ -198,6 +207,7 @@ fn main() -> AnyResult<()> {
     match cli.subcommand {
         Subcommands::Build { hw } => build(hw.unwrap_or_default()),
         Subcommands::Test => test(),
+        Subcommands::Monitor => monitor(),
         Subcommands::Run { hw } => run(hw.unwrap_or_default()),
         Subcommands::Check { hw } => checks(hw.unwrap_or_default()),
         Subcommands::Doc { open, hw } => docs(open, hw.unwrap_or_default()),

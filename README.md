@@ -23,6 +23,7 @@ Commands
   aliasses, listed below.
 - `cargo xbuild <hw>`: Build the firmware for a `<hw>` version board.
 - `cargo xrun <hw>`: Build and run the firmware on a `<hw>` version board.
+- `cargo monitor`: Connect to the Card/IO device and display serial output.
   `<hw>` can be omitted, or one of: `v1`, `v2`. Defaults to the latest version.
 - `cargo xcheck <hw>`: runs `cargo check`
 - `cargo xclippy <hw>`: runs `cargo clippy`
