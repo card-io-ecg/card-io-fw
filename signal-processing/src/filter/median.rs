@@ -8,10 +8,13 @@ pub struct MedianFilter<const N: usize> {
 }
 
 impl<const N: usize> MedianFilter<N> {
-    pub fn new() -> Self {
-        Self {
-            buffer: SlidingWindow::new(),
-        }
+    pub const DEFAULT: Self = Self {
+        buffer: SlidingWindow::new(),
+    };
+
+    #[inline(always)]
+    pub const fn new() -> Self {
+        Self::DEFAULT
     }
 
     fn nth(data: &mut [f32; N], n: usize) -> f32 {

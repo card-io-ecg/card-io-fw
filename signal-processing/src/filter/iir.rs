@@ -67,6 +67,7 @@ impl<'a, T, const N: usize> Iir<'a, T, N>
 where
     T: FilterType,
 {
+    #[inline(always)]
     pub const fn new(num: &'a [f32], denom: &'a [f32]) -> Self {
         Self {
             previous_inputs: SlidingWindow::new(),

@@ -40,6 +40,7 @@ struct FilterCore {
 }
 
 impl FilterCore {
+    #[inline(always)]
     fn new(fs: f32, frequency: f32) -> Self {
         let frequency = frequency / fs;
 

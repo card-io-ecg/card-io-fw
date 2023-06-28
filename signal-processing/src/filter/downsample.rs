@@ -52,17 +52,21 @@ pub struct DownSampler {
 }
 
 impl DownSampler {
-    pub fn new() -> Self {
-        Self {
-            filter: Fir::from_coeffs(COEFFS),
-            output_next: false,
-        }
+    pub const DEFAULT: Self = Self {
+        filter: Fir::from_coeffs(COEFFS),
+        output_next: false,
+    };
+
+    #[inline(always)]
+    pub const fn new() -> Self {
+        Self::DEFAULT
     }
 }
 
 impl Default for DownSampler {
+    #[inline(always)]
     fn default() -> Self {
-        Self::new()
+        Self::DEFAULT
     }
 }
 

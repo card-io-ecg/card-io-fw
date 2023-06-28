@@ -17,6 +17,7 @@ pub trait MovingSum {
 impl<const N: usize> MovingSum for Sum<N> {
     const WINDOW_SIZE: usize = N;
 
+    #[inline(always)]
     fn new() -> Self {
         Self {
             window: SlidingWindow::new(),
@@ -48,6 +49,7 @@ pub struct EstimatedSum<const N: usize> {
 impl<const N: usize> MovingSum for EstimatedSum<N> {
     const WINDOW_SIZE: usize = N;
 
+    #[inline(always)]
     fn new() -> Self {
         Self {
             current: 0.0,

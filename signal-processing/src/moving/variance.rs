@@ -15,6 +15,7 @@ pub struct MovingVarianceOfErgodic<S: MovingSum> {
 impl<S: MovingSum> MovingVariance for MovingVarianceOfErgodic<S> {
     const WINDOW_SIZE: usize = S::WINDOW_SIZE;
 
+    #[inline(always)]
     fn new() -> Self {
         Self { sum: S::new() }
     }

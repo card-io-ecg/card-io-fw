@@ -6,10 +6,13 @@ pub struct CombFilter<const N: usize> {
 }
 
 impl<const N: usize> CombFilter<N> {
-    pub fn new() -> Self {
-        Self {
-            window: SlidingWindow::new(),
-        }
+    pub const DEFAULT: Self = Self {
+        window: SlidingWindow::new(),
+    };
+
+    #[inline(always)]
+    pub const fn new() -> Self {
+        Self::DEFAULT
     }
 }
 

@@ -8,7 +8,8 @@ pub struct Fir<'a, const N: usize> {
 }
 
 impl<'a, const N: usize> Fir<'a, N> {
-    pub fn from_coeffs(coeffs: &'a [f32; N]) -> Self {
+    #[inline(always)]
+    pub const fn from_coeffs(coeffs: &'a [f32; N]) -> Self {
         Self {
             coeffs,
             buffer: SlidingWindow::new(),

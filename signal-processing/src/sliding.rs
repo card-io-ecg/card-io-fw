@@ -7,18 +7,22 @@ pub struct SlidingWindow<const N: usize> {
 }
 
 impl<const N: usize> Default for SlidingWindow<N> {
+    #[inline(always)]
     fn default() -> Self {
-        Self::new()
+        Self::DEFAULT
     }
 }
 
 impl<const N: usize> SlidingWindow<N> {
+    pub const DEFAULT: Self = Self {
+        buffer: [0.0; N],
+        idx: 0,
+        full: false,
+    };
+
+    #[inline(always)]
     pub const fn new() -> Self {
-        Self {
-            buffer: [0.0; N],
-            idx: 0,
-            full: false,
-        }
+        Self::DEFAULT
     }
 
     pub fn from_initial(buffer: [f32; N]) -> Self {
