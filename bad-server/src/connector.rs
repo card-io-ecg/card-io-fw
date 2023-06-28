@@ -99,7 +99,7 @@ pub mod std_compat {
         }
     }
 
-    impl<'a> Connection for StdTcpSocket {
+    impl Connection for StdTcpSocket {
         type AcceptError = StdError;
 
         async fn listen(&mut self, port: u16) -> Result<(), Self::AcceptError> {
