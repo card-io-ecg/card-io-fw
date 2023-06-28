@@ -10,8 +10,11 @@ use crate::states::measure::{EcgDownsampler, EcgFilter};
 use embassy_net::StackResources;
 use embassy_time::Duration;
 use object_chain::{Chain, ChainElement};
-use signal_processing::filter::{
-    downsample::DownSampler, iir::precomputed::HIGH_PASS_CUTOFF_1_59HZ, pli::PowerLineFilter,
+use signal_processing::{
+    filter::{
+        downsample::DownSampler, iir::precomputed::HIGH_PASS_CUTOFF_1_59HZ, pli::PowerLineFilter,
+    },
+    heart_rate::HeartRateCalculator,
 };
 
 pub use adc_setup::adc_setup;
@@ -46,6 +49,7 @@ impl WebserverResources {
 pub struct EcgObjects {
     pub filter: EcgFilter,
     pub downsampler: EcgDownsampler,
+    pub heart_rate_calculator: HeartRateCalculator,
 }
 
 impl EcgObjects {
@@ -56,6 +60,7 @@ impl EcgObjects {
             downsampler: Chain::new(DownSampler::new())
                 .append(DownSampler::new())
                 .append(DownSampler::new()),
+            heart_rate_calculator: HeartRateCalculator::new(1000.0),
         }
     }
 }

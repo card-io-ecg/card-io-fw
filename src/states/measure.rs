@@ -26,7 +26,6 @@ use signal_processing::{
         pli::{adaptation_blocking::AdaptationBlocking, PowerLineFilter},
         Filter,
     },
-    heart_rate::HeartRateCalculator,
     moving::sum::Sum,
 };
 
@@ -113,7 +112,7 @@ pub async fn measure(board: &mut Board) -> AppState {
                 frontend,
             }));
 
-        let mut heart_rate_calculator = HeartRateCalculator::new(1000.0);
+        ecg.heart_rate_calculator.clear();
 
         let mut screen = EcgScreen::new(96); // discard transient
         screen.battery_style = board.config.battery_style();
@@ -129,7 +128,7 @@ pub async fn measure(board: &mut Board) -> AppState {
                         samples += 1;
                         // TODO: store in raw buffer
                         if let Some(filtered) = ecg.filter.update(sample.voltage()) {
-                            heart_rate_calculator.update(filtered);
+                            ecg.heart_rate_calculator.update(filtered);
                             if let Some(downsampled) = ecg.downsampler.update(filtered) {
                                 screen.push(downsampled);
                             }
@@ -143,7 +142,7 @@ pub async fn measure(board: &mut Board) -> AppState {
                 }
             }
 
-            if let Some(hr) = heart_rate_calculator.current_hr() {
+            if let Some(hr) = ecg.heart_rate_calculator.current_hr() {
                 screen.update_heart_rate(hr);
             } else {
                 screen.clear_heart_rate();

@@ -130,6 +130,7 @@ pub struct HeartRateCalculator {
     state: State,
     max_age: u32,
     max_init: u32,
+    fs: f32,
 
     current_hr: Option<u8>,
     noise_filter: Fir<'static, 113>,
@@ -146,7 +147,16 @@ impl HeartRateCalculator {
             max_init,
             current_hr: None,
             noise_filter: Fir::from_coeffs(&LP_COEFFS),
+            fs,
         }
+    }
+
+    pub fn clear(&mut self) {
+        self.median.clear();
+        self.qrs_detector.clear();
+        self.state = State::Ignore((0.5 * self.fs) as u32);
+        self.current_hr = None;
+        self.noise_filter.clear();
     }
 
     pub fn update(&mut self, sample: f32) {
