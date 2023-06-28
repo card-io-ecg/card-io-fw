@@ -82,6 +82,7 @@ pub enum BigObjects {
 }
 
 impl BigObjects {
+    #[inline(never)]
     pub fn as_wifi_ap_resources(&mut self) -> &mut WifiApResources {
         if !matches!(self, Self::WifiAp { .. }) {
             *self = Self::WifiAp(WifiApResources::new())
@@ -93,6 +94,7 @@ impl BigObjects {
         }
     }
 
+    #[inline(never)]
     pub fn as_ecg(&mut self) -> &mut EcgObjects {
         if !matches!(self, Self::Ecg { .. }) {
             *self = Self::Ecg(EcgObjects::new())

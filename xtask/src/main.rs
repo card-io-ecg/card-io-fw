@@ -11,6 +11,12 @@ pub enum Subcommands {
         hw: Option<HardwareVersion>,
     },
 
+    /// Builds the firmware and dumps the assembly.
+    Asm {
+        /// Which hardware version to build for.
+        hw: Option<HardwareVersion>,
+    },
+
     /// Runs tests.
     Test,
 
@@ -201,12 +207,28 @@ fn example(package: String, name: String, watch: bool) -> AnyResult<()> {
     Ok(())
 }
 
+fn asm() -> AnyResult<()> {
+    cmd!(
+        "xtensa-esp32s3-elf-objdump",
+        "-Sd",
+        "./target/xtensa-esp32s3-none-elf/release/card_io_fw"
+    )
+    .stdout_path("target/asm.s")
+    .run()?;
+
+    Ok(())
+}
+
 fn main() -> AnyResult<()> {
     let cli = Cli::parse();
 
     match cli.subcommand {
         Subcommands::Build { hw } => build(hw.unwrap_or_default()),
         Subcommands::Test => test(),
+        Subcommands::Asm { hw } => {
+            build(hw.unwrap_or_default())?;
+            asm()
+        }
         Subcommands::Monitor => monitor(),
         Subcommands::Run { hw } => run(hw.unwrap_or_default()),
         Subcommands::Check { hw } => checks(hw.unwrap_or_default()),
