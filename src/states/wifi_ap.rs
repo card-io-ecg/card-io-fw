@@ -12,7 +12,10 @@ use config_site::{
     },
 };
 use embassy_executor::Spawner;
-use embassy_futures::{join::join, select::select};
+use embassy_futures::{
+    join::join,
+    select::{select, Either},
+};
 use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StaticConfig};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use embassy_time::{Duration, Ticker, Timer};
@@ -30,27 +33,33 @@ use crate::{
     AppState,
 };
 
-struct TaskController {
+#[non_exhaustive]
+pub struct Aborted {}
+
+pub struct TaskController<R: Send> {
     token: Signal<NoopRawMutex, ()>,
-    exited: Signal<NoopRawMutex, ()>,
+    exited: Signal<NoopRawMutex, Result<R, Aborted>>,
 }
 
-impl TaskController {
-    fn new() -> Self {
+impl<R: Send> TaskController<R> {
+    pub fn new() -> Self {
         Self {
             token: Signal::new(),
             exited: Signal::new(),
         }
     }
 
-    async fn stop_from_outside(&self) {
+    pub async fn stop_from_outside(&self) -> Result<R, Aborted> {
         self.token.signal(());
-        self.exited.wait().await;
+        self.exited.wait().await
     }
 
-    async fn run_cancellable(&self, future: impl Future) {
-        select(future, self.token.wait()).await;
-        self.exited.signal(())
+    pub async fn run_cancellable(&self, future: impl Future<Output = R>) {
+        let result = match select(future, self.token.wait()).await {
+            Either::First(result) => Ok(result),
+            Either::Second(_) => Err(Aborted {}),
+        };
+        self.exited.signal(result)
     }
 }
 
@@ -138,10 +147,10 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         ticker.next().await;
     }
 
-    webserver_task_control.stop_from_outside().await;
-    webserver_task_control2.stop_from_outside().await;
+    let _ = webserver_task_control.stop_from_outside().await;
+    let _ = webserver_task_control2.stop_from_outside().await;
 
-    join(
+    let _ = join(
         connection_task_control.stop_from_outside(),
         net_task_control.stop_from_outside(),
     )
@@ -162,7 +171,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 #[embassy_executor::task]
 async fn connection_task(
     controller: &'static mut WifiController<'static>,
-    task_control: &'static TaskController,
+    task_control: &'static TaskController<()>,
 ) {
     task_control
         .run_cancellable(async {
@@ -197,7 +206,7 @@ async fn connection_task(
 #[embassy_executor::task]
 async fn net_task(
     stack: &'static Stack<WifiDevice<'static>>,
-    task_control: &'static TaskController,
+    task_control: &'static TaskController<!>,
 ) {
     task_control.run_cancellable(stack.run()).await;
 }
@@ -206,7 +215,7 @@ async fn net_task(
 async fn webserver_task(
     stack: &'static Stack<WifiDevice<'static>>,
     context: &'static SharedWebContext,
-    task_control: &'static TaskController,
+    task_control: &'static TaskController<()>,
     buffers: &'static mut WebserverResources,
 ) {
     task_control
