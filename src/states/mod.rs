@@ -6,8 +6,13 @@ mod measure;
 mod menu;
 mod wifi_ap;
 
+use crate::states::measure::{EcgDownsampler, EcgFilter};
 use embassy_net::StackResources;
 use embassy_time::Duration;
+use object_chain::{Chain, ChainElement};
+use signal_processing::filter::{
+    downsample::DownSampler, iir::precomputed::HIGH_PASS_CUTOFF_1_59HZ, pli::PowerLineFilter,
+};
 
 pub use adc_setup::adc_setup;
 pub use charging::charging;
@@ -15,13 +20,7 @@ pub use error::app_error;
 pub use init::initialize;
 pub use measure::measure;
 pub use menu::{display::display_menu, main::main_menu};
-use object_chain::{Chain, ChainElement};
-use signal_processing::filter::{
-    downsample::DownSampler, iir::precomputed::HIGH_PASS_CUTOFF_1_59HZ, pli::PowerLineFilter,
-};
 pub use wifi_ap::wifi_ap;
-
-use crate::states::measure::{EcgDownsampler, EcgFilter};
 
 const TARGET_FPS: u32 = 100;
 const MIN_FRAME_TIME: Duration = Duration::from_hz(TARGET_FPS as u64);
