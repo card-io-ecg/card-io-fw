@@ -70,13 +70,16 @@ pub enum AppState {
 pub type SharedBatteryState = Mutex<NoopRawMutex, BatteryState>;
 
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
-static BATTERY_STATE: StaticCell<SharedBatteryState> = StaticCell::new();
-#[cfg(feature = "battery_adc")]
-static ADC_TASK_CONTROL: StaticCell<Signal<NoopRawMutex, ()>> = StaticCell::new();
-#[cfg(feature = "battery_max17055")]
-static FG_TASK_CONTROL: StaticCell<Signal<NoopRawMutex, ()>> = StaticCell::new();
-
 static INT_EXECUTOR: InterruptExecutor<SwInterrupt0> = InterruptExecutor::new();
+
+macro_rules! singleton {
+    ($val:expr) => {{
+        type T = impl Sized;
+        static STATIC_CELL: StaticCell<T> = StaticCell::new();
+        let (x,) = STATIC_CELL.init(($val,));
+        x
+    }};
+}
 
 #[interrupt]
 fn FROM_CPU_INTR0() {
@@ -115,13 +118,10 @@ fn main() -> ! {
 
 #[embassy_executor::task]
 async fn main_task(spawner: Spawner, resources: StartupResources) {
-    #[cfg(feature = "battery_adc")]
-    let adc_task_control = &*ADC_TASK_CONTROL.init_with(Signal::new);
+    #[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
+    let fg_task_control = &*singleton!(Signal::new());
 
-    #[cfg(feature = "battery_max17055")]
-    let fg_task_control = &*FG_TASK_CONTROL.init_with(Signal::new);
-
-    let battery_state = BATTERY_STATE.init(Mutex::new(BatteryState {
+    let battery_state = &*singleton!(Mutex::new(BatteryState {
         #[cfg(feature = "battery_adc")]
         adc_data: None,
         #[cfg(feature = "battery_max17055")]
@@ -133,7 +133,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         .spawn(monitor_task_adc(
             resources.battery_adc,
             battery_state,
-            adc_task_control,
+            fg_task_control,
         ))
         .ok();
 
@@ -166,14 +166,14 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
     };
 
     let mut storage = match storage {
-        Ok(storage) => Some(storage),
+        Ok(storage) => Some(&mut *singleton!(storage)),
         Err(e) => {
             log::error!("Failed to mount storage: {:?}", e);
             None
         }
     };
 
-    let config = if let Some(storage) = storage.as_mut() {
+    let config = &mut *singleton!(if let Some(storage) = storage.as_mut() {
         log::info!(
             "Storage: {} / {} used",
             storage.capacity() - storage.free_bytes(),
@@ -196,7 +196,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
     } else {
         log::warn!("Storage unavailable. Using default config");
         Config::default()
-    };
+    });
 
     let mut board = Board {
         // If the device is awake, the display should be enabled.
@@ -238,9 +238,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             AppState::Shutdown => {
                 let _ = board.display.shut_down();
 
-                #[cfg(feature = "battery_adc")]
-                adc_task_control.signal(());
-                #[cfg(feature = "battery_max17055")]
+                #[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
                 fg_task_control.signal(());
 
                 let (_, _, _, mut touch) = board.frontend.split();
@@ -270,9 +268,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             AppState::ShutdownCharging => {
                 let _ = board.display.shut_down();
 
-                #[cfg(feature = "battery_adc")]
-                adc_task_control.signal(());
-                #[cfg(feature = "battery_max17055")]
+                #[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
                 fg_task_control.signal(());
 
                 let (_, _, _, mut touch) = board.frontend.split();
