@@ -90,7 +90,7 @@ impl BigObjects {
     #[inline(never)]
     pub fn as_wifi_ap_resources(&mut self) -> &mut WifiApResources {
         if !matches!(self, Self::WifiAp { .. }) {
-            unsafe { core::ptr::write(self, Self::WifiAp(WifiApResources::new())) }
+            *self = Self::WifiAp(WifiApResources::new());
         }
 
         match self {
@@ -102,7 +102,7 @@ impl BigObjects {
     #[inline(never)]
     pub fn as_ecg(&mut self) -> &mut EcgObjects {
         if !matches!(self, Self::Ecg { .. }) {
-            unsafe { core::ptr::write(self, Self::Ecg(EcgObjects::new())) }
+            *self = Self::Ecg(EcgObjects::new());
         }
 
         match self {
