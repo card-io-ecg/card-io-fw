@@ -29,7 +29,7 @@ use crate::{
         initialized::Board,
         wifi::driver::{as_static_mut, as_static_ref},
     },
-    states::{WebserverResources, BIG_OBJECTS, MIN_FRAME_TIME},
+    states::{WebserverResources, BIG_OBJECTS, MIN_FRAME_TIME, WEBSERVER_TASKS},
     AppState,
 };
 
@@ -42,7 +42,9 @@ pub struct TaskController<R: Send> {
 }
 
 impl<R: Send> TaskController<R> {
-    pub fn new() -> Self {
+    pub const DEFAULT: Self = Self::new();
+
+    pub const fn new() -> Self {
         Self {
             token: Signal::new(),
             exited: Signal::new(),
@@ -68,24 +70,22 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         .wifi
         .initialize(&board.clocks, &mut board.peripheral_clock_control);
 
-    let ([resources_1, resources_2], stack_resources) =
-        unsafe { BIG_OBJECTS.as_wifi_ap_resources() };
-
+    let wifi_resources = unsafe { BIG_OBJECTS.as_wifi_ap_resources() };
     let (stack, controller) = board.wifi.configure_ap(
         Config::Static(StaticConfig {
             address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
             gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
             dns_servers: Default::default(),
         }),
-        stack_resources,
+        &mut wifi_resources.stack_resources,
     );
 
     let spawner = Spawner::for_current_executor().await;
 
     let connection_task_control = TaskController::new();
     let net_task_control = TaskController::new();
-    let webserver_task_control = TaskController::new();
-    let webserver_task_control2 = TaskController::new();
+
+    let webserver_task_control = [TaskController::DEFAULT; WEBSERVER_TASKS];
 
     let context = SharedWebContext::new(WebContext {
         known_networks: board.config.known_networks.clone(),
@@ -100,18 +100,18 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
             as_static_ref(stack),
             as_static_ref(&net_task_control),
         ));
-        spawner.must_spawn(webserver_task(
-            as_static_ref(stack),
-            as_static_ref(&context),
-            as_static_ref(&webserver_task_control),
-            resources_1,
-        ));
-        spawner.must_spawn(webserver_task(
-            as_static_ref(stack),
-            as_static_ref(&context),
-            as_static_ref(&webserver_task_control2),
-            resources_2,
-        ));
+        for (resources, control) in wifi_resources
+            .resources
+            .iter_mut()
+            .zip(webserver_task_control.iter())
+        {
+            spawner.must_spawn(webserver_task(
+                as_static_ref(stack),
+                as_static_ref(&context),
+                as_static_ref(control),
+                resources,
+            ));
+        }
     }
 
     let mut screen = WifiApScreen::new(
@@ -147,8 +147,9 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         ticker.next().await;
     }
 
-    let _ = webserver_task_control.stop_from_outside().await;
-    let _ = webserver_task_control2.stop_from_outside().await;
+    for control in webserver_task_control {
+        let _ = control.stop_from_outside().await;
+    }
 
     let _ = join(
         connection_task_control.stop_from_outside(),

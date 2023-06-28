@@ -48,48 +48,54 @@ pub struct EcgObjects {
     pub downsampler: EcgDownsampler,
 }
 
+impl EcgObjects {
+    fn new() -> Self {
+        Self {
+            filter: Chain::new(HIGH_PASS_CUTOFF_1_59HZ)
+                .append(PowerLineFilter::new(1000.0, [50.0])),
+            downsampler: Chain::new(DownSampler::new())
+                .append(DownSampler::new())
+                .append(DownSampler::new()),
+        }
+    }
+}
+
+pub struct WifiApResources {
+    resources: [WebserverResources; WEBSERVER_TASKS],
+    stack_resources: StackResources<3>,
+}
+
+impl WifiApResources {
+    fn new() -> Self {
+        Self {
+            resources: [WebserverResources::ZERO; 2],
+            stack_resources: StackResources::new(),
+        }
+    }
+}
+
 #[allow(clippy::large_enum_variant)]
 pub enum BigObjects {
     Unused,
-    WifiApResources {
-        resources: [WebserverResources; WEBSERVER_TASKS],
-        stack_resources: StackResources<3>,
-    },
+    WifiAp(WifiApResources),
     Ecg(EcgObjects),
 }
 
 impl BigObjects {
-    pub fn as_wifi_ap_resources(
-        &mut self,
-    ) -> (
-        &mut [WebserverResources; WEBSERVER_TASKS],
-        &mut StackResources<3>,
-    ) {
-        if !matches!(self, Self::WifiApResources { .. }) {
-            *self = Self::WifiApResources {
-                resources: [WebserverResources::ZERO; 2],
-                stack_resources: StackResources::new(),
-            }
+    pub fn as_wifi_ap_resources(&mut self) -> &mut WifiApResources {
+        if !matches!(self, Self::WifiAp { .. }) {
+            *self = Self::WifiAp(WifiApResources::new())
         }
 
         match self {
-            Self::WifiApResources {
-                resources,
-                stack_resources,
-            } => (resources, stack_resources),
+            Self::WifiAp(resources) => resources,
             _ => unreachable!(),
         }
     }
 
     pub fn as_ecg(&mut self) -> &mut EcgObjects {
         if !matches!(self, Self::Ecg { .. }) {
-            *self = Self::Ecg(EcgObjects {
-                filter: Chain::new(HIGH_PASS_CUTOFF_1_59HZ)
-                    .append(PowerLineFilter::new(1000.0, [50.0])),
-                downsampler: Chain::new(DownSampler::new())
-                    .append(DownSampler::new())
-                    .append(DownSampler::new()),
-            })
+            *self = Self::Ecg(EcgObjects::new())
         }
 
         match self {
