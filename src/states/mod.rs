@@ -6,6 +6,8 @@ mod measure;
 mod menu;
 mod wifi_ap;
 
+use core::mem::MaybeUninit;
+
 use crate::states::measure::{EcgDownsampler, EcgFilter};
 use embassy_net::StackResources;
 use embassy_time::Duration;
@@ -53,14 +55,17 @@ pub struct EcgObjects {
 }
 
 impl EcgObjects {
-    fn new() -> Self {
-        Self {
-            filter: Chain::new(HIGH_PASS_CUTOFF_1_59HZ)
-                .append(PowerLineFilter::new(1000.0, [50.0])),
-            downsampler: Chain::new(DownSampler::new())
+    #[inline(always)]
+    fn init(this: &mut MaybeUninit<Self>) {
+        let this = this.as_mut_ptr();
+
+        unsafe {
+            (*this).filter =
+                Chain::new(HIGH_PASS_CUTOFF_1_59HZ).append(PowerLineFilter::new(1000.0, [50.0]));
+            (*this).downsampler = Chain::new(DownSampler::new())
                 .append(DownSampler::new())
-                .append(DownSampler::new()),
-            heart_rate_calculator: HeartRateCalculator::new(1000.0),
+                .append(DownSampler::new());
+            (*this).heart_rate_calculator = HeartRateCalculator::new(1000.0);
         }
     }
 }
@@ -71,10 +76,13 @@ pub struct WifiApResources {
 }
 
 impl WifiApResources {
-    fn new() -> Self {
-        Self {
-            resources: [WebserverResources::ZERO; 2],
-            stack_resources: StackResources::new(),
+    #[inline(always)]
+    fn init(this: &mut MaybeUninit<Self>) {
+        let this = this.as_mut_ptr();
+
+        unsafe {
+            (*this).resources = [WebserverResources::ZERO; 2];
+            (*this).stack_resources = StackResources::new();
         }
     }
 }
@@ -82,33 +90,46 @@ impl WifiApResources {
 #[allow(clippy::large_enum_variant)]
 pub enum BigObjects {
     Unused,
-    WifiAp(WifiApResources),
-    Ecg(EcgObjects),
+    WifiAp(MaybeUninit<WifiApResources>),
+    Ecg(MaybeUninit<EcgObjects>),
 }
 
 impl BigObjects {
-    #[inline(never)]
-    pub fn as_wifi_ap_resources(&mut self) -> &mut WifiApResources {
-        if !matches!(self, Self::WifiAp { .. }) {
-            *self = Self::WifiAp(WifiApResources::new());
-        }
-
+    #[inline(always)]
+    fn initialize(&mut self) {
         match self {
-            Self::WifiAp(resources) => resources,
+            Self::Ecg(ecg) => EcgObjects::init(ecg),
+            Self::WifiAp(ap) => WifiApResources::init(ap),
             _ => unreachable!(),
         }
     }
 
     #[inline(never)]
-    pub fn as_ecg(&mut self) -> &mut EcgObjects {
-        if !matches!(self, Self::Ecg { .. }) {
-            *self = Self::Ecg(EcgObjects::new());
+    pub fn as_wifi_ap_resources(&mut self) -> &mut WifiApResources {
+        if !matches!(self, Self::WifiAp { .. }) {
+            *self = Self::WifiAp(MaybeUninit::uninit());
+            self.initialize();
         }
 
-        match self {
-            Self::Ecg(ecg) => ecg,
-            _ => unreachable!(),
+        let Self::WifiAp(ap) = self else {
+            unreachable!()
+        };
+
+        unsafe { ap.assume_init_mut() }
+    }
+
+    #[inline(never)]
+    pub fn as_ecg(&mut self) -> &mut EcgObjects {
+        if !matches!(self, Self::Ecg { .. }) {
+            *self = Self::Ecg(MaybeUninit::uninit());
+            self.initialize();
         }
+
+        let Self::Ecg(ecg) = self else {
+            unreachable!()
+        };
+
+        unsafe { ecg.assume_init_mut() }
     }
 }
 
