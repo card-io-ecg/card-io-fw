@@ -251,11 +251,22 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
                 touch.wait_for_high().await.unwrap();
                 Timer::after(Duration::from_millis(100)).await;
 
+                // We want to wake up when the charger is connected, or the electrodes are touched.
+
+                // v1 uses the charger status pin, which is open drain
+                // and the board does not have a pullup resistor. A low signal means the battery is
+                // charging. This means we can watch for low level to detect a charger connection.
                 #[cfg(feature = "hw_v1")]
                 enable_gpio_pullup(&charger_pin);
 
                 enable_gpio_wakeup(&touch, RtcioWakeupType::LowLevel);
+                #[cfg(feature = "hw_v1")]
                 enable_gpio_wakeup(&charger_pin, RtcioWakeupType::LowLevel);
+
+                // In v2, the charger status is not connected to an RTC IO pin, so we use the VBUS
+                // detect pin instead. This is a high level signal when the charger is connected.
+                #[cfg(feature = "hw_v2")]
+                enable_gpio_wakeup(&charger_pin, RtcioWakeupType::HighLevel);
 
                 // Wake up momentarily when charger is disconnected
                 start_deep_sleep();
@@ -283,9 +294,15 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
 
                 enable_gpio_wakeup(&touch, RtcioWakeupType::LowLevel);
 
-                // FIXME: This is a bit awkward as unplugging then replugging will not wake the
-                // device. Ideally, we'd use the VBUS detect pin, but it's not connected to RTCIO.
-                disable_gpio_wakeup(&charger_pin);
+                #[cfg(feature = "hw_v1")]
+                {
+                    // This is a bit awkward as unplugging then replugging will not wake the
+                    // device. Ideally, we'd use the VBUS detect pin, but it's not connected to RTCIO.
+                    disable_gpio_wakeup(&charger_pin);
+                }
+
+                #[cfg(feature = "hw_v2")]
+                enable_gpio_wakeup(&charger_pin, RtcioWakeupType::LowLevel);
 
                 // Wake up momentarily when charger is disconnected
                 start_deep_sleep();
