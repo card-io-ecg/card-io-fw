@@ -206,9 +206,13 @@ async fn connection_task(
 #[embassy_executor::task]
 async fn net_task(
     stack: &'static Stack<WifiDevice<'static>>,
-    task_control: &'static TaskController<!>,
+    task_control: &'static TaskController<()>,
 ) {
-    task_control.run_cancellable(stack.run()).await;
+    task_control
+        .run_cancellable(async {
+            stack.run().await;
+        })
+        .await;
 }
 
 #[embassy_executor::task(pool_size = super::WEBSERVER_TASKS)]

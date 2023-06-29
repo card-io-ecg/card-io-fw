@@ -4,7 +4,6 @@
 #![feature(type_alias_impl_trait)]
 #![feature(let_chains)]
 #![feature(generic_const_exprs)] // norfs needs this
-#![feature(never_type)] // TaskController requires this
 #![allow(incomplete_features)] // generic_const_exprs, async_fn_in_trait
 
 extern crate alloc;
