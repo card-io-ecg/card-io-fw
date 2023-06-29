@@ -37,13 +37,17 @@ use crate::{
 pub struct Aborted {}
 
 pub struct TaskController<R: Send> {
+    /// Used to signal the controlled task to stop.
     token: Signal<NoopRawMutex, ()>,
+
+    /// Used to indicate that the controlled task has exited, and may include a return value.
     exited: Signal<NoopRawMutex, Result<R, Aborted>>,
 }
 
 impl<R: Send> TaskController<R> {
     pub const DEFAULT: Self = Self::new();
 
+    /// Creates a new signal pair.
     pub const fn new() -> Self {
         Self {
             token: Signal::new(),
@@ -51,11 +55,17 @@ impl<R: Send> TaskController<R> {
         }
     }
 
+    /// Stops the controlled task, and returns its return value.
     pub async fn stop_from_outside(&self) -> Result<R, Aborted> {
+        // Signal the task to stop.
         self.token.signal(());
+
+        // Wait for the task to exit.
         self.exited.wait().await
     }
 
+    /// Runs a cancellable task. The task ends when either the future completes, or the task is
+    /// cancelled.
     pub async fn run_cancellable(&self, future: impl Future<Output = R>) {
         let result = match select(future, self.token.wait()).await {
             Either::First(result) => Ok(result),
@@ -146,7 +156,8 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         ticker.next().await;
     }
 
-    for control in webserver_task_control {
+    // NB: we must not consume the array here, as we have static references to it.
+    for control in webserver_task_control.iter() {
         let _ = control.stop_from_outside().await;
     }
 
