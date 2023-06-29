@@ -242,7 +242,9 @@ where
 
         self.frontend.reset.set_low().unwrap();
 
-        Timer::after(Duration::from_millis(1)).await;
+        // Datasheet says to wait 2^10 clock cycles to enter power down mode. We give it a bit of
+        // extra time.
+        Timer::after(Duration::from_millis(5)).await;
 
         self.frontend.clken.set_low().unwrap();
 
