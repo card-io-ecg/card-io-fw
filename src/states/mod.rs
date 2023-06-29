@@ -81,7 +81,7 @@ impl WifiApResources {
         let this = this.as_mut_ptr();
 
         unsafe {
-            (*this).resources = [WebserverResources::ZERO; 2];
+            (*this).resources = [WebserverResources::ZERO; WEBSERVER_TASKS];
             (*this).stack_resources = StackResources::new();
         }
     }
