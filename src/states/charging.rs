@@ -42,5 +42,5 @@ pub async fn charging(board: &mut Board) -> AppState {
         ticker.next().await;
     }
 
-    AppState::ShutdownCharging
+    AppState::Shutdown
 }
