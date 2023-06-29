@@ -23,7 +23,7 @@ use crate::board::drivers::battery_adc::monitor_task_adc;
 use crate::board::drivers::battery_fg::monitor_task_fg;
 
 #[cfg(feature = "hw_v1")]
-use crate::sleep::enable_gpio_pullup;
+use crate::sleep::{disable_gpio_wakeup, enable_gpio_pullup};
 use crate::{
     board::{
         config::{Config, ConfigFile},
@@ -33,7 +33,7 @@ use crate::{
         BATTERY_MODEL,
     },
     interrupt::{InterruptExecutor, SwInterrupt0},
-    sleep::{disable_gpio_wakeup, enable_gpio_wakeup, start_deep_sleep, RtcioWakeupType},
+    sleep::{enable_gpio_wakeup, start_deep_sleep, RtcioWakeupType},
     states::{
         adc_setup, app_error, charging, display_menu, initialize, main_menu, measure, wifi_ap,
     },
@@ -234,48 +234,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             AppState::DisplayMenu => display_menu(&mut board).await,
             AppState::WifiAP => wifi_ap(&mut board).await,
             AppState::Error(error) => app_error(&mut board, error).await,
-            AppState::Shutdown => {
-                let _ = board.display.shut_down();
-
-                #[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
-                fg_task_control.signal(());
-
-                let (_, _, _, mut touch) = board.frontend.split();
-
-                #[cfg(feature = "hw_v1")]
-                let charger_pin = board.battery_monitor.charger_status;
-
-                #[cfg(feature = "hw_v2")]
-                let charger_pin = board.battery_monitor.vbus_detect;
-
-                touch.wait_for_high().await.unwrap();
-                Timer::after(Duration::from_millis(100)).await;
-
-                // We want to wake up when the charger is connected, or the electrodes are touched.
-
-                // v1 uses the charger status pin, which is open drain
-                // and the board does not have a pullup resistor. A low signal means the battery is
-                // charging. This means we can watch for low level to detect a charger connection.
-                #[cfg(feature = "hw_v1")]
-                enable_gpio_pullup(&charger_pin);
-
-                enable_gpio_wakeup(&touch, RtcioWakeupType::LowLevel);
-                #[cfg(feature = "hw_v1")]
-                enable_gpio_wakeup(&charger_pin, RtcioWakeupType::LowLevel);
-
-                // In v2, the charger status is not connected to an RTC IO pin, so we use the VBUS
-                // detect pin instead. This is a high level signal when the charger is connected.
-                #[cfg(feature = "hw_v2")]
-                enable_gpio_wakeup(&charger_pin, RtcioWakeupType::HighLevel);
-
-                // Wake up momentarily when charger is disconnected
-                start_deep_sleep();
-
-                // Shouldn't reach this. If we do, we just exit the task, which means the executor
-                // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
-                return;
-            }
-            AppState::ShutdownCharging => {
+            AppState::Shutdown | AppState::ShutdownCharging => {
                 let _ = board.display.shut_down();
 
                 #[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
@@ -294,15 +253,33 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
 
                 enable_gpio_wakeup(&touch, RtcioWakeupType::LowLevel);
 
-                #[cfg(feature = "hw_v1")]
-                {
-                    // This is a bit awkward as unplugging then replugging will not wake the
-                    // device. Ideally, we'd use the VBUS detect pin, but it's not connected to RTCIO.
-                    disable_gpio_wakeup(&charger_pin);
+                if state == AppState::ShutdownCharging {
+                    #[cfg(feature = "hw_v1")]
+                    {
+                        // This is a bit awkward as unplugging then replugging will not wake the
+                        // device. Ideally, we'd use the VBUS detect pin, but it's not connected to RTCIO.
+                        disable_gpio_wakeup(&charger_pin);
+                    }
+
+                    #[cfg(feature = "hw_v2")]
+                    enable_gpio_wakeup(&charger_pin, RtcioWakeupType::LowLevel);
+                } else {
+                    // We want to wake up when the charger is connected, or the electrodes are touched.
+
+                    // v1 uses the charger status pin, which is open drain
+                    // and the board does not have a pullup resistor. A low signal means the battery is
+                    // charging. This means we can watch for low level to detect a charger connection.
+                    #[cfg(feature = "hw_v1")]
+                    {
+                        enable_gpio_pullup(&charger_pin);
+                        enable_gpio_wakeup(&charger_pin, RtcioWakeupType::LowLevel);
+                    }
+
+                    // In v2, the charger status is not connected to an RTC IO pin, so we use the VBUS
+                    // detect pin instead. This is a high level signal when the charger is connected.
+                    #[cfg(feature = "hw_v2")]
+                    enable_gpio_wakeup(&charger_pin, RtcioWakeupType::HighLevel);
                 }
-
-                #[cfg(feature = "hw_v2")]
-                enable_gpio_wakeup(&charger_pin, RtcioWakeupType::LowLevel);
 
                 // Wake up momentarily when charger is disconnected
                 start_deep_sleep();
