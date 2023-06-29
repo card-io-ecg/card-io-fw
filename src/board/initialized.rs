@@ -1,6 +1,14 @@
+use crate::{
+    board::{
+        config::{Config, ConfigFile},
+        hal::{clock::Clocks, system::PeripheralClockControl},
+        wifi::driver::WifiDriver,
+        ChargerStatus, EcgFrontend, PoweredDisplay, VbusDetect,
+    },
+    SharedBatteryState,
+};
 use embassy_executor::SendSpawner;
 use embedded_hal::digital::InputPin;
-use esp32s3_hal::system::PeripheralClockControl;
 use gui::screens::BatteryInfo;
 use norfs::{
     drivers::internal::{InternalDriver, InternalPartition},
@@ -8,16 +16,6 @@ use norfs::{
     OnCollision, Storage,
 };
 use signal_processing::battery::BatteryModel;
-
-use crate::{
-    board::{
-        config::{Config, ConfigFile},
-        hal::clock::Clocks,
-        wifi::driver::WifiDriver,
-        ChargerStatus, EcgFrontend, PoweredDisplay, VbusDetect,
-    },
-    SharedBatteryState,
-};
 
 #[cfg(feature = "battery_adc")]
 use crate::board::drivers::battery_adc::BatteryAdcData;

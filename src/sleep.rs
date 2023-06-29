@@ -1,8 +1,6 @@
 #![allow(unused)]
 
-use esp32s3_hal::gpio::GpioPin;
-
-use crate::board::pac;
+use crate::board::{hal::gpio::GpioPin, pac};
 
 pub enum RtcioWakeupType {
     Disable = 0,

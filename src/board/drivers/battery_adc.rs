@@ -1,6 +1,8 @@
 use crate::{
     board::hal::{
         adc::{AdcConfig, AdcPin, Attenuation, RegisterAccess, ADC},
+        efuse::Efuse,
+        peripheral::Peripheral,
         prelude::*,
     },
     SharedBatteryState,
@@ -9,7 +11,6 @@ use embassy_futures::yield_now;
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use embassy_time::{Duration, Ticker};
 use embedded_hal_old::adc::{Channel, OneShot};
-use esp32s3_hal::{efuse::Efuse, peripheral::Peripheral};
 
 #[derive(Clone, Copy, Debug)]
 pub struct BatteryAdcData {

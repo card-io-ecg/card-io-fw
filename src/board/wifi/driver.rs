@@ -1,18 +1,17 @@
+use crate::board::hal::{
+    clock::Clocks,
+    peripherals::{RNG, TIMG1},
+    radio::Wifi,
+    system::{PeripheralClockControl, RadioClockControl},
+    timer::TimerGroup,
+    Rng,
+};
 use embassy_net::{Config, Stack, StackResources};
-use esp32s3_hal::system::{PeripheralClockControl, RadioClockControl};
 use esp_wifi::{
     wifi::{WifiController, WifiDevice, WifiMode},
     EspWifiInitFor, EspWifiInitialization,
 };
 use replace_with::replace_with_or_abort;
-
-use crate::board::hal::{
-    clock::Clocks,
-    peripherals::{RNG, TIMG1},
-    radio::Wifi,
-    timer::TimerGroup,
-    Rng,
-};
 
 pub unsafe fn as_static_ref<T>(what: &T) -> &'static T {
     core::mem::transmute(what)
