@@ -124,7 +124,8 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         if let Some(battery) = battery_data {
             if battery.is_low {
                 // Enabling wifi modifies ADC readings and board shuts down
-                // return AppState::Shutdown;
+                #[cfg(feature = "battery_max17055")]
+                break;
             }
         }
 
