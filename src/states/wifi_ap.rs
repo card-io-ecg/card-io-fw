@@ -219,6 +219,7 @@ async fn webserver_task(
     task_control: &'static TaskController<()>,
     buffers: &'static mut WebserverResources,
 ) {
+    log::info!("Started webserver task");
     task_control
         .run_cancellable(async {
             while !stack.is_link_up() {
@@ -244,4 +245,5 @@ async fn webserver_task(
                 .await;
         })
         .await;
+    log::info!("Stopped webserver task");
 }
