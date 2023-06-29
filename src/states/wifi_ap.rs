@@ -100,16 +100,14 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
             as_static_ref(stack),
             as_static_ref(&net_task_control),
         ));
-        for (resources, control) in wifi_resources
-            .resources
-            .iter_mut()
-            .zip(webserver_task_control.iter())
-        {
+
+        #[allow(clippy::needless_range_loop)]
+        for i in 0..WEBSERVER_TASKS {
             spawner.must_spawn(webserver_task(
                 as_static_ref(stack),
                 as_static_ref(&context),
-                as_static_ref(control),
-                resources,
+                as_static_ref(&webserver_task_control[i]),
+                as_static_mut(&mut wifi_resources.resources[i]),
             ));
         }
     }
