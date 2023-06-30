@@ -263,6 +263,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             disable_gpio_wakeup(&charger_pin);
         }
 
+        // Wake up momentarily when charger is disconnected
         #[cfg(feature = "hw_v2")]
         enable_gpio_wakeup(&charger_pin, RtcioWakeupType::LowLevel);
     } else {
@@ -283,7 +284,6 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         enable_gpio_wakeup(&charger_pin, RtcioWakeupType::HighLevel);
     }
 
-    // Wake up momentarily when charger is disconnected
     start_deep_sleep();
 
     // Shouldn't reach this. If we do, we just exit the task, which means the executor
