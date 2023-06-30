@@ -52,6 +52,9 @@ pub fn start_deep_sleep() {
     let rtc_ctrl = unsafe { &*pac::RTC_CNTL::PTR };
 
     rtc_ctrl.dig_pwc.modify(|_, w| w.dg_wrap_pd_en().set_bit());
+    rtc_ctrl
+        .sdio_conf
+        .modify(|_, w| w.sdio_reg_pd_en().set_bit());
 
     // Enter Deep Sleep
     const WAKEUP_SOURCE_GPIO: u32 = 0x4;
