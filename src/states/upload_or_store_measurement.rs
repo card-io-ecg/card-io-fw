@@ -40,7 +40,8 @@ async fn try_to_upload<const SIZE: usize>(
     }
 
     // TODO: scan/connection shouldn't be here.
-    let is_connected = false;
+    let mut is_connected = false;
+
     // If we're not connected, look around for a network to connect to.
     if !is_connected {
         if board.config.known_networks.is_empty() {
@@ -48,15 +49,20 @@ async fn try_to_upload<const SIZE: usize>(
             return StoreMeasurement::Store;
         }
 
-        // TODO: scan
-        // If we found a network, attempt to upload.
-        // TODO: only try to upload if we are registered.
-        // If we could not upload, save to file.
+        // TODO: scan and connect to known network
     }
 
+    if !is_connected {
+        // If we do not have a network connection, save to file.
+        return StoreMeasurement::Store;
+    }
+
+    // If we found a network, attempt to upload.
+    // TODO: only try to upload if we are registered.
     debug!("Trying to upload measurement");
     // TODO
 
+    // Upload successful, do not store in file.
     StoreMeasurement::DontStore
 }
 
@@ -123,7 +129,7 @@ async fn try_store_measurement<const SIZE: usize>(
 
     measurement.clear();
 
-    log::info!("Measurement saved to {filename}");
+    info!("Measurement saved to {}", filename);
 
     Ok(())
 }
