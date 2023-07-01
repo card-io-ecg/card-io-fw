@@ -45,6 +45,7 @@ mod replace_with;
 mod sleep;
 mod stack_protection;
 mod states;
+mod task_control;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AppError {
