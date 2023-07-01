@@ -1,6 +1,6 @@
 use core::fmt::Write;
 
-use norfs::StorageError;
+use norfs::{writer::FileDataWriter, OnCollision, StorageError};
 use signal_processing::compressing_buffer::CompressingBuffer;
 
 use crate::{board::initialized::Board, AppState};
@@ -22,6 +22,8 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
             error!("Failed to store measurement: {:?}", e);
         }
     }
+
+    buffer.clear();
 
     next_state
 }
@@ -60,7 +62,7 @@ async fn try_to_upload<const SIZE: usize>(
 
 async fn try_store_measurement<const SIZE: usize>(
     board: &mut Board,
-    _buffer: &mut CompressingBuffer<SIZE>,
+    measurement: &mut CompressingBuffer<SIZE>,
 ) -> Result<(), StorageError> {
     debug!("Trying to store measurement");
 
@@ -111,5 +113,56 @@ async fn try_store_measurement<const SIZE: usize>(
         return Ok(());
     }
 
-    unimplemented!()
+    storage
+        .store_writer(
+            &filename,
+            &MeasurementWriter(measurement),
+            OnCollision::Fail,
+        )
+        .await?;
+
+    measurement.clear();
+
+    log::info!("Measurement saved to {filename}");
+
+    Ok(())
+}
+
+struct MeasurementWriter<'a, const N: usize>(&'a CompressingBuffer<N>);
+
+impl<'a, const N: usize> MeasurementWriter<'a, N> {
+    // We're good with a straight u8 until 127 samples, then we can consider switching to varint.
+    const FORMAT_VERSION: u8 = 0;
+}
+
+impl<const N: usize> FileDataWriter for MeasurementWriter<'_, N> {
+    async fn write<M>(
+        &self,
+        writer: &mut norfs::writer::Writer<M>,
+        storage: &mut norfs::Storage<M>,
+    ) -> Result<(), StorageError>
+    where
+        M: norfs::medium::StorageMedium,
+        [(); M::BLOCK_COUNT]:,
+    {
+        // Here we only store differences, but not the initial sample. The DC offset does not
+        // matter for the analysis, and we can reconstruct everything else from the differences.
+        let buffers = self.0.as_slices();
+
+        let mut writer = writer.bind(storage);
+
+        writer
+            .write_all(&Self::FORMAT_VERSION.to_le_bytes())
+            .await?;
+        writer.write_all(buffers.0).await?;
+        writer.write_all(buffers.1).await?;
+
+        Ok(())
+    }
+
+    fn estimate_length(&self) -> usize {
+        let buffers = self.0.as_slices();
+
+        Self::FORMAT_VERSION.to_le_bytes().len() + buffers.0.len() + buffers.1.len()
+    }
 }
