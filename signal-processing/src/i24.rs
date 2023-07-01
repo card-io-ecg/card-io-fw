@@ -1,3 +1,5 @@
+use crate::buffer::ByteReadable;
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
 #[allow(non_camel_case_types)]
 pub struct i24([u8; 3]);
@@ -21,6 +23,8 @@ impl i24 {
         ])
     }
 }
+
+impl ByteReadable for i24 {}
 
 #[cfg(test)]
 mod test {
