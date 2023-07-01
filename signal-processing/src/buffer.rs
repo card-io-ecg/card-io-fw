@@ -1,4 +1,16 @@
-use core::mem::MaybeUninit;
+use core::{
+    mem::{self, MaybeUninit},
+    slice,
+};
+
+pub trait ByteReadable {
+    fn element_size() -> usize
+    where
+        Self: Sized,
+    {
+        mem::size_of::<Self>()
+    }
+}
 
 pub struct Buffer<T: Copy, const N: usize> {
     write_idx: usize,
@@ -86,6 +98,22 @@ impl<T: Copy, const N: usize> Buffer<T, N> {
             .iter()
             .chain(end.iter())
             .map(|e| unsafe { e.assume_init() })
+    }
+
+    pub fn as_bytes(&self) -> (&[u8], &[u8])
+    where
+        T: ByteReadable + Sized,
+    {
+        let (mut a, mut b) = self.buffer[..self.len()].split_at(self.idx);
+        if a.is_empty() {
+            mem::swap(&mut a, &mut b);
+        }
+        unsafe {
+            (
+                slice::from_raw_parts(a.as_ptr() as *const u8, a.len() * T::element_size()),
+                slice::from_raw_parts(b.as_ptr() as *const u8, b.len() * T::element_size()),
+            )
+        }
     }
 }
 

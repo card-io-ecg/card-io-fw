@@ -1,6 +1,6 @@
 use core::fmt::Write;
 
-use norfs::StorageError;
+use norfs::{writer::FileDataWriter, OnCollision, StorageError};
 use signal_processing::{buffer::Buffer, i24::i24};
 
 use crate::{board::initialized::Board, states::BIG_OBJECTS, AppState};
@@ -57,7 +57,7 @@ async fn try_to_upload<const N: usize>(
 
 async fn try_store_measurement<const N: usize>(
     board: &mut Board,
-    _buffer: &mut Buffer<i24, N>,
+    measurement: &mut Buffer<i24, N>,
 ) -> Result<(), StorageError> {
     log::debug!("Trying to store measurement");
 
@@ -108,5 +108,46 @@ async fn try_store_measurement<const N: usize>(
         return Ok(());
     }
 
-    unimplemented!()
+    storage
+        .store_writer(
+            &filename,
+            &MeasurementWriter(measurement),
+            OnCollision::Fail,
+        )
+        .await?;
+
+    measurement.clear();
+
+    log::info!("Measurement saved to {filename}");
+
+    Ok(())
+}
+
+struct MeasurementWriter<'a, const N: usize>(&'a Buffer<i24, N>);
+
+impl<const N: usize> FileDataWriter for MeasurementWriter<'_, N> {
+    async fn write<M>(
+        &self,
+        writer: &mut norfs::writer::Writer<M>,
+        storage: &mut norfs::Storage<M>,
+    ) -> Result<(), StorageError>
+    where
+        M: norfs::medium::StorageMedium,
+        [(); M::BLOCK_COUNT]:,
+    {
+        let buffers = self.0.as_bytes();
+
+        let mut writer = writer.bind(storage);
+
+        writer.write_all(buffers.0).await?;
+        writer.write_all(buffers.1).await?;
+
+        Ok(())
+    }
+
+    fn estimate_length(&self) -> usize {
+        let buffers = self.0.as_bytes();
+
+        buffers.0.len() + buffers.0.len()
+    }
 }
