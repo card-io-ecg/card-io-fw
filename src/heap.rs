@@ -1,8 +1,11 @@
+use core::mem::MaybeUninit;
+
 #[global_allocator]
 static ALLOCATOR: esp_alloc::EspHeap = esp_alloc::EspHeap::empty();
 
 pub fn init_heap() {
-    static mut HEAP: [u8; 32 * 1024] = [0; 32 * 1024];
+    const HEAP_SIZE: usize = 32 * 1024;
+    static mut HEAP: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
 
     use core::ptr::addr_of_mut;
 
