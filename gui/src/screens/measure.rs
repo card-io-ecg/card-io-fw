@@ -141,7 +141,9 @@ impl EcgScreen {
     fn limits(&self) -> (f32, f32) {
         let mut samples = self.buffer.iter();
 
-        let Some(first) = samples.next() else { return (0.0, 0.0); };
+        let Some(first) = samples.next() else {
+            return (0.0, 0.0);
+        };
 
         let mut min = first;
         let mut max = first;

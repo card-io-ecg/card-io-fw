@@ -69,14 +69,16 @@ impl<C: Connection> RequestHandler<C> for AddNewNetwork<'_> {
                 .await;
         }
 
-        let Ok(ssid) = heapless::String::<32>::from_str(ssid.trim())
-        else {
-            return self.request_error(request,ResponseStatus::BadRequest, "SSID too long").await;
+        let Ok(ssid) = heapless::String::<32>::from_str(ssid.trim()) else {
+            return self
+                .request_error(request, ResponseStatus::BadRequest, "SSID too long")
+                .await;
         };
 
-        let Ok(pass) = heapless::String::<64>::from_str(pass.trim())
-        else {
-            return self.request_error(request,ResponseStatus::BadRequest, "Password too long").await;
+        let Ok(pass) = heapless::String::<64>::from_str(pass.trim()) else {
+            return self
+                .request_error(request, ResponseStatus::BadRequest, "Password too long")
+                .await;
         };
 
         let result = {

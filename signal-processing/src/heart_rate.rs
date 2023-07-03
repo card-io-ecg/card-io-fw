@@ -160,7 +160,9 @@ impl HeartRateCalculator {
     }
 
     pub fn update(&mut self, sample: f32) {
-        let Some(sample) = self.noise_filter.update(sample) else { return; };
+        let Some(sample) = self.noise_filter.update(sample) else {
+            return;
+        };
 
         self.state = match self.state {
             State::Ignore(0) => State::Init(self.max_init),

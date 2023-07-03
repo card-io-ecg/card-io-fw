@@ -131,9 +131,7 @@ impl BigObjects {
             self.initialize();
         }
 
-        let Self::Ecg(ecg) = self else {
-            unreachable!()
-        };
+        let Self::Ecg(ecg) = self else { unreachable!() };
 
         unsafe { ecg.assume_init_mut() }
     }

@@ -112,8 +112,7 @@ pub mod std_compat {
         }
 
         fn close(&mut self) {
-            let Some(socket) = self.socket.take()
-            else {
+            let Some(socket) = self.socket.take() else {
                 return;
             };
             let socket = socket.into_inner().unwrap();
