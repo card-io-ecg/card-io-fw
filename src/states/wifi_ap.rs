@@ -20,7 +20,7 @@ use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen};
 use crate::{
     board::{
         initialized::Board,
-        wifi::driver::{ap_task, as_static_mut, as_static_ref},
+        wifi::driver::{ap_task, as_static_mut, as_static_ref, net_task},
     },
     states::{WebserverResources, BIG_OBJECTS, MIN_FRAME_TIME, WEBSERVER_TASKS},
     task_control::TaskController,
@@ -129,18 +129,6 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     }
 
     AppState::MainMenu
-}
-
-#[embassy_executor::task]
-async fn net_task(
-    stack: &'static Stack<WifiDevice<'static>>,
-    task_control: &'static TaskController<()>,
-) {
-    task_control
-        .run_cancellable(async {
-            stack.run().await;
-        })
-        .await;
 }
 
 #[embassy_executor::task(pool_size = super::WEBSERVER_TASKS)]
