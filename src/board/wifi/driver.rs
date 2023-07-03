@@ -7,8 +7,11 @@ use crate::{
         timer::TimerGroup,
         Rng,
     },
+    replace_with::replace_with_or_abort_async,
     task_control::TaskController,
 };
+use embassy_executor::Spawner;
+use embassy_futures::join::join;
 use embassy_net::{Config, Stack, StackResources};
 use embassy_time::{Duration, Timer};
 use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi as _};
@@ -25,6 +28,12 @@ pub unsafe fn as_static_ref<T>(what: &T) -> &'static T {
 pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
     core::mem::transmute(what)
 }
+
+// These are static mut because they are not Sync and we don't want to have to implement Sync for
+// TaskController. We also don't need these to be Sync because the same executor will be used for
+// the tasks.
+pub static mut CONNECTION_TASK_CONTROL: TaskController<()> = TaskController::new();
+pub static mut NET_TASK_CONTROL: TaskController<()> = TaskController::new();
 
 pub struct WifiDriver {
     wifi: Wifi,
@@ -43,7 +52,6 @@ enum WifiDriverState {
     },
     AP {
         _init: EspWifiInitialization,
-        controller: WifiController<'static>,
         stack: Stack<WifiDevice<'static>>,
     },
 }
@@ -56,42 +64,43 @@ impl WifiDriver {
         }
     }
 
-    pub fn configure_ap<'d>(
+    pub async fn configure_ap<'d>(
         &'d mut self,
         config: Config,
         resources: &'static mut StackResources<3>,
-    ) -> (
-        &'d mut Stack<WifiDevice<'static>>,
-        &'d mut WifiController<'static>,
-    ) {
-        replace_with_or_abort(&mut self.state, |this| match this {
-            WifiDriverState::Uninitialized { .. } => unreachable!(),
-            WifiDriverState::Initialized { init } => {
-                let (wifi_interface, controller) = esp_wifi::wifi::new_with_mode(
-                    &init,
-                    unsafe { as_static_mut(&mut self.wifi) },
-                    WifiMode::Ap,
-                );
+    ) -> &'d mut Stack<WifiDevice<'static>> {
+        replace_with_or_abort_async(&mut self.state, |this| async {
+            match this {
+                WifiDriverState::Uninitialized { .. } => unreachable!(),
+                WifiDriverState::Initialized { init } => {
+                    let (wifi_interface, mut controller) = esp_wifi::wifi::new_with_mode(
+                        &init,
+                        unsafe { as_static_mut(&mut self.wifi) },
+                        WifiMode::Ap,
+                    );
 
-                *resources = StackResources::new();
-                let stack = Stack::new(wifi_interface, config, resources, 1234);
+                    let spawner = Spawner::for_current_executor().await;
 
-                WifiDriverState::AP {
-                    controller,
-                    stack,
-                    _init: init,
+                    *resources = StackResources::new();
+                    let stack = Stack::new(wifi_interface, config, resources, 1234);
+
+                    unsafe {
+                        spawner.must_spawn(ap_task(as_static_mut(&mut controller)));
+                        spawner.must_spawn(net_task(as_static_ref(&stack)));
+                    }
+
+                    WifiDriverState::AP { stack, _init: init }
                 }
+                WifiDriverState::AP { .. } => this,
             }
-            WifiDriverState::AP { .. } => this,
-        });
+        })
+        .await;
 
         match &mut self.state {
             WifiDriverState::Uninitialized { .. } | WifiDriverState::Initialized { .. } => {
                 unreachable!()
             }
-            WifiDriverState::AP {
-                controller, stack, ..
-            } => (stack, controller),
+            WifiDriverState::AP { stack, .. } => stack,
         }
     }
 
@@ -109,14 +118,21 @@ impl WifiDriver {
             _ => this,
         })
     }
+
+    pub async fn stop_ap(&mut self) {
+        unsafe {
+            let _ = join(
+                CONNECTION_TASK_CONTROL.stop_from_outside(),
+                NET_TASK_CONTROL.stop_from_outside(),
+            )
+            .await;
+        }
+    }
 }
 
 #[embassy_executor::task]
-pub async fn net_task(
-    stack: &'static Stack<WifiDevice<'static>>,
-    task_control: &'static TaskController<()>,
-) {
-    task_control
+pub async fn net_task(stack: &'static Stack<WifiDevice<'static>>) {
+    unsafe { &NET_TASK_CONTROL }
         .run_cancellable(async {
             stack.run().await;
         })
@@ -124,11 +140,8 @@ pub async fn net_task(
 }
 
 #[embassy_executor::task]
-pub async fn ap_task(
-    controller: &'static mut WifiController<'static>,
-    task_control: &'static TaskController<()>,
-) {
-    task_control
+pub async fn ap_task(controller: &'static mut WifiController<'static>) {
+    unsafe { &CONNECTION_TASK_CONTROL }
         .run_cancellable(async {
             log::debug!("start connection task");
             log::debug!("Device capabilities: {:?}", controller.get_capabilities());
