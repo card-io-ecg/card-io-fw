@@ -1,14 +1,19 @@
-use crate::board::hal::{
-    clock::Clocks,
-    peripherals::{RNG, TIMG1},
-    radio::Wifi,
-    system::{PeripheralClockControl, RadioClockControl},
-    timer::TimerGroup,
-    Rng,
+use crate::{
+    board::hal::{
+        clock::Clocks,
+        peripherals::{RNG, TIMG1},
+        radio::Wifi,
+        system::{PeripheralClockControl, RadioClockControl},
+        timer::TimerGroup,
+        Rng,
+    },
+    task_control::TaskController,
 };
 use embassy_net::{Config, Stack, StackResources};
+use embassy_time::{Duration, Timer};
+use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi as _};
 use esp_wifi::{
-    wifi::{WifiController, WifiDevice, WifiMode},
+    wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState},
     EspWifiInitFor, EspWifiInitialization,
 };
 use replace_with::replace_with_or_abort;
@@ -104,4 +109,39 @@ impl WifiDriver {
             _ => this,
         })
     }
+}
+
+#[embassy_executor::task]
+pub async fn ap_task(
+    controller: &'static mut WifiController<'static>,
+    task_control: &'static TaskController<()>,
+) {
+    task_control
+        .run_cancellable(async {
+            log::debug!("start connection task");
+            log::debug!("Device capabilities: {:?}", controller.get_capabilities());
+
+            loop {
+                if let WifiState::ApStart = esp_wifi::wifi::get_wifi_state() {
+                    // wait until we're no longer connected
+                    controller.wait_for_event(WifiEvent::ApStop).await;
+                    Timer::after(Duration::from_millis(5000)).await;
+
+                    // TODO: exit app state if disconnected?
+                }
+
+                if !matches!(controller.is_started(), Ok(true)) {
+                    let client_config = Configuration::AccessPoint(AccessPointConfiguration {
+                        ssid: "Card/IO".into(),
+                        ..Default::default()
+                    });
+                    controller.set_configuration(&client_config).unwrap();
+                    log::debug!("Starting wifi");
+
+                    controller.start().await.unwrap();
+                    log::debug!("Wifi started!");
+                }
+            }
+        })
+        .await;
 }

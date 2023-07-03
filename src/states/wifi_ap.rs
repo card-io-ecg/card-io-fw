@@ -14,14 +14,13 @@ use embassy_futures::join::join;
 use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StaticConfig};
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
-use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi};
-use esp_wifi::wifi::{WifiController, WifiDevice, WifiEvent, WifiState};
+use esp_wifi::wifi::WifiDevice;
 use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen};
 
 use crate::{
     board::{
         initialized::Board,
-        wifi::driver::{as_static_mut, as_static_ref},
+        wifi::driver::{ap_task, as_static_mut, as_static_ref},
     },
     states::{WebserverResources, BIG_OBJECTS, MIN_FRAME_TIME, WEBSERVER_TASKS},
     task_control::TaskController,
@@ -55,7 +54,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     });
 
     unsafe {
-        spawner.must_spawn(connection_task(
+        spawner.must_spawn(ap_task(
             as_static_mut(controller),
             as_static_ref(&connection_task_control),
         ));
@@ -130,41 +129,6 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     }
 
     AppState::MainMenu
-}
-
-#[embassy_executor::task]
-async fn connection_task(
-    controller: &'static mut WifiController<'static>,
-    task_control: &'static TaskController<()>,
-) {
-    task_control
-        .run_cancellable(async {
-            log::debug!("start connection task");
-            log::debug!("Device capabilities: {:?}", controller.get_capabilities());
-
-            loop {
-                if let WifiState::ApStart = esp_wifi::wifi::get_wifi_state() {
-                    // wait until we're no longer connected
-                    controller.wait_for_event(WifiEvent::ApStop).await;
-                    Timer::after(Duration::from_millis(5000)).await;
-
-                    // TODO: exit app state if disconnected?
-                }
-
-                if !matches!(controller.is_started(), Ok(true)) {
-                    let client_config = Configuration::AccessPoint(AccessPointConfiguration {
-                        ssid: "Card/IO".into(),
-                        ..Default::default()
-                    });
-                    controller.set_configuration(&client_config).unwrap();
-                    log::debug!("Starting wifi");
-
-                    controller.start().await.unwrap();
-                    log::debug!("Wifi started!");
-                }
-            }
-        })
-        .await;
 }
 
 #[embassy_executor::task]
