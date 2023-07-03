@@ -128,6 +128,11 @@ impl WifiDriver {
             .await;
         }
     }
+
+    pub fn ap_running(&self) -> bool {
+        matches!(self.state, WifiDriverState::AP { .. })
+            && !unsafe { CONNECTION_TASK_CONTROL.has_exited() || NET_TASK_CONTROL.has_exited() }
+    }
 }
 
 #[embassy_executor::task]

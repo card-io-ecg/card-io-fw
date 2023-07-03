@@ -35,7 +35,7 @@ impl<R: Send> TaskController<R> {
     }
 
     /// Returns whether the controlled task has exited.
-    pub async fn has_exited(&self) -> bool {
+    pub fn has_exited(&self) -> bool {
         self.exited.signaled()
     }
 

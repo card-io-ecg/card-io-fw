@@ -70,7 +70,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     );
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    loop {
+    while board.wifi.ap_running() {
         let battery_data = board.battery_monitor.battery_data().await;
 
         if let Some(battery) = battery_data {
