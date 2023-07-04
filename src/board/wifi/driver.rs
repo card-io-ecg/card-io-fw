@@ -218,7 +218,7 @@ pub async fn net_task(
 pub async fn ap_task(
     controller: &'static mut WifiController<'static>,
     task_control: &'static TaskController<()>,
-    _client_count: &'static Mutex<NoopRawMutex, u32>,
+    client_count: &'static Mutex<NoopRawMutex, u32>,
 ) {
     task_control
         .run_cancellable(async {
@@ -227,11 +227,29 @@ pub async fn ap_task(
 
             loop {
                 if let WifiState::ApStart = esp_wifi::wifi::get_wifi_state() {
-                    // wait until we're no longer connected
-                    controller.wait_for_event(WifiEvent::ApStop).await;
-                    Timer::after(Duration::from_millis(5000)).await;
+                    let events = controller
+                        .wait_for_events(
+                            WifiEvent::ApStop
+                                | WifiEvent::StaConnected
+                                | WifiEvent::StaDisconnected,
+                            false,
+                        )
+                        .await;
 
-                    // TODO: exit app state if disconnected?
+                    if events.contains(WifiEvent::StaConnected) {
+                        let mut count = client_count.lock().await;
+                        *count = count.saturating_add(1);
+                        log::debug!("Client connected, {} total", *count);
+                    }
+                    if events.contains(WifiEvent::StaDisconnected) {
+                        let mut count = client_count.lock().await;
+                        *count = count.saturating_sub(1);
+                        log::debug!("Client disconnected, {} left", *count);
+                    }
+                    if events.contains(WifiEvent::ApStop) {
+                        log::debug!("AP stopped");
+                        Timer::after(Duration::from_millis(5000)).await;
+                    }
                 }
 
                 if !matches!(controller.is_started(), Ok(true)) {
