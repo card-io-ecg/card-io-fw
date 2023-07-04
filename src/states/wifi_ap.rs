@@ -10,12 +10,10 @@ use config_site::{
     },
 };
 use embassy_executor::Spawner;
-use embassy_futures::join::join;
 use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StaticConfig};
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
-use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi};
-use esp_wifi::wifi::{WifiController, WifiDevice, WifiEvent, WifiState};
+use esp_wifi::wifi::WifiDevice;
 use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen};
 
 use crate::{
@@ -34,19 +32,19 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         .initialize(&board.clocks, &mut board.peripheral_clock_control);
 
     let wifi_resources = unsafe { BIG_OBJECTS.as_wifi_ap_resources() };
-    let (stack, controller) = board.wifi.configure_ap(
-        Config::Static(StaticConfig {
-            address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
-            gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
-            dns_servers: Default::default(),
-        }),
-        &mut wifi_resources.stack_resources,
-    );
+    let stack = board
+        .wifi
+        .configure_ap(
+            Config::Static(StaticConfig {
+                address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
+                gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
+                dns_servers: Default::default(),
+            }),
+            &mut wifi_resources.stack_resources,
+        )
+        .await;
 
     let spawner = Spawner::for_current_executor().await;
-
-    let connection_task_control = TaskController::new();
-    let net_task_control = TaskController::new();
 
     let webserver_task_control = [TaskController::DEFAULT; WEBSERVER_TASKS];
 
@@ -55,15 +53,6 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     });
 
     unsafe {
-        spawner.must_spawn(connection_task(
-            as_static_mut(controller),
-            as_static_ref(&connection_task_control),
-        ));
-        spawner.must_spawn(net_task(
-            as_static_ref(stack),
-            as_static_ref(&net_task_control),
-        ));
-
         #[allow(clippy::needless_range_loop)]
         for i in 0..WEBSERVER_TASKS {
             spawner.must_spawn(webserver_task(
@@ -81,7 +70,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     );
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    loop {
+    while board.wifi.ap_running() {
         let battery_data = board.battery_monitor.battery_data().await;
 
         if let Some(battery) = battery_data {
@@ -114,11 +103,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         let _ = control.stop_from_outside().await;
     }
 
-    let _ = join(
-        connection_task_control.stop_from_outside(),
-        net_task_control.stop_from_outside(),
-    )
-    .await;
+    board.wifi.stop_ap().await;
 
     {
         let context = context.lock().await;
@@ -130,53 +115,6 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     }
 
     AppState::MainMenu
-}
-
-#[embassy_executor::task]
-async fn connection_task(
-    controller: &'static mut WifiController<'static>,
-    task_control: &'static TaskController<()>,
-) {
-    task_control
-        .run_cancellable(async {
-            log::debug!("start connection task");
-            log::debug!("Device capabilities: {:?}", controller.get_capabilities());
-
-            loop {
-                if let WifiState::ApStart = esp_wifi::wifi::get_wifi_state() {
-                    // wait until we're no longer connected
-                    controller.wait_for_event(WifiEvent::ApStop).await;
-                    Timer::after(Duration::from_millis(5000)).await;
-
-                    // TODO: exit app state if disconnected?
-                }
-
-                if !matches!(controller.is_started(), Ok(true)) {
-                    let client_config = Configuration::AccessPoint(AccessPointConfiguration {
-                        ssid: "Card/IO".into(),
-                        ..Default::default()
-                    });
-                    controller.set_configuration(&client_config).unwrap();
-                    log::debug!("Starting wifi");
-
-                    controller.start().await.unwrap();
-                    log::debug!("Wifi started!");
-                }
-            }
-        })
-        .await;
-}
-
-#[embassy_executor::task]
-async fn net_task(
-    stack: &'static Stack<WifiDevice<'static>>,
-    task_control: &'static TaskController<()>,
-) {
-    task_control
-        .run_cancellable(async {
-            stack.run().await;
-        })
-        .await;
 }
 
 #[embassy_executor::task(pool_size = super::WEBSERVER_TASKS)]

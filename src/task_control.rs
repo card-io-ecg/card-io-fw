@@ -35,13 +35,15 @@ impl<R: Send> TaskController<R> {
     }
 
     /// Returns whether the controlled task has exited.
-    pub async fn has_exited(&self) -> bool {
+    pub fn has_exited(&self) -> bool {
         self.exited.signaled()
     }
 
     /// Runs a cancellable task. The task ends when either the future completes, or the task is
     /// cancelled.
     pub async fn run_cancellable(&self, future: impl Future<Output = R>) {
+        self.token.reset();
+        self.exited.reset();
         let result = match select(future, self.token.wait()).await {
             Either::First(result) => Ok(result),
             Either::Second(_) => Err(Aborted {}),
