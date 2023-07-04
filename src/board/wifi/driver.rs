@@ -230,18 +230,18 @@ pub async fn ap_task(
                     let events = controller
                         .wait_for_events(
                             WifiEvent::ApStop
-                                | WifiEvent::StaConnected
-                                | WifiEvent::StaDisconnected,
+                                | WifiEvent::ApStaconnected
+                                | WifiEvent::ApStadisconnected,
                             false,
                         )
                         .await;
 
-                    if events.contains(WifiEvent::StaConnected) {
+                    if events.contains(WifiEvent::ApStaconnected) {
                         let mut count = client_count.lock().await;
                         *count = count.saturating_add(1);
                         log::debug!("Client connected, {} total", *count);
                     }
-                    if events.contains(WifiEvent::StaDisconnected) {
+                    if events.contains(WifiEvent::ApStadisconnected) {
                         let mut count = client_count.lock().await;
                         *count = count.saturating_sub(1);
                         log::debug!("Client disconnected, {} left", *count);
