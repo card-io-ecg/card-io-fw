@@ -14,7 +14,7 @@ use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StaticCo
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
 use esp_wifi::wifi::WifiDevice;
-use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen};
+use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen, WifiApScreenState};
 
 use crate::{
     board::{
@@ -83,6 +83,12 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         }
 
         screen.battery_data = battery_data;
+
+        screen.state = if board.wifi.ap_client_count().await > 0 {
+            WifiApScreenState::Connected
+        } else {
+            WifiApScreenState::Idle
+        };
 
         if let Some(event) = screen.menu.interact(board.frontend.is_touched()) {
             match event {

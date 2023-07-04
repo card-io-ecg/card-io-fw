@@ -13,6 +13,7 @@ use crate::{
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_net::{Config, Stack, StackResources};
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
 use embassy_time::{Duration, Timer};
 use embedded_hal_old::prelude::_embedded_hal_blocking_rng_Read;
 use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi as _};
@@ -44,6 +45,7 @@ struct ApState {
     stack: Stack<WifiDevice<'static>>,
     connection_task_control: TaskController<()>,
     net_task_control: TaskController<()>,
+    client_count: Mutex<NoopRawMutex, u32>,
     started: bool,
 }
 
@@ -64,6 +66,7 @@ impl ApState {
             stack: Stack::new(wifi_interface, config, resources, random_seed),
             connection_task_control: TaskController::new(),
             net_task_control: TaskController::new(),
+            client_count: Mutex::new(0),
             started: false,
         }
     }
@@ -75,6 +78,7 @@ impl ApState {
                 spawner.must_spawn(ap_task(
                     as_static_mut(&mut self.controller),
                     as_static_ref(&self.connection_task_control),
+                    as_static_ref(&self.client_count),
                 ));
                 spawner.must_spawn(net_task(
                     as_static_ref(&self.stack),
@@ -100,6 +104,10 @@ impl ApState {
 
     fn is_running(&self) -> bool {
         !self.connection_task_control.has_exited() && !self.net_task_control.has_exited()
+    }
+
+    async fn client_count(&self) -> u32 {
+        *self.client_count.lock().await
     }
 }
 
@@ -171,6 +179,14 @@ impl WifiDriver {
         })
     }
 
+    pub async fn ap_client_count(&self) -> u32 {
+        if let WifiDriverState::AP(ap) = &self.state {
+            ap.client_count().await
+        } else {
+            0
+        }
+    }
+
     pub async fn stop_ap(&mut self) {
         if let WifiDriverState::AP(ap) = &mut self.state {
             ap.stop().await;
@@ -202,6 +218,7 @@ pub async fn net_task(
 pub async fn ap_task(
     controller: &'static mut WifiController<'static>,
     task_control: &'static TaskController<()>,
+    _client_count: &'static Mutex<NoopRawMutex, u32>,
 ) {
     task_control
         .run_cancellable(async {
