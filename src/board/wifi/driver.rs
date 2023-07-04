@@ -14,12 +14,15 @@ use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_net::{Config, Stack, StackResources};
 use embassy_time::{Duration, Timer};
+use embedded_hal_old::prelude::_embedded_hal_blocking_rng_Read;
 use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi as _};
 use esp_wifi::{
     wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState},
     EspWifiInitFor, EspWifiInitialization,
 };
+use rand_core::{RngCore, SeedableRng};
 use replace_with::replace_with_or_abort;
+use wyhash::WyRng;
 
 pub unsafe fn as_static_ref<T>(what: &T) -> &'static T {
     core::mem::transmute(what)
@@ -31,6 +34,7 @@ pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
 
 pub struct WifiDriver {
     wifi: Wifi,
+    rng: WyRng,
     state: WifiDriverState,
 }
 
@@ -49,6 +53,7 @@ impl ApState {
         config: Config,
         wifi: &'static mut Wifi,
         resources: &'static mut StackResources<3>,
+        random_seed: u64,
     ) -> Self {
         let (wifi_interface, controller) =
             esp_wifi::wifi::new_with_mode(&_init, wifi, WifiMode::Ap);
@@ -56,7 +61,7 @@ impl ApState {
         Self {
             _init,
             controller,
-            stack: Stack::new(wifi_interface, config, resources, 1234),
+            stack: Stack::new(wifi_interface, config, resources, random_seed),
             connection_task_control: TaskController::new(),
             net_task_control: TaskController::new(),
             started: false,
@@ -102,7 +107,7 @@ impl ApState {
 enum WifiDriverState {
     Uninitialized {
         timer: TIMG1,
-        rng: RNG,
+        rng: Rng<'static>,
         rcc: RadioClockControl,
     },
     Initialized {
@@ -113,8 +118,12 @@ enum WifiDriverState {
 
 impl WifiDriver {
     pub fn new(wifi: Wifi, timer: TIMG1, rng: RNG, rcc: RadioClockControl) -> Self {
+        let mut rng = Rng::new(rng);
+        let mut seed_bytes = [0; 8];
+        rng.read(&mut seed_bytes).unwrap();
         Self {
             wifi,
+            rng: WyRng::from_seed(seed_bytes),
             state: WifiDriverState::Uninitialized { timer, rng, rcc },
         }
     }
@@ -132,6 +141,7 @@ impl WifiDriver {
                     config,
                     unsafe { as_static_mut(&mut self.wifi) },
                     resources,
+                    self.rng.next_u64(),
                 )),
                 WifiDriverState::AP { .. } => this,
             }
@@ -153,8 +163,7 @@ impl WifiDriver {
                 let timer = TimerGroup::new(timer, clocks, pcc).timer0;
 
                 let init =
-                    esp_wifi::initialize(EspWifiInitFor::Wifi, timer, Rng::new(rng), rcc, clocks)
-                        .unwrap();
+                    esp_wifi::initialize(EspWifiInitFor::Wifi, timer, rng, rcc, clocks).unwrap();
 
                 WifiDriverState::Initialized { init }
             }
