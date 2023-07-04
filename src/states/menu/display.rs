@@ -9,13 +9,6 @@ use gui::screens::{
 pub async fn display_menu(board: &mut Board) -> AppState {
     const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
 
-    let battery_data = board.battery_monitor.battery_data().await;
-
-    if let Some(battery) = battery_data {
-        if battery.is_low {
-            return AppState::Shutdown;
-        }
-    }
     let mut menu_values = DisplayMenu {
         brightness: board.config.display_brightness,
         battery_display: board.config.battery_display_style,
@@ -24,7 +17,7 @@ pub async fn display_menu(board: &mut Board) -> AppState {
     let mut menu_screen = DisplayMenuScreen {
         menu: menu_values.create_menu_with_style(MENU_STYLE),
 
-        battery_data,
+        battery_data: board.battery_monitor.battery_data().await,
         battery_style: board.config.battery_style(),
     };
 
@@ -46,6 +39,13 @@ pub async fn display_menu(board: &mut Board) -> AppState {
         }
 
         menu_screen.battery_data = board.battery_monitor.battery_data().await;
+
+        #[cfg(feature = "battery_max17055")]
+        if let Some(battery) = menu_screen.battery_data {
+            if battery.is_low {
+                return AppState::Shutdown;
+            }
+        }
 
         if &menu_values != menu_screen.menu.data() {
             log::debug!("Settings changed");
