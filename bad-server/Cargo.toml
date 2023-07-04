@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 async-io = { version = "1", optional = true }
-embassy-net = { git = "https://github.com/embassy-rs/embassy.git", rev = "fb27594", features = ["nightly", "tcp", "udp", "dhcpv4", "medium-ethernet"], optional = true }
+embassy-net = { version = "0.1.0", features = ["nightly", "tcp", "udp", "dhcpv4", "medium-ethernet"], optional = true }
 embedded-io = { version = "0.4", features = ["async"] }
 embedded-svc = { version = "0.25", default-features = false, features = [] }
 heapless = "0.7"
