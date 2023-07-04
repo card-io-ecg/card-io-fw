@@ -9,9 +9,9 @@ license = "MIT"
 [dependencies]
 embassy-futures = { version = "0.1.0" }
 embassy-executor  = { version = "0.2.0", git = "https://github.com/embassy-rs/embassy.git", features = ["nightly", "arch-xtensa", "integrated-timers", "executor-thread", "pender-callback"] }
-embassy-time = { version = "0.1.0", features = ["nightly", "unstable-traits"] }
+embassy-time = { version = "0.1.1", features = ["nightly", "unstable-traits"] }
 embassy-sync = { version = "0.2.0" }
-embassy-net = { git = "https://github.com/embassy-rs/embassy.git", rev = "fb27594", features = ["nightly", "tcp", "udp", "dhcpv4", "medium-ethernet"] }
+embassy-net = { version = "0.1.0", features = ["nightly", "tcp", "udp", "dhcpv4", "medium-ethernet"] }
 
 embedded-hal-old = { package = "embedded-hal", version = "0.2.7" }
 embedded-hal = { version = "1.0.0-alpha.10" }

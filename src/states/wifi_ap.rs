@@ -10,7 +10,7 @@ use config_site::{
     },
 };
 use embassy_executor::Spawner;
-use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StaticConfig};
+use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StaticConfigV4};
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
 use esp_wifi::wifi::WifiDevice;
@@ -35,7 +35,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     let stack = board
         .wifi
         .configure_ap(
-            Config::Static(StaticConfig {
+            Config::ipv4_static(StaticConfigV4 {
                 address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
                 gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
                 dns_servers: Default::default(),
@@ -133,7 +133,7 @@ async fn webserver_task(
             }
 
             let mut socket = TcpSocket::new(stack, &mut buffers.rx_buffer, &mut buffers.tx_buffer);
-            socket.set_timeout(Some(embassy_net::SmolDuration::from_secs(10)));
+            socket.set_timeout(Some(Duration::from_secs(10)));
 
             BadServer::new()
                 .with_request_buffer(&mut buffers.request_buffer[..])
