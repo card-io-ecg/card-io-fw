@@ -237,14 +237,20 @@ pub async fn ap_task(
                         .await;
 
                     if events.contains(WifiEvent::ApStaconnected) {
-                        let mut count = client_count.lock().await;
-                        *count = count.saturating_add(1);
-                        log::info!("Client connected, {} total", *count);
+                        let count = {
+                            let mut count = client_count.lock().await;
+                            *count = count.saturating_add(1);
+                            *count
+                        };
+                        log::info!("Client connected, {count} total");
                     }
                     if events.contains(WifiEvent::ApStadisconnected) {
-                        let mut count = client_count.lock().await;
-                        *count = count.saturating_sub(1);
-                        log::info!("Client disconnected, {} left", *count);
+                        let count = {
+                            let mut count = client_count.lock().await;
+                            *count = count.saturating_sub(1);
+                            *count
+                        };
+                        log::info!("Client disconnected, {count} left");
                     }
                     if events.contains(WifiEvent::ApStop) {
                         log::info!("AP stopped");
