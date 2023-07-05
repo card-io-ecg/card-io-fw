@@ -226,7 +226,10 @@ pub async fn ap_task(
             log::debug!("Device capabilities: {:?}", controller.get_capabilities());
 
             loop {
-                if let WifiState::ApStart = esp_wifi::wifi::get_wifi_state() {
+                if let WifiState::ApStart
+                | WifiState::ApStaConnected
+                | WifiState::ApStaDisconnected = esp_wifi::wifi::get_wifi_state()
+                {
                     let events = controller
                         .wait_for_events(
                             WifiEvent::ApStop
