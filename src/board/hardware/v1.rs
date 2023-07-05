@@ -9,7 +9,6 @@ use crate::{
             self,
             adc::ADC2,
             clock::{ClockControl, CpuClock},
-            dma::{ChannelRx, ChannelTx},
             embassy,
             gdma::*,
             gpio::{Analog, Floating, GpioPin, Input, Output, PullUp, PushPull},
@@ -39,17 +38,8 @@ pub type DisplaySclk = GpioPin<Output<PushPull>, 12>;
 pub type DisplayMosi = GpioPin<Output<PushPull>, 11>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommand>;
-pub type DisplaySpi<'d> = SpiDeviceWrapper<
-    SpiDma<
-        'd,
-        DisplaySpiInstance,
-        ChannelTx<'d, Channel0TxImpl, Channel0>,
-        ChannelRx<'d, Channel0RxImpl, Channel0>,
-        SuitablePeripheral0,
-        FullDuplexMode,
-    >,
-    DummyOutputPin,
->;
+pub type DisplaySpi<'d> =
+    SpiDeviceWrapper<SpiDma<'d, DisplaySpiInstance, Channel0, FullDuplexMode>, DummyOutputPin>;
 
 pub type AdcDmaChannel = ChannelCreator1;
 pub type AdcSpiInstance = hal::peripherals::SPI3;
@@ -61,17 +51,8 @@ pub type AdcClockEnable = DummyOutputPin;
 pub type AdcDrdy = GpioPin<Input<Floating>, 4>;
 pub type AdcReset = GpioPin<Output<PushPull>, 2>;
 pub type TouchDetect = GpioPin<Input<Floating>, 1>;
-pub type AdcSpi<'d> = SpiDeviceWrapper<
-    SpiDma<
-        'd,
-        AdcSpiInstance,
-        ChannelTx<'d, Channel1TxImpl, Channel1>,
-        ChannelRx<'d, Channel1RxImpl, Channel1>,
-        SuitablePeripheral1,
-        FullDuplexMode,
-    >,
-    AdcChipSelect,
->;
+pub type AdcSpi<'d> =
+    SpiDeviceWrapper<SpiDma<'d, AdcSpiInstance, Channel1, FullDuplexMode>, AdcChipSelect>;
 
 pub type BatteryAdcInput = GpioPin<Analog, 17>;
 pub type BatteryAdcEnable = GpioPin<Output<PushPull>, 8>;

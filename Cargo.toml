@@ -20,14 +20,14 @@ embedded-hal-async = { version = "0.2.0-alpha.1" }
 embedded-io = "0.4"
 embedded-svc = { version = "0.25", default-features = false, features = [] }
 
-# esp32s2-hal = { version = "0.9.0", optional = true, features = ["rt", "async", "embassy", "embassy-time-systick", "eh1"] }
-esp32s3-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "s3_adc_calibration", optional = true, features = ["rt", "async", "embassy", "embassy-time-systick", "eh1"] }
-# esp32s2 = { version = "0.14.0", optional = true }
-esp32s3 = { version = "0.18.0", optional = true }
+# esp32s2-hal = { version = "0.10.0", optional = true, features = ["rt", "async", "embassy", "embassy-time-systick", "eh1"] }
+esp32s3-hal = { version = "0.10.0", optional = true, features = ["rt", "async", "embassy", "embassy-time-systick", "eh1"] }
+# esp32s2 = { version = "0.15.0", optional = true }
+esp32s3 = { version = "0.19.0", optional = true }
 esp-backtrace = { version = "0.7.0", features = ["panic-handler", "exception-handler"] } # add "halt-cores"
 esp-println = { version = "0.5.0", default-features = false, features = ["critical-section", "colors", "log"] }
 esp-alloc = { version = "0.3.0" }
-esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", features = ["esp32s3", "phy-enable-usb", "wifi", "embedded-svc", "async", "embassy-net"] }
+esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", features = ["phy-enable-usb", "wifi", "embedded-svc", "async", "embassy-net"] }
 
 display-interface = { git = "https://github.com/bugadani/display-interface.git", branch = "async", features = ["async"] }
 display-interface-spi = { git = "https://github.com/bugadani/display-interface.git", branch = "async", features = ["async"] }
@@ -42,7 +42,7 @@ register-access = { path = "register-access" }
 gui = { path = "gui" }
 ads129x = { path = "ads129x" }
 max17055 = { path = "max17055", optional = true }
-log = "0.4.17"
+log = "0.4.18"
 object-chain = "0.1.3"
 signal-processing = { path = "signal-processing", features = ["nostd"] }
 replace_with = { version = "0.1", default-features = false, features = ["nightly"] }
@@ -51,12 +51,6 @@ norfs = { git = "https://github.com/card-io-ecg/norfs.git", branch = "complex", 
 heapless = "0.7"
 rand_core = "0.6"
 wyhash = "0.5.0"
-
-[patch.crates-io]
-# needed because of esp-wifi
-esp-hal-common = { git = "https://github.com/bugadani/esp-hal.git", branch = "s3_adc_calibration" }
-esp32s3-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "s3_adc_calibration" }
-
 
 [features]
 default = ["esp32s3"]
@@ -70,7 +64,7 @@ hw_v2 = ["battery_max17055"] # also v3
 
 # MCU options - make sure to update `.cargo/config.toml`!
 # esp32s2 = ["dep:esp32s2", "dep:esp32s2-hal", "esp-backtrace/esp32s2", "esp-println/esp32s2", "rtt"]
-esp32s3 = ["dep:esp32s3", "dep:esp32s3-hal", "esp-backtrace/esp32s3", "esp-println/esp32s3", "jtag_serial"]
+esp32s3 = ["dep:esp32s3", "dep:esp32s3-hal", "esp-backtrace/esp32s3", "esp-println/esp32s3", "jtag_serial", "esp-wifi/esp32s3"]
 
 # Print options
 jtag_serial = ["esp-backtrace/print-jtag-serial", "esp-println/jtag_serial"]
