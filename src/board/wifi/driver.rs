@@ -222,7 +222,7 @@ pub async fn ap_task(
 ) {
     task_control
         .run_cancellable(async {
-            log::debug!("start connection task");
+            log::info!("Start connection task");
             log::debug!("Device capabilities: {:?}", controller.get_capabilities());
 
             loop {
@@ -239,17 +239,19 @@ pub async fn ap_task(
                     if events.contains(WifiEvent::ApStaconnected) {
                         let mut count = client_count.lock().await;
                         *count = count.saturating_add(1);
-                        log::debug!("Client connected, {} total", *count);
+                        log::info!("Client connected, {} total", *count);
                     }
                     if events.contains(WifiEvent::ApStadisconnected) {
                         let mut count = client_count.lock().await;
                         *count = count.saturating_sub(1);
-                        log::debug!("Client disconnected, {} left", *count);
+                        log::info!("Client disconnected, {} left", *count);
                     }
                     if events.contains(WifiEvent::ApStop) {
-                        log::debug!("AP stopped");
+                        log::info!("AP stopped");
                         Timer::after(Duration::from_millis(5000)).await;
                     }
+
+                    log::info!("Event processing done");
                 }
 
                 if !matches!(controller.is_started(), Ok(true)) {
@@ -258,10 +260,10 @@ pub async fn ap_task(
                         ..Default::default()
                     });
                     controller.set_configuration(&client_config).unwrap();
-                    log::debug!("Starting wifi");
+                    log::info!("Starting wifi");
 
                     controller.start().await.unwrap();
-                    log::debug!("Wifi started!");
+                    log::info!("Wifi started!");
                 }
             }
         })
