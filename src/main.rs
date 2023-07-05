@@ -245,7 +245,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
     board.frontend.wait_for_release().await;
     Timer::after(Duration::from_millis(100)).await;
 
-    let is_charging = board.battery_monitor.is_charging();
+    let is_charging = board.battery_monitor.is_plugged();
     let (_, _, _, touch) = board.frontend.split();
 
     #[cfg(feature = "hw_v1")]
