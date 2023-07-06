@@ -36,6 +36,7 @@ pub enum ApMenuEvents {
 )]
 pub struct ApMenu {}
 
+#[derive(Clone, Copy, PartialEq)]
 pub enum WifiApScreenState {
     Idle,
     Connected,

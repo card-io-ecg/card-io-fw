@@ -11,7 +11,7 @@ use config_site::{
 };
 use embassy_executor::Spawner;
 use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StaticConfigV4};
-use embassy_time::{Duration, Ticker, Timer};
+use embassy_time::{Duration, Instant, Ticker, Timer};
 use embedded_graphics::Drawable;
 use esp_wifi::wifi::WifiDevice;
 use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen, WifiApScreenState};
@@ -70,6 +70,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     );
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
+    let mut last_interaction = Instant::now();
     while board.wifi.ap_running() {
         let battery_data = board.battery_monitor.battery_data().await;
 
@@ -87,6 +88,13 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         screen.state = if board.wifi.ap_client_count().await > 0 {
             WifiApScreenState::Connected
         } else {
+            if screen.state == WifiApScreenState::Connected || board.frontend.is_touched() {
+                last_interaction = Instant::now();
+            }
+
+            if last_interaction.elapsed() > Duration::from_secs(30) {
+                break;
+            }
             WifiApScreenState::Idle
         };
 
