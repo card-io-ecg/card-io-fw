@@ -143,6 +143,8 @@ impl<const N: usize> FileDataWriter for MeasurementWriter<'_, N> {
         M: norfs::medium::StorageMedium,
         [(); M::BLOCK_COUNT]:,
     {
+        // Here we only store differences, but not the initial sample. The DC offset does not
+        // matter for the analysis, and we can reconstruct everything else from the differences.
         let buffers = self.0.as_bytes();
 
         let mut writer = writer.bind(storage);
