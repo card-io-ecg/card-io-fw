@@ -270,7 +270,7 @@ pub async fn ap_task(
                     }
                     if events.contains(WifiEvent::ApStop) {
                         log::info!("AP stopped");
-                        Timer::after(Duration::from_millis(5000)).await;
+                        return;
                     }
 
                     log::info!("Event processing done");
