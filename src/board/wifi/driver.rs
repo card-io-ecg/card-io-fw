@@ -229,6 +229,7 @@ pub async fn ap_task(
                 if !matches!(controller.is_started(), Ok(true)) {
                     let client_config = Configuration::AccessPoint(AccessPointConfiguration {
                         ssid: "Card/IO".into(),
+                        max_connections: 1,
                         ..Default::default()
                     });
                     controller.set_configuration(&client_config).unwrap();
