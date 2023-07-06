@@ -71,7 +71,6 @@ pub enum AppState {
 
 pub type SharedBatteryState = Mutex<NoopRawMutex, BatteryState>;
 
-static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static INT_EXECUTOR: InterruptExecutor<SwInterrupt0> = InterruptExecutor::new();
 
 macro_rules! singleton {
@@ -112,7 +111,7 @@ fn main() -> ! {
     #[cfg(feature = "hw_v2")]
     log::info!("Hardware version: v2");
 
-    let executor = EXECUTOR.init(Executor::new());
+    let executor = singleton!(Executor::new());
     executor.run(move |spawner| {
         spawner.spawn(main_task(spawner, resources)).ok();
     });
