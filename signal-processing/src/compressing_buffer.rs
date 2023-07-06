@@ -21,6 +21,8 @@ pub struct CompressingBuffer<const N: usize> {
 }
 
 impl<const N: usize> CompressingBuffer<N> {
+    pub const EMPTY: Self = Self::new();
+
     pub const fn new() -> Self {
         Self {
             write_idx: 0,
@@ -134,6 +136,14 @@ impl<const N: usize> CompressingBuffer<N> {
 
     pub fn space(&self) -> usize {
         N - self.bytes
+    }
+
+    pub fn clear(&mut self) {
+        self.bytes = 0;
+        self.element_count = 0;
+        self.write_idx = 0;
+        self.first_element = 0;
+        self.last_element = 0;
     }
 }
 
