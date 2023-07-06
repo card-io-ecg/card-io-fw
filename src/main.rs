@@ -13,7 +13,11 @@ use core::ptr::addr_of;
 use embassy_executor::{Executor, Spawner, _export::StaticCell};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex, signal::Signal};
 use embassy_time::{Duration, Timer};
-use norfs::{drivers::internal::InternalDriver, medium::cache::ReadCache, Storage, StorageError};
+use norfs::{
+    drivers::internal::InternalDriver,
+    medium::{cache::ReadCache, StorageMedium},
+    Storage, StorageError,
+};
 
 #[cfg(feature = "battery_adc")]
 use crate::board::drivers::battery_adc::monitor_task_adc;
@@ -114,6 +118,60 @@ fn main() -> ! {
     });
 }
 
+async fn setup_storage(
+) -> Option<&'static mut Storage<ReadCache<InternalDriver<ConfigPartition>, 256, 2>>> {
+    let storage = match Storage::mount(ReadCache::<_, 256, 2>::new(InternalDriver::new(
+        ConfigPartition,
+    )))
+    .await
+    {
+        Ok(storage) => Ok(storage),
+        Err(StorageError::NotFormatted) => {
+            log::info!("Formatting storage");
+            Storage::format_and_mount(ReadCache::new(InternalDriver::new(ConfigPartition))).await
+        }
+        e => e,
+    };
+
+    match storage {
+        Ok(storage) => Some(&mut *singleton!(storage)),
+        Err(e) => {
+            log::error!("Failed to mount storage: {:?}", e);
+            None
+        }
+    }
+}
+
+async fn load_config<M: StorageMedium>(storage: &mut Option<&mut Storage<M>>) -> &'static mut Config
+where
+    [(); M::BLOCK_COUNT]:,
+{
+    &mut *singleton!(if let Some(storage) = storage {
+        log::info!(
+            "Storage: {} / {} used",
+            storage.capacity() - storage.free_bytes(),
+            storage.capacity()
+        );
+
+        match storage.read("config").await {
+            Ok(mut config) => match config.read_loadable::<ConfigFile>(storage).await {
+                Ok(config) => config.into_config(),
+                Err(e) => {
+                    log::warn!("Failed to read config file: {e:?}. Reverting to defaults");
+                    Config::default()
+                }
+            },
+            Err(e) => {
+                log::warn!("Failed to load config: {e:?}. Reverting to defaults");
+                Config::default()
+            }
+        }
+    } else {
+        log::warn!("Storage unavailable. Using default config");
+        Config::default()
+    })
+}
+
 #[embassy_executor::task]
 async fn main_task(spawner: Spawner, resources: StartupResources) {
     #[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
@@ -150,51 +208,8 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
     )
     .unwrap();
 
-    let storage = match Storage::mount(ReadCache::<_, 256, 2>::new(InternalDriver::new(
-        ConfigPartition,
-    )))
-    .await
-    {
-        Ok(storage) => Ok(storage),
-        Err(StorageError::NotFormatted) => {
-            log::info!("Formatting storage");
-            Storage::format_and_mount(ReadCache::new(InternalDriver::new(ConfigPartition))).await
-        }
-        e => e,
-    };
-
-    let mut storage = match storage {
-        Ok(storage) => Some(&mut *singleton!(storage)),
-        Err(e) => {
-            log::error!("Failed to mount storage: {:?}", e);
-            None
-        }
-    };
-
-    let config = &mut *singleton!(if let Some(storage) = storage.as_mut() {
-        log::info!(
-            "Storage: {} / {} used",
-            storage.capacity() - storage.free_bytes(),
-            storage.capacity()
-        );
-
-        match storage.read("config").await {
-            Ok(mut config) => match config.read_loadable::<ConfigFile>(storage).await {
-                Ok(config) => config.into_config(),
-                Err(e) => {
-                    log::warn!("Failed to read config file: {e:?}. Reverting to defaults");
-                    Config::default()
-                }
-            },
-            Err(e) => {
-                log::warn!("Failed to load config: {e:?}. Reverting to defaults");
-                Config::default()
-            }
-        }
-    } else {
-        log::warn!("Storage unavailable. Using default config");
-        Config::default()
-    });
+    let mut storage = setup_storage().await;
+    let config = load_config(&mut storage).await;
 
     let mut board = Board {
         // If the device is awake, the display should be enabled.
