@@ -119,16 +119,15 @@ fn main() -> ! {
 }
 
 async fn setup_storage(
-) -> Option<&'static mut Storage<ReadCache<InternalDriver<ConfigPartition>, 256, 2>>> {
-    let storage = match Storage::mount(ReadCache::<_, 256, 2>::new(InternalDriver::new(
-        ConfigPartition,
-    )))
-    .await
-    {
+) -> Option<&'static mut Storage<&'static mut ReadCache<InternalDriver<ConfigPartition>, 256, 2>>> {
+    static mut READ_CACHE: ReadCache<InternalDriver<ConfigPartition>, 256, 2> =
+        ReadCache::new(InternalDriver::new(ConfigPartition));
+
+    let storage = match Storage::mount(unsafe { &mut READ_CACHE }).await {
         Ok(storage) => Ok(storage),
         Err(StorageError::NotFormatted) => {
             log::info!("Formatting storage");
-            Storage::format_and_mount(ReadCache::new(InternalDriver::new(ConfigPartition))).await
+            Storage::format_and_mount(unsafe { &mut READ_CACHE }).await
         }
         e => e,
     };

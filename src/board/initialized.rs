@@ -102,7 +102,9 @@ pub struct Board {
     pub wifi: &'static mut WifiDriver,
     pub config: &'static mut Config,
     pub config_changed: bool,
-    pub storage: Option<&'static mut Storage<ReadCache<InternalDriver<ConfigPartition>, 256, 2>>>,
+    pub storage: Option<
+        &'static mut Storage<&'static mut ReadCache<InternalDriver<ConfigPartition>, 256, 2>>,
+    >,
 }
 
 impl Board {
