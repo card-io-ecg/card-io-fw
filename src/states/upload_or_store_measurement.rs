@@ -1,5 +1,18 @@
 use core::fmt::Write;
 
+use embassy_time::{Duration, Timer};
+use embedded_graphics::{
+    mono_font::{ascii::FONT_6X10, MonoTextStyleBuilder},
+    pixelcolor::BinaryColor,
+    prelude::Dimensions,
+    Drawable,
+};
+use embedded_text::{
+    alignment::{HorizontalAlignment, VerticalAlignment},
+    style::{HeightMode, TextBoxStyleBuilder, VerticalOverdraw},
+    TextBox,
+};
+use heapless::String;
 use norfs::{writer::FileDataWriter, OnCollision, StorageError};
 use signal_processing::compressing_buffer::CompressingBuffer;
 
@@ -15,11 +28,48 @@ enum StoreMeasurement {
 pub async fn upload_or_store_measurement(board: &mut Board, next_state: AppState) -> AppState {
     let ecg = unsafe { BIG_OBJECTS.as_ecg() };
 
-    if try_to_upload(board, &mut ecg.buffer).await == StoreMeasurement::Store {
-        if let Err(e) = try_store_measurement(board, &mut ecg.buffer).await {
-            log::error!("Failed to store measurement: {e:?}");
-        }
-    }
+    // if try_to_upload(board, &mut ecg.buffer).await == StoreMeasurement::Store {
+    //     if let Err(e) = try_store_measurement(board, &mut ecg.buffer).await {
+    //         log::error!("Failed to store measurement: {e:?}");
+    //     }
+    // }
+
+    let timer = Timer::after(Duration::from_secs(3));
+    board
+        .display
+        .frame(|display| {
+            let mut string = String::<100>::new();
+
+            write!(
+                &mut string,
+                "{} samples, {} bytes",
+                ecg.buffer.len(),
+                ecg.buffer.byte_count()
+            )
+            .unwrap();
+
+            let textbox_style = TextBoxStyleBuilder::new()
+                .height_mode(HeightMode::Exact(VerticalOverdraw::FullRowsOnly))
+                .alignment(HorizontalAlignment::Center)
+                .vertical_alignment(VerticalAlignment::Bottom)
+                .build();
+            let character_style = MonoTextStyleBuilder::new()
+                .font(&FONT_6X10)
+                .text_color(BinaryColor::On) // On on normally-Off background
+                .build();
+            TextBox::with_textbox_style(
+                &string,
+                display.bounding_box(),
+                character_style,
+                textbox_style,
+            )
+            .draw(display)?;
+
+            Ok(())
+        })
+        .await;
+
+    timer.await;
 
     ecg.buffer.clear();
 
