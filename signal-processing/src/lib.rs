@@ -2,6 +2,7 @@
 
 pub mod battery;
 pub mod buffer;
+pub mod compressing_buffer;
 pub mod filter;
 pub mod heart_rate;
 pub mod i24;
