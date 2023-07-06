@@ -133,7 +133,7 @@ async fn setup_storage(
     };
 
     match storage {
-        Ok(storage) => Some(&mut *singleton!(storage)),
+        Ok(storage) => Some(singleton!(storage)),
         Err(e) => {
             log::error!("Failed to mount storage: {:?}", e);
             None
