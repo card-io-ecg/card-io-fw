@@ -10,7 +10,7 @@ use embedded_graphics_simulator::{
 };
 use gui::{
     screens::{
-        wifi_ap::{ApMenu, WifiApScreen},
+        wifi_ap::{ApMenu, WifiApScreen, WifiApScreenState},
         BatteryInfo, MENU_STYLE,
     },
     widgets::battery_small::BatteryStyle,
@@ -38,6 +38,7 @@ fn main() -> Result<(), Infallible> {
             }),
             battery_style: BatteryStyle::Icon,
             menu: ApMenu {}.create_menu_with_style(MENU_STYLE),
+            state: WifiApScreenState::Idle,
         }
         .draw(&mut display)
         .unwrap();

@@ -11,16 +11,9 @@ pub async fn main_menu(board: &mut Board) -> AppState {
 
     let menu_values = MainMenu {};
 
-    let battery_data = board.battery_monitor.battery_data().await;
-
-    if let Some(battery) = battery_data {
-        if battery.is_low {
-            return AppState::Shutdown;
-        }
-    }
     let mut menu_screen = MainMenuScreen {
         menu: menu_values.create_menu_with_style(MENU_STYLE),
-        battery_data,
+        battery_data: board.battery_monitor.battery_data().await,
         battery_style: board.config.battery_style(),
     };
 
@@ -41,6 +34,13 @@ pub async fn main_menu(board: &mut Board) -> AppState {
         }
 
         menu_screen.battery_data = board.battery_monitor.battery_data().await;
+
+        #[cfg(feature = "battery_max17055")]
+        if let Some(battery) = menu_screen.battery_data {
+            if battery.is_low {
+                return AppState::Shutdown;
+            }
+        }
 
         board
             .display
