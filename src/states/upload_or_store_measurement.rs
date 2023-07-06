@@ -1,7 +1,7 @@
 use core::fmt::Write;
 
 use norfs::{writer::FileDataWriter, OnCollision, StorageError};
-use signal_processing::{buffer::Buffer, i24::i24};
+use signal_processing::compressing_buffer::CompressingBuffer;
 
 use crate::{board::initialized::Board, states::BIG_OBJECTS, AppState};
 
@@ -28,9 +28,9 @@ pub async fn upload_or_store_measurement(board: &mut Board, next_state: AppState
 
 async fn try_to_upload<const N: usize>(
     board: &mut Board,
-    buffer: &mut Buffer<i24, N>,
+    buffer: &mut CompressingBuffer<N>,
 ) -> StoreMeasurement {
-    if buffer.len() < buffer.capacity() / 2 {
+    if buffer.len() < 15_000 {
         log::debug!("Buffer is too short to upload.");
         // We don't want to store too-short measurements.
         return StoreMeasurement::DontStore;
@@ -65,7 +65,7 @@ async fn try_to_upload<const N: usize>(
 
 async fn try_store_measurement<const N: usize>(
     board: &mut Board,
-    measurement: &mut Buffer<i24, N>,
+    measurement: &mut CompressingBuffer<N>,
 ) -> Result<(), StorageError> {
     log::debug!("Trying to store measurement");
 
@@ -131,7 +131,7 @@ async fn try_store_measurement<const N: usize>(
     Ok(())
 }
 
-struct MeasurementWriter<'a, const N: usize>(&'a Buffer<i24, N>);
+struct MeasurementWriter<'a, const N: usize>(&'a CompressingBuffer<N>);
 
 impl<const N: usize> FileDataWriter for MeasurementWriter<'_, N> {
     async fn write<M>(
