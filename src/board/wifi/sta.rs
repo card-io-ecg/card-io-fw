@@ -10,8 +10,9 @@ use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_net::{Config, Stack, StackResources};
 use embassy_time::{Duration, Timer};
+use embedded_svc::wifi::{ClientConfiguration, Configuration, Wifi as _};
 use esp_wifi::{
-    wifi::{WifiController, WifiDevice, WifiMode},
+    wifi::{WifiController, WifiDevice, WifiEvent, WifiMode},
     EspWifiInitialization,
 };
 
@@ -92,15 +93,42 @@ pub(super) async fn sta_task(
 ) {
     task_control
         .run_cancellable(async {
-            let mut connect_idx = None::<usize>;
+            let known_networks = [];
 
             let connect_to = 'select: loop {
-                if let Some(connect_to) = select_visible_known_network(controller, &[]).await {
+                if let Some(connect_to) =
+                    select_visible_known_network(controller, &known_networks).await
+                {
                     break 'select connect_to;
                 }
 
                 Timer::after(Duration::from_secs(5)).await;
             };
+
+            if !matches!(controller.is_started(), Ok(true)) {
+                controller
+                    .set_configuration(&Configuration::Client(ClientConfiguration {
+                        ssid: known_networks[connect_to].ssid.clone(),
+                        password: known_networks[connect_to].pass.clone(),
+                        ..Default::default()
+                    }))
+                    .unwrap();
+                log::info!("Starting wifi");
+                controller.start().await.unwrap();
+                log::info!("Wifi started!");
+            }
+
+            log::info!("Connecting...");
+
+            match controller.connect().await {
+                Ok(_) => log::info!("Wifi connected!"),
+                Err(e) => {
+                    log::warn!("Failed to connect to wifi: {e:?}");
+                    Timer::after(Duration::from_millis(5000)).await
+                }
+            }
+
+            controller.wait_for_event(WifiEvent::StaDisconnected).await;
         })
         .await;
 }
