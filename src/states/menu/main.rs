@@ -1,4 +1,9 @@
-use crate::{board::initialized::Board, states::MIN_FRAME_TIME, AppState};
+use crate::{
+    board::initialized::Board,
+    states::{BIG_OBJECTS, MIN_FRAME_TIME},
+    AppState,
+};
+use embassy_net::Config;
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::prelude::*;
 use gui::screens::{
@@ -7,6 +12,23 @@ use gui::screens::{
 };
 
 pub async fn main_menu(board: &mut Board) -> AppState {
+    if !board.config.known_networks.is_empty() {
+        // Enable wifi STA. This enabled wifi for the whole menu and re-enables when the user exits the
+        // wifi AP config menu.
+        board
+            .wifi
+            .initialize(&board.clocks, &mut board.peripheral_clock_control);
+
+        let wifi_resources = unsafe { BIG_OBJECTS.as_wifi_ap_resources() };
+        board
+            .wifi
+            .configure_sta(
+                Config::dhcpv4(Default::default()),
+                &mut wifi_resources.stack_resources,
+            )
+            .await;
+    }
+
     const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
 
     let menu_values = MainMenu {};

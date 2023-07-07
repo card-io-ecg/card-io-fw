@@ -76,8 +76,8 @@ impl EcgObjects {
 }
 
 pub struct WifiApResources {
-    resources: [WebserverResources; WEBSERVER_TASKS],
-    stack_resources: StackResources<3>,
+    pub resources: [WebserverResources; WEBSERVER_TASKS],
+    pub stack_resources: StackResources<3>,
 }
 
 impl WifiApResources {
