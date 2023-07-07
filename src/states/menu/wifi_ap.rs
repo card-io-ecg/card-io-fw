@@ -11,7 +11,7 @@ use config_site::{
     },
 };
 use embassy_executor::Spawner;
-use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StaticConfigV4};
+use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, StaticConfigV4};
 use embassy_time::{Duration, Instant, Ticker, Timer};
 use embedded_graphics::Drawable;
 use esp_wifi::wifi::WifiDevice;
@@ -21,7 +21,7 @@ use gui::{
 };
 
 use crate::{
-    board::initialized::Board,
+    board::{initialized::Board, wifi::ap::Ap},
     states::{AppMenu, MIN_FRAME_TIME, WEBSERVER_TASKS},
     task_control::{TaskControlToken, TaskController},
     AppState,
@@ -30,7 +30,7 @@ use crate::{
 pub async fn wifi_ap(board: &mut Board) -> AppState {
     board.wifi.initialize(&board.clocks);
 
-    let stack = board
+    let ap = board
         .wifi
         .configure_ap(Config::ipv4_static(StaticConfigV4 {
             address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
@@ -47,11 +47,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
     let webserver_task_control = [(); WEBSERVER_TASKS].map(|_| TaskController::new());
     for control in webserver_task_control.iter() {
-        spawner.must_spawn(webserver_task(
-            stack.clone(),
-            context.clone(),
-            control.token(),
-        ));
+        spawner.must_spawn(webserver_task(ap.clone(), context.clone(), control.token()));
     }
 
     let mut screen = WifiApScreen::new(StatusBar {
@@ -77,7 +73,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
         screen.status_bar.update_battery_data(battery_data);
 
-        screen.state = if board.wifi.ap_client_count().await > 0 {
+        screen.state = if ap.client_count() > 0 {
             WifiApScreenState::Connected
         } else {
             if screen.state == WifiApScreenState::Connected || board.frontend.is_touched() {
@@ -132,7 +128,7 @@ struct WebserverResources {
 
 #[embassy_executor::task(pool_size = WEBSERVER_TASKS)]
 async fn webserver_task(
-    stack: Rc<Stack<WifiDevice<'static>>>,
+    ap: Ap,
     context: Rc<SharedWebContext>,
     mut task_control: TaskControlToken<()>,
 ) {
@@ -145,12 +141,15 @@ async fn webserver_task(
                 request_buffer: [0; 2048],
             });
 
-            while !stack.is_link_up() {
+            while !ap.is_active() {
                 Timer::after(Duration::from_millis(500)).await;
             }
 
-            let mut socket =
-                TcpSocket::new(&stack, &mut resources.rx_buffer, &mut resources.tx_buffer);
+            let mut socket = TcpSocket::new(
+                ap.stack(),
+                &mut resources.rx_buffer,
+                &mut resources.tx_buffer,
+            );
             socket.set_timeout(Some(Duration::from_secs(10)));
 
             BadServer::new()

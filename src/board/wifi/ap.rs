@@ -23,6 +23,26 @@ use esp_wifi::{
     EspWifiInitialization,
 };
 
+#[derive(Clone)]
+pub struct Ap {
+    stack: Rc<Stack<WifiDevice<'static>>>,
+    client_count: Rc<AtomicU32>,
+}
+
+impl Ap {
+    pub fn is_active(&self) -> bool {
+        self.stack.is_link_up()
+    }
+
+    pub fn stack(&self) -> &Stack<WifiDevice<'static>> {
+        &self.stack
+    }
+
+    pub fn client_count(&self) -> u32 {
+        self.client_count.load(Ordering::Acquire)
+    }
+}
+
 pub(super) struct ApState {
     init: EspWifiInitialization,
     controller: Rc<Mutex<NoopRawMutex, WifiController<'static>>>,
@@ -83,7 +103,11 @@ impl ApState {
         }
     }
 
-    pub(super) async fn start(&mut self) -> Rc<Stack<WifiDevice<'static>>> {
+    pub(super) fn unwrap(self) -> EspWifiInitialization {
+        self.init
+    }
+
+    pub(super) async fn start(&mut self) -> Ap {
         if !self.started {
             log::info!("Starting AP");
             let spawner = Spawner::for_current_executor().await;
@@ -100,7 +124,10 @@ impl ApState {
             self.started = true;
         }
 
-        self.stack.clone()
+        Ap {
+            stack: self.stack.clone(),
+            client_count: self.client_count.clone(),
+        }
     }
 
     pub(super) async fn stop(&mut self) {
@@ -123,10 +150,6 @@ impl ApState {
 
     pub(super) fn is_running(&self) -> bool {
         !self.connection_task_control.has_exited() && !self.net_task_control.has_exited()
-    }
-
-    pub(super) async fn client_count(&self) -> u32 {
-        self.client_count.load(Ordering::Acquire)
     }
 }
 
