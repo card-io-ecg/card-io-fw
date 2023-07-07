@@ -65,6 +65,10 @@ impl ApState {
         }
     }
 
+    pub(super) fn unwrap(self) -> EspWifiInitialization {
+        self.init
+    }
+
     pub(super) async fn start(&mut self) -> &mut Stack<WifiDevice<'static>> {
         if !self.started {
             log::info!("Starting AP");
