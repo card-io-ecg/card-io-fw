@@ -98,6 +98,9 @@ pub(super) async fn sta_task(
             loop {
                 if !matches!(controller.is_started(), Ok(true)) {
                     log::info!("Starting wifi");
+                    controller
+                        .set_configuration(&Configuration::Client(ClientConfiguration::default()))
+                        .unwrap();
                     controller.start().await.unwrap();
                     log::info!("Wifi started!");
                 }
