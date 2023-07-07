@@ -1,10 +1,14 @@
 use core::{convert::Infallible, future::Future};
 
+use embassy_time::Delay;
 use embedded_hal::{
     digital::{ErrorType as DigitalErrorType, OutputPin},
     spi::{ErrorType as SpiErrorType, Operation},
 };
-use embedded_hal_async::spi::{SpiBus, SpiDevice, SpiDeviceRead, SpiDeviceWrite};
+use embedded_hal_async::{
+    delay::DelayUs,
+    spi::{SpiBus, SpiDevice},
+};
 
 pub struct DummyOutputPin;
 impl DigitalErrorType for DummyOutputPin {
@@ -60,38 +64,6 @@ where
     }
 }
 
-impl<SPI, CS> SpiDeviceRead for SpiDeviceWrapper<SPI, CS>
-where
-    SPI: SpiBus,
-    CS: OutputPin,
-{
-    async fn read_transaction(&mut self, operations: &mut [&mut [u8]]) -> Result<(), Self::Error> {
-        self.lock_device(|spi| async {
-            for op in operations {
-                spi.read(op).await?;
-            }
-            Ok(())
-        })
-        .await
-    }
-}
-
-impl<SPI, CS> SpiDeviceWrite for SpiDeviceWrapper<SPI, CS>
-where
-    SPI: SpiBus,
-    CS: OutputPin,
-{
-    async fn write_transaction(&mut self, operations: &[&[u8]]) -> Result<(), Self::Error> {
-        self.lock_device(|spi| async {
-            for op in operations {
-                spi.write(op).await?;
-            }
-            Ok(())
-        })
-        .await
-    }
-}
-
 impl<SPI, CS> SpiDevice for SpiDeviceWrapper<SPI, CS>
 where
     SPI: SpiBus,
@@ -103,15 +75,26 @@ where
     ) -> Result<(), Self::Error> {
         self.lock_device(|spi| async {
             for op in operations {
-                match op {
-                    Operation::Read(buf) => spi.read(buf).await?,
-                    Operation::Write(buf) => spi.write(buf).await?,
-                    Operation::Transfer(r, w) => spi.transfer(r, w).await?,
-                    Operation::TransferInPlace(buf) => spi.transfer_in_place(buf).await?,
+                let res = match op {
+                    Operation::Read(buf) => spi.read(buf).await,
+                    Operation::Write(buf) => spi.write(buf).await,
+                    Operation::Transfer(r, w) => spi.transfer(r, w).await,
+                    Operation::TransferInPlace(buf) => spi.transfer_in_place(buf).await,
+                    Operation::DelayUs(us) => match spi.flush().await {
+                        Err(e) => Err(e),
+                        Ok(()) => {
+                            Delay.delay_us(*us).await;
+                            Ok(())
+                        }
+                    },
+                };
+
+                if let Err(e) = res {
+                    return Err(e);
                 }
             }
 
-            Ok(())
+            spi.flush().await
         })
         .await
     }
