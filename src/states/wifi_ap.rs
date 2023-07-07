@@ -19,7 +19,7 @@ use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen, WifiApScreenState};
 use crate::{
     board::{
         initialized::Board,
-        wifi::driver::{as_static_mut, as_static_ref},
+        wifi::{as_static_mut, as_static_ref},
     },
     states::{WebserverResources, BIG_OBJECTS, MIN_FRAME_TIME, WEBSERVER_TASKS},
     task_control::TaskController,

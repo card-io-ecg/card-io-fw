@@ -30,7 +30,7 @@ use crate::{
         },
         startup::WIFI_DRIVER,
         utils::{DummyOutputPin, SpiDeviceWrapper},
-        wifi::driver::WifiDriver,
+        wifi::WifiDriver,
         *,
     },
     heap::init_heap,

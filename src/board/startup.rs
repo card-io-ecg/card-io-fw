@@ -18,7 +18,7 @@ use crate::board::{
         Spi,
     },
     utils::{DummyOutputPin, SpiDeviceWrapper},
-    wifi::driver::WifiDriver,
+    wifi::WifiDriver,
     AdcChipSelect, AdcClockEnable, AdcDmaChannel, AdcDrdy, AdcMiso, AdcMosi, AdcReset, AdcSclk,
     AdcSpiInstance, Display, DisplayChipSelect, DisplayDataCommand, DisplayDmaChannel, DisplayMosi,
     DisplayReset, DisplaySclk, DisplaySpiInstance, EcgFrontend, MiscPins, TouchDetect,
