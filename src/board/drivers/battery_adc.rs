@@ -1,7 +1,9 @@
 use crate::{
     board::hal::{
-        adc::{AdcConfig, AdcPin, Attenuation, RegisterAccess, ADC},
-        efuse::Efuse,
+        adc::{
+            AdcCalEfuse, AdcCalLine, AdcConfig, AdcHasLineCal, AdcPin, Attenuation,
+            CalibrationAccess, ADC,
+        },
         peripheral::Peripheral,
         prelude::*,
     },
@@ -18,36 +20,20 @@ pub struct BatteryAdcData {
     pub charge_current: u16,
 }
 
-struct AdcCalibration {
-    // Assumption is that this is the ADC output @ 850mV
-    calibration_factor: u32,
-}
-
-impl AdcCalibration {
-    fn new(attenuation: Attenuation) -> Self {
-        let (d, _v) = Efuse::adc2_get_cal_voltage(attenuation);
-
-        Self {
-            calibration_factor: 100_000 * 925 / d,
-        }
-    }
-
-    fn raw_to_mv(&self, raw: u16) -> u16 {
-        ((raw as u32 * self.calibration_factor) / 100_000) as u16
-    }
-}
-
 pub struct BatteryAdc<V, A, EN, ADCI: 'static> {
-    pub voltage_in: AdcPin<V, ADCI>,
-    pub current_in: AdcPin<A, ADCI>,
+    pub voltage_in: AdcPin<V, ADCI, AdcCalLine<ADCI>>,
+    pub current_in: AdcPin<A, ADCI, AdcCalLine<ADCI>>,
     pub enable: EN,
     pub adc: ADC<'static, ADCI>,
-    calibration: AdcCalibration,
+}
+
+fn raw_to_mv(raw: u16) -> u16 {
+    (raw as u32 * Attenuation::Attenuation11dB.ref_mv() as u32 / 4096) as u16
 }
 
 impl<V, A, EN, ADCI> BatteryAdc<V, A, EN, ADCI>
 where
-    ADCI: RegisterAccess + 'static + Peripheral<P = ADCI>,
+    ADCI: CalibrationAccess + AdcCalEfuse + AdcHasLineCal + 'static + Peripheral<P = ADCI>,
     ADC<'static, ADCI>: OneShot<ADCI, u16, AdcPin<V, ADCI>>,
     ADC<'static, ADCI>: OneShot<ADCI, u16, AdcPin<A, ADCI>>,
     V: Channel<ADCI, ID = u8>,
@@ -57,11 +43,10 @@ where
         let mut adc_config = AdcConfig::new();
 
         Self {
-            voltage_in: adc_config.enable_pin(voltage_in, Attenuation::Attenuation11dB),
-            current_in: adc_config.enable_pin(current_in, Attenuation::Attenuation11dB),
+            voltage_in: adc_config.enable_pin_with_cal(voltage_in, Attenuation::Attenuation11dB),
+            current_in: adc_config.enable_pin_with_cal(current_in, Attenuation::Attenuation11dB),
             enable,
             adc: ADC::adc(adc, adc_config).unwrap(),
-            calibration: AdcCalibration::new(Attenuation::Attenuation11dB),
         }
     }
 
@@ -69,9 +54,7 @@ where
         loop {
             match self.adc.read(&mut self.voltage_in) {
                 Ok(out) => {
-                    return Ok(self
-                        .calibration
-                        .raw_to_mv(((out as u32 * 4200) / 2000) as u16)); // 2x Voltage divider + some weirdness
+                    return Ok(2 * raw_to_mv(out)); // 2x voltage divider
                 }
                 Err(nb::Error::Other(_e)) => return Err(()),
                 Err(nb::Error::WouldBlock) => yield_now().await,
@@ -82,7 +65,7 @@ where
     pub async fn read_charge_current(&mut self) -> Result<u16, ()> {
         loop {
             match self.adc.read(&mut self.current_in) {
-                Ok(out) => return Ok(self.calibration.raw_to_mv(out)),
+                Ok(out) => return Ok(raw_to_mv(out)),
                 Err(nb::Error::Other(_e)) => return Err(()),
                 Err(nb::Error::WouldBlock) => yield_now().await,
             }
