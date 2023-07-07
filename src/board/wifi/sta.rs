@@ -95,17 +95,23 @@ pub(super) async fn sta_task(
         .run_cancellable(async {
             let known_networks = [];
 
-            let connect_to = 'select: loop {
-                if let Some(connect_to) =
-                    select_visible_known_network(controller, &known_networks).await
-                {
-                    break 'select connect_to;
+            loop {
+                if !matches!(controller.is_started(), Ok(true)) {
+                    log::info!("Starting wifi");
+                    controller.start().await.unwrap();
+                    log::info!("Wifi started!");
                 }
 
-                Timer::after(Duration::from_secs(5)).await;
-            };
+                let connect_to = 'select: loop {
+                    if let Some(connect_to) =
+                        select_visible_known_network(controller, &known_networks).await
+                    {
+                        break 'select connect_to;
+                    }
 
-            if !matches!(controller.is_started(), Ok(true)) {
+                    Timer::after(Duration::from_secs(5)).await;
+                };
+
                 controller
                     .set_configuration(&Configuration::Client(ClientConfiguration {
                         ssid: known_networks[connect_to].ssid.clone(),
@@ -113,22 +119,19 @@ pub(super) async fn sta_task(
                         ..Default::default()
                     }))
                     .unwrap();
-                log::info!("Starting wifi");
-                controller.start().await.unwrap();
-                log::info!("Wifi started!");
-            }
 
-            log::info!("Connecting...");
+                log::info!("Connecting...");
 
-            match controller.connect().await {
-                Ok(_) => log::info!("Wifi connected!"),
-                Err(e) => {
-                    log::warn!("Failed to connect to wifi: {e:?}");
-                    Timer::after(Duration::from_millis(5000)).await
+                match controller.connect().await {
+                    Ok(_) => log::info!("Wifi connected!"),
+                    Err(e) => {
+                        log::warn!("Failed to connect to wifi: {e:?}");
+                        Timer::after(Duration::from_millis(5000)).await
+                    }
                 }
-            }
 
-            controller.wait_for_event(WifiEvent::StaDisconnected).await;
+                controller.wait_for_event(WifiEvent::StaDisconnected).await;
+            }
         })
         .await;
 }
