@@ -5,6 +5,7 @@ use crate::{
     },
     task_control::TaskController,
 };
+use config_site::data::network::WifiNetwork;
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_net::{Config, Stack, StackResources};
@@ -93,24 +94,32 @@ pub(super) async fn sta_task(
         .run_cancellable(async {
             let mut connect_idx = None::<usize>;
 
-            loop {
-                match controller.scan_n::<8>().await {
-                    Ok((networks, _)) => {
-                        for network in networks {
-                            log::info!(
-                                "Found network: {} (RSSI: {})",
-                                network.ssid,
-                                network.signal_strength
-                            );
-                        }
-                    }
-                    Err(err) => log::warn!("Scan failed: {err:?}"),
+            let connect_to = 'select: loop {
+                if let Some(connect_to) = select_visible_known_network(controller, &[]).await {
+                    break 'select connect_to;
                 }
 
-                if connect_idx.is_none() {
-                    Timer::after(Duration::from_secs(5)).await;
-                }
-            }
+                Timer::after(Duration::from_secs(5)).await;
+            };
         })
         .await;
+}
+
+async fn select_visible_known_network(
+    controller: &mut WifiController<'static>,
+    known_networks: &[WifiNetwork],
+) -> Option<usize> {
+    match controller.scan_n::<8>().await {
+        Ok((mut networks, _)) => {
+            // Sort by signal strength, desc
+            networks.sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
+            for network in networks {
+                if let Some(pos) = known_networks.iter().position(|n| n.ssid == network.ssid) {
+                    return Some(pos);
+                }
+            }
+        }
+        Err(err) => log::warn!("Scan failed: {err:?}"),
+    }
+    None
 }
