@@ -20,7 +20,7 @@ pub(super) struct ApState {
     controller: WifiController<'static>,
     stack: Stack<WifiDevice<'static>>,
     connection_task_control: TaskController<()>,
-    net_task_control: TaskController<()>,
+    net_task_control: TaskController<!>,
     client_count: Mutex<NoopRawMutex, u32>,
     started: bool,
 }

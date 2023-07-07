@@ -3,6 +3,7 @@
 #![feature(async_fn_in_trait)]
 #![feature(type_alias_impl_trait)]
 #![feature(let_chains)]
+#![feature(never_type)] // Wifi net_task
 #![feature(generic_const_exprs)] // norfs needs this
 #![allow(incomplete_features)] // generic_const_exprs, async_fn_in_trait
 
