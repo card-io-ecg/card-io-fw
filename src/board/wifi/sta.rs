@@ -8,6 +8,7 @@ use crate::{
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_net::{Config, Stack, StackResources};
+use embassy_time::{Duration, Timer};
 use esp_wifi::{
     wifi::{WifiController, WifiDevice, WifiMode},
     EspWifiInitialization,
@@ -88,5 +89,28 @@ pub(super) async fn sta_task(
     controller: &'static mut WifiController<'static>,
     task_control: &'static TaskController<()>,
 ) {
-    task_control.run_cancellable(async { todo!() }).await;
+    task_control
+        .run_cancellable(async {
+            let mut connect_idx = None::<usize>;
+
+            loop {
+                match controller.scan_n::<8>().await {
+                    Ok((networks, _)) => {
+                        for network in networks {
+                            log::info!(
+                                "Found network: {} (RSSI: {})",
+                                network.ssid,
+                                network.signal_strength
+                            );
+                        }
+                    }
+                    Err(err) => log::warn!("Scan failed: {err:?}"),
+                }
+
+                if connect_idx.is_none() {
+                    Timer::after(Duration::from_secs(5)).await;
+                }
+            }
+        })
+        .await;
 }
