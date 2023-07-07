@@ -143,11 +143,7 @@ impl WifiDriver {
 #[embassy_executor::task]
 pub async fn net_task(
     stack: &'static Stack<WifiDevice<'static>>,
-    task_control: &'static TaskController<()>,
+    task_control: &'static TaskController<!>,
 ) {
-    task_control
-        .run_cancellable(async {
-            stack.run().await;
-        })
-        .await;
+    task_control.run_cancellable(stack.run()).await;
 }
