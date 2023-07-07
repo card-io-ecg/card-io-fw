@@ -2,7 +2,7 @@ use crate::{
     board::{
         config::{Config, ConfigFile},
         hal::{clock::Clocks, system::PeripheralClockControl},
-        wifi::driver::WifiDriver,
+        wifi::WifiDriver,
         ChargerStatus, EcgFrontend, PoweredDisplay, VbusDetect,
     },
     SharedBatteryState,
