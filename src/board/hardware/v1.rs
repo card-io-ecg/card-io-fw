@@ -146,6 +146,8 @@ impl super::startup::StartupResources {
                     peripherals.TIMG1,
                     peripherals.RNG,
                     system.radio_clock_control,
+                    &clocks,
+                    &mut system.peripheral_clock_control,
                 )
             }),
             clocks,

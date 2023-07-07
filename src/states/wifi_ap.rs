@@ -27,9 +27,7 @@ use crate::{
 };
 
 pub async fn wifi_ap(board: &mut Board) -> AppState {
-    board
-        .wifi
-        .initialize(&board.clocks, &mut board.peripheral_clock_control);
+    board.wifi.initialize(&board.clocks);
 
     let wifi_resources = unsafe { BIG_OBJECTS.as_wifi_ap_resources() };
     let stack = board
