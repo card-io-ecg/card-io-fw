@@ -35,7 +35,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         .configure_ap(
             Config::ipv4_static(StaticConfigV4 {
                 address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
-                gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
+                gateway: Some(Ipv4Address::new(192, 168, 2, 1)),
                 dns_servers: Default::default(),
             }),
             &mut wifi_resources.stack_resources,
