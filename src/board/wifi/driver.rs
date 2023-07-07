@@ -4,8 +4,8 @@ use crate::{
         peripherals::{RNG, TIMG1},
         radio::Wifi,
         system::{PeripheralClockControl, RadioClockControl},
-        timer::TimerGroup,
-        Rng,
+        timer::{Timer0, TimerGroup},
+        Rng, Timer,
     },
     replace_with::replace_with_or_abort_async,
     task_control::TaskController,
@@ -113,7 +113,7 @@ impl ApState {
 #[allow(clippy::large_enum_variant)]
 enum WifiDriverState {
     Uninitialized {
-        timer: TIMG1,
+        timer: Timer<Timer0<TIMG1>>,
         rng: Rng<'static>,
         rcc: RadioClockControl,
     },
@@ -123,15 +123,38 @@ enum WifiDriverState {
     AP(ApState),
 }
 
+impl WifiDriverState {
+    fn initialize(self, clocks: &Clocks<'_>) -> Self {
+        if let WifiDriverState::Uninitialized { timer, rng, rcc } = self {
+            WifiDriverState::Initialized {
+                init: esp_wifi::initialize(EspWifiInitFor::Wifi, timer, rng, rcc, clocks).unwrap(),
+            }
+        } else {
+            self
+        }
+    }
+}
+
 impl WifiDriver {
-    pub fn new(wifi: Wifi, timer: TIMG1, rng: RNG, rcc: RadioClockControl) -> Self {
+    pub fn new(
+        wifi: Wifi,
+        timer: TIMG1,
+        rng: RNG,
+        rcc: RadioClockControl,
+        clocks: &Clocks,
+        pcc: &mut PeripheralClockControl,
+    ) -> Self {
         let mut rng = Rng::new(rng);
         let mut seed_bytes = [0; 8];
         rng.read(&mut seed_bytes).unwrap();
         Self {
             wifi,
             rng: WyRng::from_seed(seed_bytes),
-            state: WifiDriverState::Uninitialized { timer, rng, rcc },
+            state: WifiDriverState::Uninitialized {
+                timer: TimerGroup::new(timer, clocks, pcc).timer0,
+                rng,
+                rcc,
+            },
         }
     }
 
@@ -164,18 +187,8 @@ impl WifiDriver {
         }
     }
 
-    pub fn initialize(&mut self, clocks: &Clocks, pcc: &mut PeripheralClockControl) {
-        replace_with_or_abort(&mut self.state, |this| match this {
-            WifiDriverState::Uninitialized { timer, rng, rcc } => {
-                let timer = TimerGroup::new(timer, clocks, pcc).timer0;
-
-                let init =
-                    esp_wifi::initialize(EspWifiInitFor::Wifi, timer, rng, rcc, clocks).unwrap();
-
-                WifiDriverState::Initialized { init }
-            }
-            _ => this,
-        })
+    pub fn initialize(&mut self, clocks: &Clocks) {
+        replace_with_or_abort(&mut self.state, |this| this.initialize(clocks))
     }
 
     pub async fn ap_client_count(&self) -> u32 {
