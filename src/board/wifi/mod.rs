@@ -8,7 +8,7 @@ use crate::{
             timer::{Timer0, TimerGroup},
             Rng, Timer,
         },
-        wifi::ap::ApState,
+        wifi::{ap::ApState, sta::StaState},
     },
     replace_with::replace_with_or_abort_async,
     task_control::TaskController,
@@ -29,6 +29,7 @@ pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
 }
 
 pub mod ap;
+pub mod sta;
 
 pub struct WifiDriver {
     wifi: Wifi,
@@ -47,6 +48,7 @@ enum WifiDriverState {
         init: EspWifiInitialization,
     },
     AP(ApState),
+    STA(StaState),
 }
 
 impl WifiDriverState {
@@ -84,37 +86,76 @@ impl WifiDriver {
         }
     }
 
+    pub fn initialize(&mut self, clocks: &Clocks) {
+        replace_with_or_abort(&mut self.state, |this| this.initialize(clocks))
+    }
+
     pub async fn configure_ap<'d>(
         &'d mut self,
         config: Config,
         resources: &'static mut StackResources<3>,
     ) -> &'d mut Stack<WifiDevice<'static>> {
         replace_with_or_abort_async(&mut self.state, |this| async {
-            match this {
+            let init = match this {
                 WifiDriverState::Uninitialized { .. } => unreachable!(),
-                WifiDriverState::Initialized { init } => WifiDriverState::AP(ApState::new(
-                    init,
-                    config,
-                    unsafe { as_static_mut(&mut self.wifi) },
-                    resources,
-                    self.rng.next_u64(),
-                )),
-                WifiDriverState::AP { .. } => this,
-            }
+                WifiDriverState::Initialized { init } => init,
+                WifiDriverState::AP(_) => return this,
+                WifiDriverState::STA(sta) => sta.deinit().await,
+            };
+
+            WifiDriverState::AP(ApState::new(
+                init,
+                config,
+                unsafe { as_static_mut(&mut self.wifi) },
+                resources,
+                self.rng.next_u64(),
+            ))
         })
         .await;
 
         match &mut self.state {
             WifiDriverState::AP(ap) => ap.start().await,
 
-            WifiDriverState::Uninitialized { .. } | WifiDriverState::Initialized { .. } => {
+            WifiDriverState::Uninitialized { .. }
+            | WifiDriverState::Initialized { .. }
+            | WifiDriverState::STA(_) => {
                 unreachable!()
             }
         }
     }
 
-    pub fn initialize(&mut self, clocks: &Clocks) {
-        replace_with_or_abort(&mut self.state, |this| this.initialize(clocks))
+    pub async fn configure_sta<'d>(
+        &'d mut self,
+        config: Config,
+        resources: &'static mut StackResources<3>,
+    ) -> &'d mut Stack<WifiDevice<'static>> {
+        replace_with_or_abort_async(&mut self.state, |this| async {
+            let init = match this {
+                WifiDriverState::Uninitialized { .. } => unreachable!(),
+                WifiDriverState::Initialized { init } => init,
+                WifiDriverState::AP(ap) => ap.deinit().await,
+                WifiDriverState::STA(_) => return this,
+            };
+
+            WifiDriverState::STA(StaState::new(
+                init,
+                config,
+                unsafe { as_static_mut(&mut self.wifi) },
+                resources,
+                self.rng.next_u64(),
+            ))
+        })
+        .await;
+
+        match &mut self.state {
+            WifiDriverState::STA(sta) => sta.start().await,
+
+            WifiDriverState::Uninitialized { .. }
+            | WifiDriverState::Initialized { .. }
+            | WifiDriverState::AP(_) => {
+                unreachable!()
+            }
+        }
     }
 
     pub async fn ap_client_count(&self) -> u32 {
@@ -125,15 +166,25 @@ impl WifiDriver {
         }
     }
 
-    pub async fn stop_ap(&mut self) {
-        if let WifiDriverState::AP(ap) = &mut self.state {
-            ap.stop().await;
+    pub async fn stop_if(&mut self) {
+        match &mut self.state {
+            WifiDriverState::AP(ap) => ap.stop().await,
+            WifiDriverState::STA(sta) => sta.stop().await,
+            _ => {}
         }
     }
 
     pub fn ap_running(&self) -> bool {
         if let WifiDriverState::AP(ap) = &self.state {
             ap.is_running()
+        } else {
+            false
+        }
+    }
+
+    pub fn sta_connected(&self) -> bool {
+        if let WifiDriverState::STA(sta) = &self.state {
+            sta.is_connected()
         } else {
             false
         }

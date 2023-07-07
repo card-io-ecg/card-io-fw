@@ -16,7 +16,7 @@ use esp_wifi::{
 };
 
 pub(super) struct ApState {
-    _init: EspWifiInitialization,
+    init: EspWifiInitialization,
     controller: WifiController<'static>,
     stack: Stack<WifiDevice<'static>>,
     connection_task_control: TaskController<()>,
@@ -27,17 +27,16 @@ pub(super) struct ApState {
 
 impl ApState {
     pub(super) fn new(
-        _init: EspWifiInitialization,
+        init: EspWifiInitialization,
         config: Config,
         wifi: &'static mut Wifi,
         resources: &'static mut StackResources<3>,
         random_seed: u64,
     ) -> Self {
-        let (wifi_interface, controller) =
-            esp_wifi::wifi::new_with_mode(&_init, wifi, WifiMode::Ap);
+        let (wifi_interface, controller) = esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap);
 
         Self {
-            _init,
+            init,
             controller,
             stack: Stack::new(wifi_interface, config, resources, random_seed),
             connection_task_control: TaskController::new(),
@@ -45,6 +44,11 @@ impl ApState {
             client_count: Mutex::new(0),
             started: false,
         }
+    }
+
+    pub(super) async fn deinit(mut self) -> EspWifiInitialization {
+        self.stop().await;
+        self.init
     }
 
     pub(super) async fn start(&mut self) -> &mut Stack<WifiDevice<'static>> {
