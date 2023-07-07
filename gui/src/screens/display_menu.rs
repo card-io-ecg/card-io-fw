@@ -3,6 +3,7 @@ use embedded_graphics::{
     prelude::{DrawTarget, Point},
     Drawable,
 };
+use embedded_io::asynch::{Read, Write};
 use embedded_layout::prelude::{horizontal, vertical, Align};
 use embedded_menu::{
     interaction::single_touch::SingleTouch,
@@ -10,13 +11,7 @@ use embedded_menu::{
     selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
     Menu, SelectValue,
 };
-use norfs::{
-    medium::StorageMedium,
-    reader::BoundReader,
-    storable::{LoadError, Loadable, Storable},
-    writer::BoundWriter,
-    StorageError,
-};
+use norfs::storable::{LoadError, Loadable, Storable};
 
 use crate::{
     screens::BatteryInfo,
@@ -38,11 +33,7 @@ pub enum DisplayBrightness {
 }
 
 impl Loadable for DisplayBrightness {
-    async fn load<M>(reader: &mut BoundReader<'_, M>) -> Result<Self, LoadError>
-    where
-        M: StorageMedium,
-        [(); M::BLOCK_COUNT]: Sized,
-    {
+    async fn load<R: Read>(reader: &mut R) -> Result<Self, LoadError<R::Error>> {
         let data = match u8::load(reader).await? {
             0 => Self::Dimmest,
             1 => Self::Dim,
@@ -57,11 +48,7 @@ impl Loadable for DisplayBrightness {
 }
 
 impl Storable for DisplayBrightness {
-    async fn store<M>(&self, writer: &mut BoundWriter<'_, M>) -> Result<(), StorageError>
-    where
-        M: StorageMedium,
-        [(); M::BLOCK_COUNT]: Sized,
-    {
+    async fn store<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
         (*self as u8).store(writer).await
     }
 }
@@ -86,11 +73,7 @@ impl SelectValue for BatteryStyle {
 }
 
 impl Loadable for BatteryStyle {
-    async fn load<M>(reader: &mut BoundReader<'_, M>) -> Result<Self, LoadError>
-    where
-        M: StorageMedium,
-        [(); M::BLOCK_COUNT]: Sized,
-    {
+    async fn load<R: Read>(reader: &mut R) -> Result<Self, LoadError<R::Error>> {
         let data = match u8::load(reader).await? {
             0 => Self::MilliVolts,
             1 => Self::Percentage,
@@ -104,11 +87,7 @@ impl Loadable for BatteryStyle {
 }
 
 impl Storable for BatteryStyle {
-    async fn store<M>(&self, writer: &mut BoundWriter<'_, M>) -> Result<(), StorageError>
-    where
-        M: StorageMedium,
-        [(); M::BLOCK_COUNT]: Sized,
-    {
+    async fn store<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
         (*self as u8).store(writer).await
     }
 }

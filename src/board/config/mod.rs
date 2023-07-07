@@ -3,13 +3,8 @@ pub mod v1;
 
 pub use current::Config;
 
-use norfs::{
-    medium::StorageMedium,
-    reader::BoundReader,
-    storable::{LoadError, Loadable, Storable},
-    writer::BoundWriter,
-    StorageError,
-};
+use embedded_io::asynch::{Read, Write};
+use norfs::storable::{LoadError, Loadable, Storable};
 
 #[derive(Clone)]
 #[allow(clippy::large_enum_variant)]
@@ -43,11 +38,7 @@ impl ConfigFile {
 }
 
 impl Loadable for ConfigFile {
-    async fn load<M>(reader: &mut BoundReader<'_, M>) -> Result<Self, LoadError>
-    where
-        M: StorageMedium,
-        [(); M::BLOCK_COUNT]: Sized,
-    {
+    async fn load<R: Read>(reader: &mut R) -> Result<Self, LoadError<R::Error>> {
         let data = match u8::load(reader).await? {
             0 => Self::V1(v1::Config::load(reader).await?),
             1 => Self::V2(Config::load(reader).await?),
@@ -59,11 +50,7 @@ impl Loadable for ConfigFile {
 }
 
 impl Storable for ConfigFile {
-    async fn store<M>(&self, writer: &mut BoundWriter<'_, M>) -> Result<(), StorageError>
-    where
-        M: StorageMedium,
-        [(); M::BLOCK_COUNT]: Sized,
-    {
+    async fn store<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
         match self {
             Self::V1(config) => {
                 0u8.store(writer).await?;

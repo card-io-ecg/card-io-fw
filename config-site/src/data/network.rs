@@ -1,11 +1,7 @@
 #[cfg(feature = "embedded")]
-use norfs::{
-    medium::StorageMedium,
-    reader::BoundReader,
-    storable::{LoadError, Loadable, Storable},
-    writer::BoundWriter,
-    StorageError,
-};
+use embedded_io::asynch::{Read, Write};
+#[cfg(feature = "embedded")]
+use norfs::storable::{LoadError, Loadable, Storable};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct WifiNetwork {
@@ -15,11 +11,7 @@ pub struct WifiNetwork {
 
 #[cfg(feature = "embedded")]
 impl Loadable for WifiNetwork {
-    async fn load<M>(reader: &mut BoundReader<'_, M>) -> Result<Self, LoadError>
-    where
-        M: StorageMedium,
-        [(); M::BLOCK_COUNT]: Sized,
-    {
+    async fn load<R: Read>(reader: &mut R) -> Result<Self, LoadError<R::Error>> {
         let ssid = heapless::String::<32>::load(reader).await?;
         let pass = heapless::String::<64>::load(reader).await?;
         Ok(Self { ssid, pass })
@@ -28,11 +20,7 @@ impl Loadable for WifiNetwork {
 
 #[cfg(feature = "embedded")]
 impl Storable for WifiNetwork {
-    async fn store<M>(&self, writer: &mut BoundWriter<'_, M>) -> Result<(), StorageError>
-    where
-        M: StorageMedium,
-        [(); M::BLOCK_COUNT]: Sized,
-    {
+    async fn store<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
         self.ssid.store(writer).await?;
         self.pass.store(writer).await?;
         Ok(())
