@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 byteorder = { version = "1.4.3", default-features = false }
 device-descriptor = { path = "../device-descriptor" }
-embedded-hal = "1.0.0-alpha.10"
-embedded-hal-async = "0.2.0-alpha.1"
+embedded-hal = "1.0.0-alpha.11"
+embedded-hal-async = "0.2.0-alpha.2"
 log = "0.4.18"
 register-access = { path = "../register-access" }

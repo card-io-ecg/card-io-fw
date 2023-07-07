@@ -14,8 +14,8 @@ embassy-sync = { version = "0.2.0" }
 embassy-net = { version = "0.1.0", features = ["nightly", "tcp", "udp", "dhcpv4", "medium-ethernet"] }
 
 embedded-hal-old = { package = "embedded-hal", version = "0.2.7" }
-embedded-hal = { version = "1.0.0-alpha.10" }
-embedded-hal-async = { version = "0.2.0-alpha.1" }
+embedded-hal = { version = "1.0.0-alpha.11" }
+embedded-hal-async = { version = "0.2.0-alpha.2" }
 
 embedded-io = "0.4"
 embedded-svc = { version = "0.25", default-features = false, features = [] }
