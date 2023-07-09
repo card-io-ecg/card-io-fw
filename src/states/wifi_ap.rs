@@ -116,7 +116,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         let _ = control.stop_from_outside().await;
     }
 
-    board.wifi.stop_ap().await;
+    board.wifi.stop_if().await;
 
     {
         let context = context.lock().await;

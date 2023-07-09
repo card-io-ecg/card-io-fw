@@ -1,3 +1,5 @@
+use core::mem::MaybeUninit;
+
 use crate::{
     board::{
         hal::radio::Wifi,
@@ -16,7 +18,7 @@ use esp_wifi::{
 };
 
 pub(super) struct ApState {
-    _init: EspWifiInitialization,
+    init: EspWifiInitialization,
     controller: WifiController<'static>,
     stack: Stack<WifiDevice<'static>>,
     connection_task_control: TaskController<()>,
@@ -26,24 +28,27 @@ pub(super) struct ApState {
 }
 
 impl ApState {
-    pub(super) fn new(
-        _init: EspWifiInitialization,
+    pub(super) fn init(
+        this: &mut MaybeUninit<Self>,
+        init: EspWifiInitialization,
         config: Config,
         wifi: &'static mut Wifi,
         resources: &'static mut StackResources<3>,
         random_seed: u64,
-    ) -> Self {
-        let (wifi_interface, controller) =
-            esp_wifi::wifi::new_with_mode(&_init, wifi, WifiMode::Ap);
+    ) {
+        let this = this.as_mut_ptr();
 
-        Self {
-            _init,
-            controller,
-            stack: Stack::new(wifi_interface, config, resources, random_seed),
-            connection_task_control: TaskController::new(),
-            net_task_control: TaskController::new(),
-            client_count: Mutex::new(0),
-            started: false,
+        let (wifi_interface, controller) = esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap);
+
+        unsafe {
+            (*this).init = init;
+            (*this).controller = controller;
+            // TODO: this drops an uninit Stack
+            (*this).stack = Stack::new(wifi_interface, config, resources, random_seed);
+            (*this).connection_task_control = TaskController::new();
+            (*this).net_task_control = TaskController::new();
+            (*this).client_count = Mutex::new(0);
+            (*this).started = false;
         }
     }
 
