@@ -1,3 +1,5 @@
+use core::mem::MaybeUninit;
+
 use crate::{
     board::{
         hal::radio::Wifi,
@@ -26,28 +28,31 @@ pub(super) struct StaState {
 }
 
 impl StaState {
-    pub(super) fn new(
+    pub(super) fn init(
+        this: &mut MaybeUninit<Self>,
         init: EspWifiInitialization,
         config: Config,
         wifi: &'static mut Wifi,
         resources: &'static mut StackResources<3>,
         random_seed: u64,
-    ) -> Self {
+    ) {
+        let this = this.as_mut_ptr();
+
         let (wifi_interface, controller) =
             esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Sta);
 
-        Self {
-            init,
-            controller,
-            stack: Stack::new(wifi_interface, config, resources, random_seed),
-            connection_task_control: TaskController::new(),
-            net_task_control: TaskController::new(),
-            started: false,
+        unsafe {
+            (*this).init = init;
+            (*this).controller = controller;
+            // TODO: this drops an uninit Stack
+            (*this).stack = Stack::new(wifi_interface, config, resources, random_seed);
+            (*this).connection_task_control = TaskController::new();
+            (*this).net_task_control = TaskController::new();
+            (*this).started = false;
         }
     }
 
-    pub(super) async fn deinit(mut self) -> EspWifiInitialization {
-        self.stop().await;
+    pub(super) fn unwrap(self) -> EspWifiInitialization {
         self.init
     }
 

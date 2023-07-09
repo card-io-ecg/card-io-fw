@@ -15,9 +15,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
     if !board.config.known_networks.is_empty() {
         // Enable wifi STA. This enabled wifi for the whole menu and re-enables when the user exits the
         // wifi AP config menu.
-        board
-            .wifi
-            .initialize(&board.clocks, &mut board.peripheral_clock_control);
+        board.wifi.initialize(&board.clocks);
 
         let wifi_resources = unsafe { BIG_OBJECTS.as_wifi_ap_resources() };
         board
