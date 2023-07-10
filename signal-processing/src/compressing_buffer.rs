@@ -122,6 +122,10 @@ impl<const N: usize> CompressingBuffer<N> {
         }
     }
 
+    pub fn capacity(&self) -> usize {
+        N
+    }
+
     pub fn len(&self) -> usize {
         self.element_count
     }
@@ -144,6 +148,30 @@ impl<const N: usize> CompressingBuffer<N> {
         self.write_idx = 0;
         self.first_element = 0;
         self.last_element = 0;
+    }
+
+    pub fn as_bytes(&self) -> (&[u8], &[u8]) {
+        let (a, b) = if self.write_idx > self.bytes {
+            let start = self.write_idx - self.bytes;
+            let end = self.write_idx;
+            (&self.buffer[start..end], &[][..])
+        } else {
+            let start = N - (self.bytes - self.write_idx);
+            (&self.buffer[start..], &self.buffer[..self.write_idx])
+        };
+
+        unsafe {
+            (
+                core::slice::from_raw_parts(
+                    a.as_ptr() as *const u8,
+                    a.len() * core::mem::size_of::<i32>(),
+                ),
+                core::slice::from_raw_parts(
+                    b.as_ptr() as *const u8,
+                    b.len() * core::mem::size_of::<i32>(),
+                ),
+            )
+        }
     }
 }
 
