@@ -103,7 +103,7 @@ fn main() -> ! {
     // We only use a single core for now, so we can write both stack regions.
     let stack_start = unsafe { addr_of!(_stack_start_cpu1) as u32 };
     let stack_end = unsafe { addr_of!(_stack_end_cpu0) as u32 };
-    let _stack_protection = stack_protection::StackMonitor::protect(stack_start..stack_end);
+    let _stack_protection = stack_protection::StackMonitor::protect((stack_start + 4)..stack_end);
 
     #[cfg(feature = "hw_v1")]
     log::info!("Hardware version: v1");
