@@ -1,5 +1,7 @@
 //! Based on [replace_with](https://github.com/alecmocatta/replace_with/)
 
+#![allow(unused)]
+
 use core::{future::Future, mem::ManuallyDrop, ptr};
 
 struct OnDrop<F: FnOnce()>(ManuallyDrop<F>);
