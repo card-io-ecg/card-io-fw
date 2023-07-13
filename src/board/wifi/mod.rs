@@ -24,11 +24,11 @@ use rand_core::{RngCore, SeedableRng};
 use wyhash::WyRng;
 
 pub unsafe fn as_static_ref<T>(what: &T) -> &'static T {
-    core::mem::transmute(what)
+    mem::transmute(what)
 }
 
 pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
-    core::mem::transmute(what)
+    mem::transmute(what)
 }
 
 pub mod ap;
