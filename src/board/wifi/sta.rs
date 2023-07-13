@@ -1,0 +1,184 @@
+use core::{
+    mem::MaybeUninit,
+    ptr::{self, addr_of_mut},
+};
+
+use crate::{
+    board::{
+        hal::radio::Wifi,
+        wifi::{as_static_mut, as_static_ref, net_task},
+    },
+    task_control::TaskController,
+};
+use config_site::data::network::WifiNetwork;
+use embassy_executor::Spawner;
+use embassy_futures::join::join;
+use embassy_net::{Config, Stack, StackResources};
+use embassy_time::{Duration, Timer};
+use embedded_svc::wifi::{ClientConfiguration, Configuration, Wifi as _};
+use esp_wifi::{
+    wifi::{WifiController, WifiDevice, WifiEvent, WifiMode},
+    EspWifiInitialization,
+};
+
+pub(super) struct StaState {
+    init: EspWifiInitialization,
+    controller: WifiController<'static>,
+    stack: Stack<WifiDevice<'static>>,
+    connection_task_control: TaskController<()>,
+    net_task_control: TaskController<!>,
+    started: bool,
+}
+
+impl StaState {
+    pub(super) fn init(
+        this: &mut MaybeUninit<Self>,
+        init: EspWifiInitialization,
+        config: Config,
+        wifi: &'static mut Wifi,
+        resources: &'static mut StackResources<3>,
+        random_seed: u64,
+    ) {
+        log::info!("Configuring STA");
+
+        let this = this.as_mut_ptr();
+
+        let (wifi_interface, controller) =
+            esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Sta);
+
+        unsafe {
+            (*this).init = init;
+            (*this).controller = controller;
+            ptr::write(
+                addr_of_mut!((*this).stack),
+                Stack::new(wifi_interface, config, resources, random_seed),
+            );
+            ptr::write(
+                addr_of_mut!((*this).connection_task_control),
+                TaskController::new(),
+            );
+            ptr::write(
+                addr_of_mut!((*this).net_task_control),
+                TaskController::new(),
+            );
+            (*this).started = false;
+        }
+    }
+
+    pub(super) fn unwrap(self) -> EspWifiInitialization {
+        self.init
+    }
+
+    pub(super) async fn stop(&mut self) {
+        if self.started {
+            log::info!("Stopping STA");
+            let _ = join(
+                self.connection_task_control.stop_from_outside(),
+                self.net_task_control.stop_from_outside(),
+            )
+            .await;
+
+            if matches!(self.controller.is_started(), Ok(true)) {
+                self.controller.stop().await.unwrap();
+            }
+
+            log::info!("Stopped STA");
+            self.started = false;
+        }
+    }
+
+    pub(super) async fn start(&mut self) -> &mut Stack<WifiDevice<'static>> {
+        if !self.started {
+            log::info!("Starting STA");
+            let spawner = Spawner::for_current_executor().await;
+            unsafe {
+                log::info!("Starting STA task");
+                spawner.must_spawn(sta_task(
+                    as_static_mut(&mut self.controller),
+                    as_static_ref(&self.connection_task_control),
+                ));
+                log::info!("Starting NET task");
+                spawner.must_spawn(net_task(
+                    as_static_ref(&self.stack),
+                    as_static_ref(&self.net_task_control),
+                ));
+            }
+            self.started = true;
+        }
+
+        &mut self.stack
+    }
+
+    pub(super) fn is_connected(&self) -> bool {
+        false
+    }
+}
+
+#[embassy_executor::task]
+pub(super) async fn sta_task(
+    controller: &'static mut WifiController<'static>,
+    task_control: &'static TaskController<()>,
+) {
+    task_control
+        .run_cancellable(async {
+            let known_networks = [];
+
+            loop {
+                if !matches!(controller.is_started(), Ok(true)) {
+                    log::info!("Starting wifi");
+                    controller.start().await.unwrap();
+                    log::info!("Wifi started!");
+                }
+
+                let connect_to = 'select: loop {
+                    if let Some(connect_to) =
+                        select_visible_known_network(controller, &known_networks).await
+                    {
+                        break 'select connect_to;
+                    }
+
+                    Timer::after(Duration::from_secs(5)).await;
+                };
+
+                controller
+                    .set_configuration(&Configuration::Client(ClientConfiguration {
+                        ssid: known_networks[connect_to].ssid.clone(),
+                        password: known_networks[connect_to].pass.clone(),
+                        ..Default::default()
+                    }))
+                    .unwrap();
+
+                log::info!("Connecting...");
+
+                match controller.connect().await {
+                    Ok(_) => log::info!("Wifi connected!"),
+                    Err(e) => {
+                        log::warn!("Failed to connect to wifi: {e:?}");
+                        Timer::after(Duration::from_millis(5000)).await
+                    }
+                }
+
+                controller.wait_for_event(WifiEvent::StaDisconnected).await;
+            }
+        })
+        .await;
+}
+
+async fn select_visible_known_network(
+    controller: &mut WifiController<'static>,
+    known_networks: &[WifiNetwork],
+) -> Option<usize> {
+    match controller.scan_n::<8>().await {
+        Ok((mut networks, _)) => {
+            // Sort by signal strength, desc
+            networks.sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
+            for network in networks {
+                if let Some(pos) = known_networks.iter().position(|n| n.ssid == network.ssid) {
+                    return Some(pos);
+                }
+            }
+        }
+        Err(err) => log::warn!("Scan failed: {err:?}"),
+    }
+    None
+}
