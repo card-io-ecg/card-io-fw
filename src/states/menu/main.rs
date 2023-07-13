@@ -5,6 +5,7 @@ use crate::{
     timeout::Timeout,
     AppState,
 };
+use embassy_net::Config;
 use embassy_time::Ticker;
 use embedded_graphics::prelude::*;
 use gui::{
@@ -16,8 +17,18 @@ use gui::{
 };
 
 pub async fn main_menu(board: &mut Board) -> AppState {
-    let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
+    if !board.config.known_networks.is_empty() {
+        // Enable wifi STA. This enabled wifi for the whole menu and re-enables when the user exits the
+        // wifi AP config menu.
+        board.wifi.initialize(&board.clocks);
 
+        board
+            .wifi
+            .configure_sta(Config::dhcpv4(Default::default()))
+            .await;
+    }
+
+    let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     log::info!("Free heap: {} bytes", ALLOCATOR.free());
 
     let menu_values = MainMenu {};

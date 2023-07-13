@@ -15,7 +15,7 @@ use crate::{
         },
         wifi::{
             ap::{Ap, ApState},
-            sta::StaState,
+            sta::{Sta, StaState},
         },
     },
     task_control::TaskControlToken,
@@ -215,7 +215,7 @@ impl WifiDriver {
         }
     }
 
-    pub async fn configure_sta(&mut self, config: Config) -> Rc<Stack<WifiDevice<'static>>> {
+    pub async fn configure_sta(&mut self, config: Config) -> Sta {
         // Prepare, stop AP if running
         let init = self.preinit(WifiMode::STA).await;
 

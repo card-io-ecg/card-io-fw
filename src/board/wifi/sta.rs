@@ -24,6 +24,17 @@ use esp_wifi::{
     EspWifiInitialization,
 };
 
+#[derive(Clone)]
+pub struct Sta {
+    stack: Rc<Stack<WifiDevice<'static>>>,
+}
+
+impl Sta {
+    pub fn stack(&self) -> &Stack<WifiDevice<'static>> {
+        &self.stack
+    }
+}
+
 pub(super) struct StaState {
     init: EspWifiInitialization,
     controller: Rc<Mutex<NoopRawMutex, WifiController<'static>>>,
@@ -101,23 +112,25 @@ impl StaState {
         }
     }
 
-    pub(super) async fn start(&mut self) -> Rc<Stack<WifiDevice<'static>>> {
+    pub(super) async fn start(&mut self) -> Sta {
         if !self.started {
             log::info!("Starting STA");
             let spawner = Spawner::for_current_executor().await;
-            unsafe {
-                log::info!("Starting STA task");
-                spawner.must_spawn(sta_task(
-                    self.controller.clone(),
-                    self.connection_task_control.token(),
-                ));
-                log::info!("Starting NET task");
-                spawner.must_spawn(net_task(self.stack.clone(), self.net_task_control.token()));
-            }
+
+            log::info!("Starting STA task");
+            spawner.must_spawn(sta_task(
+                self.controller.clone(),
+                self.connection_task_control.token(),
+            ));
+            log::info!("Starting NET task");
+            spawner.must_spawn(net_task(self.stack.clone(), self.net_task_control.token()));
+
             self.started = true;
         }
 
-        self.stack.clone()
+        Sta {
+            stack: self.stack.clone(),
+        }
     }
 
     pub(super) fn is_connected(&self) -> bool {
