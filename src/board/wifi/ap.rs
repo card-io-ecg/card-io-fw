@@ -39,6 +39,8 @@ impl ApState {
         resources: &'static mut StackResources<3>,
         random_seed: u64,
     ) {
+        log::info!("Configuring AP");
+
         let this = this.as_mut_ptr();
 
         let (wifi_interface, controller) = esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap);
@@ -65,13 +67,16 @@ impl ApState {
 
     pub(super) async fn start(&mut self) -> &mut Stack<WifiDevice<'static>> {
         if !self.started {
+            log::info!("Starting AP");
             let spawner = Spawner::for_current_executor().await;
             unsafe {
+                log::info!("Starting AP task");
                 spawner.must_spawn(ap_task(
                     as_static_mut(&mut self.controller),
                     as_static_ref(&self.connection_task_control),
                     as_static_ref(&self.client_count),
                 ));
+                log::info!("Starting NET task");
                 spawner.must_spawn(net_task(
                     as_static_ref(&self.stack),
                     as_static_ref(&self.net_task_control),
@@ -85,11 +90,18 @@ impl ApState {
 
     pub(super) async fn stop(&mut self) {
         if self.started {
+            log::info!("Stopping AP");
             let _ = join(
                 self.connection_task_control.stop_from_outside(),
                 self.net_task_control.stop_from_outside(),
             )
             .await;
+
+            if matches!(self.controller.is_started(), Ok(true)) {
+                self.controller.stop().await.unwrap();
+            }
+
+            log::info!("Stopped AP");
             self.started = false;
         }
     }
