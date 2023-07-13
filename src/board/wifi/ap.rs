@@ -1,4 +1,7 @@
-use core::mem::MaybeUninit;
+use core::{
+    mem::MaybeUninit,
+    ptr::{self, addr_of_mut},
+};
 
 use crate::{
     board::{
@@ -42,12 +45,20 @@ impl ApState {
 
         unsafe {
             (*this).init = init;
-            (*this).controller = controller;
-            // TODO: this drops an uninit Stack
-            (*this).stack = Stack::new(wifi_interface, config, resources, random_seed);
-            (*this).connection_task_control = TaskController::new();
-            (*this).net_task_control = TaskController::new();
-            (*this).client_count = Mutex::new(0);
+            ptr::write(addr_of_mut!((*this).controller), controller);
+            ptr::write(
+                addr_of_mut!((*this).stack),
+                Stack::new(wifi_interface, config, resources, random_seed),
+            );
+            ptr::write(
+                addr_of_mut!((*this).connection_task_control),
+                TaskController::new(),
+            );
+            ptr::write(
+                addr_of_mut!((*this).net_task_control),
+                TaskController::new(),
+            );
+            ptr::write(addr_of_mut!((*this).client_count), Mutex::new(0));
             (*this).started = false;
         }
     }
