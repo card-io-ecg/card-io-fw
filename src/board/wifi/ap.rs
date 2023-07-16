@@ -5,7 +5,7 @@ use core::{
 
 use crate::{
     board::{
-        hal::radio::Wifi,
+        hal::{radio::Wifi, Rng},
         wifi::{as_static_mut, as_static_ref, net_task},
     },
     task_control::TaskController,
@@ -14,6 +14,7 @@ use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_net::{Config, Stack, StackResources};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
+use embedded_hal_old::prelude::_embedded_hal_blocking_rng_Read;
 use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi as _};
 use esp_wifi::{
     wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState},
@@ -37,7 +38,7 @@ impl ApState {
         config: Config,
         wifi: &'static mut Wifi,
         resources: &'static mut StackResources<3>,
-        random_seed: u64,
+        mut rng: Rng,
     ) {
         log::info!("Configuring AP");
 
@@ -45,12 +46,15 @@ impl ApState {
 
         let (wifi_interface, controller) = esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap);
 
+        let mut seed = [0; 8];
+        rng.read(&mut seed).unwrap();
+
         unsafe {
             (*this).init = init;
             ptr::write(addr_of_mut!((*this).controller), controller);
             ptr::write(
                 addr_of_mut!((*this).stack),
-                Stack::new(wifi_interface, config, resources, random_seed),
+                Stack::new(wifi_interface, config, resources, u64::from_le_bytes(seed)),
             );
             ptr::write(
                 addr_of_mut!((*this).connection_task_control),

@@ -18,10 +18,7 @@ use crate::{
     task_control::TaskController,
 };
 use embassy_net::{Config, Stack, StackResources};
-use embedded_hal_old::prelude::_embedded_hal_blocking_rng_Read;
 use esp_wifi::{wifi::WifiDevice, EspWifiInitFor, EspWifiInitialization};
-use rand_core::{RngCore, SeedableRng};
-use wyhash::WyRng;
 
 pub unsafe fn as_static_ref<T>(what: &T) -> &'static T {
     mem::transmute(what)
@@ -35,13 +32,13 @@ pub mod ap;
 
 pub struct WifiDriver {
     wifi: Wifi,
-    rng: WyRng,
+    rng: Rng,
     state: WifiDriverState,
 }
 
 struct WifiInitResources {
     timer: Timer<Timer0<TIMG1>>,
-    rng: Rng<'static>,
+    rng: Rng,
     rcc: RadioClockControl,
 }
 
@@ -90,12 +87,10 @@ impl WifiDriver {
         clocks: &Clocks,
         pcc: &mut PeripheralClockControl,
     ) -> Self {
-        let mut rng = Rng::new(rng);
-        let mut seed_bytes = [0; 8];
-        rng.read(&mut seed_bytes).unwrap();
+        let rng = Rng::new(rng);
         Self {
             wifi,
-            rng: WyRng::from_seed(seed_bytes),
+            rng,
             state: WifiDriverState::Uninitialized(WifiInitResources {
                 timer: TimerGroup::new(timer, clocks, pcc).timer0,
                 rng,
@@ -136,7 +131,7 @@ impl WifiDriver {
                         config,
                         unsafe { as_static_mut(&mut self.wifi) },
                         resources,
-                        self.rng.next_u64(),
+                        self.rng,
                     )
                 }
 
