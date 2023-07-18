@@ -6,7 +6,7 @@
     "configurations": [
         {
             // more info at: https://github.com/Marus/cortex-debug/blob/master/package.json
-            "name": "Attach",
+            "name": "Attach (USB JTAG)",
             "type": "cortex-debug",
             "request": "attach", // attach instead of launch, because otherwise flash write is attempted, but fails
             "cwd": "${workspaceRoot}",
