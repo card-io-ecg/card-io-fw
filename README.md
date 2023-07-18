@@ -16,6 +16,11 @@ Tools you need to build the firmware:
 - `cargo install cargo-espflash`
 - `cargo install cargo-watch`
 
+### Enable External / USB JTAG selector solder bridge
+
+- `pip install esptool`
+- `python -m espefuse burn_efuse --port COM4 STRAP_JTAG_SEL 1`
+
 Commands
 --------
 
