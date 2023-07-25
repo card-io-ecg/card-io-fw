@@ -28,7 +28,11 @@ use crate::board::drivers::battery_adc::monitor_task_adc;
 use crate::board::drivers::battery_fg::monitor_task_fg;
 
 #[cfg(feature = "hw_v1")]
-use crate::sleep::{disable_gpio_wakeup, enable_gpio_pullup};
+use crate::{
+    board::hal::gpio::{RTCPin, RTCPinWithResistors},
+    sleep::disable_gpio_wakeup,
+};
+
 use crate::{
     board::{
         config::{Config, ConfigFile},
@@ -272,7 +276,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
     let (_, _, _, touch) = board.frontend.split();
 
     #[cfg(feature = "hw_v1")]
-    let charger_pin = board.battery_monitor.charger_status;
+    let mut charger_pin = board.battery_monitor.charger_status;
 
     #[cfg(feature = "hw_v2")]
     let charger_pin = board.battery_monitor.vbus_detect;
@@ -298,7 +302,8 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         // charging. This means we can watch for low level to detect a charger connection.
         #[cfg(feature = "hw_v1")]
         {
-            enable_gpio_pullup(&charger_pin);
+            charger_pin.rtcio_pad_hold(true);
+            charger_pin.rtcio_pullup(true);
             enable_gpio_wakeup(&charger_pin, RtcioWakeupType::LowLevel);
         }
 

@@ -1,6 +1,9 @@
 #![allow(unused)]
 
-use crate::board::{hal::gpio::GpioPin, pac};
+use crate::board::{
+    hal::gpio::{GpioPin, RTCPin},
+    pac,
+};
 
 pub enum RtcioWakeupType {
     Disable = 0,
@@ -24,24 +27,6 @@ pub fn enable_gpio_wakeup<MODE, const PIN: u8>(_pin: &GpioPin<MODE, PIN>, level:
 // Wakeup remains enabled after waking from deep sleep, so we need to disable it manually.
 pub fn disable_gpio_wakeup<MODE, const PIN: u8>(pin: &GpioPin<MODE, PIN>) {
     enable_gpio_wakeup(pin, RtcioWakeupType::Disable)
-}
-
-pub fn enable_gpio_pullup<MODE, const PIN: u8>(_pin: &GpioPin<MODE, PIN>) {
-    let rtcio = unsafe { &*pac::RTC_IO::PTR };
-    let rtc_ctrl = unsafe { &*pac::RTC_CNTL::PTR };
-
-    #[allow(clippy::single_match)]
-    match PIN {
-        17 => {
-            rtcio.pad_dac1.modify(|_, w| w.pdac1_rue().set_bit());
-            rtc_ctrl.pad_hold.modify(|_, w| w.pdac1_hold().set_bit())
-        }
-        21 => {
-            rtcio.rtc_pad21.modify(|_, w| w.rue().set_bit());
-            rtc_ctrl.pad_hold.modify(|_, w| w.pad21_hold().set_bit())
-        }
-        _ => {}
-    }
 }
 
 // Assumptions: S3, Quad Flash/PSRAM, 2nd core stopped
