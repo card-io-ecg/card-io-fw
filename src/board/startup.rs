@@ -16,7 +16,7 @@ use crate::{
             prelude::*,
             spi::{dma::WithDmaSpi3, SpiMode},
             system::PeripheralClockControl,
-            Spi,
+            Rtc, Spi,
         },
         utils::{DummyOutputPin, SpiDeviceWrapper},
         wifi::WifiDriver,
@@ -44,6 +44,7 @@ pub struct StartupResources {
 
     pub misc_pins: MiscPins,
     pub wifi: &'static mut WifiDriver,
+    pub rtc: Rtc<'static>,
 }
 
 impl StartupResources {

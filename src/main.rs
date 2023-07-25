@@ -28,20 +28,17 @@ use crate::board::drivers::battery_adc::monitor_task_adc;
 use crate::board::drivers::battery_fg::monitor_task_fg;
 
 #[cfg(feature = "hw_v1")]
-use crate::{
-    board::hal::gpio::{RTCPin, RTCPinWithResistors},
-    sleep::disable_gpio_wakeup,
-};
+use crate::{board::hal::gpio::RTCPinWithResistors, sleep::disable_gpio_wakeup};
 
 use crate::{
     board::{
         config::{Config, ConfigFile},
-        hal::{self, entry, prelude::interrupt},
+        hal::{self, entry, gpio::RTCPin, prelude::interrupt, rtc_cntl::sleep::WakeupLevel, Delay},
         initialized::{BatteryMonitor, BatteryState, Board, ConfigPartition},
         startup::StartupResources,
     },
     interrupt::{InterruptExecutor, SwInterrupt0},
-    sleep::{enable_gpio_wakeup, start_deep_sleep, RtcioWakeupType},
+    sleep::RtcioWakeupSource,
     states::{
         about_menu, adc_setup, app_error, charging, display_menu, initialize, main_menu, measure,
         wifi_ap, wifi_sta, AppMenu,
@@ -273,15 +270,18 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
     Timer::after(Duration::from_millis(100)).await;
 
     let is_charging = board.battery_monitor.is_plugged();
-    let (_, _, _, touch) = board.frontend.split();
+    let (_, _, _, mut touch) = board.frontend.split();
+    let mut rtc = resources.rtc;
 
     #[cfg(feature = "hw_v1")]
     let mut charger_pin = board.battery_monitor.charger_status;
 
     #[cfg(feature = "hw_v2")]
-    let charger_pin = board.battery_monitor.vbus_detect;
+    let mut charger_pin = board.battery_monitor.vbus_detect;
 
-    enable_gpio_wakeup(&touch, RtcioWakeupType::LowLevel);
+    let mut wakeup_pins = heapless::Vec::<(&mut dyn RTCPin, WakeupLevel), 2>::new();
+
+    wakeup_pins.push((&mut touch, WakeupLevel::Low)).ok();
 
     if is_charging {
         #[cfg(feature = "hw_v1")]
@@ -293,7 +293,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
 
         // Wake up momentarily when charger is disconnected
         #[cfg(feature = "hw_v2")]
-        enable_gpio_wakeup(&charger_pin, RtcioWakeupType::LowLevel);
+        wakeup_pins.push((&mut charger_pin, WakeupLevel::Low)).ok();
     } else {
         // We want to wake up when the charger is connected, or the electrodes are touched.
 
@@ -304,16 +304,19 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         {
             charger_pin.rtcio_pad_hold(true);
             charger_pin.rtcio_pullup(true);
-            enable_gpio_wakeup(&charger_pin, RtcioWakeupType::LowLevel);
+
+            wakeup_pins.push((&mut charger_pin, WakeupLevel::Low)).ok();
         }
 
         // In v2, the charger status is not connected to an RTC IO pin, so we use the VBUS
         // detect pin instead. This is a high level signal when the charger is connected.
         #[cfg(feature = "hw_v2")]
-        enable_gpio_wakeup(&charger_pin, RtcioWakeupType::HighLevel);
+        wakeup_pins.push((&mut charger_pin, WakeupLevel::High)).ok();
     }
 
-    start_deep_sleep();
+    let rtcio = RtcioWakeupSource::new(&mut wakeup_pins);
+
+    rtc.sleep_deep(&[&rtcio], &mut Delay::new(&board.clocks));
 
     // Shouldn't reach this. If we do, we just exit the task, which means the executor
     // will have nothing else to do. Not ideal, but again, we shouldn't reach this.

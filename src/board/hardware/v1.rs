@@ -147,6 +147,7 @@ impl super::startup::StartupResources {
             }),
             clocks,
             peripheral_clock_control: system.peripheral_clock_control,
+            rtc,
 
             misc_pins: MiscPins {
                 vbus_detect,
