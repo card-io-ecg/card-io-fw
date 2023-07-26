@@ -65,7 +65,6 @@ pub enum AppState {
     Initialize,
     Measure,
     Charging,
-    WifiAP,
     Menu(AppMenu),
     Error(AppError),
     Shutdown,
@@ -257,7 +256,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             AppState::Menu(AppMenu::Main) => main_menu(&mut board).await,
             AppState::Menu(AppMenu::Display) => display_menu(&mut board).await,
             AppState::Menu(AppMenu::About) => about_menu(&mut board).await,
-            AppState::WifiAP => wifi_ap(&mut board).await,
+            AppState::Menu(AppMenu::WifiAP) => wifi_ap(&mut board).await,
             AppState::Error(error) => app_error(&mut board, error).await,
             AppState::Shutdown => break,
         };

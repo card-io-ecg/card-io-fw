@@ -130,7 +130,7 @@ struct WebserverResources {
     request_buffer: [u8; 2048],
 }
 
-#[embassy_executor::task(pool_size = super::WEBSERVER_TASKS)]
+#[embassy_executor::task(pool_size = WEBSERVER_TASKS)]
 async fn webserver_task(
     stack: Rc<Stack<WifiDevice<'static>>>,
     context: Rc<SharedWebContext>,
