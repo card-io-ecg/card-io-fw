@@ -58,19 +58,22 @@ impl<T: Copy, const N: usize> Buffer<T, N> {
         old
     }
 
+    fn read_index(&self) -> usize {
+        (self.write_idx + N - self.count) % N
+    }
+
     pub fn pop(&mut self) -> Option<T> {
         if self.is_empty() {
             None
         } else {
-            let read_index = (self.write_idx + N - self.count) % N;
-            let old_byte = self.buffer[read_index];
+            let old_byte = self.buffer[self.read_index()];
             self.count -= 1;
             Some(unsafe { old_byte.assume_init() })
         }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = T> + Clone + '_ {
-        let read_index = (self.write_idx + N - self.count) % N;
+        let read_index = self.read_index();
         let (start, end) = if read_index < self.write_idx {
             (&self.buffer[read_index..self.write_idx], &[][..])
         } else if !self.is_empty() {
