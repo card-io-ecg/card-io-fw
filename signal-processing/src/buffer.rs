@@ -58,14 +58,25 @@ impl<T: Copy, const N: usize> Buffer<T, N> {
         old
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = T> + Clone + '_ {
-        let (start, end) = if !self.is_full() {
-            (&self.buffer[0..self.write_idx], &[][..])
+    pub fn pop(&mut self) -> Option<T> {
+        if self.is_empty() {
+            None
         } else {
-            (
-                &self.buffer[self.write_idx..],
-                &self.buffer[0..self.write_idx],
-            )
+            let read_index = (self.write_idx + N - self.count) % N;
+            let old_byte = self.buffer[read_index];
+            self.count -= 1;
+            Some(unsafe { old_byte.assume_init() })
+        }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = T> + Clone + '_ {
+        let read_index = (self.write_idx + N - self.count) % N;
+        let (start, end) = if read_index < self.write_idx {
+            (&self.buffer[read_index..self.write_idx], &[][..])
+        } else if !self.is_empty() {
+            (&self.buffer[read_index..], &self.buffer[0..self.write_idx])
+        } else {
+            (&[][..], &[][..])
         };
 
         start
@@ -81,6 +92,12 @@ mod test {
     fn new_buffer_is_empty() {
         let buffer = super::Buffer::<u8, 4>::new();
         assert!(buffer.is_empty());
+    }
+
+    #[test]
+    fn pop_returns_none_if_empty() {
+        let mut buffer = super::Buffer::<u8, 4>::new();
+        assert_eq!(buffer.pop(), None);
     }
 
     #[test]
@@ -125,5 +142,41 @@ mod test {
 
         let vector = buffer.iter().collect::<Vec<_>>();
         assert_eq!(vector, vec![2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn pop_removes_and_returns_oldest() {
+        let mut buffer = super::Buffer::<u8, 4>::new();
+        buffer.push(1);
+        buffer.push(2);
+        buffer.push(3);
+        buffer.push(4);
+        buffer.push(5);
+
+        assert_eq!(buffer.pop(), Some(2));
+        assert_eq!(buffer.pop(), Some(3));
+
+        assert_eq!(buffer.len(), 2);
+
+        assert_eq!(buffer.pop(), Some(4));
+        assert_eq!(buffer.pop(), Some(5));
+
+        assert!(buffer.is_empty());
+    }
+
+    #[test]
+    fn iter_does_not_return_popped() {
+        let mut buffer = super::Buffer::<u8, 4>::new();
+        buffer.push(1);
+        buffer.push(2);
+        buffer.push(3);
+        buffer.push(4);
+        buffer.push(5);
+
+        assert_eq!(buffer.pop(), Some(2));
+        assert_eq!(buffer.pop(), Some(3));
+
+        let vector = buffer.iter().collect::<Vec<_>>();
+        assert_eq!(vector, vec![4, 5]);
     }
 }
