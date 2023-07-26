@@ -11,8 +11,9 @@ use crate::widgets::status_bar::StatusBar;
 #[derive(Clone, Copy)]
 pub enum MainMenuEvents {
     Display,
-    WifiSetup,
     About,
+    WifiSetup,
+    WifiListVisible,
     Shutdown,
 }
 
@@ -22,8 +23,9 @@ pub enum MainMenuEvents {
     navigation(events = MainMenuEvents),
     items = [
         navigation(label = "Display settings", event = MainMenuEvents::Display),
-        navigation(label = "Wifi setup", event = MainMenuEvents::WifiSetup),
         navigation(label = "Device info", event = MainMenuEvents::About),
+        navigation(label = "Wifi setup", event = MainMenuEvents::WifiSetup),
+        navigation(label = "Wifi networks", event = MainMenuEvents::WifiListVisible),
         navigation(label = "Shutdown", event = MainMenuEvents::Shutdown)
     ]
 )]

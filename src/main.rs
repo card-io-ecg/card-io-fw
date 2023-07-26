@@ -40,7 +40,7 @@ use crate::{
     sleep::{enable_gpio_wakeup, start_deep_sleep, RtcioWakeupType},
     states::{
         about_menu, adc_setup, app_error, charging, display_menu, initialize, main_menu, measure,
-        wifi_ap, AppMenu,
+        wifi_ap, wifi_sta, AppMenu,
     },
 };
 
@@ -257,6 +257,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             AppState::Menu(AppMenu::Display) => display_menu(&mut board).await,
             AppState::Menu(AppMenu::About) => about_menu(&mut board).await,
             AppState::Menu(AppMenu::WifiAP) => wifi_ap(&mut board).await,
+            AppState::Menu(AppMenu::WifiListVisible) => wifi_sta(&mut board).await,
             AppState::Error(error) => app_error(&mut board, error).await,
             AppState::Shutdown => break,
         };
