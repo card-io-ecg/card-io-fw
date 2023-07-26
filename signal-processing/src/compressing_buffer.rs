@@ -4,12 +4,9 @@
 //! difference from the last. This is useful for storing a sequence of values that are
 //! close to each other, such as a sequence of samples from a sensor.
 
-use core::mem::MaybeUninit;
+use crate::buffer::Buffer;
 
 pub struct CompressingBuffer<const N: usize> {
-    write_idx: usize,
-    bytes: usize,
-
     /// Oldest element
     first_element: i32,
 
@@ -17,7 +14,7 @@ pub struct CompressingBuffer<const N: usize> {
     last_element: i32,
     element_count: usize,
 
-    buffer: [MaybeUninit<u8>; N],
+    buffer: Buffer<u8, N>,
 }
 
 impl<const N: usize> CompressingBuffer<N> {
@@ -25,34 +22,10 @@ impl<const N: usize> CompressingBuffer<N> {
 
     pub const fn new() -> Self {
         Self {
-            write_idx: 0,
-            bytes: 0,
             first_element: 0,
             last_element: 0,
             element_count: 0,
-            buffer: [MaybeUninit::uninit(); N],
-        }
-    }
-
-    fn push_byte(&mut self, byte: u8) -> bool {
-        if self.space() == 0 {
-            false
-        } else {
-            self.buffer[self.write_idx] = MaybeUninit::new(byte);
-            self.write_idx = (self.write_idx + 1) % N;
-            self.bytes += 1;
-            true
-        }
-    }
-
-    fn pop_byte(&mut self) -> Option<u8> {
-        if self.byte_count() > 0 {
-            let read_index = (self.write_idx + N - self.bytes) % N;
-            let old_byte = self.buffer[read_index];
-            self.bytes -= 1;
-            Some(unsafe { old_byte.assume_init() })
-        } else {
-            None
+            buffer: Buffer::EMPTY,
         }
     }
 
@@ -89,7 +62,7 @@ impl<const N: usize> CompressingBuffer<N> {
             }
 
             for byte in encoded {
-                self.push_byte(*byte);
+                self.buffer.push(*byte);
             }
         }
         self.element_count += 1;
@@ -105,7 +78,7 @@ impl<const N: usize> CompressingBuffer<N> {
         } else {
             let mut diff = 0;
             let mut idx = 0;
-            while let Some(byte) = self.pop_byte() {
+            while let Some(byte) = self.buffer.pop() {
                 diff |= ((byte & 0x7F) as u32) << (idx * 7);
                 idx += 1;
                 if byte & 0x80 == 0 {
@@ -131,19 +104,18 @@ impl<const N: usize> CompressingBuffer<N> {
     }
 
     pub fn byte_count(&self) -> usize {
-        self.bytes
+        self.buffer.len()
     }
 
     pub fn space(&self) -> usize {
-        N - self.bytes
+        N - self.byte_count()
     }
 
     pub fn clear(&mut self) {
-        self.bytes = 0;
         self.element_count = 0;
-        self.write_idx = 0;
         self.first_element = 0;
         self.last_element = 0;
+        self.buffer.clear();
     }
 }
 
