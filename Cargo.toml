@@ -94,13 +94,13 @@ heapless = "0.7"
 [patch.crates-io]
 # needed because of esp-wifi
 esp-hal-common = { git = "https://github.com/bugadani/esp-hal.git", branch = "dev" }
-esp32s3 = { git = "https://github.com/esp-rs/esp-pacs.git", rev = "c72707e" }
+esp32s3 = { git = "https://github.com/esp-rs/esp-pacs.git", rev = "ce6d5b5" }
 esp32s3-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "dev" }
 embassy-executor = { git = "https://github.com/embassy-rs/embassy.git", rev = "3382ca1" }
 embassy-time = { git = "https://github.com/embassy-rs/embassy.git", rev = "3382ca1" }
 
 [patch.'https://github.com/esp-rs/esp-wifi']
-esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", branch = "restart" }
+esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", branch = "dev" }
 
 [features]
 default = ["esp32s3"]
