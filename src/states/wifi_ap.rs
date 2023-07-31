@@ -1,4 +1,4 @@
-use alloc::boxed::Box;
+use alloc::{boxed::Box, rc::Rc};
 use bad_server::{
     handler::{RequestHandler, StaticHandler},
     BadServer,
@@ -49,16 +49,16 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
     let webserver_task_control = [TaskController::DEFAULT; WEBSERVER_TASKS];
 
-    let context = SharedWebContext::new(WebContext {
+    let context = Rc::new(SharedWebContext::new(WebContext {
         known_networks: board.config.known_networks.clone(),
-    });
+    }));
 
     unsafe {
         #[allow(clippy::needless_range_loop)]
         for i in 0..WEBSERVER_TASKS {
             spawner.must_spawn(webserver_task(
                 as_static_ref(stack),
-                as_static_ref(&context),
+                context.clone(),
                 as_static_ref(&webserver_task_control[i]),
             ));
         }
@@ -144,7 +144,7 @@ struct WebserverResources {
 #[embassy_executor::task(pool_size = super::WEBSERVER_TASKS)]
 async fn webserver_task(
     stack: &'static Stack<WifiDevice<'static>>,
-    context: &'static SharedWebContext,
+    context: Rc<SharedWebContext>,
     task_control: &'static TaskController<()>,
 ) {
     log::info!("Started webserver task");
@@ -173,9 +173,18 @@ async fn webserver_task(
                     "/si",
                     StaticHandler::new(&[], env!("FW_VERSION").as_bytes()),
                 ))
-                .with_handler(RequestHandler::get("/kn", ListKnownNetworks { context }))
-                .with_handler(RequestHandler::post("/nn", AddNewNetwork { context }))
-                .with_handler(RequestHandler::post("/dn", DeleteNetwork { context }))
+                .with_handler(RequestHandler::get(
+                    "/kn",
+                    ListKnownNetworks { context: &context },
+                ))
+                .with_handler(RequestHandler::post(
+                    "/nn",
+                    AddNewNetwork { context: &context },
+                ))
+                .with_handler(RequestHandler::post(
+                    "/dn",
+                    DeleteNetwork { context: &context },
+                ))
                 .listen(&mut socket, 8080)
                 .await;
         })
