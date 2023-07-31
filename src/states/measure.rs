@@ -5,10 +5,11 @@ use crate::{
         PoweredEcgFrontend, LOW_BATTERY_VOLTAGE,
     },
     replace_with::replace_with_or_abort_and_return_async,
-    states::{BIG_OBJECTS, MIN_FRAME_TIME},
+    states::MIN_FRAME_TIME,
     AppError, AppState,
 };
 use ads129x::{descriptors::PinState, Error, Sample};
+use alloc::boxed::Box;
 use embassy_executor::_export::StaticCell;
 use embassy_sync::{
     blocking_mutex::raw::CriticalSectionRawMutex,
@@ -18,14 +19,16 @@ use embassy_sync::{
 use embassy_time::{Duration, Instant, Ticker, Timer};
 use embedded_graphics::Drawable;
 use gui::screens::measure::EcgScreen;
-use object_chain::{chain, Chain, Link};
+use object_chain::{chain, Chain, ChainElement, Link};
 use signal_processing::{
+    compressing_buffer::CompressingBuffer,
     filter::{
         downsample::DownSampler,
-        iir::{HighPass, Iir},
+        iir::{precomputed::HIGH_PASS_CUTOFF_1_59HZ, HighPass, Iir},
         pli::{adaptation_blocking::AdaptationBlocking, PowerLineFilter},
         Filter,
     },
+    heart_rate::HeartRateCalculator,
     moving::sum::Sum,
 };
 
@@ -64,14 +67,37 @@ pub type EcgDownsampler = chain! {
     DownSampler
 };
 
+const ECG_BUFFER_SIZE: usize = 90_000;
+
+struct EcgObjects {
+    pub filter: EcgFilter,
+    pub downsampler: EcgDownsampler,
+    pub heart_rate_calculator: HeartRateCalculator,
+}
+
+impl EcgObjects {
+    #[inline(always)]
+    fn new() -> Self {
+        Self {
+            filter: Chain::new(HIGH_PASS_CUTOFF_1_59HZ)
+                .append(PowerLineFilter::new(1000.0, [50.0])),
+            downsampler: Chain::new(DownSampler::new())
+                .append(DownSampler::new())
+                .append(DownSampler::new()),
+            heart_rate_calculator: HeartRateCalculator::new(1000.0),
+        }
+    }
+}
+
+static mut ECG_BUFFER: CompressingBuffer<ECG_BUFFER_SIZE> = CompressingBuffer::EMPTY;
+
 pub async fn measure(board: &mut Board) -> AppState {
-    let ecg = unsafe { BIG_OBJECTS.as_ecg() };
+    let mut ecg = Box::new(EcgObjects::new());
+    let ecg_buffer = unsafe { &mut ECG_BUFFER };
 
-    ecg.downsampler.clear();
-    ecg.filter.clear();
-    ecg.buffer.clear();
+    ecg_buffer.clear();
 
-    replace_with_or_abort_and_return_async(board, |mut board| async {
+    let result = replace_with_or_abort_and_return_async(board, |mut board| async {
         let mut frontend = match board.frontend.enable_async().await {
             Ok(frontend) => frontend,
             Err((fe, _err)) => {
@@ -127,7 +153,7 @@ pub async fn measure(board: &mut Board) -> AppState {
                 match message {
                     Message::Sample(sample) => {
                         samples += 1;
-                        ecg.buffer.push(sample.raw());
+                        ecg_buffer.push(sample.raw());
                         if let Some(filtered) = ecg.filter.update(sample.voltage()) {
                             ecg.heart_rate_calculator.update(filtered);
                             if let Some(downsampled) = ecg.downsampler.update(filtered) {
@@ -177,7 +203,11 @@ pub async fn measure(board: &mut Board) -> AppState {
             ticker.next().await;
         }
     })
-    .await
+    .await;
+
+    core::mem::drop(ecg);
+
+    result
 }
 
 #[embassy_executor::task]
