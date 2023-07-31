@@ -4,7 +4,7 @@ use core::mem::MaybeUninit;
 static ALLOCATOR: esp_alloc::EspHeap = esp_alloc::EspHeap::empty();
 
 pub fn init_heap() {
-    const HEAP_SIZE: usize = 32 * 1024;
+    const HEAP_SIZE: usize = 48 * 1024;
     static mut HEAP: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
 
     use core::ptr::addr_of_mut;

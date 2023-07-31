@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use bad_server::{
     handler::{RequestHandler, StaticHandler},
     BadServer,
@@ -10,7 +11,9 @@ use config_site::{
     },
 };
 use embassy_executor::Spawner;
-use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StaticConfigV4};
+use embassy_net::{
+    tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StackResources, StaticConfigV4,
+};
 use embassy_time::{Duration, Instant, Ticker, Timer};
 use embedded_graphics::Drawable;
 use esp_wifi::wifi::WifiDevice;
@@ -21,7 +24,7 @@ use crate::{
         initialized::Board,
         wifi::{as_static_mut, as_static_ref},
     },
-    states::{WebserverResources, BIG_OBJECTS, MIN_FRAME_TIME, WEBSERVER_TASKS},
+    states::{MIN_FRAME_TIME, WEBSERVER_TASKS},
     task_control::TaskController,
     AppState,
 };
@@ -29,7 +32,7 @@ use crate::{
 pub async fn wifi_ap(board: &mut Board) -> AppState {
     board.wifi.initialize(&board.clocks);
 
-    let wifi_resources = unsafe { BIG_OBJECTS.as_wifi_ap_resources() };
+    let mut stack_resources = Box::new(StackResources::<3>::new());
     let stack = board
         .wifi
         .configure_ap(
@@ -38,7 +41,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
                 gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
                 dns_servers: Default::default(),
             }),
-            &mut wifi_resources.stack_resources,
+            unsafe { as_static_mut(&mut stack_resources) },
         )
         .await;
 
@@ -57,7 +60,6 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
                 as_static_ref(stack),
                 as_static_ref(&context),
                 as_static_ref(&webserver_task_control[i]),
-                as_static_mut(&mut wifi_resources.resources[i]),
             ));
         }
     }
@@ -118,6 +120,8 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
     board.wifi.stop_if().await;
 
+    core::mem::drop(stack_resources);
+
     {
         let context = context.lock().await;
         if context.known_networks != board.config.known_networks {
@@ -130,25 +134,38 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     AppState::MainMenu
 }
 
+#[derive(Clone, Copy)]
+struct WebserverResources {
+    tx_buffer: [u8; 4096],
+    rx_buffer: [u8; 4096],
+    request_buffer: [u8; 2048],
+}
+
 #[embassy_executor::task(pool_size = super::WEBSERVER_TASKS)]
 async fn webserver_task(
     stack: &'static Stack<WifiDevice<'static>>,
     context: &'static SharedWebContext,
     task_control: &'static TaskController<()>,
-    buffers: &'static mut WebserverResources,
 ) {
     log::info!("Started webserver task");
     task_control
         .run_cancellable(async {
+            let mut resources = Box::new(WebserverResources {
+                tx_buffer: [0; 4096],
+                rx_buffer: [0; 4096],
+                request_buffer: [0; 2048],
+            });
+
             while !stack.is_link_up() {
                 Timer::after(Duration::from_millis(500)).await;
             }
 
-            let mut socket = TcpSocket::new(stack, &mut buffers.rx_buffer, &mut buffers.tx_buffer);
+            let mut socket =
+                TcpSocket::new(stack, &mut resources.rx_buffer, &mut resources.tx_buffer);
             socket.set_timeout(Some(Duration::from_secs(10)));
 
             BadServer::new()
-                .with_request_buffer(&mut buffers.request_buffer[..])
+                .with_request_buffer(&mut resources.request_buffer[..])
                 .with_header_count::<24>()
                 .with_handler(RequestHandler::get("/", INDEX_HANDLER))
                 .with_handler(RequestHandler::get("/font", HEADER_FONT))
