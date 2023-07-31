@@ -11,6 +11,7 @@ extern crate alloc;
 
 use core::ptr::addr_of;
 
+use alloc::boxed::Box;
 use embassy_executor::{Executor, Spawner, _export::StaticCell};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex, signal::Signal};
 use embassy_time::{Duration, Timer};
@@ -210,7 +211,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
     let mut storage = setup_storage().await;
     let config = load_config(&mut storage).await;
 
-    let mut board = Board {
+    let mut board = Box::new(Board {
         // If the device is awake, the display should be enabled.
         display: resources.display.enable().await.unwrap(),
         frontend: resources.frontend,
@@ -227,7 +228,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         config,
         config_changed: false,
         storage,
-    };
+    });
 
     let _ = board
         .display
