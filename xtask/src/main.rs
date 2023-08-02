@@ -89,8 +89,11 @@ pub struct Cli {
 }
 
 fn cargo(args: &[&str]) -> Expression {
+    println!("🛠️  Running command: cargo +esp {}", args.join(" "));
+
     let mut args_vec = vec!["run", "esp", "cargo"];
     args_vec.extend(args);
+
     cmd("rustup", args_vec)
 }
 
