@@ -17,6 +17,7 @@ use crate::{
     },
     task_control::TaskController,
 };
+use alloc::boxed::Box;
 use embassy_net::{Config, Stack, StackResources};
 use esp_wifi::{wifi::WifiDevice, EspWifiInitFor, EspWifiInitialization};
 
@@ -46,7 +47,7 @@ struct WifiInitResources {
 enum WifiDriverState {
     Uninitialized(WifiInitResources),
     Initialized(EspWifiInitialization),
-    AP(MaybeUninit<ApState>),
+    AP(MaybeUninit<ApState>, Box<StackResources<3>>),
 }
 
 impl WifiDriverState {
@@ -74,7 +75,10 @@ impl WifiDriverState {
     }
 
     fn replace_with_ap(&mut self) -> Self {
-        mem::replace(self, Self::AP(MaybeUninit::uninit()))
+        mem::replace(
+            self,
+            Self::AP(MaybeUninit::uninit(), Box::new(StackResources::new())),
+        )
     }
 }
 
@@ -106,12 +110,11 @@ impl WifiDriver {
     pub async fn configure_ap<'d>(
         &'d mut self,
         config: Config,
-        resources: &'static mut StackResources<3>,
     ) -> &'d mut Stack<WifiDevice<'static>> {
         // Init AP mode
         let init = match &mut self.state {
             WifiDriverState::Uninitialized(_) => unreachable!(),
-            WifiDriverState::AP(_) => None,
+            WifiDriverState::AP(_, _) => None,
             WifiDriverState::Initialized(_) => {
                 if let WifiDriverState::Initialized(init) = self.state.replace_with_ap() {
                     Some(init)
@@ -122,7 +125,7 @@ impl WifiDriver {
         };
 
         match &mut self.state {
-            WifiDriverState::AP(ap) => {
+            WifiDriverState::AP(ap, resources) => {
                 // Initialize the memory if we need to
                 if let Some(init) = init {
                     ApState::init(
@@ -130,7 +133,7 @@ impl WifiDriver {
                         init,
                         config,
                         unsafe { as_static_mut(&mut self.wifi) },
-                        resources,
+                        unsafe { as_static_mut(resources) },
                         self.rng,
                     )
                 }
@@ -146,7 +149,7 @@ impl WifiDriver {
     }
 
     pub async fn ap_client_count(&self) -> u32 {
-        if let WifiDriverState::AP(ap) = &self.state {
+        if let WifiDriverState::AP(ap, _) = &self.state {
             let ap = unsafe { ap.assume_init_ref() };
             ap.client_count().await
         } else {
@@ -156,7 +159,7 @@ impl WifiDriver {
 
     pub async fn stop_if(&mut self) {
         match &mut self.state {
-            WifiDriverState::AP(ap) => {
+            WifiDriverState::AP(ap, _) => {
                 let ap = unsafe { ap.assume_init_mut() };
                 ap.stop().await
             }
@@ -165,7 +168,7 @@ impl WifiDriver {
     }
 
     pub fn ap_running(&self) -> bool {
-        if let WifiDriverState::AP(ap) = &self.state {
+        if let WifiDriverState::AP(ap, _) = &self.state {
             let ap = unsafe { ap.assume_init_ref() };
             ap.is_running()
         } else {

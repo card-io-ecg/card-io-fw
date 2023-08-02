@@ -11,19 +11,14 @@ use config_site::{
     },
 };
 use embassy_executor::Spawner;
-use embassy_net::{
-    tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StackResources, StaticConfigV4,
-};
+use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StaticConfigV4};
 use embassy_time::{Duration, Instant, Ticker, Timer};
 use embedded_graphics::Drawable;
 use esp_wifi::wifi::WifiDevice;
 use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen, WifiApScreenState};
 
 use crate::{
-    board::{
-        initialized::Board,
-        wifi::{as_static_mut, as_static_ref},
-    },
+    board::{initialized::Board, wifi::as_static_ref},
     states::{AppMenu, MIN_FRAME_TIME, WEBSERVER_TASKS},
     task_control::TaskController,
     AppState,
@@ -32,17 +27,13 @@ use crate::{
 pub async fn wifi_ap(board: &mut Board) -> AppState {
     board.wifi.initialize(&board.clocks);
 
-    let mut stack_resources = Box::new(StackResources::<3>::new());
     let stack = board
         .wifi
-        .configure_ap(
-            Config::ipv4_static(StaticConfigV4 {
-                address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
-                gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
-                dns_servers: Default::default(),
-            }),
-            unsafe { as_static_mut(&mut stack_resources) },
-        )
+        .configure_ap(Config::ipv4_static(StaticConfigV4 {
+            address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
+            gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
+            dns_servers: Default::default(),
+        }))
         .await;
 
     let spawner = Spawner::for_current_executor().await;
@@ -119,8 +110,6 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     }
 
     board.wifi.stop_if().await;
-
-    core::mem::drop(stack_resources);
 
     {
         let context = context.lock().await;
