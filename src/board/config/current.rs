@@ -4,6 +4,8 @@ use gui::{screens::display_menu::DisplayBrightness, widgets::battery_small::Batt
 use norfs::storable::{LoadError, Loadable, Storable};
 use ssd1306::prelude::Brightness;
 
+use super::CURRENT_VERSION;
+
 #[derive(Clone)]
 pub struct Config {
     pub battery_display_style: BatteryStyle,
@@ -61,6 +63,8 @@ impl Loadable for Config {
 
 impl Storable for Config {
     async fn store<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
+        CURRENT_VERSION.store(writer).await?;
+
         self.battery_display_style.store(writer).await?;
         self.display_brightness.store(writer).await?;
         self.known_networks.store(writer).await?;
