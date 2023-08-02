@@ -152,3 +152,7 @@ lto = "off"
 debug = true
 codegen-units = 1
 lto = "off"
+
+[profile.lto]
+inherits = "release"
+lto = true
