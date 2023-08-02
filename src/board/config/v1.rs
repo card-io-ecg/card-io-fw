@@ -1,4 +1,4 @@
-use embedded_io::asynch::{Read, Write};
+use embedded_io::asynch::Read;
 use gui::{screens::display_menu::DisplayBrightness, widgets::battery_small::BatteryStyle};
 use norfs::storable::{LoadError, Loadable};
 
