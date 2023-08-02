@@ -9,6 +9,7 @@ pub enum Subcommands {
     Build {
         /// Which hardware version to build for.
         hw: Option<HardwareVersion>,
+        variant: Option<BuildVariant>,
     },
 
     /// Builds the firmware and dumps the assembly.
@@ -81,6 +82,11 @@ impl HardwareVersion {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum BuildVariant {
+    StackSizes,
+}
+
 #[derive(Debug, Parser)]
 #[clap(about, version, propagate_version = true)]
 pub struct Cli {
@@ -97,15 +103,31 @@ fn cargo(args: &[&str]) -> Expression {
     cmd("rustup", args_vec)
 }
 
-fn build(hw: HardwareVersion) -> AnyResult<()> {
-    cargo(&[
-        "build",
+fn build(hw: HardwareVersion, opt: Option<BuildVariant>) -> AnyResult<()> {
+    let mut profile = "--release";
+    let extra_args = if let Some(option) = opt {
+        match option {
+            BuildVariant::StackSizes => {
+                profile = "--profile=lto";
+                vec!["--", "-Zemit-stack-sizes", "--emit=llvm-bc"]
+            }
+        }
+    } else {
+        vec![]
+    };
+
+    let features = format!("--features={}", hw.feature());
+    let mut args_vec = vec![
+        "rustc",
         "--target=xtensa-esp32s3-none-elf",
         "-Zbuild-std=core,alloc",
-        "--release",
-        &format!("--features={}", hw.feature()),
-    ])
-    .run()?;
+        &profile,
+        &features,
+    ];
+
+    args_vec.extend_from_slice(&extra_args);
+
+    cargo(&args_vec).run()?;
 
     Ok(())
 }
@@ -226,10 +248,10 @@ fn main() -> AnyResult<()> {
     let cli = Cli::parse();
 
     match cli.subcommand {
-        Subcommands::Build { hw } => build(hw.unwrap_or_default()),
+        Subcommands::Build { hw, variant: opt } => build(hw.unwrap_or_default(), opt),
         Subcommands::Test => test(),
         Subcommands::Asm { hw } => {
-            build(hw.unwrap_or_default())?;
+            build(hw.unwrap_or_default(), None)?;
             asm()
         }
         Subcommands::Monitor => monitor(),
