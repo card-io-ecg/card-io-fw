@@ -19,6 +19,7 @@ use crate::{
 pub enum MainMenuEvents {
     Display,
     WifiSetup,
+    About,
     Shutdown,
 }
 
@@ -29,6 +30,7 @@ pub enum MainMenuEvents {
     items = [
         navigation(label = "Display settings", event = MainMenuEvents::Display),
         navigation(label = "Wifi setup", event = MainMenuEvents::WifiSetup),
+        navigation(label = "About the device", event = MainMenuEvents::About),
         navigation(label = "Shutdown", event = MainMenuEvents::Shutdown)
     ]
 )]
