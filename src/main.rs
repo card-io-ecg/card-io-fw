@@ -35,7 +35,6 @@ use crate::{
         hal::{self, entry, prelude::interrupt},
         initialized::{BatteryMonitor, BatteryState, Board, ConfigPartition},
         startup::StartupResources,
-        BATTERY_MODEL,
     },
     interrupt::{InterruptExecutor, SwInterrupt0},
     sleep::{enable_gpio_wakeup, start_deep_sleep, RtcioWakeupType},
@@ -219,7 +218,6 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         peripheral_clock_control: resources.peripheral_clock_control,
         high_prio_spawner: INT_EXECUTOR.start(),
         battery_monitor: BatteryMonitor {
-            model: BATTERY_MODEL,
             battery_state,
             vbus_detect: resources.misc_pins.vbus_detect,
             charger_status: resources.misc_pins.chg_status,

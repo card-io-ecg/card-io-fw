@@ -29,16 +29,9 @@ pub use esp32s3 as pac;
 
 pub use hardware::*;
 
-use signal_processing::battery::BatteryModel;
-
 pub struct MiscPins {
     pub vbus_detect: VbusDetect,
     pub chg_status: ChargerStatus,
 }
-
-pub const BATTERY_MODEL: BatteryModel = BatteryModel {
-    voltage: (2750, 4200),
-    charge_current: (0, 1000),
-};
 
 pub const LOW_BATTERY_PERCENTAGE: u8 = 5;

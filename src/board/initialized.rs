@@ -15,7 +15,6 @@ use norfs::{
     medium::cache::ReadCache,
     OnCollision, Storage,
 };
-use signal_processing::battery::BatteryModel;
 
 #[cfg(feature = "battery_adc")]
 use crate::board::drivers::battery_adc::BatteryAdcData;
@@ -34,7 +33,6 @@ pub struct BatteryState {
 }
 
 pub struct BatteryMonitor<VBUS, CHG> {
-    pub model: BatteryModel,
     pub battery_state: &'static SharedBatteryState,
     pub vbus_detect: VBUS,
     pub charger_status: CHG,
@@ -43,6 +41,11 @@ pub struct BatteryMonitor<VBUS, CHG> {
 impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
     #[cfg(feature = "battery_adc")]
     pub async fn battery_data(&mut self) -> Option<BatteryInfo> {
+        let battery_model = signal_processing::battery::BatteryModel {
+            voltage: (2750, 4200),
+            charge_current: (0, 1000),
+        };
+
         let state = self.battery_state.lock().await;
 
         state.adc_data.map(|state| {
@@ -52,7 +55,7 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
                 Some(state.charge_current)
             };
 
-            let percentage = self.model.estimate(state.voltage, charge_current);
+            let percentage = battery_model.estimate(state.voltage, charge_current);
 
             BatteryInfo {
                 voltage: state.voltage,
