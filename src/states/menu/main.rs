@@ -1,4 +1,8 @@
-use crate::{board::initialized::Board, states::MIN_FRAME_TIME, AppState};
+use crate::{
+    board::initialized::Board,
+    states::{AppMenu, MIN_FRAME_TIME},
+    AppState,
+};
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::prelude::*;
 use gui::screens::{
@@ -27,7 +31,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
         }
         if let Some(event) = menu_screen.menu.interact(is_touched) {
             match event {
-                MainMenuEvents::Display => return AppState::DisplayMenu,
+                MainMenuEvents::Display => return AppState::Menu(AppMenu::Display),
                 MainMenuEvents::WifiSetup => return AppState::WifiAP,
                 MainMenuEvents::Shutdown => return AppState::Shutdown,
             };

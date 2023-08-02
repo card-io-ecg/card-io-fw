@@ -21,3 +21,5 @@ const MIN_FRAME_TIME: Duration = Duration::from_hz(TARGET_FPS as u64);
 
 // The max number of webserver tasks.
 const WEBSERVER_TASKS: usize = 2;
+
+pub use menu::AppMenu;

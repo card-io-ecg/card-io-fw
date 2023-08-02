@@ -1,6 +1,6 @@
 use crate::{
     board::initialized::Board,
-    states::{MIN_FRAME_TIME, TARGET_FPS},
+    states::{AppMenu, MIN_FRAME_TIME, TARGET_FPS},
     AppState,
 };
 use embassy_time::{Duration, Instant, Ticker};
@@ -26,7 +26,7 @@ pub async fn charging(board: &mut Board) -> AppState {
             display_started = Instant::now();
         }
         if charging_screen.update_touched(board.frontend.is_touched()) {
-            return AppState::MainMenu;
+            return AppState::Menu(AppMenu::Main);
         }
 
         charging_screen.is_charging = board.battery_monitor.is_charging();
