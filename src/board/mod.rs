@@ -41,4 +41,4 @@ pub const BATTERY_MODEL: BatteryModel = BatteryModel {
     charge_current: (0, 1000),
 };
 
-pub const LOW_BATTERY_VOLTAGE: u16 = 3300;
+pub const LOW_BATTERY_PERCENTAGE: u8 = 5;

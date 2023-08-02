@@ -2,7 +2,7 @@ use crate::{
     board::{
         hal::{prelude::*, spi::Error as SpiError},
         initialized::Board,
-        PoweredEcgFrontend, LOW_BATTERY_VOLTAGE,
+        PoweredEcgFrontend,
     },
     replace_with::replace_with_or_abort_and_return_async,
     states::MIN_FRAME_TIME,
@@ -189,7 +189,7 @@ pub async fn measure(board: &mut Board) -> AppState {
             let battery_data = board.battery_monitor.battery_data().await;
 
             if let Some(battery) = battery_data {
-                if battery.voltage < LOW_BATTERY_VOLTAGE {
+                if battery.is_low {
                     THREAD_CONTROL.signal(());
                 }
             }

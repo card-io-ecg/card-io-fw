@@ -24,7 +24,7 @@ use crate::board::drivers::battery_adc::BatteryAdcData;
 use crate::board::drivers::battery_fg::BatteryFgData;
 
 #[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
-use crate::board::LOW_BATTERY_VOLTAGE;
+use crate::board::LOW_BATTERY_PERCENTAGE;
 
 pub struct BatteryState {
     #[cfg(feature = "battery_adc")]
@@ -51,11 +51,14 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
             } else {
                 Some(state.charge_current)
             };
+
+            let percentage = self.model.estimate(state.voltage, charge_current);
+
             BatteryInfo {
                 voltage: state.voltage,
                 is_charging: self.is_charging(),
-                percentage: self.model.estimate(state.voltage, charge_current),
-                is_low: state.voltage < LOW_BATTERY_VOLTAGE,
+                percentage,
+                is_low: percentage < LOW_BATTERY_PERCENTAGE,
             }
         })
     }
@@ -68,7 +71,7 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
             voltage: state.voltage,
             is_charging: self.is_charging(),
             percentage: state.percentage,
-            is_low: state.voltage < LOW_BATTERY_VOLTAGE,
+            is_low: state.percentage < LOW_BATTERY_PERCENTAGE,
         })
     }
 
