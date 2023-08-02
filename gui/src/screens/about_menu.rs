@@ -31,6 +31,8 @@ type AboutMenu<'a> = Menu<
     chain! {
         MenuLine<NavigationItem<'a, AboutMenuEvents>>,
         MenuLine<NavigationItem<'a, AboutMenuEvents>>,
+        MenuLine<NavigationItem<'a, AboutMenuEvents>>,
+        MenuLine<NavigationItem<'a, AboutMenuEvents>>,
         MenuLine<NavigationItem<'a, AboutMenuEvents>>
     },
     AboutMenuEvents,
@@ -40,15 +42,19 @@ type AboutMenu<'a> = Menu<
 >;
 
 pub struct AboutMenuData {
-    pub version: String,
+    pub hw_version: String,
+    pub fw_version: String,
     pub serial: String,
+    pub adc: String,
 }
 
 impl AboutMenuData {
     pub fn create<'a>(&'a self) -> AboutMenu<'a> {
         Menu::with_style("Device info", MENU_STYLE)
-            .add_item(NavigationItem::new(&self.version, AboutMenuEvents::None))
             .add_item(NavigationItem::new(&self.serial, AboutMenuEvents::None))
+            .add_item(NavigationItem::new(&self.hw_version, AboutMenuEvents::None))
+            .add_item(NavigationItem::new(&self.fw_version, AboutMenuEvents::None))
+            .add_item(NavigationItem::new(&self.adc, AboutMenuEvents::None))
             .add_item(NavigationItem::new("Back", AboutMenuEvents::Back))
             .build()
     }
