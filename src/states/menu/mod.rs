@@ -1,3 +1,4 @@
+pub mod about;
 pub mod display;
 pub mod main;
 
@@ -5,4 +6,5 @@ pub mod main;
 pub enum AppMenu {
     Main,
     Display,
+    About,
 }

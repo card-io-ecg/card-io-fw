@@ -33,7 +33,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
             match event {
                 MainMenuEvents::Display => return AppState::Menu(AppMenu::Display),
                 MainMenuEvents::WifiSetup => return AppState::WifiAP,
-                MainMenuEvents::About => return AppState::Menu(todo!()),
+                MainMenuEvents::About => return AppState::Menu(AppMenu::About),
                 MainMenuEvents::Shutdown => return AppState::Shutdown,
             };
         }
