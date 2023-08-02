@@ -11,6 +11,7 @@ pub struct Frontend<S, DRDY, RESET, CLKEN, TOUCH> {
     reset: RESET,
     clken: CLKEN,
     touch: TOUCH,
+    device_id: Option<DeviceId>,
 }
 
 impl<S, DRDY, RESET, CLKEN, TOUCH> Frontend<S, DRDY, RESET, CLKEN, TOUCH> {
@@ -21,11 +22,16 @@ impl<S, DRDY, RESET, CLKEN, TOUCH> Frontend<S, DRDY, RESET, CLKEN, TOUCH> {
             reset,
             clken,
             touch,
+            device_id: None,
         }
     }
 
     pub fn spi_mut(&mut self) -> &mut S {
         self.adc.inner_mut()
+    }
+
+    pub fn device_id(&self) -> Option<DeviceId> {
+        self.device_id
     }
 }
 
@@ -183,6 +189,8 @@ where
 
         let device_id = self.frontend.adc.read_device_id_async().await?;
 
+        self.frontend.device_id = Some(device_id);
+
         log::info!("ADC device id: {:?}", device_id);
 
         let config = self.frontend.config();
@@ -228,6 +236,10 @@ where
         self.touched = sample.ch1_leads_connected();
 
         Ok(sample)
+    }
+
+    pub fn device_id(&self) -> Option<DeviceId> {
+        self.frontend.device_id()
     }
 
     pub fn is_touched(&self) -> bool {
