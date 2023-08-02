@@ -1,4 +1,8 @@
-use crate::{board::initialized::Board, states::MIN_FRAME_TIME, AppState};
+use crate::{
+    board::initialized::Board,
+    states::{AppMenu, MIN_FRAME_TIME},
+    AppState,
+};
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
 use gui::screens::init::StartupScreen;
@@ -12,7 +16,7 @@ pub async fn initialize(board: &mut Board) -> AppState {
     while let elapsed = entered.elapsed() && elapsed <= INIT_TIME {
         if !board.frontend.is_touched() {
             return if elapsed > MENU_THRESHOLD {
-                AppState::MainMenu
+                AppState::Menu(AppMenu::Main)
             } else {
                 AppState::Shutdown
             };

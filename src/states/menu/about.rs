@@ -1,22 +1,36 @@
+use alloc::format;
+use embassy_time::{Duration, Instant, Ticker};
+use embedded_graphics::Drawable;
+use gui::screens::about_menu::{AboutMenuData, AboutMenuEvents, AboutMenuScreen};
+
 use crate::{
-    board::initialized::Board,
-    states::{AppMenu, MIN_FRAME_TIME},
+    board::{hal::efuse::Efuse, initialized::Board},
+    states::MIN_FRAME_TIME,
     AppState,
 };
-use embassy_time::{Duration, Instant, Ticker};
-use embedded_graphics::prelude::*;
-use gui::screens::{
-    main_menu::{MainMenu, MainMenuEvents, MainMenuScreen},
-    MENU_STYLE,
-};
 
-pub async fn main_menu(board: &mut Board) -> AppState {
+use super::AppMenu;
+
+pub async fn about_menu(board: &mut Board) -> AppState {
     const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
 
-    let menu_values = MainMenu {};
+    let mac_address = Efuse::get_mac_address();
 
-    let mut menu_screen = MainMenuScreen {
-        menu: menu_values.create_menu_with_style(MENU_STYLE),
+    let menu_data = AboutMenuData {
+        version: format!("FW: {:>16}", env!("FW_VERSION")),
+        serial: format!(
+            "Serial: {:02X}{:02X}{:02X}{:02X}{:02X}{:02X}",
+            mac_address[0],
+            mac_address[1],
+            mac_address[2],
+            mac_address[3],
+            mac_address[4],
+            mac_address[5]
+        ),
+    };
+
+    let mut menu_screen = AboutMenuScreen {
+        menu: menu_data.create(),
         battery_data: board.battery_monitor.battery_data().await,
         battery_style: board.config.battery_style(),
     };
@@ -31,16 +45,13 @@ pub async fn main_menu(board: &mut Board) -> AppState {
         }
         if let Some(event) = menu_screen.menu.interact(is_touched) {
             match event {
-                MainMenuEvents::Display => return AppState::Menu(AppMenu::Display),
-                MainMenuEvents::WifiSetup => return AppState::WifiAP,
-                MainMenuEvents::About => return AppState::Menu(AppMenu::About),
-                MainMenuEvents::Shutdown => return AppState::Shutdown,
+                AboutMenuEvents::None => {}
+                AboutMenuEvents::Back => return AppState::Menu(AppMenu::Main),
             };
         }
 
         menu_screen.battery_data = board.battery_monitor.battery_data().await;
 
-        #[cfg(feature = "battery_max17055")]
         if let Some(battery) = menu_screen.battery_data {
             if battery.is_low {
                 return AppState::Shutdown;
@@ -59,6 +70,5 @@ pub async fn main_menu(board: &mut Board) -> AppState {
         ticker.next().await;
     }
 
-    log::info!("Menu timeout");
-    AppState::Shutdown
+    AppState::Menu(AppMenu::Main)
 }

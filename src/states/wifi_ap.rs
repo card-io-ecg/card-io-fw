@@ -24,7 +24,7 @@ use crate::{
         initialized::Board,
         wifi::{as_static_mut, as_static_ref},
     },
-    states::{MIN_FRAME_TIME, WEBSERVER_TASKS},
+    states::{AppMenu, MIN_FRAME_TIME, WEBSERVER_TASKS},
     task_control::TaskController,
     AppState,
 };
@@ -131,7 +131,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         }
     }
 
-    AppState::MainMenu
+    AppState::Menu(AppMenu::Main)
 }
 
 #[derive(Clone, Copy)]

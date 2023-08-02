@@ -1,4 +1,8 @@
-use crate::{board::initialized::Board, states::MIN_FRAME_TIME, AppState};
+use crate::{
+    board::initialized::Board,
+    states::{AppMenu, MIN_FRAME_TIME},
+    AppState,
+};
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::prelude::*;
 use gui::screens::{
@@ -33,7 +37,7 @@ pub async fn display_menu(board: &mut Board) -> AppState {
             match event {
                 DisplayMenuEvents::Back => {
                     board.save_config().await;
-                    return AppState::MainMenu;
+                    return AppState::Menu(AppMenu::Main);
                 }
             };
         }

@@ -13,7 +13,7 @@ pub use charging::charging;
 pub use error::app_error;
 pub use init::initialize;
 pub use measure::measure;
-pub use menu::{display::display_menu, main::main_menu};
+pub use menu::{about::about_menu, display::display_menu, main::main_menu};
 pub use wifi_ap::wifi_ap;
 
 const TARGET_FPS: u32 = 100;
@@ -21,3 +21,5 @@ const MIN_FRAME_TIME: Duration = Duration::from_hz(TARGET_FPS as u64);
 
 // The max number of webserver tasks.
 const WEBSERVER_TASKS: usize = 2;
+
+pub use menu::AppMenu;
