@@ -27,6 +27,10 @@ pub async fn about_menu(board: &mut Board) -> AppState {
             mac_address[4],
             mac_address[5]
         ),
+        adc: match board.frontend.device_id() {
+            Some(id) => format!("ADC: {id:>15?}"),
+            None => format!("ADC:         Unknown"),
+        },
     };
 
     let mut menu_screen = AboutMenuScreen {
