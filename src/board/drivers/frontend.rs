@@ -238,10 +238,6 @@ where
         Ok(sample)
     }
 
-    pub fn device_id(&self) -> Option<DeviceId> {
-        self.frontend.device_id()
-    }
-
     pub fn is_touched(&self) -> bool {
         self.touched
     }

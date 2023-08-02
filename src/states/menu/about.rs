@@ -17,7 +17,8 @@ pub async fn about_menu(board: &mut Board) -> AppState {
     let mac_address = Efuse::get_mac_address();
 
     let menu_data = AboutMenuData {
-        version: format!("FW: {:>16}", env!("FW_VERSION")),
+        hw_version: format!("FW: {:>16}", env!("FW_VERSION")),
+        fw_version: format!("HW: {:>16}", format!("ESP32-S3/{}", env!("HW_VERSION"))),
         serial: format!(
             "Serial: {:02X}{:02X}{:02X}{:02X}{:02X}{:02X}",
             mac_address[0],
@@ -28,7 +29,7 @@ pub async fn about_menu(board: &mut Board) -> AppState {
             mac_address[5]
         ),
         adc: match board.frontend.device_id() {
-            Some(id) => format!("ADC: {id:>15?}"),
+            Some(id) => format!("ADC: {:>15}", format!("{id:?}")),
             None => format!("ADC:         Unknown"),
         },
     };

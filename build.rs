@@ -25,10 +25,12 @@ fn main() {
     #[cfg(feature = "hw_v1")]
     {
         count += 1;
+        println!("cargo:rustc-env=HW_VERSION=v1");
     }
     #[cfg(feature = "hw_v2")]
     {
         count += 1;
+        println!("cargo:rustc-env=HW_VERSION=v2");
     }
     if count > 1 {
         println!("cargo:warning=Can't select more than one of: hw_v1, hw_v2");
