@@ -3,8 +3,10 @@ pub mod v1;
 
 pub use current::Config;
 
-use embedded_io::asynch::{Read, Write};
-use norfs::storable::{LoadError, Loadable, Storable};
+use embedded_io::asynch::Read;
+use norfs::storable::{LoadError, Loadable};
+
+const CURRENT_VERSION: u8 = 1;
 
 #[derive(Clone)]
 #[allow(clippy::large_enum_variant)]
@@ -41,27 +43,10 @@ impl Loadable for ConfigFile {
     async fn load<R: Read>(reader: &mut R) -> Result<Self, LoadError<R::Error>> {
         let data = match u8::load(reader).await? {
             0 => Self::V1(v1::Config::load(reader).await?),
-            1 => Self::V2(Config::load(reader).await?),
+            CURRENT_VERSION => Self::V2(Config::load(reader).await?),
             _ => return Err(LoadError::InvalidValue),
         };
 
         Ok(data)
-    }
-}
-
-impl Storable for ConfigFile {
-    async fn store<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
-        match self {
-            Self::V1(config) => {
-                0u8.store(writer).await?;
-                config.store(writer).await?;
-            }
-            Self::V2(config) => {
-                1u8.store(writer).await?;
-                config.store(writer).await?;
-            }
-        }
-
-        Ok(())
     }
 }

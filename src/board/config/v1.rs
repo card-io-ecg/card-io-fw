@@ -1,6 +1,6 @@
 use embedded_io::asynch::{Read, Write};
 use gui::{screens::display_menu::DisplayBrightness, widgets::battery_small::BatteryStyle};
-use norfs::storable::{LoadError, Loadable, Storable};
+use norfs::storable::{LoadError, Loadable};
 
 #[derive(Clone)]
 pub struct Config {
@@ -25,14 +25,5 @@ impl Loadable for Config {
         };
 
         Ok(data)
-    }
-}
-
-impl Storable for Config {
-    async fn store<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
-        self.battery_display_style.store(writer).await?;
-        self.display_brightness.store(writer).await?;
-
-        Ok(())
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     board::{
-        config::{Config, ConfigFile},
+        config::Config,
         hal::{clock::Clocks, system::PeripheralClockControl},
         wifi::WifiDriver,
         ChargerStatus, EcgFrontend, PoweredDisplay, VbusDetect,
@@ -123,10 +123,8 @@ impl Board {
         self.config_changed = false;
 
         if let Some(storage) = self.storage.as_mut() {
-            let config_data = ConfigFile::new(self.config.clone());
-
             if let Err(e) = storage
-                .store_writer("config", &config_data, OnCollision::Overwrite)
+                .store_writer("config", self.config, OnCollision::Overwrite)
                 .await
             {
                 log::error!("Failed to save config: {e:?}");
