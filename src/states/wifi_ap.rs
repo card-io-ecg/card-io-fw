@@ -38,7 +38,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
     let spawner = Spawner::for_current_executor().await;
 
-    let webserver_task_control = [TaskController::DEFAULT; WEBSERVER_TASKS];
+    let webserver_task_control = [(); WEBSERVER_TASKS].map(|_| Rc::new(TaskController::DEFAULT));
 
     let context = Rc::new(SharedWebContext::new(WebContext {
         known_networks: board.config.known_networks.clone(),
@@ -50,7 +50,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
             spawner.must_spawn(webserver_task(
                 as_static_ref(stack),
                 context.clone(),
-                as_static_ref(&webserver_task_control[i]),
+                webserver_task_control[i].clone(),
             ));
         }
     }
@@ -104,8 +104,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         ticker.next().await;
     }
 
-    // NB: we must not consume the array here, as we have static references to it.
-    for control in webserver_task_control.iter() {
+    for control in webserver_task_control {
         let _ = control.stop_from_outside().await;
     }
 
@@ -134,7 +133,7 @@ struct WebserverResources {
 async fn webserver_task(
     stack: &'static Stack<WifiDevice<'static>>,
     context: Rc<SharedWebContext>,
-    task_control: &'static TaskController<()>,
+    task_control: Rc<TaskController<()>>,
 ) {
     log::info!("Started webserver task");
     task_control
