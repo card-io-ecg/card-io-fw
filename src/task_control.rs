@@ -81,6 +81,14 @@ impl<R: Send> TaskController<R> {
     }
 }
 
+impl<R: Send> Drop for TaskController<R> {
+    fn drop(&mut self) {
+        if Rc::strong_count(&self.inner) > 1 {
+            self.inner.token.signal(());
+        }
+    }
+}
+
 pub struct TaskControlToken<R: Send> {
     inner: Rc<Inner<R>>,
 }
