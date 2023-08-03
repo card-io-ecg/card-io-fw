@@ -38,18 +38,16 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
     let spawner = Spawner::for_current_executor().await;
 
-    let webserver_task_control = [(); WEBSERVER_TASKS].map(|_| TaskController::new());
-
     let context = Rc::new(SharedWebContext::new(WebContext {
         known_networks: board.config.known_networks.clone(),
     }));
 
-    #[allow(clippy::needless_range_loop)]
-    for i in 0..WEBSERVER_TASKS {
+    let webserver_task_control = [(); WEBSERVER_TASKS].map(|_| TaskController::new());
+    for control in webserver_task_control.iter() {
         spawner.must_spawn(webserver_task(
             stack.clone(),
             context.clone(),
-            webserver_task_control[i].token(),
+            control.token(),
         ));
     }
 
