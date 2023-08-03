@@ -1,5 +1,6 @@
 use crate::{
     board::initialized::Board,
+    heap::ALLOCATOR,
     states::{AppMenu, MIN_FRAME_TIME},
     AppState,
 };
@@ -12,6 +13,8 @@ use gui::screens::{
 
 pub async fn main_menu(board: &mut Board) -> AppState {
     const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
+
+    log::info!("Free heap: {} bytes", ALLOCATOR.free());
 
     let menu_values = MainMenu {};
 
