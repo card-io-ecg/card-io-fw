@@ -54,14 +54,6 @@ pub struct TaskController<R: Send> {
     inner: Rc<Inner<R>>,
 }
 
-impl<R: Send> Clone for TaskController<R> {
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-        }
-    }
-}
-
 impl<R: Send> TaskController<R> {
     /// Creates a new signal pair.
     pub fn new() -> Self {
@@ -80,9 +72,23 @@ impl<R: Send> TaskController<R> {
         self.inner.has_exited()
     }
 
+    pub fn token(&self) -> TaskControlToken<R> {
+        // We only allow a single token that can be passed to a task.
+        debug_assert_eq!(Rc::strong_count(&self.inner), 1);
+        TaskControlToken {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+pub struct TaskControlToken<R: Send> {
+    inner: Rc<Inner<R>>,
+}
+
+impl<R: Send> TaskControlToken<R> {
     /// Runs a cancellable task. The task ends when either the future completes, or the task is
     /// cancelled.
-    pub async fn run_cancellable(&self, future: impl Future<Output = R>) {
+    pub async fn run_cancellable(&mut self, future: impl Future<Output = R>) {
         self.inner.run_cancellable(future).await
     }
 }

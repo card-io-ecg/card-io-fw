@@ -20,7 +20,7 @@ use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen, WifiApScreenState};
 use crate::{
     board::initialized::Board,
     states::{AppMenu, MIN_FRAME_TIME, WEBSERVER_TASKS},
-    task_control::TaskController,
+    task_control::{TaskControlToken, TaskController},
     AppState,
 };
 
@@ -49,7 +49,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         spawner.must_spawn(webserver_task(
             stack.clone(),
             context.clone(),
-            webserver_task_control[i].clone(),
+            webserver_task_control[i].token(),
         ));
     }
 
@@ -131,7 +131,7 @@ struct WebserverResources {
 async fn webserver_task(
     stack: Rc<Stack<WifiDevice<'static>>>,
     context: Rc<SharedWebContext>,
-    task_control: TaskController<()>,
+    mut task_control: TaskControlToken<()>,
 ) {
     log::info!("Started webserver task");
     task_control

@@ -10,7 +10,7 @@ use crate::{
         hal::{radio::Wifi, Rng},
         wifi::net_task,
     },
-    task_control::TaskController,
+    task_control::{TaskControlToken, TaskController},
 };
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
@@ -90,11 +90,11 @@ impl ApState {
             log::info!("Starting AP task");
             spawner.must_spawn(ap_task(
                 self.controller.clone(),
-                self.connection_task_control.clone(),
+                self.connection_task_control.token(),
                 self.client_count.clone(),
             ));
             log::info!("Starting NET task");
-            spawner.must_spawn(net_task(self.stack.clone(), self.net_task_control.clone()));
+            spawner.must_spawn(net_task(self.stack.clone(), self.net_task_control.token()));
 
             self.started = true;
         }
@@ -132,7 +132,7 @@ impl ApState {
 #[embassy_executor::task]
 pub(super) async fn ap_task(
     controller: Rc<Mutex<NoopRawMutex, WifiController<'static>>>,
-    task_control: TaskController<()>,
+    mut task_control: TaskControlToken<()>,
     client_count: Rc<AtomicU32>,
 ) {
     task_control

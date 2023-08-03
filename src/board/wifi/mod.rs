@@ -15,7 +15,7 @@ use crate::{
         },
         wifi::ap::ApState,
     },
-    task_control::TaskController,
+    task_control::TaskControlToken,
 };
 use alloc::{boxed::Box, rc::Rc};
 use embassy_net::{Config, Stack, StackResources};
@@ -171,6 +171,9 @@ impl WifiDriver {
 }
 
 #[embassy_executor::task]
-pub async fn net_task(stack: Rc<Stack<WifiDevice<'static>>>, task_control: TaskController<!>) {
+pub async fn net_task(
+    stack: Rc<Stack<WifiDevice<'static>>>,
+    mut task_control: TaskControlToken<!>,
+) {
     task_control.run_cancellable(stack.run()).await;
 }
