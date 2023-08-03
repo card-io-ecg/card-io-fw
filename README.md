@@ -36,5 +36,5 @@ Commands
 - `cargo xtest`: runs `cargo test`.
 - `cargo example <package> <example> [--watch]`: runs an example.
   Use `--watch` to enable automatic reload when a file changes.
-- To run the config site on your PC, run `cargo watch -x "example config-site simple"`
+- To run the config site on your PC, run `cargo example config-site simple --watch`
   and open `127.0.0.1:8080` in a browser.
