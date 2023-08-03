@@ -268,15 +268,6 @@ impl WifiDriver {
             false
         }
     }
-
-    pub fn sta_connected(&self) -> bool {
-        if let WifiDriverState::STA(sta, _) = &self.state {
-            let sta = unsafe { sta.assume_init_ref() };
-            sta.is_connected()
-        } else {
-            false
-        }
-    }
 }
 
 #[embassy_executor::task]

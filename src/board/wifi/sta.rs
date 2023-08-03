@@ -24,14 +24,23 @@ use esp_wifi::{
     EspWifiInitialization,
 };
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ConnectionState {
+    NotConnected,
+    Connected,
+}
+
 #[derive(Clone)]
 pub struct Sta {
     stack: Rc<Stack<WifiDevice<'static>>>,
 }
 
 impl Sta {
-    pub fn stack(&self) -> &Stack<WifiDevice<'static>> {
-        &self.stack
+    pub fn connection_state(&self) -> ConnectionState {
+        match self.stack.is_link_up() {
+            true => ConnectionState::Connected,
+            false => ConnectionState::NotConnected,
+        }
     }
 }
 
@@ -131,10 +140,6 @@ impl StaState {
         Sta {
             stack: self.stack.clone(),
         }
-    }
-
-    pub(super) fn is_connected(&self) -> bool {
-        false
     }
 }
 
