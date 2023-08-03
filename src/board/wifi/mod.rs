@@ -17,13 +17,9 @@ use crate::{
     },
     task_control::TaskController,
 };
-use alloc::boxed::Box;
+use alloc::{boxed::Box, rc::Rc};
 use embassy_net::{Config, Stack, StackResources};
 use esp_wifi::{wifi::WifiDevice, EspWifiInitFor, EspWifiInitialization};
-
-pub unsafe fn as_static_ref<T>(what: &T) -> &'static T {
-    mem::transmute(what)
-}
 
 pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
     mem::transmute(what)
@@ -107,10 +103,7 @@ impl WifiDriver {
         self.state.initialize(clocks);
     }
 
-    pub async fn configure_ap<'d>(
-        &'d mut self,
-        config: Config,
-    ) -> &'d mut Stack<WifiDevice<'static>> {
+    pub async fn configure_ap(&mut self, config: Config) -> Rc<Stack<WifiDevice<'static>>> {
         // Init AP mode
         let init = match &mut self.state {
             WifiDriverState::Uninitialized(_) => unreachable!(),
@@ -178,9 +171,6 @@ impl WifiDriver {
 }
 
 #[embassy_executor::task]
-pub async fn net_task(
-    stack: &'static Stack<WifiDevice<'static>>,
-    task_control: &'static TaskController<!>,
-) {
+pub async fn net_task(stack: Rc<Stack<WifiDevice<'static>>>, task_control: TaskController<!>) {
     task_control.run_cancellable(stack.run()).await;
 }

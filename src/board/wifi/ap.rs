@@ -1,3 +1,4 @@
+use alloc::rc::Rc;
 use core::{
     mem::MaybeUninit,
     ptr::{self, addr_of_mut},
@@ -6,7 +7,7 @@ use core::{
 use crate::{
     board::{
         hal::{radio::Wifi, Rng},
-        wifi::{as_static_mut, as_static_ref, net_task},
+        wifi::net_task,
     },
     task_control::TaskController,
 };
@@ -23,11 +24,11 @@ use esp_wifi::{
 
 pub(super) struct ApState {
     init: EspWifiInitialization,
-    controller: WifiController<'static>,
-    stack: Stack<WifiDevice<'static>>,
+    controller: Rc<Mutex<NoopRawMutex, WifiController<'static>>>,
+    stack: Rc<Stack<WifiDevice<'static>>>,
     connection_task_control: TaskController<()>,
     net_task_control: TaskController<!>,
-    client_count: Mutex<NoopRawMutex, u32>,
+    client_count: Rc<Mutex<NoopRawMutex, u32>>,
     started: bool,
 }
 
@@ -51,10 +52,18 @@ impl ApState {
 
         unsafe {
             (*this).init = init;
-            ptr::write(addr_of_mut!((*this).controller), controller);
+            ptr::write(
+                addr_of_mut!((*this).controller),
+                Rc::new(Mutex::new(controller)),
+            );
             ptr::write(
                 addr_of_mut!((*this).stack),
-                Stack::new(wifi_interface, config, resources, u64::from_le_bytes(seed)),
+                Rc::new(Stack::new(
+                    wifi_interface,
+                    config,
+                    resources,
+                    u64::from_le_bytes(seed),
+                )),
             );
             ptr::write(
                 addr_of_mut!((*this).connection_task_control),
@@ -64,32 +73,29 @@ impl ApState {
                 addr_of_mut!((*this).net_task_control),
                 TaskController::new(),
             );
-            ptr::write(addr_of_mut!((*this).client_count), Mutex::new(0));
+            ptr::write(addr_of_mut!((*this).client_count), Rc::new(Mutex::new(0)));
             (*this).started = false;
         }
     }
 
-    pub(super) async fn start(&mut self) -> &mut Stack<WifiDevice<'static>> {
+    pub(super) async fn start(&mut self) -> Rc<Stack<WifiDevice<'static>>> {
         if !self.started {
             log::info!("Starting AP");
             let spawner = Spawner::for_current_executor().await;
-            unsafe {
-                log::info!("Starting AP task");
-                spawner.must_spawn(ap_task(
-                    as_static_mut(&mut self.controller),
-                    as_static_ref(&self.connection_task_control),
-                    as_static_ref(&self.client_count),
-                ));
-                log::info!("Starting NET task");
-                spawner.must_spawn(net_task(
-                    as_static_ref(&self.stack),
-                    as_static_ref(&self.net_task_control),
-                ));
-            }
+
+            log::info!("Starting AP task");
+            spawner.must_spawn(ap_task(
+                self.controller.clone(),
+                self.connection_task_control.clone(),
+                self.client_count.clone(),
+            ));
+            log::info!("Starting NET task");
+            spawner.must_spawn(net_task(self.stack.clone(), self.net_task_control.clone()));
+
             self.started = true;
         }
 
-        &mut self.stack
+        self.stack.clone()
     }
 
     pub(super) async fn stop(&mut self) {
@@ -101,8 +107,8 @@ impl ApState {
             )
             .await;
 
-            if matches!(self.controller.is_started(), Ok(true)) {
-                self.controller.stop().await.unwrap();
+            if matches!(self.controller.lock().await.is_started(), Ok(true)) {
+                self.controller.lock().await.stop().await.unwrap();
             }
 
             log::info!("Stopped AP");
@@ -121,26 +127,33 @@ impl ApState {
 
 #[embassy_executor::task]
 pub(super) async fn ap_task(
-    controller: &'static mut WifiController<'static>,
-    task_control: &'static TaskController<()>,
-    client_count: &'static Mutex<NoopRawMutex, u32>,
+    controller: Rc<Mutex<NoopRawMutex, WifiController<'static>>>,
+    task_control: TaskController<()>,
+    client_count: Rc<Mutex<NoopRawMutex, u32>>,
 ) {
     task_control
         .run_cancellable(async {
             log::info!("Start connection task");
-            log::debug!("Device capabilities: {:?}", controller.get_capabilities());
+            log::debug!(
+                "Device capabilities: {:?}",
+                controller.lock().await.get_capabilities()
+            );
 
             loop {
-                if !matches!(controller.is_started(), Ok(true)) {
+                if !matches!(controller.lock().await.is_started(), Ok(true)) {
                     let client_config = Configuration::AccessPoint(AccessPointConfiguration {
                         ssid: "Card/IO".into(),
                         max_connections: 1,
                         ..Default::default()
                     });
-                    controller.set_configuration(&client_config).unwrap();
+                    controller
+                        .lock()
+                        .await
+                        .set_configuration(&client_config)
+                        .unwrap();
                     log::info!("Starting wifi");
 
-                    controller.start().await.unwrap();
+                    controller.lock().await.start().await.unwrap();
                     log::info!("Wifi started!");
                 }
 
@@ -149,6 +162,8 @@ pub(super) async fn ap_task(
                 | WifiState::ApStaDisconnected = esp_wifi::wifi::get_wifi_state()
                 {
                     let events = controller
+                        .lock()
+                        .await
                         .wait_for_events(
                             WifiEvent::ApStop
                                 | WifiEvent::ApStaconnected
