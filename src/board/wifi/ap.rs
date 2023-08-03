@@ -2,6 +2,7 @@ use alloc::rc::Rc;
 use core::{
     mem::MaybeUninit,
     ptr::{self, addr_of_mut},
+    sync::atomic::{AtomicU32, Ordering},
 };
 
 use crate::{
@@ -28,7 +29,7 @@ pub(super) struct ApState {
     stack: Rc<Stack<WifiDevice<'static>>>,
     connection_task_control: TaskController<()>,
     net_task_control: TaskController<!>,
-    client_count: Rc<Mutex<NoopRawMutex, u32>>,
+    client_count: Rc<AtomicU32>,
     started: bool,
 }
 
@@ -73,7 +74,10 @@ impl ApState {
                 addr_of_mut!((*this).net_task_control),
                 TaskController::new(),
             );
-            ptr::write(addr_of_mut!((*this).client_count), Rc::new(Mutex::new(0)));
+            ptr::write(
+                addr_of_mut!((*this).client_count),
+                Rc::new(AtomicU32::new(0)),
+            );
             (*this).started = false;
         }
     }
@@ -121,7 +125,7 @@ impl ApState {
     }
 
     pub(super) async fn client_count(&self) -> u32 {
-        *self.client_count.lock().await
+        self.client_count.load(Ordering::Acquire)
     }
 }
 
@@ -129,7 +133,7 @@ impl ApState {
 pub(super) async fn ap_task(
     controller: Rc<Mutex<NoopRawMutex, WifiController<'static>>>,
     task_control: TaskController<()>,
-    client_count: Rc<Mutex<NoopRawMutex, u32>>,
+    client_count: Rc<AtomicU32>,
 ) {
     task_control
         .run_cancellable(async {
@@ -173,20 +177,12 @@ pub(super) async fn ap_task(
                         .await;
 
                     if events.contains(WifiEvent::ApStaconnected) {
-                        let count = {
-                            let mut count = client_count.lock().await;
-                            *count = count.saturating_add(1);
-                            *count
-                        };
-                        log::info!("Client connected, {count} total");
+                        let old_count = client_count.fetch_add(1, Ordering::Release);
+                        log::info!("Client connected, {} total", old_count + 1);
                     }
                     if events.contains(WifiEvent::ApStadisconnected) {
-                        let count = {
-                            let mut count = client_count.lock().await;
-                            *count = count.saturating_sub(1);
-                            *count
-                        };
-                        log::info!("Client disconnected, {count} left");
+                        let old_count = client_count.fetch_sub(1, Ordering::Release);
+                        log::info!("Client disconnected, {} left", old_count - 1);
                     }
                     if events.contains(WifiEvent::ApStop) {
                         log::info!("AP stopped");
