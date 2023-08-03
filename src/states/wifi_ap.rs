@@ -18,9 +18,9 @@ use esp_wifi::wifi::WifiDevice;
 use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen, WifiApScreenState};
 
 use crate::{
-    board::{initialized::Board, wifi::as_static_ref},
+    board::initialized::Board,
     states::{AppMenu, MIN_FRAME_TIME, WEBSERVER_TASKS},
-    task_control::TaskController,
+    task_control::{TaskControlToken, TaskController},
     AppState,
 };
 
@@ -38,21 +38,17 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
     let spawner = Spawner::for_current_executor().await;
 
-    let webserver_task_control = [TaskController::DEFAULT; WEBSERVER_TASKS];
-
     let context = Rc::new(SharedWebContext::new(WebContext {
         known_networks: board.config.known_networks.clone(),
     }));
 
-    unsafe {
-        #[allow(clippy::needless_range_loop)]
-        for i in 0..WEBSERVER_TASKS {
-            spawner.must_spawn(webserver_task(
-                as_static_ref(stack),
-                context.clone(),
-                as_static_ref(&webserver_task_control[i]),
-            ));
-        }
+    let webserver_task_control = [(); WEBSERVER_TASKS].map(|_| TaskController::new());
+    for control in webserver_task_control.iter() {
+        spawner.must_spawn(webserver_task(
+            stack.clone(),
+            context.clone(),
+            control.token(),
+        ));
     }
 
     let mut screen = WifiApScreen::new(
@@ -104,8 +100,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         ticker.next().await;
     }
 
-    // NB: we must not consume the array here, as we have static references to it.
-    for control in webserver_task_control.iter() {
+    for control in webserver_task_control {
         let _ = control.stop_from_outside().await;
     }
 
@@ -132,9 +127,9 @@ struct WebserverResources {
 
 #[embassy_executor::task(pool_size = super::WEBSERVER_TASKS)]
 async fn webserver_task(
-    stack: &'static Stack<WifiDevice<'static>>,
+    stack: Rc<Stack<WifiDevice<'static>>>,
     context: Rc<SharedWebContext>,
-    task_control: &'static TaskController<()>,
+    mut task_control: TaskControlToken<()>,
 ) {
     log::info!("Started webserver task");
     task_control
@@ -150,7 +145,7 @@ async fn webserver_task(
             }
 
             let mut socket =
-                TcpSocket::new(stack, &mut resources.rx_buffer, &mut resources.tx_buffer);
+                TcpSocket::new(&stack, &mut resources.rx_buffer, &mut resources.tx_buffer);
             socket.set_timeout(Some(Duration::from_secs(10)));
 
             BadServer::new()
