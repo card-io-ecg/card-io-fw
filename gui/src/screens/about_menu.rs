@@ -10,7 +10,7 @@ use embedded_layout::{
 };
 use embedded_menu::{
     interaction::single_touch::SingleTouch,
-    items::{MenuLine, NavigationItem},
+    items::NavigationItem,
     selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
     Menu,
 };
@@ -29,11 +29,11 @@ pub enum AboutMenuEvents {
 type AboutMenu<'a> = Menu<
     SingleTouch,
     chain! {
-        MenuLine<NavigationItem<'a, AboutMenuEvents>>,
-        MenuLine<NavigationItem<'a, AboutMenuEvents>>,
-        MenuLine<NavigationItem<'a, AboutMenuEvents>>,
-        MenuLine<NavigationItem<'a, AboutMenuEvents>>,
-        MenuLine<NavigationItem<'a, AboutMenuEvents>>
+        NavigationItem<'a, AboutMenuEvents>,
+        NavigationItem<'a, AboutMenuEvents>,
+        NavigationItem<'a, AboutMenuEvents>,
+        NavigationItem<'a, AboutMenuEvents>,
+        NavigationItem<'a, AboutMenuEvents>
     },
     AboutMenuEvents,
     BinaryColor,

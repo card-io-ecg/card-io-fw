@@ -19,7 +19,11 @@ pub const MENU_STYLE: MenuStyle<BinaryColor, AnimatedTriangle, SingleTouch, Anim
         .with_animated_selection_indicator(10)
         .with_details_delay(300)
         .with_selection_indicator(AnimatedTriangle::new(200))
-        .with_interaction_controller(SingleTouch::new(15, 100))
+        .with_interaction_controller(SingleTouch {
+            debounce_time: 1,
+            ignore_time: 15,
+            max_time: 100,
+        })
         .with_title_font(&FONT_7X13_BOLD);
 
 #[derive(Clone, Copy, PartialEq)]
