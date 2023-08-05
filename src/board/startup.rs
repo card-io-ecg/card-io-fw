@@ -6,23 +6,28 @@ use crate::board::BatteryAdc;
 #[cfg(feature = "battery_max17055")]
 use crate::board::BatteryFg;
 
-use crate::board::{
-    drivers::frontend::Frontend,
-    hal::{
-        clock::Clocks,
-        dma::DmaPriority,
-        interrupt, peripherals,
-        prelude::*,
-        spi::{dma::WithDmaSpi3, SpiMode},
-        system::PeripheralClockControl,
-        Spi,
+use crate::{
+    board::{
+        drivers::frontend::Frontend,
+        hal::{
+            clock::Clocks,
+            dma::DmaPriority,
+            interrupt, peripherals,
+            prelude::*,
+            spi::{dma::WithDmaSpi3, SpiMode},
+            system::PeripheralClockControl,
+            Spi,
+        },
+        utils::{DummyOutputPin, SpiDeviceWrapper},
+        wifi::WifiDriver,
+        AdcChipSelect, AdcClockEnable, AdcDmaChannel, AdcDrdy, AdcMiso, AdcMosi, AdcReset, AdcSclk,
+        AdcSpiInstance, Display, DisplayChipSelect, DisplayDataCommand, DisplayDmaChannel,
+        DisplayMosi, DisplayReset, DisplaySclk, DisplaySpiInstance, EcgFrontend, MiscPins,
+        TouchDetect,
     },
-    utils::{DummyOutputPin, SpiDeviceWrapper},
-    wifi::WifiDriver,
-    AdcChipSelect, AdcClockEnable, AdcDmaChannel, AdcDrdy, AdcMiso, AdcMosi, AdcReset, AdcSclk,
-    AdcSpiInstance, Display, DisplayChipSelect, DisplayDataCommand, DisplayDmaChannel, DisplayMosi,
-    DisplayReset, DisplaySclk, DisplaySpiInstance, EcgFrontend, MiscPins, TouchDetect,
+    heap::init_heap,
 };
+use esp_println::logger::init_logger;
 
 pub static WIFI_DRIVER: StaticCell<WifiDriver> = StaticCell::new();
 
@@ -42,6 +47,11 @@ pub struct StartupResources {
 }
 
 impl StartupResources {
+    pub(super) fn common_init() {
+        init_logger(log::LevelFilter::Info);
+        init_heap();
+    }
+
     #[inline(always)]
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_display_driver(

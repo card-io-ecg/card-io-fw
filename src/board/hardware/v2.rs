@@ -9,35 +9,31 @@ use crate::board::{drivers::battery_fg::BatteryFg as BatteryFgType, hal::i2c::I2
 #[cfg(feature = "battery_max17055")]
 use max17055::{DesignData, Max17055};
 
-use crate::{
-    board::{
-        drivers::{
-            display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
-            frontend::{Frontend, PoweredFrontend},
-        },
-        hal::{
-            self,
-            clock::{ClockControl, CpuClock},
-            embassy,
-            gdma::*,
-            gpio::{Floating, GpioPin, Input, Output, PullUp, PushPull},
-            interrupt,
-            peripherals::{self, Peripherals},
-            prelude::*,
-            spi::{dma::SpiDma, FullDuplexMode},
-            systimer::SystemTimer,
-            Rtc, IO,
-        },
-        startup::WIFI_DRIVER,
-        utils::{DummyOutputPin, SpiDeviceWrapper},
-        wifi::WifiDriver,
-        *,
+use crate::board::{
+    drivers::{
+        display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
+        frontend::{Frontend, PoweredFrontend},
     },
-    heap::init_heap,
+    hal::{
+        self,
+        clock::{ClockControl, CpuClock},
+        embassy,
+        gdma::*,
+        gpio::{Floating, GpioPin, Input, Output, PullUp, PushPull},
+        interrupt,
+        peripherals::{self, Peripherals},
+        prelude::*,
+        spi::{dma::SpiDma, FullDuplexMode},
+        systimer::SystemTimer,
+        Rtc, IO,
+    },
+    startup::WIFI_DRIVER,
+    utils::{DummyOutputPin, SpiDeviceWrapper},
+    wifi::WifiDriver,
+    *,
 };
 
 use display_interface_spi::SPIInterface;
-use esp_println::logger::init_logger;
 
 pub type DisplaySpiInstance = hal::peripherals::SPI2;
 pub type DisplayDmaChannel = ChannelCreator0;
@@ -90,8 +86,7 @@ pub type BatteryFg = BatteryFgType<BatteryFgI2c, BatteryAdcEnable>;
 
 impl super::startup::StartupResources {
     pub fn initialize() -> Self {
-        init_logger(log::LevelFilter::Info);
-        init_heap();
+        Self::common_init();
 
         let peripherals = Peripherals::take();
 
