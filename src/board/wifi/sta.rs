@@ -18,11 +18,13 @@ use embassy_net::{Config, Stack, StackResources};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
 use embassy_time::{Duration, Timer};
 use embedded_hal_old::prelude::_embedded_hal_blocking_rng_Read;
-use embedded_svc::wifi::{ClientConfiguration, Configuration, Wifi as _};
+use embedded_svc::wifi::{AccessPointInfo, ClientConfiguration, Configuration, Wifi as _};
 use esp_wifi::{
     wifi::{WifiController, WifiDevice, WifiEvent, WifiMode},
     EspWifiInitialization,
 };
+
+const SCAN_RESULTS: usize = 20;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ConnectionState {
@@ -33,6 +35,7 @@ pub enum ConnectionState {
 #[derive(Clone)]
 pub struct Sta {
     stack: Rc<Stack<WifiDevice<'static>>>,
+    networks: Rc<Mutex<NoopRawMutex, heapless::Vec<AccessPointInfo, SCAN_RESULTS>>>,
 }
 
 impl Sta {
@@ -48,6 +51,7 @@ pub(super) struct StaState {
     init: EspWifiInitialization,
     controller: Rc<Mutex<NoopRawMutex, WifiController<'static>>>,
     stack: Rc<Stack<WifiDevice<'static>>>,
+    networks: Rc<Mutex<NoopRawMutex, heapless::Vec<AccessPointInfo, SCAN_RESULTS>>>,
     connection_task_control: TaskController<()>,
     net_task_control: TaskController<!>,
     started: bool,
@@ -86,6 +90,10 @@ impl StaState {
                     resources,
                     u64::from_le_bytes(seed),
                 )),
+            );
+            ptr::write(
+                addr_of_mut!((*this).networks),
+                Rc::new(Mutex::new(heapless::Vec::new())),
             );
             ptr::write(
                 addr_of_mut!((*this).connection_task_control),
@@ -129,6 +137,7 @@ impl StaState {
             log::info!("Starting STA task");
             spawner.must_spawn(sta_task(
                 self.controller.clone(),
+                self.networks.clone(),
                 self.connection_task_control.token(),
             ));
             log::info!("Starting NET task");
@@ -139,6 +148,7 @@ impl StaState {
 
         Sta {
             stack: self.stack.clone(),
+            networks: self.networks.clone(),
         }
     }
 }
@@ -146,6 +156,7 @@ impl StaState {
 #[embassy_executor::task]
 pub(super) async fn sta_task(
     controller: Rc<Mutex<NoopRawMutex, WifiController<'static>>>,
+    networks: Rc<Mutex<NoopRawMutex, heapless::Vec<AccessPointInfo, SCAN_RESULTS>>>,
     mut task_control: TaskControlToken<()>,
 ) {
     task_control
@@ -160,13 +171,26 @@ pub(super) async fn sta_task(
                 }
 
                 let connect_to = 'select: loop {
-                    let mut controller = controller.lock().await;
-                    if let Some(connect_to) =
-                        select_visible_known_network(&mut controller, &known_networks).await
-                    {
-                        break 'select connect_to;
+                    match controller.lock().await.scan_n::<SCAN_RESULTS>().await {
+                        Ok((mut visible_networks, network_count)) => {
+                            log::info!("Found {network_count} access points");
+
+                            // Sort by signal strength, descending
+                            visible_networks
+                                .sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
+
+                            let mut networks = networks.lock().await;
+
+                            *networks = visible_networks;
+
+                            if let Some(connect_to) =
+                                select_visible_known_network(&known_networks, networks.as_slice())
+                            {
+                                break 'select connect_to;
+                            }
+                        }
+                        Err(err) => log::warn!("Scan failed: {err:?}"),
                     }
-                    core::mem::drop(controller);
 
                     Timer::after(Duration::from_secs(5)).await;
                 };
@@ -175,8 +199,8 @@ pub(super) async fn sta_task(
                     .lock()
                     .await
                     .set_configuration(&Configuration::Client(ClientConfiguration {
-                        ssid: known_networks[connect_to].ssid.clone(),
-                        password: known_networks[connect_to].pass.clone(),
+                        ssid: connect_to.ssid.clone(),
+                        password: connect_to.pass.clone(),
                         ..Default::default()
                     }))
                     .unwrap();
@@ -201,21 +225,15 @@ pub(super) async fn sta_task(
         .await;
 }
 
-async fn select_visible_known_network(
-    controller: &mut WifiController<'static>,
-    known_networks: &[WifiNetwork],
-) -> Option<usize> {
-    match controller.scan_n::<8>().await {
-        Ok((mut networks, _)) => {
-            // Sort by signal strength, desc
-            networks.sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
-            for network in networks {
-                if let Some(pos) = known_networks.iter().position(|n| n.ssid == network.ssid) {
-                    return Some(pos);
-                }
-            }
+fn select_visible_known_network<'a>(
+    known_networks: &'a [WifiNetwork],
+    visible_networks: &[AccessPointInfo],
+) -> Option<&'a WifiNetwork> {
+    for network in visible_networks {
+        if let Some(known_network) = known_networks.iter().find(|n| n.ssid == network.ssid) {
+            return Some(known_network);
         }
-        Err(err) => log::warn!("Scan failed: {err:?}"),
     }
+
     None
 }
