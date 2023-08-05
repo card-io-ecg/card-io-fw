@@ -63,10 +63,8 @@ fn main() -> Result<(), Infallible> {
         }
 
         if let Some(event) = menu_screen.menu.interact(pressed) {
-            match event {
-                MainMenuEvents::WifiSetup => {}
-                MainMenuEvents::Display => {}
-                MainMenuEvents::Shutdown => break 'running,
+            if let MainMenuEvents::Shutdown = event {
+                break 'running;
             }
         }
     }
