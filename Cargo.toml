@@ -110,7 +110,6 @@ default = ["esp32s3"]
 
 battery_adc = []
 battery_max17055 = ["dep:max17055"]
-has_frontend_powerdown = []
 
 hw_v1 = ["battery_adc"]
 hw_v2 = ["battery_max17055"] # also v3
