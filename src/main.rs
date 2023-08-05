@@ -28,7 +28,13 @@ use crate::board::drivers::battery_adc::monitor_task_adc;
 use crate::board::drivers::battery_fg::monitor_task_fg;
 
 #[cfg(feature = "hw_v1")]
-use crate::{board::hal::gpio::RTCPinWithResistors, sleep::disable_gpio_wakeup};
+use crate::{
+    board::{hal::gpio::RTCPinWithResistors, ChargerStatus},
+    sleep::disable_gpio_wakeup,
+};
+
+#[cfg(feature = "hw_v2")]
+use crate::board::VbusDetect;
 
 use crate::{
     board::{
@@ -36,6 +42,7 @@ use crate::{
         hal::{self, entry, gpio::RTCPin, prelude::interrupt, rtc_cntl::sleep::WakeupLevel, Delay},
         initialized::{BatteryMonitor, BatteryState, Board, ConfigPartition},
         startup::StartupResources,
+        TouchDetect,
     },
     interrupt::{InterruptExecutor, SwInterrupt0},
     sleep::RtcioWakeupSource,
@@ -113,7 +120,7 @@ fn main() -> ! {
     let executor = singleton!(Executor::new());
     executor.run(move |spawner| {
         spawner.spawn(main_task(spawner, resources)).ok();
-    });
+    })
 }
 
 async fn setup_storage(
@@ -280,44 +287,62 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
     let mut charger_pin = board.battery_monitor.vbus_detect;
 
     let mut wakeup_pins = heapless::Vec::<(&mut dyn RTCPin, WakeupLevel), 2>::new();
-
-    wakeup_pins.push((&mut touch, WakeupLevel::Low)).ok();
-
-    if is_charging {
-        #[cfg(feature = "hw_v1")]
-        {
-            // This is a bit awkward as unplugging then replugging will not wake the
-            // device. Ideally, we'd use the VBUS detect pin, but it's not connected to RTCIO.
-            disable_gpio_wakeup(&charger_pin);
-        }
-
-        // Wake up momentarily when charger is disconnected
-        #[cfg(feature = "hw_v2")]
-        wakeup_pins.push((&mut charger_pin, WakeupLevel::Low)).ok();
-    } else {
-        // We want to wake up when the charger is connected, or the electrodes are touched.
-
-        // v1 uses the charger status pin, which is open drain
-        // and the board does not have a pullup resistor. A low signal means the battery is
-        // charging. This means we can watch for low level to detect a charger connection.
-        #[cfg(feature = "hw_v1")]
-        {
-            charger_pin.rtcio_pad_hold(true);
-            charger_pin.rtcio_pullup(true);
-
-            wakeup_pins.push((&mut charger_pin, WakeupLevel::Low)).ok();
-        }
-
-        // In v2, the charger status is not connected to an RTC IO pin, so we use the VBUS
-        // detect pin instead. This is a high level signal when the charger is connected.
-        #[cfg(feature = "hw_v2")]
-        wakeup_pins.push((&mut charger_pin, WakeupLevel::High)).ok();
-    }
-
+    setup_wakeup_pins(&mut wakeup_pins, &mut touch, &mut charger_pin, is_charging);
     let rtcio = RtcioWakeupSource::new(&mut wakeup_pins);
 
     rtc.sleep_deep(&[&rtcio], &mut Delay::new(&board.clocks));
 
     // Shouldn't reach this. If we do, we just exit the task, which means the executor
     // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
+}
+
+#[cfg(feature = "hw_v1")]
+fn setup_wakeup_pins<'a, const N: usize>(
+    wakeup_pins: &mut heapless::Vec<(&'a mut dyn RTCPin, WakeupLevel), N>,
+    touch: &'a mut TouchDetect,
+    charger_pin: &'a mut ChargerStatus,
+    is_charging: bool,
+) {
+    wakeup_pins.push((touch, WakeupLevel::Low)).ok().unwrap();
+
+    if is_charging {
+        // This is a bit awkward as unplugging then replugging will not wake the
+        // device. Ideally, we'd use the VBUS detect pin, but it's not connected to RTCIO.
+        disable_gpio_wakeup(charger_pin);
+    } else {
+        // We want to wake up when the charger is connected, or the electrodes are touched.
+
+        // v1 uses the charger status pin, which is open drain
+        // and the board does not have a pullup resistor. A low signal means the battery is
+        // charging. This means we can watch for low level to detect a charger connection.
+        charger_pin.rtcio_pad_hold(true);
+        charger_pin.rtcio_pullup(true);
+
+        wakeup_pins
+            .push((charger_pin, WakeupLevel::Low))
+            .ok()
+            .unwrap();
+    }
+}
+
+#[cfg(feature = "hw_v2")]
+fn setup_wakeup_pins<'a, const N: usize>(
+    wakeup_pins: &mut heapless::Vec<(&'a mut dyn RTCPin, WakeupLevel), N>,
+    touch: &'a mut TouchDetect,
+    charger_pin: &'a mut VbusDetect,
+    is_charging: bool,
+) {
+    let charger_level = if is_charging {
+        // Wake up momentarily when charger is disconnected
+        WakeupLevel::Low
+    } else {
+        // We want to wake up when the charger is connected, or the electrodes are touched.
+
+        // In v2, the charger status is not connected to an RTC IO pin, so we use the VBUS
+        // detect pin instead. This is a high level signal when the charger is connected.
+        WakeupLevel::High
+    };
+
+    wakeup_pins.push((touch, WakeupLevel::Low)).ok().unwrap();
+    wakeup_pins.push((charger_pin, charger_level)).ok().unwrap();
 }
