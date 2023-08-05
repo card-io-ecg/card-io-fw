@@ -48,7 +48,7 @@ pub struct StartupResources {
 
 impl StartupResources {
     pub(super) fn common_init() {
-        init_logger(log::LevelFilter::Info);
+        init_logger(log::LevelFilter::Trace); // we let the compile-time log level filter do the work
         init_heap();
     }
 
