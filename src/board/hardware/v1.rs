@@ -1,33 +1,29 @@
-use crate::{
-    board::{
-        drivers::{
-            battery_adc::BatteryAdc as BatteryAdcType,
-            display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
-            frontend::{Frontend, PoweredFrontend},
-        },
-        hal::{
-            self,
-            adc::ADC2,
-            clock::{ClockControl, CpuClock},
-            embassy,
-            gdma::*,
-            gpio::{Analog, Floating, GpioPin, Input, Output, PullUp, PushPull},
-            peripherals::{self, Peripherals},
-            prelude::*,
-            spi::{dma::SpiDma, FullDuplexMode},
-            systimer::SystemTimer,
-            Rtc, IO,
-        },
-        startup::WIFI_DRIVER,
-        utils::{DummyOutputPin, SpiDeviceWrapper},
-        wifi::WifiDriver,
-        *,
+use crate::board::{
+    drivers::{
+        battery_adc::BatteryAdc as BatteryAdcType,
+        display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
+        frontend::{Frontend, PoweredFrontend},
     },
-    heap::init_heap,
+    hal::{
+        self,
+        adc::ADC2,
+        clock::{ClockControl, CpuClock},
+        embassy,
+        gdma::*,
+        gpio::{Analog, Floating, GpioPin, Input, Output, PullUp, PushPull},
+        peripherals::{self, Peripherals},
+        prelude::*,
+        spi::{dma::SpiDma, FullDuplexMode},
+        systimer::SystemTimer,
+        Rtc, IO,
+    },
+    startup::WIFI_DRIVER,
+    utils::{DummyOutputPin, SpiDeviceWrapper},
+    wifi::WifiDriver,
+    *,
 };
 
 use display_interface_spi::SPIInterface;
-use esp_println::logger::init_logger;
 
 pub type DisplaySpiInstance = hal::peripherals::SPI2;
 pub type DisplayDmaChannel = ChannelCreator0;
@@ -71,8 +67,7 @@ pub type BatteryAdc = BatteryAdcType<BatteryAdcInput, ChargeCurrentInput, Batter
 
 impl super::startup::StartupResources {
     pub fn initialize() -> Self {
-        init_logger(log::LevelFilter::Info);
-        init_heap();
+        Self::common_init();
 
         let peripherals = Peripherals::take();
 
