@@ -49,7 +49,7 @@ pub struct AboutMenuData {
 }
 
 impl AboutMenuData {
-    pub fn create<'a>(&'a self) -> AboutMenu<'a> {
+    pub fn create(&self) -> AboutMenu<'_> {
         Menu::with_style("Device info", MENU_STYLE)
             .add_item(NavigationItem::new(&self.serial, AboutMenuEvents::None))
             .add_item(NavigationItem::new(&self.hw_version, AboutMenuEvents::None))
