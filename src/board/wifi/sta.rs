@@ -15,7 +15,10 @@ use config_site::data::network::WifiNetwork;
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_net::{Config, Stack, StackResources};
-use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
+use embassy_sync::{
+    blocking_mutex::raw::NoopRawMutex,
+    mutex::{Mutex, MutexGuard},
+};
 use embassy_time::{Duration, Timer};
 use embedded_hal_old::prelude::_embedded_hal_blocking_rng_Read;
 use embedded_svc::wifi::{AccessPointInfo, ClientConfiguration, Configuration, Wifi as _};
@@ -44,6 +47,12 @@ impl Sta {
             true => ConnectionState::Connected,
             false => ConnectionState::NotConnected,
         }
+    }
+
+    pub async fn visible_networks(
+        &self,
+    ) -> MutexGuard<'_, NoopRawMutex, heapless::Vec<AccessPointInfo, SCAN_RESULTS>> {
+        self.networks.lock().await
     }
 }
 

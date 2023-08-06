@@ -12,7 +12,8 @@ embedded-io = "0.4"
 embedded-layout = "0.3"
 tinybmp = "0.5"
 
-embedded-menu = { version = "0.3" }
+embedded-menu = "0.3.1"
+
 norfs = { git = "https://github.com/card-io-ecg/norfs.git", features = [] }
 
 heapless = "0.7"
