@@ -180,6 +180,7 @@ pub(super) async fn sta_task(
                 }
 
                 let connect_to = 'select: loop {
+                    log::info!("Scanning...");
                     match controller.lock().await.scan_n::<SCAN_RESULTS>().await {
                         Ok((mut visible_networks, network_count)) => {
                             log::info!("Found {network_count} access points");

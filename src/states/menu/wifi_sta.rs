@@ -1,4 +1,4 @@
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 use embassy_net::Config;
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
@@ -27,20 +27,25 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
 
     let mut menu_state = Default::default();
 
+    let mut ssids = Vec::new();
+
     while last_interaction.elapsed() < MENU_IDLE_DURATION {
         let is_touched = board.frontend.is_touched();
         if is_touched {
             last_interaction = Instant::now();
+        } else {
+            let networks = sta.visible_networks().await;
+
+            ssids.clear();
+            ssids.extend(networks.iter().map(|n| n.ssid.as_str()).map(String::from));
         }
 
-        // TODO: it would be best if we didn't update the list while interacting with it.
-        let networks = sta.visible_networks().await;
-        let mut ssids = networks
+        let mut ssid_items = ssids
             .iter()
-            .map(|n| NavigationItem::new(&n.ssid, WifiStaMenuEvents::None))
+            .map(|n| NavigationItem::new(n, WifiStaMenuEvents::None))
             .collect::<Vec<_>>();
         let mut menu_data = WifiStaMenuData {
-            networks: &mut ssids,
+            networks: &mut ssid_items,
         };
 
         let battery_data = board.battery_monitor.battery_data();
