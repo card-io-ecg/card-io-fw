@@ -46,7 +46,8 @@ impl ApState {
 
         let this = this.as_mut_ptr();
 
-        let (wifi_interface, controller) = esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap);
+        let (wifi_interface, controller) =
+            esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap).unwrap();
 
         let mut seed = [0; 8];
         rng.read(&mut seed).unwrap();
