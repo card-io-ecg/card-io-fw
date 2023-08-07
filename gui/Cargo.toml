@@ -12,7 +12,7 @@ embedded-io = "0.4"
 embedded-layout = "0.3"
 tinybmp = "0.5"
 
-embedded-menu = "0.3.1"
+embedded-menu = { git = "https://github.com/bugadani/embedded-menu.git", branch = "main" }
 
 norfs = { git = "https://github.com/card-io-ecg/norfs.git", features = [] }
 
