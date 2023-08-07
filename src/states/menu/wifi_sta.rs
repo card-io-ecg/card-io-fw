@@ -29,15 +29,26 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
 
     let mut ssids = Vec::new();
 
+    // Initial placeholder
+    ssids.push(String::from("Scanning..."));
+
+    let mut released = false;
+
     while last_interaction.elapsed() < MENU_IDLE_DURATION {
         let is_touched = board.frontend.is_touched();
         if is_touched {
             last_interaction = Instant::now();
         } else {
+            released = true;
+        }
+
+        if !is_touched || !released {
             let networks = sta.visible_networks().await;
 
-            ssids.clear();
-            ssids.extend(networks.iter().map(|n| n.ssid.as_str()).map(String::from));
+            if released || !networks.is_empty() {
+                ssids.clear();
+                ssids.extend(networks.iter().map(|n| n.ssid.as_str()).map(String::from));
+            }
         }
 
         let mut ssid_items = ssids
