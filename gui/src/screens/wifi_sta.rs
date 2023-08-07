@@ -8,7 +8,7 @@ use embedded_menu::{
     interaction::single_touch::SingleTouch,
     items::NavigationItem,
     selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
-    Menu,
+    Menu, MenuState,
 };
 
 use crate::{screens::MENU_STYLE, widgets::status_bar::StatusBar};
@@ -40,11 +40,14 @@ pub struct WifiStaMenuData<'a, 'b> {
 }
 
 impl<'a, 'b> WifiStaMenuData<'a, 'b> {
-    pub fn create(&'b mut self) -> WifiStaMenu<'a, 'b> {
+    pub fn create(
+        &'b mut self,
+        state: MenuState<SingleTouch, AnimatedPosition, AnimatedTriangle>,
+    ) -> WifiStaMenu<'a, 'b> {
         Menu::with_style("Access points", MENU_STYLE)
             .add_items(self.networks)
             .add_item(NavigationItem::new("Back", WifiStaMenuEvents::Back))
-            .build()
+            .build_with_state(state)
     }
 }
 

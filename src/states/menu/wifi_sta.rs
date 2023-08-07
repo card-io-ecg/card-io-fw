@@ -25,13 +25,15 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
     let mut last_interaction = Instant::now();
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
 
+    let mut menu_state = Default::default();
+
     while last_interaction.elapsed() < MENU_IDLE_DURATION {
         let is_touched = board.frontend.is_touched();
         if is_touched {
             last_interaction = Instant::now();
         }
 
-        // TODO: we need to save and restore the menu's interaction state
+        // TODO: it would be best if we didn't update the list while interacting with it.
         let networks = sta.visible_networks().await;
         let mut ssids = networks
             .iter()
@@ -51,7 +53,7 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
         }
 
         let mut menu_screen = WifiStaMenuScreen {
-            menu: menu_data.create(),
+            menu: menu_data.create(menu_state),
             status_bar: StatusBar {
                 battery: Battery::with_style(battery_data, board.config.battery_style()),
             },
@@ -72,6 +74,8 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
             })
             .await
             .unwrap();
+
+        menu_state = menu_screen.menu.state();
 
         ticker.next().await;
     }
