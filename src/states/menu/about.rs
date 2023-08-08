@@ -1,21 +1,19 @@
+use crate::{
+    board::{hal::efuse::Efuse, initialized::Board},
+    states::{menu::AppMenu, MENU_IDLE_DURATION, MIN_FRAME_TIME},
+    timeout::Timeout,
+    AppState,
+};
 use alloc::format;
-use embassy_time::{Duration, Instant, Ticker};
+use embassy_time::Ticker;
 use embedded_graphics::Drawable;
 use gui::{
     screens::about_menu::{AboutMenuData, AboutMenuEvents, AboutMenuScreen},
     widgets::{battery_small::Battery, status_bar::StatusBar},
 };
 
-use crate::{
-    board::{hal::efuse::Efuse, initialized::Board},
-    states::MIN_FRAME_TIME,
-    AppState,
-};
-
-use super::AppMenu;
-
 pub async fn about_menu(board: &mut Board) -> AppState {
-    const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
+    let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
 
     let mac_address = Efuse::get_mac_address();
 
@@ -47,14 +45,14 @@ pub async fn about_menu(board: &mut Board) -> AppState {
         },
     };
 
-    let mut last_interaction = Instant::now();
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
 
-    while last_interaction.elapsed() < MENU_IDLE_DURATION {
+    while !exit_timer.is_elapsed() {
         let is_touched = board.frontend.is_touched();
         if is_touched {
-            last_interaction = Instant::now();
+            exit_timer.reset();
         }
+
         if let Some(event) = menu_screen.menu.interact(is_touched) {
             match event {
                 AboutMenuEvents::None => {}

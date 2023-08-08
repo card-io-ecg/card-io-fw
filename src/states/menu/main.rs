@@ -1,10 +1,11 @@
 use crate::{
     board::initialized::Board,
     heap::ALLOCATOR,
-    states::{AppMenu, MIN_FRAME_TIME},
+    states::{AppMenu, MENU_IDLE_DURATION, MIN_FRAME_TIME},
+    timeout::Timeout,
     AppState,
 };
-use embassy_time::{Duration, Instant, Ticker};
+use embassy_time::Ticker;
 use embedded_graphics::prelude::*;
 use gui::{
     screens::{
@@ -15,7 +16,7 @@ use gui::{
 };
 
 pub async fn main_menu(board: &mut Board) -> AppState {
-    const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
+    let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
 
     log::info!("Free heap: {} bytes", ALLOCATOR.free());
 
@@ -32,14 +33,14 @@ pub async fn main_menu(board: &mut Board) -> AppState {
         },
     };
 
-    let mut last_interaction = Instant::now();
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
 
-    while last_interaction.elapsed() < MENU_IDLE_DURATION {
+    while !exit_timer.is_elapsed() {
         let is_touched = board.frontend.is_touched();
         if is_touched {
-            last_interaction = Instant::now();
+            exit_timer.reset();
         }
+
         if let Some(event) = menu_screen.menu.interact(is_touched) {
             match event {
                 MainMenuEvents::Display => return AppState::Menu(AppMenu::Display),
