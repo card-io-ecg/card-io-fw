@@ -5,7 +5,7 @@ use crate::{
     },
     task_control::{TaskControlToken, TaskController},
 };
-use alloc::{rc::Rc, vec::Vec};
+use alloc::{boxed::Box, rc::Rc, vec::Vec};
 use config_site::data::network::WifiNetwork;
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
@@ -183,22 +183,25 @@ pub(super) async fn sta_task(
 
                 let connect_to = 'select: loop {
                     log::info!("Scanning...");
-                    match controller.lock().await.scan_n::<SCAN_RESULTS>().await {
-                        Ok((mut visible_networks, network_count)) => {
+
+                    let mut scan_results =
+                        Box::new(controller.lock().await.scan_n::<SCAN_RESULTS>().await);
+
+                    match scan_results.as_mut() {
+                        Ok((ref mut visible_networks, network_count)) => {
                             log::info!("Found {network_count} access points");
 
                             // Sort by signal strength, descending
                             visible_networks
                                 .sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
 
-                            let mut networks = networks.lock().await;
-
-                            *networks = visible_networks;
+                            networks.lock().await.clone_from(visible_networks);
 
                             let known_networks = known_networks.lock().await;
-                            if let Some(connect_to) =
-                                select_visible_known_network(&known_networks, networks.as_slice())
-                            {
+                            if let Some(connect_to) = select_visible_known_network(
+                                &known_networks,
+                                visible_networks.as_slice(),
+                            ) {
                                 break 'select connect_to.clone();
                             }
                         }
@@ -215,8 +218,8 @@ pub(super) async fn sta_task(
                     .lock()
                     .await
                     .set_configuration(&Configuration::Client(ClientConfiguration {
-                        ssid: connect_to.ssid,
-                        password: connect_to.pass,
+                        ssid: connect_to.ssid.clone(),
+                        password: connect_to.pass.clone(),
                         ..Default::default()
                     }))
                     .unwrap();
