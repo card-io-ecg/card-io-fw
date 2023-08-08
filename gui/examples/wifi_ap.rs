@@ -13,7 +13,11 @@ use gui::{
         wifi_ap::{ApMenu, WifiApScreen, WifiApScreenState},
         BatteryInfo, MENU_STYLE,
     },
-    widgets::battery_small::BatteryStyle,
+    widgets::{
+        battery_small::Battery,
+        status_bar::StatusBar,
+        wifi::{WifiState, WifiStateView},
+    },
 };
 
 fn main() -> Result<(), Infallible> {
@@ -33,12 +37,13 @@ fn main() -> Result<(), Infallible> {
             menu: ApMenu {}.create_menu_with_style(MENU_STYLE),
             state: WifiApScreenState::Idle,
             status_bar: StatusBar {
-                battery: Slot::visible(Battery::percentage(BatteryInfo {
+                battery: Battery::percentage(Some(BatteryInfo {
                     voltage: 4200,
                     percentage: 100,
                     is_charging: true,
                     is_low: false,
                 })),
+                wifi: WifiStateView::disabled(WifiState::Connected),
             },
         }
         .draw(&mut display)

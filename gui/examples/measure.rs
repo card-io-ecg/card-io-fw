@@ -10,7 +10,11 @@ use embedded_graphics_simulator::{
 };
 use gui::{
     screens::{measure::EcgScreen, BatteryInfo},
-    widgets::{battery_small::BatteryStyle, status_bar::StatusBar},
+    widgets::{
+        battery_small::Battery,
+        status_bar::StatusBar,
+        wifi::{WifiState, WifiStateView},
+    },
 };
 
 fn main() -> Result<(), Infallible> {
@@ -26,12 +30,13 @@ fn main() -> Result<(), Infallible> {
     let mut screen = EcgScreen::new(
         96,
         StatusBar {
-            battery: Slot::visible(Battery::percentage(BatteryInfo {
+            battery: Battery::percentage(Some(BatteryInfo {
                 voltage: 3650,
                 percentage: 50,
                 is_charging: true,
                 is_low: false,
             })),
+            wifi: WifiStateView::enabled(WifiState::Connected),
         },
     );
 

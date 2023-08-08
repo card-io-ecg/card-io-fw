@@ -15,8 +15,8 @@ use gui::{
     },
     widgets::{
         battery_small::{Battery, BatteryStyle},
-        slot::Slot,
         status_bar::StatusBar,
+        wifi::{WifiState, WifiStateView},
     },
 };
 
@@ -38,12 +38,13 @@ fn main() -> Result<(), Infallible> {
         .create_menu_with_style(MENU_STYLE),
 
         status_bar: StatusBar {
-            battery: Slot::visible(Battery::percentage(BatteryInfo {
+            battery: Battery::percentage(Some(BatteryInfo {
                 voltage: 3650,
                 percentage: 50,
                 is_charging: true,
                 is_low: false,
             })),
+            wifi: WifiStateView::enabled(WifiState::NotConnected),
         },
     };
     let mut pressed = false;
