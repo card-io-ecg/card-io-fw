@@ -214,7 +214,7 @@ pub(super) async fn sta_task(
                     Timer::after(Duration::from_secs(5)).await;
                 };
 
-                log::info!("Connecting...");
+                log::info!("Connecting to {}...", connect_to.ssid);
                 state.store(ConnectionState::Connecting, Ordering::Release);
 
                 controller
