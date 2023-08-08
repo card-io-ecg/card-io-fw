@@ -145,7 +145,9 @@ async fn load_config<M: StorageMedium>(storage: Option<&mut Storage<M>>) -> &'st
 where
     [(); M::BLOCK_COUNT]:,
 {
-    &mut *singleton!(if let Some(storage) = storage {
+    static CONFIG: StaticCell<Config> = StaticCell::new();
+
+    if let Some(storage) = storage {
         log::info!(
             "Storage: {} / {} used",
             storage.capacity() - storage.free_bytes(),
@@ -154,21 +156,21 @@ where
 
         match storage.read("config").await {
             Ok(mut config) => match config.read_loadable::<ConfigFile>(storage).await {
-                Ok(config) => config.into_config(),
+                Ok(config) => CONFIG.init(config.into_config()),
                 Err(e) => {
                     log::warn!("Failed to read config file: {e:?}. Reverting to defaults");
-                    Config::default()
+                    CONFIG.init(Config::default())
                 }
             },
             Err(e) => {
                 log::warn!("Failed to load config: {e:?}. Reverting to defaults");
-                Config::default()
+                CONFIG.init(Config::default())
             }
         }
     } else {
         log::warn!("Storage unavailable. Using default config");
-        Config::default()
-    })
+        CONFIG.init(Config::default())
+    }
 }
 
 #[embassy_executor::task]
