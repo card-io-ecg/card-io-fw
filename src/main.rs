@@ -141,7 +141,7 @@ async fn setup_storage(
     }
 }
 
-async fn load_config<M: StorageMedium>(storage: &mut Option<&mut Storage<M>>) -> &'static mut Config
+async fn load_config<M: StorageMedium>(storage: Option<&mut Storage<M>>) -> &'static mut Config
 where
     [(); M::BLOCK_COUNT]:,
 {
@@ -208,7 +208,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
     .unwrap();
 
     let mut storage = setup_storage().await;
-    let config = load_config(&mut storage).await;
+    let config = load_config(storage.as_deref_mut()).await;
 
     let mut board = Box::new(Board {
         // If the device is awake, the display should be enabled.
