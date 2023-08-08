@@ -193,14 +193,13 @@ impl WifiDriver {
             WifiDriverState::AP(ap, resources) => {
                 // Initialize the memory if we need to
                 if let Some(init) = init {
-                    ApState::init(
-                        ap,
+                    ap.write(ApState::init(
                         init,
                         config,
                         unsafe { as_static_mut(&mut self.wifi) },
                         unsafe { as_static_mut(resources) },
                         self.rng,
-                    )
+                    ));
                 }
 
                 let ap = unsafe { ap.assume_init_mut() };
@@ -224,14 +223,13 @@ impl WifiDriver {
             WifiDriverState::STA(sta, resources) => {
                 // Initialize the memory if we need to
                 if let Some(init) = init {
-                    StaState::init(
-                        sta,
+                    sta.write(StaState::init(
                         init,
                         config,
                         unsafe { as_static_mut(&mut self.wifi) },
                         unsafe { as_static_mut(resources) },
                         self.rng,
-                    )
+                    ));
                 }
 
                 let sta = unsafe { sta.assume_init_mut() };

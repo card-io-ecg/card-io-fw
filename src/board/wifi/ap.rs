@@ -1,9 +1,5 @@
 use alloc::rc::Rc;
-use core::{
-    mem::MaybeUninit,
-    ptr::{self, addr_of_mut},
-    sync::atomic::{AtomicU32, Ordering},
-};
+use core::sync::atomic::{AtomicU32, Ordering};
 
 use crate::{
     board::{
@@ -55,51 +51,29 @@ pub(super) struct ApState {
 
 impl ApState {
     pub(super) fn init(
-        this: &mut MaybeUninit<Self>,
         init: EspWifiInitialization,
         config: Config,
         wifi: &'static mut Wifi,
         resources: &'static mut StackResources<3>,
         mut rng: Rng,
-    ) {
+    ) -> Self {
         log::info!("Configuring AP");
-
-        let this = this.as_mut_ptr();
 
         let (wifi_interface, controller) =
             esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap).unwrap();
 
         let mut seed = [0; 8];
         rng.read(&mut seed).unwrap();
+        let random_seed = u64::from_le_bytes(seed);
 
-        unsafe {
-            (*this).init = init;
-            ptr::write(
-                addr_of_mut!((*this).controller),
-                Rc::new(Mutex::new(controller)),
-            );
-            ptr::write(
-                addr_of_mut!((*this).stack),
-                Rc::new(Stack::new(
-                    wifi_interface,
-                    config,
-                    resources,
-                    u64::from_le_bytes(seed),
-                )),
-            );
-            ptr::write(
-                addr_of_mut!((*this).connection_task_control),
-                TaskController::new(),
-            );
-            ptr::write(
-                addr_of_mut!((*this).net_task_control),
-                TaskController::new(),
-            );
-            ptr::write(
-                addr_of_mut!((*this).client_count),
-                Rc::new(AtomicU32::new(0)),
-            );
-            (*this).started = false;
+        Self {
+            init,
+            controller: Rc::new(Mutex::new(controller)),
+            stack: Rc::new(Stack::new(wifi_interface, config, resources, random_seed)),
+            connection_task_control: TaskController::new(),
+            net_task_control: TaskController::new(),
+            client_count: Rc::new(AtomicU32::new(0)),
+            started: false,
         }
     }
 

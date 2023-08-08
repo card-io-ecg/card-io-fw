@@ -1,8 +1,3 @@
-use core::{
-    mem::MaybeUninit,
-    ptr::{self, addr_of_mut},
-};
-
 use crate::{
     board::{
         hal::{radio::Wifi, Rng},
@@ -10,7 +5,7 @@ use crate::{
     },
     task_control::{TaskControlToken, TaskController},
 };
-use alloc::rc::Rc;
+use alloc::{rc::Rc, vec::Vec};
 use config_site::data::network::WifiNetwork;
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
@@ -39,6 +34,7 @@ pub enum ConnectionState {
 pub struct Sta {
     stack: Rc<Stack<WifiDevice<'static>>>,
     networks: Rc<Mutex<NoopRawMutex, heapless::Vec<AccessPointInfo, SCAN_RESULTS>>>,
+    known_networks: Rc<Mutex<NoopRawMutex, Vec<WifiNetwork>>>,
 }
 
 impl Sta {
@@ -61,6 +57,7 @@ pub(super) struct StaState {
     controller: Rc<Mutex<NoopRawMutex, WifiController<'static>>>,
     stack: Rc<Stack<WifiDevice<'static>>>,
     networks: Rc<Mutex<NoopRawMutex, heapless::Vec<AccessPointInfo, SCAN_RESULTS>>>,
+    known_networks: Rc<Mutex<NoopRawMutex, Vec<WifiNetwork>>>,
     connection_task_control: TaskController<()>,
     net_task_control: TaskController<!>,
     started: bool,
@@ -68,51 +65,30 @@ pub(super) struct StaState {
 
 impl StaState {
     pub(super) fn init(
-        this: &mut MaybeUninit<Self>,
         init: EspWifiInitialization,
         config: Config,
         wifi: &'static mut Wifi,
         resources: &'static mut StackResources<3>,
         mut rng: Rng,
-    ) {
+    ) -> Self {
         log::info!("Configuring STA");
-
-        let this = this.as_mut_ptr();
 
         let (wifi_interface, controller) =
             esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Sta).unwrap();
 
         let mut seed = [0; 8];
         rng.read(&mut seed).unwrap();
+        let random_seed = u64::from_le_bytes(seed);
 
-        unsafe {
-            (*this).init = init;
-            ptr::write(
-                addr_of_mut!((*this).controller),
-                Rc::new(Mutex::new(controller)),
-            );
-            ptr::write(
-                addr_of_mut!((*this).stack),
-                Rc::new(Stack::new(
-                    wifi_interface,
-                    config,
-                    resources,
-                    u64::from_le_bytes(seed),
-                )),
-            );
-            ptr::write(
-                addr_of_mut!((*this).networks),
-                Rc::new(Mutex::new(heapless::Vec::new())),
-            );
-            ptr::write(
-                addr_of_mut!((*this).connection_task_control),
-                TaskController::new(),
-            );
-            ptr::write(
-                addr_of_mut!((*this).net_task_control),
-                TaskController::new(),
-            );
-            (*this).started = false;
+        Self {
+            init,
+            controller: Rc::new(Mutex::new(controller)),
+            stack: Rc::new(Stack::new(wifi_interface, config, resources, random_seed)),
+            networks: Rc::new(Mutex::new(heapless::Vec::new())),
+            connection_task_control: TaskController::new(),
+            net_task_control: TaskController::new(),
+            known_networks: Rc::new(Mutex::new(Vec::new())),
+            started: false,
         }
     }
 
@@ -158,6 +134,7 @@ impl StaState {
         Sta {
             stack: self.stack.clone(),
             networks: self.networks.clone(),
+            known_networks: self.known_networks.clone(),
         }
     }
 }
