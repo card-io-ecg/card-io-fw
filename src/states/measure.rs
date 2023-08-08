@@ -6,6 +6,7 @@ use crate::{
     },
     replace_with::replace_with_or_abort_and_return_async,
     states::MIN_FRAME_TIME,
+    timeout::Timeout,
     AppError, AppState,
 };
 use ads129x::{descriptors::PinState, Error, Sample};
@@ -16,7 +17,7 @@ use embassy_sync::{
     channel::{Channel, Sender},
     signal::Signal,
 };
-use embassy_time::{Duration, Instant, Ticker, Timer};
+use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
 use gui::{
     screens::measure::EcgScreen,
@@ -168,7 +169,7 @@ async fn measure_impl(
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
 
     let mut samples = 0; // Counter and 1s timer to debug perf issues
-    let mut started = Instant::now();
+    let mut debug_print_timer = Timeout::new(Duration::from_secs(1));
     loop {
         while let Ok(message) = queue.try_recv() {
             match message {
@@ -196,15 +197,13 @@ async fn measure_impl(
             screen.clear_heart_rate();
         }
 
-        let now = Instant::now();
-        if now - started > Duration::from_secs(1) {
+        if debug_print_timer.is_elapsed() {
             log::debug!(
-                "Collected {} samples in {}ms",
-                samples,
-                (now - started).as_millis()
+                "Collected {samples} samples in {}ms",
+                debug_print_timer.elapsed().as_millis()
             );
             samples = 0;
-            started = now;
+            debug_print_timer.reset();
         }
 
         let battery_data = board.battery_monitor.battery_data();
