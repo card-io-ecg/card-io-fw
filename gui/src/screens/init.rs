@@ -7,20 +7,13 @@ use embedded_graphics::{
 use embedded_layout::prelude::{horizontal, vertical, Align};
 use tinybmp::Bmp;
 
-use crate::{
-    screens::BatteryInfo,
-    widgets::{
-        battery_small::{Battery, BatteryStyle},
-        progress_bar::ProgressBar,
-    },
-};
+use crate::widgets::{progress_bar::ProgressBar, status_bar::StatusBar};
 
 pub struct StartupScreen<'a> {
     pub label: &'a str,
     pub progress: u32,
     pub max_progress: u32,
-    pub battery_data: Option<BatteryInfo>,
-    pub battery_style: BatteryStyle,
+    pub status_bar: StatusBar,
 }
 
 impl Drawable for StartupScreen<'_> {
@@ -40,15 +33,9 @@ impl Drawable for StartupScreen<'_> {
 
         Image::new(&bmp, Point::new(1, 12)).draw(display)?;
 
-        if let Some(data) = self.battery_data {
-            Battery {
-                data,
-                style: self.battery_style,
-                top_left: Point::zero(),
-            }
-            .align_to_mut(&display.bounding_box(), horizontal::Right, vertical::Top)
+        self.status_bar
+            .align_to(&display.bounding_box(), horizontal::Right, vertical::Top)
             .draw(display)?;
-        }
 
         Ok(())
     }

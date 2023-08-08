@@ -29,13 +29,14 @@ fn main() -> Result<(), Infallible> {
     let mut menu_screen = MainMenuScreen {
         menu: MainMenu {}.create_menu_with_style(MENU_STYLE),
 
-        battery_data: Some(BatteryInfo {
-            voltage: 4200,
-            percentage: 100,
-            is_charging: true,
-            is_low: false,
-        }),
-        battery_style: BatteryStyle::Percentage,
+        status_bar: StatusBar {
+            battery: Slot::visible(Battery::percentage(BatteryInfo {
+                voltage: 4200,
+                percentage: 100,
+                is_charging: false,
+                is_low: false,
+            })),
+        },
     };
     let mut pressed = false;
 

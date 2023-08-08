@@ -13,7 +13,11 @@ use gui::{
         display_menu::{DisplayBrightness, DisplayMenu, DisplayMenuEvents, DisplayMenuScreen},
         BatteryInfo, MENU_STYLE,
     },
-    widgets::battery_small::BatteryStyle,
+    widgets::{
+        battery_small::{Battery, BatteryStyle},
+        slot::Slot,
+        status_bar::StatusBar,
+    },
 };
 
 fn main() -> Result<(), Infallible> {
@@ -33,20 +37,23 @@ fn main() -> Result<(), Infallible> {
         }
         .create_menu_with_style(MENU_STYLE),
 
-        battery_data: Some(BatteryInfo {
-            voltage: 3650,
-            percentage: 50,
-            is_charging: true,
-            is_low: false,
-        }),
-        battery_style: BatteryStyle::Percentage,
+        status_bar: StatusBar {
+            battery: Slot::visible(Battery::percentage(BatteryInfo {
+                voltage: 3650,
+                percentage: 50,
+                is_charging: true,
+                is_low: false,
+            })),
+        },
     };
     let mut pressed = false;
 
     'running: loop {
         display.clear(BinaryColor::Off).unwrap();
 
-        menu_screen.battery_style = menu_screen.menu.data().battery_display;
+        menu_screen
+            .status_bar
+            .update_battery_style(menu_screen.menu.data().battery_display);
 
         menu_screen.menu.update(&display);
         menu_screen.draw(&mut display).unwrap();

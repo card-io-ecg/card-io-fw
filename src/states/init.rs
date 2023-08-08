@@ -5,7 +5,10 @@ use crate::{
 };
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
-use gui::screens::init::StartupScreen;
+use gui::{
+    screens::init::StartupScreen,
+    widgets::{battery_small::Battery, slot::Slot, status_bar::StatusBar},
+};
 
 pub async fn initialize(board: &mut Board) -> AppState {
     const INIT_TIME: Duration = Duration::from_secs(4);
@@ -30,27 +33,33 @@ pub async fn initialize(board: &mut Board) -> AppState {
             }
         }
 
+        let elapsed_secs = elapsed.as_millis() as u32;
+        let max_secs = (INIT_TIME.as_millis() as u32).max(elapsed_secs);
+
+        let max_progress = 255;
+        let progress = (elapsed_secs * max_progress) / max_secs;
+
+        let init_screen = StartupScreen {
+            label: if elapsed > MENU_THRESHOLD {
+                "Release to menu"
+            } else {
+                "Release to shutdown"
+            },
+            progress,
+            max_progress,
+
+            status_bar: StatusBar {
+                battery: board
+                    .battery_monitor
+                    .battery_data()
+                    .await
+                    .map(|data| Slot::visible(Battery::with_style(data, board.config.battery_style())))
+                    .unwrap_or_default(),
+            },
+        };
+
         board.display
-            .frame(|display| {
-                let elapsed_secs = elapsed.as_millis() as u32;
-                let max_secs = (INIT_TIME.as_millis() as u32).max(elapsed_secs);
-
-                let max_progress = 255;
-                let progress = (elapsed_secs * max_progress) / max_secs;
-
-                StartupScreen {
-                    label: if elapsed > MENU_THRESHOLD {
-                        "Release to menu"
-                    } else {
-                        "Release to shutdown"
-                    },
-                    progress,
-                    max_progress,
-                    battery_data,
-                    battery_style: board.config.battery_style()
-                }
-                .draw(display)
-            })
+            .frame(|display| init_screen.draw(display))
             .await
             .unwrap();
 
