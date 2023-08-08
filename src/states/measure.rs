@@ -100,127 +100,131 @@ pub async fn measure(board: &mut Board) -> AppState {
 
     ecg_buffer.clear();
 
-    let result = replace_with_or_abort_and_return_async(board, |mut board| async {
-        let mut frontend = match board.frontend.enable_async().await {
-            Ok(frontend) => frontend,
-            Err((fe, _err)) => {
-                board.frontend = fe;
-                return (AppState::Error(AppError::Adc), board);
-            }
-        };
+    replace_with_or_abort_and_return_async(board, |board| async {
+        measure_impl(board, &mut ecg, ecg_buffer).await
+    })
+    .await
+}
 
-        let ret = match frontend.read_clksel().await {
-            Ok(PinState::Low) => {
-                log::info!("CLKSEL low, enabling faster clock speeds");
-                let result = frontend.enable_fast_clock().await;
-
-                if result.is_ok() {
-                    frontend
-                        .spi_mut()
-                        .spi
-                        .change_bus_frequency(4u32.MHz(), &board.clocks);
-                }
-
-                result
-            }
-
-            Ok(PinState::High) => Ok(()),
-            Err(e) => Err(e),
-        };
-
-        if ret.is_err() {
-            board.frontend = frontend.shut_down().await;
+async fn measure_impl(
+    mut board: Board,
+    ecg: &mut EcgObjects,
+    ecg_buffer: &mut CompressingBuffer<ECG_BUFFER_SIZE>,
+) -> (AppState, Board) {
+    let mut frontend = match board.frontend.enable_async().await {
+        Ok(frontend) => frontend,
+        Err((fe, _err)) => {
+            board.frontend = fe;
             return (AppState::Error(AppError::Adc), board);
         }
+    };
 
-        let queue = CHANNEL.init(MessageQueue::new());
+    let ret = match frontend.read_clksel().await {
+        Ok(PinState::Low) => {
+            log::info!("CLKSEL low, enabling faster clock speeds");
+            let result = frontend.enable_fast_clock().await;
 
-        board
-            .high_prio_spawner
-            .must_spawn(reader_task(EcgTaskParams {
-                sender: queue.sender(),
-                frontend,
-            }));
+            if result.is_ok() {
+                frontend
+                    .spi_mut()
+                    .spi
+                    .change_bus_frequency(4u32.MHz(), &board.clocks);
+            }
 
-        ecg.heart_rate_calculator.clear();
+            result
+        }
 
-        let mut screen = EcgScreen::new(
-            96,
-            // discard transient
-            StatusBar {
-                battery: Battery::with_style(
-                    board.battery_monitor.battery_data(),
-                    board.config.battery_style(),
-                ),
-            },
-        );
+        Ok(PinState::High) => Ok(()),
+        Err(e) => Err(e),
+    };
 
-        let mut ticker = Ticker::every(MIN_FRAME_TIME);
+    if ret.is_err() {
+        board.frontend = frontend.shut_down().await;
+        return (AppState::Error(AppError::Adc), board);
+    }
 
-        let mut samples = 0; // Counter and 1s timer to debug perf issues
-        let mut started = Instant::now();
-        loop {
-            while let Ok(message) = queue.try_recv() {
-                match message {
-                    Message::Sample(sample) => {
-                        samples += 1;
-                        ecg_buffer.push(sample.raw());
-                        if let Some(filtered) = ecg.filter.update(sample.voltage()) {
-                            ecg.heart_rate_calculator.update(filtered);
-                            if let Some(downsampled) = ecg.downsampler.update(filtered) {
-                                screen.push(downsampled);
-                            }
+    let queue = CHANNEL.init(MessageQueue::new());
+
+    board
+        .high_prio_spawner
+        .must_spawn(reader_task(EcgTaskParams {
+            sender: queue.sender(),
+            frontend,
+        }));
+
+    ecg.heart_rate_calculator.clear();
+
+    let mut screen = EcgScreen::new(
+        96,
+        // discard transient
+        StatusBar {
+            battery: Battery::with_style(
+                board.battery_monitor.battery_data(),
+                board.config.battery_style(),
+            ),
+        },
+    );
+
+    let mut ticker = Ticker::every(MIN_FRAME_TIME);
+
+    let mut samples = 0; // Counter and 1s timer to debug perf issues
+    let mut started = Instant::now();
+    loop {
+        while let Ok(message) = queue.try_recv() {
+            match message {
+                Message::Sample(sample) => {
+                    samples += 1;
+                    ecg_buffer.push(sample.raw());
+                    if let Some(filtered) = ecg.filter.update(sample.voltage()) {
+                        ecg.heart_rate_calculator.update(filtered);
+                        if let Some(downsampled) = ecg.downsampler.update(filtered) {
+                            screen.push(downsampled);
                         }
                     }
-                    Message::End(frontend, _result) => {
-                        board.frontend = frontend.shut_down().await;
+                }
+                Message::End(frontend, _result) => {
+                    board.frontend = frontend.shut_down().await;
 
-                        return (AppState::Shutdown, board);
-                    }
+                    return (AppState::Shutdown, board);
                 }
             }
-
-            if let Some(hr) = ecg.heart_rate_calculator.current_hr() {
-                screen.update_heart_rate(hr);
-            } else {
-                screen.clear_heart_rate();
-            }
-
-            let now = Instant::now();
-            if now - started > Duration::from_secs(1) {
-                log::debug!(
-                    "Collected {} samples in {}ms",
-                    samples,
-                    (now - started).as_millis()
-                );
-                samples = 0;
-                started = now;
-            }
-
-            let battery_data = board.battery_monitor.battery_data();
-
-            if let Some(battery) = battery_data {
-                if battery.is_low {
-                    THREAD_CONTROL.signal(());
-                }
-            }
-
-            screen.status_bar.update_battery_data(battery_data);
-
-            board
-                .display
-                .frame(|display| screen.draw(display))
-                .await
-                .unwrap();
-
-            ticker.next().await;
         }
-    })
-    .await;
 
-    core::mem::drop(ecg);
+        if let Some(hr) = ecg.heart_rate_calculator.current_hr() {
+            screen.update_heart_rate(hr);
+        } else {
+            screen.clear_heart_rate();
+        }
 
-    result
+        let now = Instant::now();
+        if now - started > Duration::from_secs(1) {
+            log::debug!(
+                "Collected {} samples in {}ms",
+                samples,
+                (now - started).as_millis()
+            );
+            samples = 0;
+            started = now;
+        }
+
+        let battery_data = board.battery_monitor.battery_data();
+
+        if let Some(battery) = battery_data {
+            if battery.is_low {
+                THREAD_CONTROL.signal(());
+            }
+        }
+
+        screen.status_bar.update_battery_data(battery_data);
+
+        board
+            .display
+            .frame(|display| screen.draw(display))
+            .await
+            .unwrap();
+
+        ticker.next().await;
+    }
 }
 
 #[embassy_executor::task]
