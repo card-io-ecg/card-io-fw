@@ -3,16 +3,20 @@ use embedded_graphics::{
     prelude::{DrawTarget, Point},
     Drawable,
 };
-use embedded_layout::{prelude::*, ViewGroup};
+use embedded_layout::{layout::linear::LinearLayout, prelude::*, ViewGroup};
 
 use crate::{
     screens::BatteryInfo,
-    widgets::battery_small::{Battery, BatteryStyle},
+    widgets::{
+        battery_small::{Battery, BatteryStyle},
+        wifi::WifiStateView,
+    },
 };
 
 #[derive(ViewGroup, Clone, Copy)]
 pub struct StatusBar {
     pub battery: Battery,
+    pub wifi: WifiStateView,
 }
 
 impl StatusBar {
@@ -30,8 +34,6 @@ impl Drawable for StatusBar {
     type Output = ();
 
     fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
-        self.battery.draw(display)?;
-
-        Ok(())
+        LinearLayout::horizontal(*self).arrange().draw(display)
     }
 }

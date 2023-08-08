@@ -21,6 +21,7 @@ use esp_wifi::{
     wifi::{WifiController, WifiDevice, WifiEvent, WifiMode},
     EspWifiInitialization,
 };
+use gui::widgets::wifi::WifiState;
 
 const SCAN_RESULTS: usize = 20;
 
@@ -31,6 +32,16 @@ pub enum ConnectionState {
     NotConnected,
     Connecting,
     Connected,
+}
+
+impl From<ConnectionState> for WifiState {
+    fn from(state: ConnectionState) -> Self {
+        match state {
+            ConnectionState::NotConnected => WifiState::NotConnected,
+            ConnectionState::Connecting => WifiState::Connecting,
+            ConnectionState::Connected => WifiState::Connected,
+        }
+    }
 }
 
 #[derive(Clone)]
