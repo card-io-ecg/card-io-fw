@@ -1,5 +1,5 @@
 use crate::{
-    board::{hal::efuse::Efuse, initialized::Board},
+    board::{hal::efuse::Efuse, initialized::Board, wifi::sta::Sta},
     states::{menu::AppMenu, MENU_IDLE_DURATION, MIN_FRAME_TIME},
     timeout::Timeout,
     AppState,
@@ -62,11 +62,7 @@ pub async fn about_menu(board: &mut Board) -> AppState {
                 board.battery_monitor.battery_data(),
                 board.config.battery_style(),
             ),
-            wifi: WifiStateView::new(if let Some(ref sta) = sta {
-                Some(sta.connection_state().await)
-            } else {
-                None
-            }),
+            wifi: WifiStateView::new(sta.as_ref().map(Sta::connection_state)),
         },
     };
 
@@ -95,10 +91,7 @@ pub async fn about_menu(board: &mut Board) -> AppState {
 
         menu_screen.status_bar.update_battery_data(battery_data);
         if let Some(ref sta) = sta {
-            menu_screen
-                .status_bar
-                .wifi
-                .update(sta.connection_state().await);
+            menu_screen.status_bar.wifi.update(sta.connection_state());
         };
 
         board

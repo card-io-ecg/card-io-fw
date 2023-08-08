@@ -72,7 +72,7 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
             menu: menu_data.create(menu_state),
             status_bar: StatusBar {
                 battery: Battery::with_style(battery_data, board.config.battery_style()),
-                wifi: WifiStateView::enabled(sta.connection_state().await),
+                wifi: WifiStateView::enabled(sta.connection_state()),
             },
         };
 

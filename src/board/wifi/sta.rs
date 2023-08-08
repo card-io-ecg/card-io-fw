@@ -1,3 +1,5 @@
+use core::sync::atomic::Ordering;
+
 use crate::{
     board::{
         hal::{radio::Wifi, Rng},
@@ -27,7 +29,8 @@ const SCAN_RESULTS: usize = 20;
 
 type Shared<T> = Rc<Mutex<NoopRawMutex, T>>;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[atomic_enum::atomic_enum]
+#[derive(PartialEq)]
 pub enum ConnectionState {
     NotConnected,
     Connecting,
@@ -49,12 +52,12 @@ pub struct Sta {
     _stack: Rc<Stack<WifiDevice<'static>>>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<WifiNetwork>>,
-    state: Shared<ConnectionState>,
+    state: Rc<AtomicConnectionState>,
 }
 
 impl Sta {
-    pub async fn connection_state(&self) -> ConnectionState {
-        *self.state.lock().await
+    pub fn connection_state(&self) -> ConnectionState {
+        self.state.load(Ordering::Acquire)
     }
 
     pub async fn visible_networks(
@@ -77,7 +80,7 @@ pub(super) struct StaState {
     stack: Rc<Stack<WifiDevice<'static>>>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<WifiNetwork>>,
-    state: Shared<ConnectionState>,
+    state: Rc<AtomicConnectionState>,
     connection_task_control: TaskController<()>,
     net_task_control: TaskController<!>,
     started: bool,
@@ -106,7 +109,7 @@ impl StaState {
             stack: Rc::new(Stack::new(wifi_interface, config, resources, random_seed)),
             networks: Rc::new(Mutex::new(heapless::Vec::new())),
             known_networks: Rc::new(Mutex::new(Vec::new())),
-            state: Rc::new(Mutex::new(ConnectionState::NotConnected)),
+            state: Rc::new(AtomicConnectionState::new(ConnectionState::NotConnected)),
             connection_task_control: TaskController::new(),
             net_task_control: TaskController::new(),
             started: false,
@@ -168,13 +171,13 @@ pub(super) async fn sta_task(
     controller: Shared<WifiController<'static>>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<WifiNetwork>>,
-    state: Shared<ConnectionState>,
+    state: Rc<AtomicConnectionState>,
     mut task_control: TaskControlToken<()>,
 ) {
     task_control
         .run_cancellable(async {
             loop {
-                *state.lock().await = ConnectionState::NotConnected;
+                state.store(ConnectionState::NotConnected, Ordering::Release);
                 if !matches!(controller.lock().await.is_started(), Ok(true)) {
                     log::info!("Starting wifi");
                     controller.lock().await.start().await.unwrap();
@@ -212,7 +215,7 @@ pub(super) async fn sta_task(
                 };
 
                 log::info!("Connecting...");
-                *state.lock().await = ConnectionState::Connecting;
+                state.store(ConnectionState::Connecting, Ordering::Release);
 
                 controller
                     .lock()
@@ -227,7 +230,7 @@ pub(super) async fn sta_task(
                 match controller.lock().await.connect().await {
                     Ok(_) => {
                         log::info!("Wifi connected!");
-                        *state.lock().await = ConnectionState::Connected;
+                        state.store(ConnectionState::Connected, Ordering::Release);
 
                         controller
                             .lock()
@@ -236,11 +239,11 @@ pub(super) async fn sta_task(
                             .await;
 
                         log::info!("Wifi disconnected!");
-                        *state.lock().await = ConnectionState::NotConnected;
+                        state.store(ConnectionState::NotConnected, Ordering::Release);
                     }
                     Err(e) => {
                         log::warn!("Failed to connect to wifi: {e:?}");
-                        *state.lock().await = ConnectionState::NotConnected;
+                        state.store(ConnectionState::NotConnected, Ordering::Release);
                         Timer::after(Duration::from_millis(5000)).await
                     }
                 }

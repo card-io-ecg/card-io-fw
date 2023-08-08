@@ -71,6 +71,7 @@ ssd1306 = { git = "https://github.com/bugadani/ssd1306.git", branch = "ehal1", f
 embedded-graphics = "0.8.0"
 embedded-menu = { git = "https://github.com/bugadani/embedded-menu.git", branch = "main" }
 
+atomic_enum = "0.2.0"
 config-site = { path = "config-site", default-features = false, features = [
     "embedded",
 ] }
