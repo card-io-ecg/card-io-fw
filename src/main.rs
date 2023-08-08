@@ -211,35 +211,38 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
 
     let mut storage = setup_storage().await;
     let config = load_config(storage.as_deref_mut()).await;
+    let mut display = resources.display.enable().await.unwrap();
 
-    let mut board = Box::new(Board {
-        // If the device is awake, the display should be enabled.
-        display: resources.display.enable().await.unwrap(),
-        frontend: resources.frontend,
-        clocks: resources.clocks,
-        peripheral_clock_control: resources.peripheral_clock_control,
-        high_prio_spawner: INT_EXECUTOR.start(),
-        battery_monitor: BatteryMonitor {
-            battery_state,
-            vbus_detect: resources.misc_pins.vbus_detect,
-            charger_status: resources.misc_pins.chg_status,
-            last_battery_state: BatteryState {
-                #[cfg(feature = "battery_adc")]
-                adc_data: None,
-                #[cfg(feature = "battery_max17055")]
-                fg_data: None,
-            },
-        },
-        wifi: resources.wifi,
-        config,
-        config_changed: false,
-        storage,
-    });
-
-    let _ = board
-        .display
-        .update_brightness_async(board.config.display_brightness())
+    let _ = display
+        .update_brightness_async(config.display_brightness())
         .await;
+
+    let mut board = Box::pin(async {
+        Box::new(Board {
+            // If the device is awake, the display should be enabled.
+            display,
+            frontend: resources.frontend,
+            clocks: resources.clocks,
+            peripheral_clock_control: resources.peripheral_clock_control,
+            high_prio_spawner: INT_EXECUTOR.start(),
+            battery_monitor: BatteryMonitor {
+                battery_state,
+                vbus_detect: resources.misc_pins.vbus_detect,
+                charger_status: resources.misc_pins.chg_status,
+                last_battery_state: BatteryState {
+                    #[cfg(feature = "battery_adc")]
+                    adc_data: None,
+                    #[cfg(feature = "battery_max17055")]
+                    fg_data: None,
+                },
+            },
+            wifi: resources.wifi,
+            config,
+            config_changed: false,
+            storage,
+        })
+    })
+    .await;
 
     let mut state = AppState::AdcSetup;
 
