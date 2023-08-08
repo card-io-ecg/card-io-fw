@@ -31,17 +31,37 @@ impl WifiState {
 
     #[rustfmt::skip]
     #[allow(clippy::unusual_byte_groupings)]
-    const CONNECTING_DATA: ImageRaw<'static, BinaryColor> = todo!();
+    const CONNECTING_DATA: ImageRaw<'static, BinaryColor> = ImageRaw::<BinaryColor>::new(&[
+        0b00000000, 0b00000_000,
+        0b00011111, 0b11000_000,
+        0b01100000, 0b00110_000,
+        0b00100001, 0b00100_000,
+        0b00011111, 0b11000_000,
+        0b00001111, 0b10000_000,
+        0b00000111, 0b00000_000,
+        0b00000010, 0b00000_000,
+        0b00000000, 0b00000_000,
+    ], 13);
 
     #[rustfmt::skip]
     #[allow(clippy::unusual_byte_groupings)]
-    const CONNECTED_DATA: ImageRaw<'static, BinaryColor> = todo!();
+    const CONNECTED_DATA: ImageRaw<'static, BinaryColor> = ImageRaw::<BinaryColor>::new(&[
+        0b00000000, 0b00000_000,
+        0b00011111, 0b11000_000,
+        0b01100000, 0b00110_000,
+        0b00000111, 0b00000_000,
+        0b00011000, 0b11000_000,
+        0b00000010, 0b00000_000,
+        0b00000111, 0b00000_000,
+        0b00000010, 0b00000_000,
+        0b00000000, 0b00000_000,
+    ], 13);
 
     fn image(&self) -> ImageRaw<'static, BinaryColor> {
         match self {
             WifiState::NotConnected => Self::NOT_CONNECTED_DATA,
-            WifiState::Connecting => Self::NOT_CONNECTED_DATA,
-            WifiState::Connected => Self::NOT_CONNECTED_DATA,
+            WifiState::Connecting => Self::CONNECTING_DATA,
+            WifiState::Connected => Self::CONNECTED_DATA,
         }
     }
 
