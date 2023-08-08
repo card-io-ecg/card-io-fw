@@ -69,9 +69,8 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
         };
 
         if let Some(event) = menu_screen.menu.interact(is_touched) {
-            match event {
-                WifiStaMenuEvents::None => {}
-                WifiStaMenuEvents::Back => return AppState::Menu(AppMenu::Main),
+            if let WifiStaMenuEvents::Back = event {
+                return AppState::Menu(AppMenu::Main);
             };
         }
 

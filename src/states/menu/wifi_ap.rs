@@ -15,7 +15,7 @@ use embassy_net::tcp::TcpSocket;
 use embassy_time::{Duration, Instant, Ticker, Timer};
 use embedded_graphics::Drawable;
 use gui::{
-    screens::wifi_ap::{ApMenuEvents, WifiApScreen, WifiApScreenState},
+    screens::wifi_ap::{ApMenuEvents, WifiApScreen},
     widgets::{
         battery_small::Battery,
         status_bar::StatusBar,
@@ -49,11 +49,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
             board.battery_monitor.battery_data(),
             board.config.battery_style(),
         ),
-        wifi: WifiStateView::enabled(if ap.client_count() > 0 {
-            WifiState::Connected
-        } else {
-            WifiState::NotConnected
-        }),
+        wifi: WifiStateView::enabled(ap.connection_state()),
     });
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
@@ -72,25 +68,26 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
         screen.status_bar.update_battery_data(battery_data);
 
-        if ap.client_count() > 0 {
-            screen.state = WifiApScreenState::Connected;
-            screen.status_bar.wifi = WifiStateView::enabled(WifiState::Connected);
-        } else {
-            if screen.state == WifiApScreenState::Connected || board.frontend.is_touched() {
+        let connection_state: WifiState = ap.connection_state().into();
+        if connection_state != WifiState::Connected {
+            // We start counting when the last client disconnects, and we reset on interaction.
+            if screen.state == WifiState::Connected || board.frontend.is_touched() {
                 last_interaction = Instant::now();
             }
 
             if last_interaction.elapsed() > Duration::from_secs(30) {
                 break;
             }
-            screen.state = WifiApScreenState::Idle;
-            screen.status_bar.wifi = WifiStateView::enabled(WifiState::NotConnected);
         };
 
+        screen.state = connection_state;
+        screen.status_bar.wifi = WifiStateView::enabled(connection_state);
+
         if let Some(event) = screen.menu.interact(board.frontend.is_touched()) {
-            match event {
-                ApMenuEvents::Exit => break,
-            };
+            #[allow(irrefutable_let_patterns)]
+            if let ApMenuEvents::Exit = event {
+                break;
+            }
         }
 
         board
@@ -106,12 +103,15 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         let _ = control.stop_from_outside().await;
     }
 
-    board.wifi.stop_if().await;
+    board.disable_wifi().await;
 
     {
         let context = context.lock().await;
         if context.known_networks != board.config.known_networks {
-            board.config.known_networks = context.known_networks.clone();
+            board
+                .config
+                .known_networks
+                .clone_from(&context.known_networks);
             board.config_changed = true;
             board.save_config().await;
         }

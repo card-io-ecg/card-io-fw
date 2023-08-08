@@ -1,5 +1,6 @@
 use alloc::rc::Rc;
 use core::sync::atomic::{AtomicU32, Ordering};
+use gui::widgets::wifi::WifiState;
 
 use crate::{
     board::{
@@ -15,9 +16,24 @@ use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
 use embedded_hal_old::prelude::_embedded_hal_blocking_rng_Read;
 use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi as _};
 use esp_wifi::{
-    wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState},
+    wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState as WifiStackState},
     EspWifiInitialization,
 };
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ApConnectionState {
+    NotConnected,
+    Connected,
+}
+
+impl From<ApConnectionState> for WifiState {
+    fn from(state: ApConnectionState) -> Self {
+        match state {
+            ApConnectionState::NotConnected => WifiState::NotConnected,
+            ApConnectionState::Connected => WifiState::Connected,
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct Ap {
@@ -36,6 +52,14 @@ impl Ap {
 
     pub fn client_count(&self) -> u32 {
         self.client_count.load(Ordering::Acquire)
+    }
+
+    pub fn connection_state(&self) -> ApConnectionState {
+        if self.client_count() > 0 {
+            ApConnectionState::Connected
+        } else {
+            ApConnectionState::NotConnected
+        }
     }
 }
 
@@ -159,9 +183,9 @@ pub(super) async fn ap_task(
                     log::info!("Wifi started!");
                 }
 
-                if let WifiState::ApStart
-                | WifiState::ApStaConnected
-                | WifiState::ApStaDisconnected = esp_wifi::wifi::get_wifi_state()
+                if let WifiStackState::ApStart
+                | WifiStackState::ApStaConnected
+                | WifiStackState::ApStaDisconnected = esp_wifi::wifi::get_wifi_state()
                 {
                     let events = controller
                         .lock()
