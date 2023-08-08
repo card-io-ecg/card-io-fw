@@ -24,25 +24,26 @@ use esp_wifi::{
 
 const SCAN_RESULTS: usize = 20;
 
+type Shared<T> = Rc<Mutex<NoopRawMutex, T>>;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ConnectionState {
     NotConnected,
+    Connecting,
     Connected,
 }
 
 #[derive(Clone)]
 pub struct Sta {
     stack: Rc<Stack<WifiDevice<'static>>>,
-    networks: Rc<Mutex<NoopRawMutex, heapless::Vec<AccessPointInfo, SCAN_RESULTS>>>,
-    known_networks: Rc<Mutex<NoopRawMutex, Vec<WifiNetwork>>>,
+    networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
+    known_networks: Shared<Vec<WifiNetwork>>,
+    state: Shared<ConnectionState>,
 }
 
 impl Sta {
-    pub fn connection_state(&self) -> ConnectionState {
-        match self.stack.is_link_up() {
-            true => ConnectionState::Connected,
-            false => ConnectionState::NotConnected,
-        }
+    pub async fn connection_state(&self) -> ConnectionState {
+        *self.state.lock().await
     }
 
     pub async fn visible_networks(
@@ -61,10 +62,11 @@ impl Sta {
 
 pub(super) struct StaState {
     init: EspWifiInitialization,
-    controller: Rc<Mutex<NoopRawMutex, WifiController<'static>>>,
+    controller: Shared<WifiController<'static>>,
     stack: Rc<Stack<WifiDevice<'static>>>,
-    networks: Rc<Mutex<NoopRawMutex, heapless::Vec<AccessPointInfo, SCAN_RESULTS>>>,
-    known_networks: Rc<Mutex<NoopRawMutex, Vec<WifiNetwork>>>,
+    networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
+    known_networks: Shared<Vec<WifiNetwork>>,
+    state: Shared<ConnectionState>,
     connection_task_control: TaskController<()>,
     net_task_control: TaskController<!>,
     started: bool,
@@ -92,9 +94,10 @@ impl StaState {
             controller: Rc::new(Mutex::new(controller)),
             stack: Rc::new(Stack::new(wifi_interface, config, resources, random_seed)),
             networks: Rc::new(Mutex::new(heapless::Vec::new())),
+            known_networks: Rc::new(Mutex::new(Vec::new())),
+            state: Rc::new(Mutex::new(ConnectionState::NotConnected)),
             connection_task_control: TaskController::new(),
             net_task_control: TaskController::new(),
-            known_networks: Rc::new(Mutex::new(Vec::new())),
             started: false,
         }
     }
@@ -131,6 +134,7 @@ impl StaState {
                 self.controller.clone(),
                 self.networks.clone(),
                 self.known_networks.clone(),
+                self.state.clone(),
                 self.connection_task_control.token(),
             ));
             log::info!("Starting NET task");
@@ -143,20 +147,23 @@ impl StaState {
             stack: self.stack.clone(),
             networks: self.networks.clone(),
             known_networks: self.known_networks.clone(),
+            state: self.state.clone(),
         }
     }
 }
 
 #[embassy_executor::task]
 pub(super) async fn sta_task(
-    controller: Rc<Mutex<NoopRawMutex, WifiController<'static>>>,
-    networks: Rc<Mutex<NoopRawMutex, heapless::Vec<AccessPointInfo, SCAN_RESULTS>>>,
-    known_networks: Rc<Mutex<NoopRawMutex, Vec<WifiNetwork>>>,
+    controller: Shared<WifiController<'static>>,
+    networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
+    known_networks: Shared<Vec<WifiNetwork>>,
+    state: Shared<ConnectionState>,
     mut task_control: TaskControlToken<()>,
 ) {
     task_control
         .run_cancellable(async {
             loop {
+                *state.lock().await = ConnectionState::NotConnected;
                 if !matches!(controller.lock().await.is_started(), Ok(true)) {
                     log::info!("Starting wifi");
                     controller.lock().await.start().await.unwrap();
@@ -190,6 +197,9 @@ pub(super) async fn sta_task(
                     Timer::after(Duration::from_secs(5)).await;
                 };
 
+                log::info!("Connecting...");
+                *state.lock().await = ConnectionState::Connecting;
+
                 controller
                     .lock()
                     .await
@@ -200,21 +210,26 @@ pub(super) async fn sta_task(
                     }))
                     .unwrap();
 
-                log::info!("Connecting...");
-
                 match controller.lock().await.connect().await {
-                    Ok(_) => log::info!("Wifi connected!"),
+                    Ok(_) => {
+                        log::info!("Wifi connected!");
+                        *state.lock().await = ConnectionState::Connected;
+
+                        controller
+                            .lock()
+                            .await
+                            .wait_for_event(WifiEvent::StaDisconnected)
+                            .await;
+
+                        log::info!("Wifi disconnected!");
+                        *state.lock().await = ConnectionState::NotConnected;
+                    }
                     Err(e) => {
                         log::warn!("Failed to connect to wifi: {e:?}");
+                        *state.lock().await = ConnectionState::NotConnected;
                         Timer::after(Duration::from_millis(5000)).await
                     }
                 }
-
-                controller
-                    .lock()
-                    .await
-                    .wait_for_event(WifiEvent::StaDisconnected)
-                    .await;
             }
         })
         .await;
