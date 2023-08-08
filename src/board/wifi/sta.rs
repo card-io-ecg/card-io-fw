@@ -46,7 +46,7 @@ impl From<ConnectionState> for WifiState {
 
 #[derive(Clone)]
 pub struct Sta {
-    stack: Rc<Stack<WifiDevice<'static>>>,
+    _stack: Rc<Stack<WifiDevice<'static>>>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<WifiNetwork>>,
     state: Shared<ConnectionState>,
@@ -155,7 +155,7 @@ impl StaState {
         }
 
         Sta {
-            stack: self.stack.clone(),
+            _stack: self.stack.clone(),
             networks: self.networks.clone(),
             known_networks: self.known_networks.clone(),
             state: self.state.clone(),

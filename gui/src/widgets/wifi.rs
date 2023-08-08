@@ -67,11 +67,23 @@ pub struct WifiStateView {
 }
 
 impl WifiStateView {
-    pub fn new(data: Option<WifiState>) -> Self {
+    pub fn new(data: Option<impl Into<WifiState>>) -> Self {
         Self {
-            data,
+            data: data.map(Into::into),
             top_left: Point::zero(),
         }
+    }
+
+    pub fn enabled(data: impl Into<WifiState>) -> Self {
+        Self::new(Some(data.into()))
+    }
+
+    pub fn disabled() -> Self {
+        Self::new(None::<WifiState>)
+    }
+
+    pub fn update(&mut self, connection_state: impl Into<WifiState>) {
+        self.data = Some(connection_state.into());
     }
 }
 

@@ -5,14 +5,34 @@ use crate::{
     AppState,
 };
 use alloc::format;
+use embassy_net::Config;
 use embassy_time::Ticker;
 use embedded_graphics::Drawable;
 use gui::{
     screens::about_menu::{AboutMenuData, AboutMenuEvents, AboutMenuScreen},
-    widgets::{battery_small::Battery, status_bar::StatusBar},
+    widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 
 pub async fn about_menu(board: &mut Board) -> AppState {
+    let sta = if !board.config.known_networks.is_empty() {
+        // Enable wifi STA. This enabled wifi for the whole menu and re-enables when the user exits the
+        // wifi AP config menu.
+        board.wifi.initialize(&board.clocks);
+
+        let sta = board
+            .wifi
+            .configure_sta(Config::dhcpv4(Default::default()))
+            .await;
+
+        sta.update_known_networks(&board.config.known_networks)
+            .await;
+
+        Some(sta)
+    } else {
+        board.wifi.stop_if().await;
+
+        None
+    };
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
 
     let mac_address = Efuse::get_mac_address();
@@ -42,6 +62,11 @@ pub async fn about_menu(board: &mut Board) -> AppState {
                 board.battery_monitor.battery_data(),
                 board.config.battery_style(),
             ),
+            wifi: WifiStateView::new(if let Some(ref sta) = sta {
+                Some(sta.connection_state().await)
+            } else {
+                None
+            }),
         },
     };
 
@@ -69,6 +94,12 @@ pub async fn about_menu(board: &mut Board) -> AppState {
         }
 
         menu_screen.status_bar.update_battery_data(battery_data);
+        if let Some(ref sta) = sta {
+            menu_screen
+                .status_bar
+                .wifi
+                .update(sta.connection_state().await);
+        };
 
         board
             .display

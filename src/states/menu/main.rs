@@ -13,11 +13,11 @@ use gui::{
         main_menu::{MainMenu, MainMenuEvents, MainMenuScreen},
         MENU_STYLE,
     },
-    widgets::{battery_small::Battery, status_bar::StatusBar},
+    widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 
 pub async fn main_menu(board: &mut Board) -> AppState {
-    if !board.config.known_networks.is_empty() {
+    let sta = if !board.config.known_networks.is_empty() {
         // Enable wifi STA. This enabled wifi for the whole menu and re-enables when the user exits the
         // wifi AP config menu.
         board.wifi.initialize(&board.clocks);
@@ -29,7 +29,13 @@ pub async fn main_menu(board: &mut Board) -> AppState {
 
         sta.update_known_networks(&board.config.known_networks)
             .await;
-    }
+
+        Some(sta)
+    } else {
+        board.wifi.stop_if().await;
+
+        None
+    };
 
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     log::info!("Free heap: {} bytes", ALLOCATOR.free());
@@ -44,6 +50,11 @@ pub async fn main_menu(board: &mut Board) -> AppState {
                 board.battery_monitor.battery_data(),
                 board.config.battery_style(),
             ),
+            wifi: WifiStateView::new(if let Some(ref sta) = sta {
+                Some(sta.connection_state().await)
+            } else {
+                None
+            }),
         },
     };
 
@@ -75,6 +86,12 @@ pub async fn main_menu(board: &mut Board) -> AppState {
         }
 
         menu_screen.status_bar.update_battery_data(battery_data);
+        if let Some(ref sta) = sta {
+            menu_screen
+                .status_bar
+                .wifi
+                .update(sta.connection_state().await);
+        }
 
         board
             .display

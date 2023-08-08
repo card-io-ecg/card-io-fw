@@ -4,6 +4,7 @@ use crate::{
     timeout::Timeout,
     AppState,
 };
+use embassy_net::Config;
 use embassy_time::Ticker;
 use embedded_graphics::prelude::*;
 use gui::{
@@ -11,10 +12,30 @@ use gui::{
         display_menu::{DisplayMenu, DisplayMenuEvents, DisplayMenuScreen},
         MENU_STYLE,
     },
-    widgets::{battery_small::Battery, status_bar::StatusBar},
+    widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 
 pub async fn display_menu(board: &mut Board) -> AppState {
+    let sta = if !board.config.known_networks.is_empty() {
+        // Enable wifi STA. This enabled wifi for the whole menu and re-enables when the user exits the
+        // wifi AP config menu.
+        board.wifi.initialize(&board.clocks);
+
+        let sta = board
+            .wifi
+            .configure_sta(Config::dhcpv4(Default::default()))
+            .await;
+
+        sta.update_known_networks(&board.config.known_networks)
+            .await;
+
+        Some(sta)
+    } else {
+        board.wifi.stop_if().await;
+
+        None
+    };
+
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
 
     let mut menu_values = DisplayMenu {
@@ -30,6 +51,11 @@ pub async fn display_menu(board: &mut Board) -> AppState {
                 board.battery_monitor.battery_data(),
                 board.config.battery_style(),
             ),
+            wifi: WifiStateView::new(if let Some(ref sta) = sta {
+                Some(sta.connection_state().await)
+            } else {
+                None
+            }),
         },
     };
 
@@ -60,6 +86,12 @@ pub async fn display_menu(board: &mut Board) -> AppState {
         }
 
         menu_screen.status_bar.update_battery_data(battery_data);
+        if let Some(ref sta) = sta {
+            menu_screen
+                .status_bar
+                .wifi
+                .update(sta.connection_state().await);
+        }
 
         if &menu_values != menu_screen.menu.data() {
             log::debug!("Settings changed");

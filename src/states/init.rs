@@ -7,7 +7,7 @@ use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
 use gui::{
     screens::init::StartupScreen,
-    widgets::{battery_small::Battery, status_bar::StatusBar},
+    widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 
 pub async fn initialize(board: &mut Board) -> AppState {
@@ -53,6 +53,7 @@ pub async fn initialize(board: &mut Board) -> AppState {
                     battery_data,
                     board.config.battery_style(),
                 ),
+                wifi: WifiStateView::disabled(),
             },
         };
 

@@ -245,17 +245,7 @@ impl WifiDriver {
     }
 
     pub async fn stop_if(&mut self) {
-        match &mut self.state {
-            WifiDriverState::AP(ap, _) => {
-                let ap = unsafe { ap.assume_init_mut() };
-                ap.stop().await
-            }
-            WifiDriverState::STA(sta, _) => {
-                let sta = unsafe { sta.assume_init_mut() };
-                sta.stop().await
-            }
-            _ => {}
-        }
+        self.state.uninit_mode().await;
     }
 
     pub fn ap_running(&self) -> bool {

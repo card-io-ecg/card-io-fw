@@ -5,7 +5,7 @@ use embedded_graphics::Drawable;
 use embedded_menu::items::NavigationItem;
 use gui::{
     screens::wifi_sta::{WifiStaMenuData, WifiStaMenuEvents, WifiStaMenuScreen},
-    widgets::{battery_small::Battery, status_bar::StatusBar},
+    widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 
 use crate::{board::initialized::Board, states::MIN_FRAME_TIME, AppMenu, AppState};
@@ -72,6 +72,7 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
             menu: menu_data.create(menu_state),
             status_bar: StatusBar {
                 battery: Battery::with_style(battery_data, board.config.battery_style()),
+                wifi: WifiStateView::enabled(sta.connection_state().await),
             },
         };
 

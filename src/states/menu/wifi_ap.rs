@@ -14,10 +14,13 @@ use embassy_executor::Spawner;
 use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, StaticConfigV4};
 use embassy_time::{Duration, Instant, Ticker, Timer};
 use embedded_graphics::Drawable;
-use esp_wifi::wifi::WifiDevice;
 use gui::{
     screens::wifi_ap::{ApMenuEvents, WifiApScreen, WifiApScreenState},
-    widgets::{battery_small::Battery, status_bar::StatusBar},
+    widgets::{
+        battery_small::Battery,
+        status_bar::StatusBar,
+        wifi::{WifiState, WifiStateView},
+    },
 };
 
 use crate::{
@@ -55,6 +58,11 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
             board.battery_monitor.battery_data(),
             board.config.battery_style(),
         ),
+        wifi: WifiStateView::enabled(if ap.client_count() > 0 {
+            WifiState::Connected
+        } else {
+            WifiState::NotConnected
+        }),
     });
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
@@ -73,8 +81,9 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
         screen.status_bar.update_battery_data(battery_data);
 
-        screen.state = if ap.client_count() > 0 {
-            WifiApScreenState::Connected
+        if ap.client_count() > 0 {
+            screen.state = WifiApScreenState::Connected;
+            screen.status_bar.wifi = WifiStateView::enabled(WifiState::Connected);
         } else {
             if screen.state == WifiApScreenState::Connected || board.frontend.is_touched() {
                 last_interaction = Instant::now();
@@ -83,7 +92,8 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
             if last_interaction.elapsed() > Duration::from_secs(30) {
                 break;
             }
-            WifiApScreenState::Idle
+            screen.state = WifiApScreenState::Idle;
+            screen.status_bar.wifi = WifiStateView::enabled(WifiState::NotConnected);
         };
 
         if let Some(event) = screen.menu.interact(board.frontend.is_touched()) {
