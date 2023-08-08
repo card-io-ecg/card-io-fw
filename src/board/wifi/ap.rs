@@ -165,24 +165,22 @@ pub(super) async fn ap_task(
                 controller.lock().await.get_capabilities()
             );
 
+            let client_config = Configuration::AccessPoint(AccessPointConfiguration {
+                ssid: "Card/IO".into(),
+                max_connections: 1,
+                ..Default::default()
+            });
+            controller
+                .lock()
+                .await
+                .set_configuration(&client_config)
+                .unwrap();
+            log::info!("Starting wifi");
+
+            controller.lock().await.start().await.unwrap();
+            log::info!("Wifi started!");
+
             loop {
-                if !matches!(controller.lock().await.is_started(), Ok(true)) {
-                    let client_config = Configuration::AccessPoint(AccessPointConfiguration {
-                        ssid: "Card/IO".into(),
-                        max_connections: 1,
-                        ..Default::default()
-                    });
-                    controller
-                        .lock()
-                        .await
-                        .set_configuration(&client_config)
-                        .unwrap();
-                    log::info!("Starting wifi");
-
-                    controller.lock().await.start().await.unwrap();
-                    log::info!("Wifi started!");
-                }
-
                 if let WifiStackState::ApStart
                 | WifiStackState::ApStaConnected
                 | WifiStackState::ApStaDisconnected = esp_wifi::wifi::get_wifi_state()
