@@ -44,7 +44,7 @@ fn main() -> Result<(), Infallible> {
                 is_charging: true,
                 is_low: false,
             })),
-            wifi: WifiStateView::enabled(WifiState::NotConnected),
+            wifi: WifiStateView::enabled(WifiState::Connecting),
         },
     };
     let mut pressed = false;

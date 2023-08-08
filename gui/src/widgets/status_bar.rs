@@ -40,6 +40,7 @@ impl Drawable for StatusBar {
         // Roundabout way because we can't call draw on the LinearLayout as it results in an
         // indirect infinite recursion.
         let views = LinearLayout::horizontal(*self)
+            .with_alignment(vertical::Top)
             .arrange()
             .align_to(&display.bounding_box(), horizontal::Right, vertical::Top)
             .into_inner();
