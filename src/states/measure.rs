@@ -44,13 +44,13 @@ static THREAD_CONTROL: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 
 enum Message {
     Sample(Sample),
-    End(PoweredEcgFrontend, Result<(), Error<SpiError>>),
+    End(Box<PoweredEcgFrontend>, Result<(), Error<SpiError>>),
 }
 
 unsafe impl Send for Message {} // SAFETY: yolo
 
 struct EcgTaskParams {
-    frontend: PoweredEcgFrontend,
+    frontend: Box<PoweredEcgFrontend>,
     sender: MessageSender,
 }
 
@@ -113,7 +113,7 @@ async fn measure_impl(
     ecg_buffer: &mut CompressingBuffer<ECG_BUFFER_SIZE>,
 ) -> (AppState, Board) {
     let mut frontend = match board.frontend.enable_async().await {
-        Ok(frontend) => frontend,
+        Ok(frontend) => Box::new(frontend),
         Err((fe, _err)) => {
             board.frontend = fe;
             return (AppState::Error(AppError::Adc), board);
