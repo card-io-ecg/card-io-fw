@@ -12,7 +12,7 @@ use config_site::{
 };
 use embassy_executor::Spawner;
 use embassy_net::tcp::TcpSocket;
-use embassy_time::{Duration, Instant, Ticker, Timer};
+use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
 use gui::{
     screens::wifi_ap::{ApMenuEvents, WifiApScreen},
@@ -25,8 +25,9 @@ use gui::{
 
 use crate::{
     board::{initialized::Board, wifi::ap::Ap},
-    states::{AppMenu, MIN_FRAME_TIME, WEBSERVER_TASKS},
+    states::{AppMenu, MENU_IDLE_DURATION, MIN_FRAME_TIME, WEBSERVER_TASKS},
     task_control::{TaskControlToken, TaskController},
+    timeout::Timeout,
     AppState,
 };
 
@@ -53,7 +54,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     });
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    let mut last_interaction = Instant::now();
+    let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     while board.wifi.ap_running() {
         let battery_data = board.battery_monitor.battery_data();
 
@@ -72,10 +73,10 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         if connection_state != WifiState::Connected {
             // We start counting when the last client disconnects, and we reset on interaction.
             if screen.state == WifiState::Connected || board.frontend.is_touched() {
-                last_interaction = Instant::now();
+                exit_timer.reset();
             }
 
-            if last_interaction.elapsed() > Duration::from_secs(30) {
+            if exit_timer.is_elapsed() {
                 break;
             }
         };

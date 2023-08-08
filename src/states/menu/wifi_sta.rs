@@ -1,5 +1,5 @@
 use alloc::{string::String, vec::Vec};
-use embassy_time::{Duration, Instant, Ticker};
+use embassy_time::{Duration, Ticker};
 use embedded_graphics::Drawable;
 use embedded_menu::items::NavigationItem;
 use gui::{
@@ -7,18 +7,17 @@ use gui::{
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 
-use crate::{board::initialized::Board, states::MIN_FRAME_TIME, AppMenu, AppState};
+use crate::{
+    board::initialized::Board, states::MIN_FRAME_TIME, timeout::Timeout, AppMenu, AppState,
+};
 
 pub async fn wifi_sta(board: &mut Board) -> AppState {
     let sta = board.enable_wifi_sta().await;
 
     const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
 
-    let mut last_interaction = Instant::now();
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
-
     let mut menu_state = Default::default();
-
     let mut ssids = Vec::new();
 
     // Initial placeholder
@@ -26,10 +25,11 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
 
     let mut released = false;
 
-    while last_interaction.elapsed() < MENU_IDLE_DURATION {
+    let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
+    while !exit_timer.is_elapsed() {
         let is_touched = board.frontend.is_touched();
         if is_touched {
-            last_interaction = Instant::now();
+            exit_timer.reset();
         } else {
             released = true;
         }
