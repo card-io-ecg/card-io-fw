@@ -7,39 +7,21 @@ use embedded_layout::{prelude::*, ViewGroup};
 
 use crate::{
     screens::BatteryInfo,
-    widgets::{
-        battery_small::{Battery, BatteryStyle},
-        slot::Slot,
-    },
+    widgets::battery_small::{Battery, BatteryStyle},
 };
 
 #[derive(ViewGroup, Clone, Copy)]
 pub struct StatusBar {
-    pub battery: Slot<Battery>,
+    pub battery: Battery,
 }
 
 impl StatusBar {
     pub fn update_battery_style(&mut self, style: BatteryStyle) {
-        if let Some(battery) = self.battery.as_visible_mut() {
-            battery.style = style;
-        }
+        self.battery.style = style;
     }
 
-    pub fn update_battery_data(
-        &mut self,
-        battery_data: Option<BatteryInfo>,
-        battery_style: BatteryStyle,
-    ) {
-        if let Some(battery_data) = battery_data {
-            if let Some(battery) = self.battery.as_visible_mut() {
-                battery.data = battery_data;
-            } else {
-                self.battery
-                    .set_visible(Battery::with_style(battery_data, battery_style));
-            }
-        } else {
-            self.battery.set_hidden();
-        }
+    pub fn update_battery_data(&mut self, battery_data: Option<BatteryInfo>) {
+        self.battery.data = battery_data;
     }
 }
 

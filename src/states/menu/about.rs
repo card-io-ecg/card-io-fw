@@ -3,7 +3,7 @@ use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
 use gui::{
     screens::about_menu::{AboutMenuData, AboutMenuEvents, AboutMenuScreen},
-    widgets::{battery_small::Battery, slot::Slot, status_bar::StatusBar},
+    widgets::{battery_small::Battery, status_bar::StatusBar},
 };
 
 use crate::{
@@ -37,17 +37,13 @@ pub async fn about_menu(board: &mut Board) -> AppState {
         },
     };
 
-    let battery_style = board.config.battery_style();
-
     let mut menu_screen = AboutMenuScreen {
         menu: menu_data.create(),
         status_bar: StatusBar {
-            battery: board
-                .battery_monitor
-                .battery_data()
-                .await
-                .map(|data| Slot::visible(Battery::with_style(data, battery_style)))
-                .unwrap_or_default(),
+            battery: Battery::with_style(
+                board.battery_monitor.battery_data().await,
+                board.config.battery_style(),
+            ),
         },
     };
 
@@ -74,9 +70,7 @@ pub async fn about_menu(board: &mut Board) -> AppState {
             }
         }
 
-        menu_screen
-            .status_bar
-            .update_battery_data(battery_data, battery_style);
+        menu_screen.status_bar.update_battery_data(battery_data);
 
         board
             .display

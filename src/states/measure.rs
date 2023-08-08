@@ -20,7 +20,7 @@ use embassy_time::{Duration, Instant, Ticker, Timer};
 use embedded_graphics::Drawable;
 use gui::{
     screens::measure::EcgScreen,
-    widgets::{battery_small::Battery, slot::Slot, status_bar::StatusBar},
+    widgets::{battery_small::Battery, status_bar::StatusBar},
 };
 use object_chain::{chain, Chain, ChainElement, Link};
 use signal_processing::{
@@ -148,14 +148,10 @@ pub async fn measure(board: &mut Board) -> AppState {
             96,
             // discard transient
             StatusBar {
-                battery: board
-                    .battery_monitor
-                    .battery_data()
-                    .await
-                    .map(|data| {
-                        Slot::visible(Battery::with_style(data, board.config.battery_style()))
-                    })
-                    .unwrap_or_default(),
+                battery: Battery::with_style(
+                    board.battery_monitor.battery_data().await,
+                    board.config.battery_style(),
+                ),
             },
         );
 
@@ -209,9 +205,7 @@ pub async fn measure(board: &mut Board) -> AppState {
                 }
             }
 
-            screen
-                .status_bar
-                .update_battery_data(battery_data, board.config.battery_style());
+            screen.status_bar.update_battery_data(battery_data);
 
             board
                 .display

@@ -10,7 +10,7 @@ use gui::{
         display_menu::{DisplayMenu, DisplayMenuEvents, DisplayMenuScreen},
         MENU_STYLE,
     },
-    widgets::{battery_small::Battery, slot::Slot, status_bar::StatusBar},
+    widgets::{battery_small::Battery, status_bar::StatusBar},
 };
 
 pub async fn display_menu(board: &mut Board) -> AppState {
@@ -25,12 +25,10 @@ pub async fn display_menu(board: &mut Board) -> AppState {
         menu: menu_values.create_menu_with_style(MENU_STYLE),
 
         status_bar: StatusBar {
-            battery: board
-                .battery_monitor
-                .battery_data()
-                .await
-                .map(|data| Slot::visible(Battery::with_style(data, board.config.battery_style())))
-                .unwrap_or_default(),
+            battery: Battery::with_style(
+                board.battery_monitor.battery_data().await,
+                board.config.battery_style(),
+            ),
         },
     };
 
@@ -53,16 +51,14 @@ pub async fn display_menu(board: &mut Board) -> AppState {
 
         let battery_data = board.battery_monitor.battery_data().await;
 
-        menu_screen
-            .status_bar
-            .update_battery_data(battery_data, board.config.battery_style());
-
         #[cfg(feature = "battery_max17055")]
         if let Some(battery) = battery_data {
             if battery.is_low {
                 return AppState::Shutdown;
             }
         }
+
+        menu_screen.status_bar.update_battery_data(battery_data);
 
         if &menu_values != menu_screen.menu.data() {
             log::debug!("Settings changed");

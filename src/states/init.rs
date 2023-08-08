@@ -7,7 +7,7 @@ use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
 use gui::{
     screens::init::StartupScreen,
-    widgets::{battery_small::Battery, slot::Slot, status_bar::StatusBar},
+    widgets::{battery_small::Battery, status_bar::StatusBar},
 };
 
 pub async fn initialize(board: &mut Board) -> AppState {
@@ -49,12 +49,10 @@ pub async fn initialize(board: &mut Board) -> AppState {
             max_progress,
 
             status_bar: StatusBar {
-                battery: board
-                    .battery_monitor
-                    .battery_data()
-                    .await
-                    .map(|data| Slot::visible(Battery::with_style(data, board.config.battery_style())))
-                    .unwrap_or_default(),
+                battery: Battery::with_style(
+                    battery_data,
+                    board.config.battery_style(),
+                ),
             },
         };
 

@@ -196,13 +196,13 @@ impl BatteryStyle {
 
 #[derive(Clone, Copy)]
 pub struct Battery {
-    pub data: BatteryInfo,
+    pub data: Option<BatteryInfo>,
     pub style: BatteryStyle,
-    pub top_left: Point,
+    top_left: Point,
 }
 
 impl Battery {
-    pub fn with_style(data: BatteryInfo, style: BatteryStyle) -> Self {
+    pub fn with_style(data: Option<BatteryInfo>, style: BatteryStyle) -> Self {
         Self {
             data,
             style,
@@ -210,11 +210,11 @@ impl Battery {
         }
     }
 
-    pub fn icon(data: BatteryInfo) -> Self {
+    pub fn icon(data: Option<BatteryInfo>) -> Self {
         Self::with_style(data, BatteryStyle::Icon)
     }
 
-    pub fn percentage(data: BatteryInfo) -> Self {
+    pub fn percentage(data: Option<BatteryInfo>) -> Self {
         Self::with_style(data, BatteryStyle::Percentage)
     }
 }
@@ -237,7 +237,11 @@ impl Drawable for Battery {
     where
         D: DrawTarget<Color = Self::Color>,
     {
-        let mut cropped = target.cropped(&self.bounds());
-        self.style.draw(&mut cropped, self.data)
+        if let Some(data) = self.data {
+            let mut cropped = target.cropped(&self.bounds());
+            self.style.draw(&mut cropped, data)?;
+        }
+
+        Ok(())
     }
 }
