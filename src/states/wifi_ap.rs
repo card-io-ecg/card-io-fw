@@ -56,7 +56,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
     let mut screen = WifiApScreen::new(StatusBar {
         battery: Battery::with_style(
-            board.battery_monitor.battery_data().await,
+            board.battery_monitor.battery_data(),
             board.config.battery_style(),
         ),
     });
@@ -64,7 +64,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let mut last_interaction = Instant::now();
     while board.wifi.ap_running() {
-        let battery_data = board.battery_monitor.battery_data().await;
+        let battery_data = board.battery_monitor.battery_data();
 
         #[cfg(feature = "battery_max17055")]
         // We only enable this check for fuel gauges because enabling wifi modifies ADC readings

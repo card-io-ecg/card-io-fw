@@ -25,6 +25,7 @@ use crate::board::drivers::battery_fg::BatteryFgData;
 #[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
 use crate::board::LOW_BATTERY_PERCENTAGE;
 
+#[derive(Default, Clone, Copy)]
 pub struct BatteryState {
     #[cfg(feature = "battery_adc")]
     pub adc_data: Option<BatteryAdcData>,
@@ -36,19 +37,26 @@ pub struct BatteryMonitor<VBUS, CHG> {
     pub battery_state: &'static SharedBatteryState,
     pub vbus_detect: VBUS,
     pub charger_status: CHG,
+    pub last_battery_state: BatteryState,
 }
 
 impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
+    fn load_battery_data(&mut self) {
+        if let Ok(state) = self.battery_state.try_lock() {
+            self.last_battery_state = *state;
+        }
+    }
+
     #[cfg(feature = "battery_adc")]
-    pub async fn battery_data(&mut self) -> Option<BatteryInfo> {
+    pub fn battery_data(&mut self) -> Option<BatteryInfo> {
         let battery_model = signal_processing::battery::BatteryModel {
             voltage: (2750, 4200),
             charge_current: (0, 1000),
         };
 
-        let state = self.battery_state.lock().await;
+        self.load_battery_data();
 
-        state.adc_data.map(|state| {
+        self.last_battery_state.adc_data.map(|state| {
             let charge_current = if self.is_charging() {
                 None
             } else {
@@ -67,10 +75,10 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
     }
 
     #[cfg(feature = "battery_max17055")]
-    pub async fn battery_data(&mut self) -> Option<BatteryInfo> {
-        let state = self.battery_state.lock().await;
+    pub fn battery_data(&mut self) -> Option<BatteryInfo> {
+        self.load_battery_data();
 
-        state.fg_data.map(|state| BatteryInfo {
+        self.last_battery_state.fg_data.map(|state| BatteryInfo {
             voltage: state.voltage,
             is_charging: self.is_charging(),
             percentage: state.percentage,
@@ -79,7 +87,7 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
     }
 
     #[cfg(not(any(feature = "battery_max17055", feature = "battery_adc")))]
-    pub async fn battery_data(&mut self) -> Option<BatteryInfo> {
+    pub fn battery_data(&mut self) -> Option<BatteryInfo> {
         None
     }
 

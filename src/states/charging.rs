@@ -14,7 +14,7 @@ pub async fn charging(board: &mut Board) -> AppState {
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
 
     let mut charging_screen = ChargingScreen {
-        battery_data: board.battery_monitor.battery_data().await,
+        battery_data: board.battery_monitor.battery_data(),
         is_charging: board.battery_monitor.is_charging(),
         frames: 0,
         fps: TARGET_FPS,
@@ -30,7 +30,7 @@ pub async fn charging(board: &mut Board) -> AppState {
         }
 
         charging_screen.is_charging = board.battery_monitor.is_charging();
-        charging_screen.battery_data = board.battery_monitor.battery_data().await;
+        charging_screen.battery_data = board.battery_monitor.battery_data();
         charging_screen.frames += 1;
 
         board

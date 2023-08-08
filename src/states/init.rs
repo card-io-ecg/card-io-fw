@@ -25,7 +25,7 @@ pub async fn initialize(board: &mut Board) -> AppState {
             };
         }
 
-        let battery_data = board.battery_monitor.battery_data().await;
+        let battery_data = board.battery_monitor.battery_data();
 
         if let Some(battery) = battery_data {
             if battery.is_low {

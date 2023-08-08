@@ -9,7 +9,7 @@ use super::MIN_FRAME_TIME;
 pub async fn app_error(board: &mut Board, error: AppError) -> AppState {
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     while board.frontend.is_touched() {
-        let battery_data = board.battery_monitor.battery_data().await;
+        let battery_data = board.battery_monitor.battery_data();
 
         if let Some(battery) = battery_data {
             if battery.is_low {

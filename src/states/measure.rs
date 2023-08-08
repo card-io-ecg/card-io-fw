@@ -149,7 +149,7 @@ pub async fn measure(board: &mut Board) -> AppState {
             // discard transient
             StatusBar {
                 battery: Battery::with_style(
-                    board.battery_monitor.battery_data().await,
+                    board.battery_monitor.battery_data(),
                     board.config.battery_style(),
                 ),
             },
@@ -197,7 +197,7 @@ pub async fn measure(board: &mut Board) -> AppState {
                 started = now;
             }
 
-            let battery_data = board.battery_monitor.battery_data().await;
+            let battery_data = board.battery_monitor.battery_data();
 
             if let Some(battery) = battery_data {
                 if battery.is_low {

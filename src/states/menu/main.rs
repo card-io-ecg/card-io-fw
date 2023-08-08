@@ -26,7 +26,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
 
         status_bar: StatusBar {
             battery: Battery::with_style(
-                board.battery_monitor.battery_data().await,
+                board.battery_monitor.battery_data(),
                 board.config.battery_style(),
             ),
         },
@@ -49,7 +49,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
             };
         }
 
-        let battery_data = board.battery_monitor.battery_data().await;
+        let battery_data = board.battery_monitor.battery_data();
 
         #[cfg(feature = "battery_max17055")]
         if let Some(battery) = battery_data {

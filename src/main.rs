@@ -221,6 +221,12 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             battery_state,
             vbus_detect: resources.misc_pins.vbus_detect,
             charger_status: resources.misc_pins.chg_status,
+            last_battery_state: BatteryState {
+                #[cfg(feature = "battery_adc")]
+                adc_data: None,
+                #[cfg(feature = "battery_max17055")]
+                fg_data: None,
+            },
         },
         wifi: resources.wifi,
         config,
