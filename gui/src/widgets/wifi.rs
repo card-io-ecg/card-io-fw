@@ -69,6 +69,7 @@ impl WifiState {
         self.image().bounding_box().size
     }
 
+    #[inline]
     fn draw<D: DrawTarget<Color = BinaryColor>>(
         &self,
         target: &mut D,

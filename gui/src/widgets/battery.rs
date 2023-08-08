@@ -37,6 +37,7 @@ impl Drawable for Battery {
     type Color = BinaryColor;
     type Output = ();
 
+    #[inline]
     fn draw<D: DrawTarget<Color = BinaryColor>>(&self, display: &mut D) -> Result<(), D::Error> {
         let body_style = PrimitiveStyleBuilder::new()
             .stroke_color(BinaryColor::On)
