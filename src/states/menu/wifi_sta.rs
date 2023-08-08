@@ -1,5 +1,4 @@
 use alloc::{string::String, vec::Vec};
-use embassy_net::Config;
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
 use embedded_menu::items::NavigationItem;
@@ -11,14 +10,7 @@ use gui::{
 use crate::{board::initialized::Board, states::MIN_FRAME_TIME, AppMenu, AppState};
 
 pub async fn wifi_sta(board: &mut Board) -> AppState {
-    // Enable wifi STA. This enabled wifi for the whole menu and re-enables when the user exits the
-    // wifi AP config menu.
-    board.wifi.initialize(&board.clocks);
-
-    let sta = board
-        .wifi
-        .configure_sta(Config::dhcpv4(Default::default()))
-        .await;
+    let sta = board.enable_wifi_sta().await;
 
     const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
 

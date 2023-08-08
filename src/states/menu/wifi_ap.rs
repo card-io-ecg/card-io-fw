@@ -11,7 +11,7 @@ use config_site::{
     },
 };
 use embassy_executor::Spawner;
-use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, StaticConfigV4};
+use embassy_net::tcp::TcpSocket;
 use embassy_time::{Duration, Instant, Ticker, Timer};
 use embedded_graphics::Drawable;
 use gui::{
@@ -31,16 +31,7 @@ use crate::{
 };
 
 pub async fn wifi_ap(board: &mut Board) -> AppState {
-    board.wifi.initialize(&board.clocks);
-
-    let ap = board
-        .wifi
-        .configure_ap(Config::ipv4_static(StaticConfigV4 {
-            address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
-            gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
-            dns_servers: Default::default(),
-        }))
-        .await;
+    let ap = board.enable_wifi_ap().await;
 
     let spawner = Spawner::for_current_executor().await;
 
