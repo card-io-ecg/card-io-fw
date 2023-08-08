@@ -1,17 +1,17 @@
 use crate::{
     board::initialized::Board,
     states::{AppMenu, MIN_FRAME_TIME, TARGET_FPS},
+    timeout::Timeout,
     AppState,
 };
-use embassy_time::{Duration, Instant, Ticker};
+use embassy_time::{Duration, Ticker};
 use embedded_graphics::Drawable;
 use gui::screens::charging::ChargingScreen;
 
 pub async fn charging(board: &mut Board) -> AppState {
     const DISPLAY_TIME: Duration = Duration::from_secs(10);
 
-    let mut display_started = Instant::now();
-    let mut ticker = Ticker::every(MIN_FRAME_TIME);
+    let mut shutdown_timer = Timeout::new(DISPLAY_TIME);
 
     let mut charging_screen = ChargingScreen {
         battery_data: board.battery_monitor.battery_data(),
@@ -21,10 +21,12 @@ pub async fn charging(board: &mut Board) -> AppState {
         progress: 0,
     };
 
-    while board.battery_monitor.is_plugged() && display_started.elapsed() <= DISPLAY_TIME {
+    let mut ticker = Ticker::every(MIN_FRAME_TIME);
+    while board.battery_monitor.is_plugged() && !shutdown_timer.is_elapsed() {
         if board.frontend.is_touched() {
-            display_started = Instant::now();
+            shutdown_timer.reset();
         }
+
         if charging_screen.update_touched(board.frontend.is_touched()) {
             return AppState::Menu(AppMenu::Main);
         }

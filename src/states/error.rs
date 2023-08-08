@@ -1,10 +1,7 @@
+use crate::{board::initialized::Board, states::MIN_FRAME_TIME, AppError, AppState};
 use embassy_time::Ticker;
 use embedded_graphics::Drawable;
 use gui::screens::error::ErrorScreen;
-
-use crate::{board::initialized::Board, AppError, AppState};
-
-use super::MIN_FRAME_TIME;
 
 pub async fn app_error(board: &mut Board, error: AppError) -> AppState {
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
