@@ -1,8 +1,4 @@
-use embedded_graphics::{
-    pixelcolor::BinaryColor,
-    prelude::{DrawTarget, Point},
-    Drawable,
-};
+use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
 use embedded_io::asynch::{Read, Write};
 use embedded_layout::prelude::{horizontal, vertical, Align};
 use embedded_menu::{
@@ -13,10 +9,7 @@ use embedded_menu::{
 };
 use norfs::storable::{LoadError, Loadable, Storable};
 
-use crate::{
-    screens::BatteryInfo,
-    widgets::battery_small::{Battery, BatteryStyle},
-};
+use crate::widgets::{battery_small::BatteryStyle, status_bar::StatusBar};
 
 #[derive(Clone, Copy)]
 pub enum DisplayMenuEvents {
@@ -109,8 +102,7 @@ pub struct DisplayMenu {
 
 pub struct DisplayMenuScreen {
     pub menu: DisplayMenuMenuWrapper<SingleTouch, AnimatedPosition, AnimatedTriangle>,
-    pub battery_data: Option<BatteryInfo>,
-    pub battery_style: BatteryStyle,
+    pub status_bar: StatusBar,
 }
 
 impl Drawable for DisplayMenuScreen {
@@ -121,16 +113,12 @@ impl Drawable for DisplayMenuScreen {
     where
         D: DrawTarget<Color = Self::Color>,
     {
-        if let Some(data) = self.battery_data {
-            Battery {
-                data,
-                style: self.battery_style,
-                top_left: Point::zero(),
-            }
+        self.menu.draw(display)?;
+
+        self.status_bar
             .align_to(&display.bounding_box(), horizontal::Right, vertical::Top)
             .draw(display)?;
-        }
 
-        self.menu.draw(display)
+        Ok(())
     }
 }

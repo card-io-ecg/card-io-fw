@@ -30,15 +30,16 @@ fn main() -> Result<(), Infallible> {
         display.clear(BinaryColor::Off).unwrap();
 
         WifiApScreen {
-            battery_data: Some(BatteryInfo {
-                voltage: 4200,
-                percentage: 100,
-                is_charging: true,
-                is_low: false,
-            }),
-            battery_style: BatteryStyle::Icon,
             menu: ApMenu {}.create_menu_with_style(MENU_STYLE),
             state: WifiApScreenState::Idle,
+            status_bar: StatusBar {
+                battery: Slot::visible(Battery::percentage(BatteryInfo {
+                    voltage: 4200,
+                    percentage: 100,
+                    is_charging: true,
+                    is_low: false,
+                })),
+            },
         }
         .draw(&mut display)
         .unwrap();

@@ -194,10 +194,29 @@ impl BatteryStyle {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Battery {
     pub data: BatteryInfo,
     pub style: BatteryStyle,
     pub top_left: Point,
+}
+
+impl Battery {
+    pub fn with_style(data: BatteryInfo, style: BatteryStyle) -> Self {
+        Self {
+            data,
+            style,
+            top_left: Point::zero(),
+        }
+    }
+
+    pub fn icon(data: BatteryInfo) -> Self {
+        Self::with_style(data, BatteryStyle::Icon)
+    }
+
+    pub fn percentage(data: BatteryInfo) -> Self {
+        Self::with_style(data, BatteryStyle::Percentage)
+    }
 }
 
 impl View for Battery {

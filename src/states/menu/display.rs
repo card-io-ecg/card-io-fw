@@ -5,9 +5,12 @@ use crate::{
 };
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::prelude::*;
-use gui::screens::{
-    display_menu::{DisplayMenu, DisplayMenuEvents, DisplayMenuScreen},
-    MENU_STYLE,
+use gui::{
+    screens::{
+        display_menu::{DisplayMenu, DisplayMenuEvents, DisplayMenuScreen},
+        MENU_STYLE,
+    },
+    widgets::{battery_small::Battery, slot::Slot, status_bar::StatusBar},
 };
 
 pub async fn display_menu(board: &mut Board) -> AppState {
@@ -21,8 +24,14 @@ pub async fn display_menu(board: &mut Board) -> AppState {
     let mut menu_screen = DisplayMenuScreen {
         menu: menu_values.create_menu_with_style(MENU_STYLE),
 
-        battery_data: board.battery_monitor.battery_data().await,
-        battery_style: board.config.battery_style(),
+        status_bar: StatusBar {
+            battery: board
+                .battery_monitor
+                .battery_data()
+                .await
+                .map(|data| Slot::visible(Battery::with_style(data, board.config.battery_style())))
+                .unwrap_or_default(),
+        },
     };
 
     let mut last_interaction = Instant::now();
@@ -42,10 +51,14 @@ pub async fn display_menu(board: &mut Board) -> AppState {
             };
         }
 
-        menu_screen.battery_data = board.battery_monitor.battery_data().await;
+        let battery_data = board.battery_monitor.battery_data().await;
+
+        menu_screen
+            .status_bar
+            .update_battery_data(battery_data, board.config.battery_style());
 
         #[cfg(feature = "battery_max17055")]
-        if let Some(battery) = menu_screen.battery_data {
+        if let Some(battery) = battery_data {
             if battery.is_low {
                 return AppState::Shutdown;
             }
@@ -65,7 +78,9 @@ pub async fn display_menu(board: &mut Board) -> AppState {
             if menu_values.battery_display != new.battery_display {
                 board.config_changed = true;
                 board.config.battery_display_style = new.battery_display;
-                menu_screen.battery_style = board.config.battery_style();
+                menu_screen
+                    .status_bar
+                    .update_battery_style(board.config.battery_style());
             }
 
             menu_values = new;

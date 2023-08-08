@@ -15,7 +15,10 @@ use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StaticCo
 use embassy_time::{Duration, Instant, Ticker, Timer};
 use embedded_graphics::Drawable;
 use esp_wifi::wifi::WifiDevice;
-use gui::screens::wifi_ap::{ApMenuEvents, WifiApScreen, WifiApScreenState};
+use gui::{
+    screens::wifi_ap::{ApMenuEvents, WifiApScreen, WifiApScreenState},
+    widgets::{battery_small::Battery, slot::Slot, status_bar::StatusBar},
+};
 
 use crate::{
     board::initialized::Board,
@@ -51,10 +54,16 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         ));
     }
 
-    let mut screen = WifiApScreen::new(
-        board.battery_monitor.battery_data().await,
-        board.config.battery_style(),
-    );
+    let battery_style = board.config.battery_style();
+
+    let mut screen = WifiApScreen::new(StatusBar {
+        battery: board
+            .battery_monitor
+            .battery_data()
+            .await
+            .map(|data| Slot::visible(Battery::with_style(data, battery_style)))
+            .unwrap_or_default(),
+    });
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let mut last_interaction = Instant::now();
@@ -70,7 +79,9 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
             }
         }
 
-        screen.battery_data = battery_data;
+        screen
+            .status_bar
+            .update_battery_data(battery_data, battery_style);
 
         screen.state = if board.wifi.ap_client_count().await > 0 {
             WifiApScreenState::Connected

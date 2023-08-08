@@ -1,9 +1,5 @@
 use alloc::string::String;
-use embedded_graphics::{
-    pixelcolor::BinaryColor,
-    prelude::{DrawTarget, Point},
-    Drawable,
-};
+use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
 use embedded_layout::{
     chain,
     prelude::{horizontal, vertical, Align, Chain, Link},
@@ -15,10 +11,7 @@ use embedded_menu::{
     Menu,
 };
 
-use crate::{
-    screens::{BatteryInfo, MENU_STYLE},
-    widgets::battery_small::{Battery, BatteryStyle},
-};
+use crate::{screens::MENU_STYLE, widgets::status_bar::StatusBar};
 
 #[derive(Clone, Copy)]
 pub enum AboutMenuEvents {
@@ -62,8 +55,7 @@ impl AboutMenuData {
 
 pub struct AboutMenuScreen<'a> {
     pub menu: AboutMenu<'a>,
-    pub battery_data: Option<BatteryInfo>,
-    pub battery_style: BatteryStyle,
+    pub status_bar: StatusBar,
 }
 
 impl Drawable for AboutMenuScreen<'_> {
@@ -74,16 +66,12 @@ impl Drawable for AboutMenuScreen<'_> {
     where
         D: DrawTarget<Color = Self::Color>,
     {
-        if let Some(data) = self.battery_data {
-            Battery {
-                data,
-                style: self.battery_style,
-                top_left: Point::zero(),
-            }
+        self.menu.draw(display)?;
+
+        self.status_bar
             .align_to(&display.bounding_box(), horizontal::Right, vertical::Top)
             .draw(display)?;
-        }
 
-        self.menu.draw(display)
+        Ok(())
     }
 }

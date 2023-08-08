@@ -1,7 +1,7 @@
 use embedded_graphics::{
     mono_font::{ascii::FONT_6X10, MonoTextStyleBuilder},
     pixelcolor::BinaryColor,
-    prelude::{DrawTarget, Point},
+    prelude::DrawTarget,
     Drawable,
 };
 use embedded_layout::prelude::{horizontal, vertical, Align};
@@ -16,10 +16,7 @@ use embedded_text::{
     TextBox,
 };
 
-use crate::{
-    screens::{BatteryInfo, MENU_STYLE},
-    widgets::battery_small::{Battery, BatteryStyle},
-};
+use crate::{screens::MENU_STYLE, widgets::status_bar::StatusBar};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ApMenuEvents {
@@ -43,19 +40,17 @@ pub enum WifiApScreenState {
 }
 
 pub struct WifiApScreen {
-    pub battery_data: Option<BatteryInfo>,
-    pub battery_style: BatteryStyle,
     pub menu: ApMenuMenuWrapper<SingleTouch, AnimatedPosition, AnimatedTriangle>,
     pub state: WifiApScreenState,
+    pub status_bar: StatusBar,
 }
 
 impl WifiApScreen {
-    pub fn new(battery_data: Option<BatteryInfo>, battery_style: BatteryStyle) -> Self {
+    pub fn new(status_bar: StatusBar) -> Self {
         Self {
-            battery_data,
-            battery_style,
             menu: ApMenu {}.create_menu_with_style(MENU_STYLE),
             state: WifiApScreenState::Idle,
+            status_bar,
         }
     }
 }
@@ -67,15 +62,9 @@ impl Drawable for WifiApScreen {
     fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
         self.menu.draw(display)?;
 
-        if let Some(data) = self.battery_data {
-            Battery {
-                data,
-                style: self.battery_style,
-                top_left: Point::zero(),
-            }
-            .align_to_mut(&display.bounding_box(), horizontal::Right, vertical::Top)
+        self.status_bar
+            .align_to(&display.bounding_box(), horizontal::Right, vertical::Top)
             .draw(display)?;
-        }
 
         // TODO: use actual network name
         let text = match self.state {

@@ -18,7 +18,10 @@ use embassy_sync::{
 };
 use embassy_time::{Duration, Instant, Ticker, Timer};
 use embedded_graphics::Drawable;
-use gui::screens::measure::EcgScreen;
+use gui::{
+    screens::measure::EcgScreen,
+    widgets::{battery_small::Battery, slot::Slot, status_bar::StatusBar},
+};
 use object_chain::{chain, Chain, ChainElement, Link};
 use signal_processing::{
     compressing_buffer::CompressingBuffer,
@@ -141,8 +144,20 @@ pub async fn measure(board: &mut Board) -> AppState {
 
         ecg.heart_rate_calculator.clear();
 
-        let mut screen = EcgScreen::new(96); // discard transient
-        screen.battery_style = board.config.battery_style();
+        let mut screen = EcgScreen::new(
+            96,
+            // discard transient
+            StatusBar {
+                battery: board
+                    .battery_monitor
+                    .battery_data()
+                    .await
+                    .map(|data| {
+                        Slot::visible(Battery::with_style(data, board.config.battery_style()))
+                    })
+                    .unwrap_or_default(),
+            },
+        );
 
         let mut ticker = Ticker::every(MIN_FRAME_TIME);
 
@@ -193,7 +208,11 @@ pub async fn measure(board: &mut Board) -> AppState {
                     THREAD_CONTROL.signal(());
                 }
             }
-            screen.battery_data = battery_data;
+
+            screen
+                .status_bar
+                .update_battery_data(battery_data, board.config.battery_style());
+
             board
                 .display
                 .frame(|display| screen.draw(display))

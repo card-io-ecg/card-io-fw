@@ -2,7 +2,7 @@ use std::convert::Infallible;
 
 use embedded_graphics::{
     pixelcolor::BinaryColor,
-    prelude::{DrawTarget, Size},
+    prelude::{DrawTarget, Point, Size},
     Drawable,
 };
 use embedded_graphics_simulator::{
@@ -10,7 +10,11 @@ use embedded_graphics_simulator::{
 };
 use gui::{
     screens::{init::StartupScreen, BatteryInfo},
-    widgets::battery_small::BatteryStyle,
+    widgets::{
+        battery_small::{Battery, BatteryStyle},
+        slot::Slot,
+        status_bar::StatusBar,
+    },
 };
 
 fn main() -> Result<(), Infallible> {
@@ -35,13 +39,14 @@ fn main() -> Result<(), Infallible> {
                 progress
             },
             max_progress: 255,
-            battery_data: Some(BatteryInfo {
-                voltage: 4200,
-                percentage: 100,
-                is_charging: true,
-                is_low: false,
-            }),
-            battery_style: BatteryStyle::Icon,
+            status_bar: StatusBar {
+                battery: Slot::visible(Battery::icon(BatteryInfo {
+                    voltage: 4200,
+                    percentage: 100,
+                    is_charging: true,
+                    is_low: false,
+                })),
+            },
         }
         .draw(&mut display)
         .unwrap();

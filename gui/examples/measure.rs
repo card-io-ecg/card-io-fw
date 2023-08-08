@@ -10,7 +10,7 @@ use embedded_graphics_simulator::{
 };
 use gui::{
     screens::{measure::EcgScreen, BatteryInfo},
-    widgets::battery_small::BatteryStyle,
+    widgets::{battery_small::BatteryStyle, status_bar::StatusBar},
 };
 
 fn main() -> Result<(), Infallible> {
@@ -23,17 +23,19 @@ fn main() -> Result<(), Infallible> {
 
     let mut window = Window::new("Measurement screen", &output_settings);
 
-    let mut screen = EcgScreen::new(96);
+    let mut screen = EcgScreen::new(
+        96,
+        StatusBar {
+            battery: Slot::visible(Battery::percentage(BatteryInfo {
+                voltage: 3650,
+                percentage: 50,
+                is_charging: true,
+                is_low: false,
+            })),
+        },
+    );
 
     screen.update_heart_rate(67);
-    screen.battery_voltage = Some(3650);
-    screen.battery_data = Some(BatteryInfo {
-        voltage: 4200,
-        percentage: 100,
-        is_charging: true,
-        is_low: false,
-    });
-    screen.battery_style = BatteryStyle::Percentage;
 
     let mut progress = 0;
     'running: loop {

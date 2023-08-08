@@ -6,9 +6,12 @@ use crate::{
 };
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::prelude::*;
-use gui::screens::{
-    main_menu::{MainMenu, MainMenuEvents, MainMenuScreen},
-    MENU_STYLE,
+use gui::{
+    screens::{
+        main_menu::{MainMenu, MainMenuEvents, MainMenuScreen},
+        MENU_STYLE,
+    },
+    widgets::{battery_small::Battery, slot::Slot, status_bar::StatusBar},
 };
 
 pub async fn main_menu(board: &mut Board) -> AppState {
@@ -17,11 +20,19 @@ pub async fn main_menu(board: &mut Board) -> AppState {
     log::info!("Free heap: {} bytes", ALLOCATOR.free());
 
     let menu_values = MainMenu {};
+    let battery_style = board.config.battery_style();
 
     let mut menu_screen = MainMenuScreen {
         menu: menu_values.create_menu_with_style(MENU_STYLE),
-        battery_data: board.battery_monitor.battery_data().await,
-        battery_style: board.config.battery_style(),
+
+        status_bar: StatusBar {
+            battery: board
+                .battery_monitor
+                .battery_data()
+                .await
+                .map(|data| Slot::visible(Battery::with_style(data, battery_style)))
+                .unwrap_or_default(),
+        },
     };
 
     let mut last_interaction = Instant::now();
@@ -41,10 +52,14 @@ pub async fn main_menu(board: &mut Board) -> AppState {
             };
         }
 
-        menu_screen.battery_data = board.battery_monitor.battery_data().await;
+        let battery_data = board.battery_monitor.battery_data().await;
+
+        menu_screen
+            .status_bar
+            .update_battery_data(battery_data, battery_style);
 
         #[cfg(feature = "battery_max17055")]
-        if let Some(battery) = menu_screen.battery_data {
+        if let Some(battery) = battery_data {
             if battery.is_low {
                 return AppState::Shutdown;
             }
