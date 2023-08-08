@@ -1,5 +1,4 @@
 use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
-use embedded_layout::prelude::{horizontal, vertical, Align};
 use embedded_menu::{
     interaction::single_touch::SingleTouch,
     selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
@@ -46,10 +45,7 @@ impl Drawable for MainMenuScreen {
         D: DrawTarget<Color = Self::Color>,
     {
         self.menu.draw(display)?;
-
-        self.status_bar
-            .align_to(&display.bounding_box(), horizontal::Right, vertical::Top)
-            .draw(display)?;
+        self.status_bar.draw(display)?;
 
         Ok(())
     }

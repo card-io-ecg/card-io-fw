@@ -4,7 +4,6 @@ use embedded_graphics::{
     prelude::DrawTarget,
     Drawable,
 };
-use embedded_layout::prelude::{horizontal, vertical, Align};
 use embedded_menu::{
     interaction::single_touch::SingleTouch,
     selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
@@ -62,10 +61,7 @@ impl Drawable for WifiApScreen {
     #[inline]
     fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
         self.menu.draw(display)?;
-
-        self.status_bar
-            .align_to(&display.bounding_box(), horizontal::Right, vertical::Top)
-            .draw(display)?;
+        self.status_bar.draw(display)?;
 
         // TODO: use actual network name
         let text = match self.state {

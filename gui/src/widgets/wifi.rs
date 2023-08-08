@@ -68,17 +68,6 @@ impl WifiState {
     fn size(&self) -> Size {
         self.image().bounding_box().size
     }
-
-    #[inline]
-    fn draw<D: DrawTarget<Color = BinaryColor>>(
-        &self,
-        target: &mut D,
-        top_left: Point,
-    ) -> Result<Point, D::Error> {
-        Image::new(&self.image(), top_left).draw(target)?;
-
-        Ok(top_left)
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -130,7 +119,7 @@ impl Drawable for WifiStateView {
     {
         if let Some(data) = self.data {
             let mut cropped = target.cropped(&self.bounds());
-            data.draw(&mut cropped, self.top_left)?;
+            Image::new(&data.image(), Point::zero()).draw(&mut cropped)?;
         }
 
         Ok(())

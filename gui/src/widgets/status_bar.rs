@@ -37,6 +37,16 @@ impl Drawable for StatusBar {
 
     #[inline]
     fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
-        LinearLayout::horizontal(*self).arrange().draw(display)
+        // Roundabout way because we can't call draw on the LinearLayout as it results in an
+        // indirect infinite recursion.
+        let views = LinearLayout::horizontal(*self)
+            .arrange()
+            .align_to(&display.bounding_box(), horizontal::Right, vertical::Top)
+            .into_inner();
+
+        views.battery.draw(display)?;
+        views.wifi.draw(display)?;
+
+        Ok(())
     }
 }

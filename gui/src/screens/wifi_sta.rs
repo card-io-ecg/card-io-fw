@@ -1,7 +1,7 @@
 use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
 use embedded_layout::{
     chain,
-    prelude::{horizontal, vertical, Align, Chain, Link},
+    prelude::{Chain, Link},
 };
 use embedded_menu::{
     collection::MenuItems,
@@ -66,10 +66,7 @@ impl Drawable for WifiStaMenuScreen<'_, '_> {
         D: DrawTarget<Color = Self::Color>,
     {
         self.menu.draw(display)?;
-
-        self.status_bar
-            .align_to(&display.bounding_box(), horizontal::Right, vertical::Top)
-            .draw(display)?;
+        self.status_bar.draw(display)?;
 
         Ok(())
     }
