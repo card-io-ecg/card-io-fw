@@ -20,6 +20,7 @@ impl Drawable for StartupScreen<'_> {
     type Color = BinaryColor;
     type Output = ();
 
+    #[inline]
     fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
         ProgressBar {
             label: self.label,

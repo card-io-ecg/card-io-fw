@@ -59,6 +59,7 @@ impl Drawable for WifiApScreen {
     type Color = BinaryColor;
     type Output = ();
 
+    #[inline]
     fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
         self.menu.draw(display)?;
 

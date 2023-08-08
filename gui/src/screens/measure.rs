@@ -166,6 +166,7 @@ impl Drawable for EcgScreen {
     type Color = BinaryColor;
     type Output = ();
 
+    #[inline]
     fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
         self.status_bar
             .align_to(&display.bounding_box(), horizontal::Right, vertical::Top)

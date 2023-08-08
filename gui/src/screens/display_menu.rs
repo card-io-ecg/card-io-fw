@@ -109,6 +109,7 @@ impl Drawable for DisplayMenuScreen {
     type Color = BinaryColor;
     type Output = ();
 
+    #[inline]
     fn draw<D>(&self, display: &mut D) -> Result<Self::Output, D::Error>
     where
         D: DrawTarget<Color = Self::Color>,
