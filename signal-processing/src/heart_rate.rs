@@ -137,6 +137,7 @@ pub struct HeartRateCalculator {
 }
 
 impl HeartRateCalculator {
+    #[inline]
     pub fn new(fs: f32) -> Self {
         let max_init = (fs * 5.0) as u32;
         Self {

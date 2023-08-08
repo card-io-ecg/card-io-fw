@@ -226,6 +226,7 @@ impl<ADB, const N_FS: usize> PowerLineFilter<ADB, N_FS>
 where
     ADB: adaptation_blocking::AdaptationBlockingTrait,
 {
+    #[inline]
     pub fn new(fs: f32, frequencies: [f32; N_FS]) -> Self {
         Self {
             consts: Constants::new(fs),
