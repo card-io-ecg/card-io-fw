@@ -22,9 +22,12 @@ pub async fn main_menu(board: &mut Board) -> AppState {
         // wifi AP config menu.
         board.wifi.initialize(&board.clocks);
 
-        board
+        let sta = board
             .wifi
             .configure_sta(Config::dhcpv4(Default::default()))
+            .await;
+
+        sta.update_known_networks(&board.config.known_networks)
             .await;
     }
 

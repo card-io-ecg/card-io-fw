@@ -50,6 +50,13 @@ impl Sta {
     ) -> MutexGuard<'_, NoopRawMutex, heapless::Vec<AccessPointInfo, SCAN_RESULTS>> {
         self.networks.lock().await
     }
+
+    pub async fn update_known_networks(&self, networks: &[WifiNetwork]) {
+        let mut known = self.known_networks.lock().await;
+
+        known.clear();
+        known.extend_from_slice(networks);
+    }
 }
 
 pub(super) struct StaState {
@@ -123,6 +130,7 @@ impl StaState {
             spawner.must_spawn(sta_task(
                 self.controller.clone(),
                 self.networks.clone(),
+                self.known_networks.clone(),
                 self.connection_task_control.token(),
             ));
             log::info!("Starting NET task");
@@ -143,12 +151,11 @@ impl StaState {
 pub(super) async fn sta_task(
     controller: Rc<Mutex<NoopRawMutex, WifiController<'static>>>,
     networks: Rc<Mutex<NoopRawMutex, heapless::Vec<AccessPointInfo, SCAN_RESULTS>>>,
+    known_networks: Rc<Mutex<NoopRawMutex, Vec<WifiNetwork>>>,
     mut task_control: TaskControlToken<()>,
 ) {
     task_control
         .run_cancellable(async {
-            let known_networks = [];
-
             loop {
                 if !matches!(controller.lock().await.is_started(), Ok(true)) {
                     log::info!("Starting wifi");
@@ -170,10 +177,11 @@ pub(super) async fn sta_task(
 
                             *networks = visible_networks;
 
+                            let known_networks = known_networks.lock().await;
                             if let Some(connect_to) =
                                 select_visible_known_network(&known_networks, networks.as_slice())
                             {
-                                break 'select connect_to;
+                                break 'select connect_to.clone();
                             }
                         }
                         Err(err) => log::warn!("Scan failed: {err:?}"),
@@ -186,8 +194,8 @@ pub(super) async fn sta_task(
                     .lock()
                     .await
                     .set_configuration(&Configuration::Client(ClientConfiguration {
-                        ssid: connect_to.ssid.clone(),
-                        password: connect_to.pass.clone(),
+                        ssid: connect_to.ssid,
+                        password: connect_to.pass,
                         ..Default::default()
                     }))
                     .unwrap();
