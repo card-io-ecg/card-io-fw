@@ -47,8 +47,8 @@ struct WifiInitResources {
 enum WifiDriverState {
     Uninitialized(WifiInitResources),
     Initialized(EspWifiInitialization),
-    AP(MaybeUninit<ApState>, Box<StackResources<3>>),
-    STA(MaybeUninit<StaState>, Box<StackResources<3>>),
+    Ap(MaybeUninit<ApState>, Box<StackResources<3>>),
+    Sta(MaybeUninit<StaState>, Box<StackResources<3>>),
 }
 
 impl WifiDriverState {
@@ -57,7 +57,7 @@ impl WifiDriverState {
             log::info!("Initializing Wifi driver");
             // The replacement value doesn't matter as we immediately overwrite it,
             // but we need to move out of the resources
-            if let WifiDriverState::Uninitialized(resources) = self.replace_with(WifiMode::AP) {
+            if let WifiDriverState::Uninitialized(resources) = self.replace_with(WifiMode::Ap) {
                 *self = WifiDriverState::Initialized(
                     esp_wifi::initialize(
                         EspWifiInitFor::Wifi,
@@ -77,7 +77,7 @@ impl WifiDriverState {
 
     async fn uninit_mode(&mut self) {
         match self {
-            WifiDriverState::STA(sta, _) => {
+            WifiDriverState::Sta(sta, _) => {
                 {
                     let sta = unsafe {
                         // Preinit is only called immediately before initialization, which means we
@@ -95,7 +95,7 @@ impl WifiDriverState {
                 });
             }
 
-            WifiDriverState::AP(ap, _) => {
+            WifiDriverState::Ap(ap, _) => {
                 {
                     let ap = unsafe {
                         // Preinit is only called immediately before initialization, which means we
@@ -119,13 +119,13 @@ impl WifiDriverState {
 
     fn replace_with(&mut self, mode: WifiMode) -> Self {
         match mode {
-            WifiMode::AP => mem::replace(
+            WifiMode::Ap => mem::replace(
                 self,
-                Self::AP(MaybeUninit::uninit(), Box::new(StackResources::new())),
+                Self::Ap(MaybeUninit::uninit(), Box::new(StackResources::new())),
             ),
-            WifiMode::STA => mem::replace(
+            WifiMode::Sta => mem::replace(
                 self,
-                Self::STA(MaybeUninit::uninit(), Box::new(StackResources::new())),
+                Self::Sta(MaybeUninit::uninit(), Box::new(StackResources::new())),
             ),
         }
     }
@@ -133,8 +133,8 @@ impl WifiDriverState {
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 enum WifiMode {
-    AP,
-    STA,
+    Ap,
+    Sta,
 }
 
 impl WifiDriver {
@@ -164,8 +164,8 @@ impl WifiDriver {
 
     fn wifi_mode(&self) -> Option<WifiMode> {
         match self.state {
-            WifiDriverState::AP(_, _) => Some(WifiMode::AP),
-            WifiDriverState::STA(_, _) => Some(WifiMode::STA),
+            WifiDriverState::Ap(_, _) => Some(WifiMode::Ap),
+            WifiDriverState::Sta(_, _) => Some(WifiMode::Sta),
             _ => None,
         }
     }
@@ -186,11 +186,11 @@ impl WifiDriver {
 
     pub async fn configure_ap(&mut self, config: Config) -> Ap {
         // Prepare, stop STA if running
-        let init = self.preinit(WifiMode::AP).await;
+        let init = self.preinit(WifiMode::Ap).await;
 
         // Init AP mode
         match &mut self.state {
-            WifiDriverState::AP(ap, resources) => {
+            WifiDriverState::Ap(ap, resources) => {
                 // Initialize the memory if we need to
                 if let Some(init) = init {
                     ap.write(ApState::init(
@@ -208,7 +208,7 @@ impl WifiDriver {
 
             WifiDriverState::Uninitialized { .. }
             | WifiDriverState::Initialized { .. }
-            | WifiDriverState::STA(_, _) => {
+            | WifiDriverState::Sta(_, _) => {
                 unreachable!()
             }
         }
@@ -216,11 +216,11 @@ impl WifiDriver {
 
     pub async fn configure_sta(&mut self, config: Config) -> Sta {
         // Prepare, stop AP if running
-        let init = self.preinit(WifiMode::STA).await;
+        let init = self.preinit(WifiMode::Sta).await;
 
         // Init STA mode
         match &mut self.state {
-            WifiDriverState::STA(sta, resources) => {
+            WifiDriverState::Sta(sta, resources) => {
                 // Initialize the memory if we need to
                 if let Some(init) = init {
                     sta.write(StaState::init(
@@ -238,7 +238,7 @@ impl WifiDriver {
 
             WifiDriverState::Uninitialized { .. }
             | WifiDriverState::Initialized { .. }
-            | WifiDriverState::AP(_, _) => {
+            | WifiDriverState::Ap(_, _) => {
                 unreachable!()
             }
         }
@@ -249,7 +249,7 @@ impl WifiDriver {
     }
 
     pub fn ap_running(&self) -> bool {
-        if let WifiDriverState::AP(ap, _) = &self.state {
+        if let WifiDriverState::Ap(ap, _) = &self.state {
             let ap = unsafe { ap.assume_init_ref() };
             ap.is_running()
         } else {

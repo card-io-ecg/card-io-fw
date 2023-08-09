@@ -221,8 +221,8 @@ pub(super) async fn sta_task(
                     .lock()
                     .await
                     .set_configuration(&Configuration::Client(ClientConfiguration {
-                        ssid: connect_to.ssid.clone(),
-                        password: connect_to.pass.clone(),
+                        ssid: connect_to.ssid,
+                        password: connect_to.pass,
                         ..Default::default()
                     }))
                     .unwrap();

@@ -84,11 +84,9 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         screen.state = connection_state;
         screen.status_bar.wifi = WifiStateView::enabled(connection_state);
 
-        if let Some(event) = screen.menu.interact(board.frontend.is_touched()) {
-            #[allow(irrefutable_let_patterns)]
-            if let ApMenuEvents::Exit = event {
-                break;
-            }
+        #[allow(irrefutable_let_patterns)]
+        if let Some(ApMenuEvents::Exit) = screen.menu.interact(board.frontend.is_touched()) {
+            break;
         }
 
         board
