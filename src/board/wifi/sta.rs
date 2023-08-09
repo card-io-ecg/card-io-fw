@@ -29,6 +29,9 @@ const SCAN_RESULTS: usize = 20;
 
 type Shared<T> = Rc<Mutex<NoopRawMutex, T>>;
 
+/// A network SSID and password, with an object used to deprioritize unstable networks.
+type KnownNetwork = (WifiNetwork, ());
+
 #[atomic_enum::atomic_enum]
 #[derive(PartialEq)]
 pub enum ConnectionState {
@@ -51,7 +54,7 @@ impl From<ConnectionState> for WifiState {
 pub struct Sta {
     _stack: Rc<Stack<WifiDevice<'static>>>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
-    known_networks: Shared<Vec<WifiNetwork>>,
+    known_networks: Shared<Vec<KnownNetwork>>,
     state: Rc<AtomicConnectionState>,
 }
 
@@ -69,8 +72,12 @@ impl Sta {
     pub async fn update_known_networks(&self, networks: &[WifiNetwork]) {
         let mut known = self.known_networks.lock().await;
 
-        known.clear();
-        known.extend_from_slice(networks);
+        known.retain(|(network, _)| networks.contains(network));
+        for network in networks {
+            if !known.iter().any(|(kn, _)| kn == network) {
+                known.push((network.clone(), ()));
+            }
+        }
     }
 }
 
@@ -79,7 +86,7 @@ pub(super) struct StaState {
     controller: Shared<WifiController<'static>>,
     stack: Rc<Stack<WifiDevice<'static>>>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
-    known_networks: Shared<Vec<WifiNetwork>>,
+    known_networks: Shared<Vec<KnownNetwork>>,
     state: Rc<AtomicConnectionState>,
     connection_task_control: TaskController<()>,
     net_task_control: TaskController<!>,
@@ -170,7 +177,7 @@ impl StaState {
 pub(super) async fn sta_task(
     controller: Shared<WifiController<'static>>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
-    known_networks: Shared<Vec<WifiNetwork>>,
+    known_networks: Shared<Vec<KnownNetwork>>,
     state: Rc<AtomicConnectionState>,
     mut task_control: TaskControlToken<()>,
 ) {
@@ -253,11 +260,14 @@ pub(super) async fn sta_task(
 }
 
 fn select_visible_known_network<'a>(
-    known_networks: &'a [WifiNetwork],
+    known_networks: &'a [KnownNetwork],
     visible_networks: &[AccessPointInfo],
 ) -> Option<&'a WifiNetwork> {
     for network in visible_networks {
-        if let Some(known_network) = known_networks.iter().find(|n| n.ssid == network.ssid) {
+        if let Some((known_network, _)) = known_networks
+            .iter()
+            .find(|(kn, _)| kn.ssid == network.ssid)
+        {
             return Some(known_network);
         }
     }
