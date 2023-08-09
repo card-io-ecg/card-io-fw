@@ -244,7 +244,7 @@ pub(super) async fn sta_task(
                     Err(e) => {
                         log::warn!("Failed to connect to wifi: {e:?}");
                         state.store(ConnectionState::NotConnected, Ordering::Release);
-                        Timer::after(Duration::from_millis(5000)).await
+                        Timer::after(Duration::from_secs(5)).await;
                     }
                 }
             }
