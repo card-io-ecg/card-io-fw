@@ -181,9 +181,13 @@ pub(super) async fn sta_task(
     state: Rc<AtomicConnectionState>,
     mut task_control: TaskControlToken<()>,
 ) {
+    const SCAN_PERIOD: Duration = Duration::from_secs(5);
+    const CONNECT_RETRY_PERIOD: Duration = Duration::from_ms(100);
+    const CONNECT_RETRY_COUNT: usize = 5;
+
     task_control
         .run_cancellable(async {
-            loop {
+            'scan_and_connect: loop {
                 state.store(ConnectionState::NotConnected, Ordering::Release);
                 if !matches!(controller.lock().await.is_started(), Ok(true)) {
                     log::info!("Starting wifi");
@@ -218,7 +222,7 @@ pub(super) async fn sta_task(
                         Err(err) => log::warn!("Scan failed: {err:?}"),
                     }
 
-                    Timer::after(Duration::from_secs(5)).await;
+                    Timer::after(SCAN_PERIOD).await;
                 };
 
                 log::info!("Connecting to {}...", connect_to.ssid);
@@ -234,26 +238,34 @@ pub(super) async fn sta_task(
                     }))
                     .unwrap();
 
-                match controller.lock().await.connect().await {
-                    Ok(_) => {
-                        log::info!("Wifi connected!");
-                        state.store(ConnectionState::Connected, Ordering::Release);
+                for _ in 0..CONNECT_RETRY_COUNT {
+                    match controller.lock().await.connect().await {
+                        Ok(_) => {
+                            log::info!("Wifi connected!");
+                            state.store(ConnectionState::Connected, Ordering::Release);
 
-                        controller
-                            .lock()
-                            .await
-                            .wait_for_event(WifiEvent::StaDisconnected)
-                            .await;
+                            controller
+                                .lock()
+                                .await
+                                .wait_for_event(WifiEvent::StaDisconnected)
+                                .await;
 
-                        log::info!("Wifi disconnected!");
-                        state.store(ConnectionState::NotConnected, Ordering::Release);
-                    }
-                    Err(e) => {
-                        log::warn!("Failed to connect to wifi: {e:?}");
-                        state.store(ConnectionState::NotConnected, Ordering::Release);
-                        Timer::after(Duration::from_secs(5)).await;
+                            // TODO: figure out if we should deprioritize, retry or just loop back
+                            // to the beginning. Maybe we could use a timer?
+                            log::info!("Wifi disconnected!");
+                            state.store(ConnectionState::NotConnected, Ordering::Release);
+                            continue 'scan_and_connect;
+                        }
+                        Err(e) => {
+                            log::warn!("Failed to connect to wifi: {e:?}");
+                            state.store(ConnectionState::NotConnected, Ordering::Release);
+                            Timer::after(CONNECT_RETRY_PERIOD).await;
+                        }
                     }
                 }
+
+                // If we get here, we failed to connect to the network.
+                // TODO: deprioritize this network
             }
         })
         .await;
