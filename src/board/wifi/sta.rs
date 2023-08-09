@@ -29,8 +29,14 @@ const SCAN_RESULTS: usize = 20;
 
 type Shared<T> = Rc<Mutex<NoopRawMutex, T>>;
 
+#[derive(PartialEq, Clone, Copy)]
+pub enum NetworkPreference {
+    Preferred,
+    Deprioritized,
+}
+
 /// A network SSID and password, with an object used to deprioritize unstable networks.
-type KnownNetwork = (WifiNetwork, ());
+type KnownNetwork = (WifiNetwork, NetworkPreference);
 
 #[atomic_enum::atomic_enum]
 #[derive(PartialEq)]
@@ -75,7 +81,7 @@ impl Sta {
         known.retain(|(network, _)| networks.contains(network));
         for network in networks {
             if !known.iter().any(|(kn, _)| kn == network) {
-                known.push((network.clone(), ()));
+                known.push((network.clone(), NetworkPreference::Deprioritized));
             }
         }
     }
@@ -182,7 +188,7 @@ pub(super) async fn sta_task(
     mut task_control: TaskControlToken<()>,
 ) {
     const SCAN_PERIOD: Duration = Duration::from_secs(5);
-    const CONNECT_RETRY_PERIOD: Duration = Duration::from_ms(100);
+    const CONNECT_RETRY_PERIOD: Duration = Duration::from_millis(100);
     const CONNECT_RETRY_COUNT: usize = 5;
 
     task_control
@@ -211,12 +217,29 @@ pub(super) async fn sta_task(
 
                             networks.lock().await.clone_from(visible_networks);
 
-                            let known_networks = known_networks.lock().await;
+                            let mut known_networks = known_networks.lock().await;
+
+                            // Try to find a preferred network.
                             if let Some(connect_to) = select_visible_known_network(
                                 &known_networks,
                                 visible_networks.as_slice(),
+                                NetworkPreference::Preferred,
                             ) {
                                 break 'select connect_to.clone();
+                            }
+
+                            // No preferred networks in range. Try the naughty list.
+                            if let Some(connect_to) = select_visible_known_network(
+                                &known_networks,
+                                visible_networks.as_slice(),
+                                NetworkPreference::Deprioritized,
+                            ) {
+                                break 'select connect_to.clone();
+                            }
+
+                            // No visible known networks. Reset deprioritized networks.
+                            for (_, preference) in known_networks.iter_mut() {
+                                *preference = NetworkPreference::Preferred;
                             }
                         }
                         Err(err) => log::warn!("Scan failed: {err:?}"),
@@ -232,7 +255,7 @@ pub(super) async fn sta_task(
                     .lock()
                     .await
                     .set_configuration(&Configuration::Client(ClientConfiguration {
-                        ssid: connect_to.ssid,
+                        ssid: connect_to.ssid.clone(),
                         password: connect_to.pass,
                         ..Default::default()
                     }))
@@ -264,8 +287,14 @@ pub(super) async fn sta_task(
                     }
                 }
 
-                // If we get here, we failed to connect to the network.
-                // TODO: deprioritize this network
+                // If we get here, we failed to connect to the network. Deprioritize it.
+                let mut known_networks = known_networks.lock().await;
+                if let Some((_, preference)) = known_networks
+                    .iter_mut()
+                    .find(|(kn, _)| kn.ssid == connect_to.ssid)
+                {
+                    *preference = NetworkPreference::Deprioritized;
+                }
             }
         })
         .await;
@@ -274,11 +303,12 @@ pub(super) async fn sta_task(
 fn select_visible_known_network<'a>(
     known_networks: &'a [KnownNetwork],
     visible_networks: &[AccessPointInfo],
+    preference: NetworkPreference,
 ) -> Option<&'a WifiNetwork> {
     for network in visible_networks {
         if let Some((known_network, _)) = known_networks
             .iter()
-            .find(|(kn, _)| kn.ssid == network.ssid)
+            .find(|(kn, pref)| kn.ssid == network.ssid && *pref == preference)
         {
             return Some(known_network);
         }
