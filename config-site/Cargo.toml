@@ -7,10 +7,10 @@ edition = "2021"
 
 [dependencies]
 bad-server = { path = "../bad-server" }
-embassy-sync = { version = "0.2", optional = true }
-embedded-io = { version = "0.4", optional = true }
-heapless = "0.7"
-log = "0.4"
+embassy-sync = { workspace = true, optional = true }
+embedded-io = { workspace = true, optional = true }
+heapless = { workspace = true }
+log = { workspace = true }
 norfs = { git = "https://github.com/card-io-ecg/norfs.git", optional = true }
 smol = { version = "1.3", optional = true }
 

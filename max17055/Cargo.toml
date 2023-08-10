@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 byte-slice-cast = { version = "1", default-features = false }
 device-descriptor = { path = "../device-descriptor" }
-embedded-hal = "1.0.0-alpha.11"
-embedded-hal-async = "0.2.0-alpha.2"
-log = "0.4.17"
+embedded-hal = { workspace = true }
+embedded-hal-async = { workspace = true }
+log = { workspace = true }
 register-access = { path = "../register-access" }
