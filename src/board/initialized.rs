@@ -2,12 +2,13 @@ use crate::{
     board::{
         config::Config,
         hal::{clock::Clocks, system::PeripheralClockControl},
-        wifi::WifiDriver,
+        wifi::{ap::Ap, WifiDriver},
         ChargerStatus, EcgFrontend, PoweredDisplay, VbusDetect,
     },
     SharedBatteryState,
 };
 use embassy_executor::SendSpawner;
+use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
 use embedded_hal::digital::InputPin;
 use gui::screens::BatteryInfo;
 use norfs::{
@@ -24,6 +25,8 @@ use crate::board::drivers::battery_fg::BatteryFgData;
 
 #[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
 use crate::board::LOW_BATTERY_PERCENTAGE;
+
+use super::wifi::sta::Sta;
 
 #[derive(Default, Clone, Copy)]
 pub struct BatteryState {
@@ -140,5 +143,35 @@ impl Board {
         } else {
             log::warn!("Storage unavailable");
         }
+    }
+
+    pub async fn enable_wifi_sta(&mut self) -> Sta {
+        self.wifi.initialize(&self.clocks);
+
+        let sta = self
+            .wifi
+            .configure_sta(NetConfig::dhcpv4(Default::default()))
+            .await;
+
+        sta.update_known_networks(&self.config.known_networks).await;
+
+        sta
+    }
+
+    pub async fn enable_wifi_ap(&mut self) -> Ap {
+        self.wifi.initialize(&self.clocks);
+
+        self.wifi
+            .configure_ap(NetConfig::ipv4_static(StaticConfigV4 {
+                address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
+                gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
+                dns_servers: Default::default(),
+            }))
+            .await
+    }
+
+    /// Note: make sure Sta/Ap is released before calling this.
+    pub async fn disable_wifi(&mut self) {
+        self.wifi.stop_if().await
     }
 }

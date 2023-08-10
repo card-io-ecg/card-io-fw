@@ -4,7 +4,6 @@ use embedded_graphics::{
     prelude::{DrawTarget, Point},
     Drawable,
 };
-use embedded_layout::prelude::{horizontal, vertical, Align};
 use tinybmp::Bmp;
 
 use crate::widgets::{progress_bar::ProgressBar, status_bar::StatusBar};
@@ -20,6 +19,7 @@ impl Drawable for StartupScreen<'_> {
     type Color = BinaryColor;
     type Output = ();
 
+    #[inline]
     fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
         ProgressBar {
             label: self.label,
@@ -33,9 +33,7 @@ impl Drawable for StartupScreen<'_> {
 
         Image::new(&bmp, Point::new(1, 12)).draw(display)?;
 
-        self.status_bar
-            .align_to(&display.bounding_box(), horizontal::Right, vertical::Top)
-            .draw(display)?;
+        self.status_bar.draw(display)?;
 
         Ok(())
     }

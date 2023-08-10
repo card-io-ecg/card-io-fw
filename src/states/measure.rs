@@ -21,7 +21,7 @@ use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
 use gui::{
     screens::measure::EcgScreen,
-    widgets::{battery_small::Battery, status_bar::StatusBar},
+    widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 use object_chain::{chain, Chain, ChainElement, Link};
 use signal_processing::{
@@ -163,6 +163,7 @@ async fn measure_impl(
                 board.battery_monitor.battery_data(),
                 board.config.battery_style(),
             ),
+            wifi: WifiStateView::disabled(),
         },
     );
 

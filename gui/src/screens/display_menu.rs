@@ -1,6 +1,5 @@
 use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
 use embedded_io::asynch::{Read, Write};
-use embedded_layout::prelude::{horizontal, vertical, Align};
 use embedded_menu::{
     interaction::single_touch::SingleTouch,
     items::select::SelectValue,
@@ -109,15 +108,13 @@ impl Drawable for DisplayMenuScreen {
     type Color = BinaryColor;
     type Output = ();
 
+    #[inline]
     fn draw<D>(&self, display: &mut D) -> Result<Self::Output, D::Error>
     where
         D: DrawTarget<Color = Self::Color>,
     {
         self.menu.draw(display)?;
-
-        self.status_bar
-            .align_to(&display.bounding_box(), horizontal::Right, vertical::Top)
-            .draw(display)?;
+        self.status_bar.draw(display)?;
 
         Ok(())
     }

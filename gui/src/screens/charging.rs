@@ -38,6 +38,7 @@ impl Drawable for ChargingScreen {
     type Color = BinaryColor;
     type Output = ();
 
+    #[inline]
     fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
         if let Some(data) = self.battery_data {
             let n_bars = (data.percentage.saturating_sub(1)) / 20; // 0-4 solid bars

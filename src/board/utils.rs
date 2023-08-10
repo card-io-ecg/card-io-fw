@@ -75,22 +75,15 @@ where
     ) -> Result<(), Self::Error> {
         self.lock_device(|spi| async {
             for op in operations {
-                let res = match op {
-                    Operation::Read(buf) => spi.read(buf).await,
-                    Operation::Write(buf) => spi.write(buf).await,
-                    Operation::Transfer(r, w) => spi.transfer(r, w).await,
-                    Operation::TransferInPlace(buf) => spi.transfer_in_place(buf).await,
+                match op {
+                    Operation::Read(buf) => spi.read(buf).await?,
+                    Operation::Write(buf) => spi.write(buf).await?,
+                    Operation::Transfer(r, w) => spi.transfer(r, w).await?,
+                    Operation::TransferInPlace(buf) => spi.transfer_in_place(buf).await?,
                     Operation::DelayUs(us) => match spi.flush().await {
-                        Err(e) => Err(e),
-                        Ok(()) => {
-                            Delay.delay_us(*us).await;
-                            Ok(())
-                        }
+                        Err(e) => return Err(e),
+                        Ok(()) => Delay.delay_us(*us).await,
                     },
-                };
-
-                if let Err(e) = res {
-                    return Err(e);
                 }
             }
 

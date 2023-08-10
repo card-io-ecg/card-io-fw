@@ -13,6 +13,7 @@ pub mod init;
 pub mod main_menu;
 pub mod measure;
 pub mod wifi_ap;
+pub mod wifi_sta;
 
 pub const MENU_STYLE: MenuStyle<BinaryColor, AnimatedTriangle, SingleTouch, AnimatedPosition> =
     MenuStyle::new(BinaryColor::On)

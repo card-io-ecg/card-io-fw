@@ -11,33 +11,28 @@ use config_site::{
     },
 };
 use embassy_executor::Spawner;
-use embassy_net::{tcp::TcpSocket, Config, Ipv4Address, Ipv4Cidr, Stack, StaticConfigV4};
-use embassy_time::{Duration, Instant, Ticker, Timer};
+use embassy_net::tcp::TcpSocket;
+use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
-use esp_wifi::wifi::WifiDevice;
 use gui::{
-    screens::wifi_ap::{ApMenuEvents, WifiApScreen, WifiApScreenState},
-    widgets::{battery_small::Battery, status_bar::StatusBar},
+    screens::wifi_ap::{ApMenuEvents, WifiApScreen},
+    widgets::{
+        battery_small::Battery,
+        status_bar::StatusBar,
+        wifi::{WifiState, WifiStateView},
+    },
 };
 
 use crate::{
-    board::initialized::Board,
-    states::{AppMenu, MIN_FRAME_TIME, WEBSERVER_TASKS},
+    board::{initialized::Board, wifi::ap::Ap},
+    states::{AppMenu, MENU_IDLE_DURATION, MIN_FRAME_TIME, WEBSERVER_TASKS},
     task_control::{TaskControlToken, TaskController},
+    timeout::Timeout,
     AppState,
 };
 
 pub async fn wifi_ap(board: &mut Board) -> AppState {
-    board.wifi.initialize(&board.clocks);
-
-    let stack = board
-        .wifi
-        .configure_ap(Config::ipv4_static(StaticConfigV4 {
-            address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
-            gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
-            dns_servers: Default::default(),
-        }))
-        .await;
+    let ap = board.enable_wifi_ap().await;
 
     let spawner = Spawner::for_current_executor().await;
 
@@ -47,11 +42,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
     let webserver_task_control = [(); WEBSERVER_TASKS].map(|_| TaskController::new());
     for control in webserver_task_control.iter() {
-        spawner.must_spawn(webserver_task(
-            stack.clone(),
-            context.clone(),
-            control.token(),
-        ));
+        spawner.must_spawn(webserver_task(ap.clone(), context.clone(), control.token()));
     }
 
     let mut screen = WifiApScreen::new(StatusBar {
@@ -59,10 +50,11 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
             board.battery_monitor.battery_data(),
             board.config.battery_style(),
         ),
+        wifi: WifiStateView::enabled(ap.connection_state()),
     });
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    let mut last_interaction = Instant::now();
+    let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     while board.wifi.ap_running() {
         let battery_data = board.battery_monitor.battery_data();
 
@@ -77,23 +69,24 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
         screen.status_bar.update_battery_data(battery_data);
 
-        screen.state = if board.wifi.ap_client_count().await > 0 {
-            WifiApScreenState::Connected
-        } else {
-            if screen.state == WifiApScreenState::Connected || board.frontend.is_touched() {
-                last_interaction = Instant::now();
+        let connection_state: WifiState = ap.connection_state().into();
+        if connection_state != WifiState::Connected {
+            // We start counting when the last client disconnects, and we reset on interaction.
+            if screen.state == WifiState::Connected || board.frontend.is_touched() {
+                exit_timer.reset();
             }
 
-            if last_interaction.elapsed() > Duration::from_secs(30) {
+            if exit_timer.is_elapsed() {
                 break;
             }
-            WifiApScreenState::Idle
         };
 
-        if let Some(event) = screen.menu.interact(board.frontend.is_touched()) {
-            match event {
-                ApMenuEvents::Exit => break,
-            };
+        screen.state = connection_state;
+        screen.status_bar.wifi = WifiStateView::enabled(connection_state);
+
+        #[allow(irrefutable_let_patterns)]
+        if let Some(ApMenuEvents::Exit) = screen.menu.interact(board.frontend.is_touched()) {
+            break;
         }
 
         board
@@ -109,12 +102,15 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         let _ = control.stop_from_outside().await;
     }
 
-    board.wifi.stop_if().await;
+    board.disable_wifi().await;
 
     {
         let context = context.lock().await;
         if context.known_networks != board.config.known_networks {
-            board.config.known_networks = context.known_networks.clone();
+            board
+                .config
+                .known_networks
+                .clone_from(&context.known_networks);
             board.config_changed = true;
             board.save_config().await;
         }
@@ -130,9 +126,9 @@ struct WebserverResources {
     request_buffer: [u8; 2048],
 }
 
-#[embassy_executor::task(pool_size = super::WEBSERVER_TASKS)]
+#[embassy_executor::task(pool_size = WEBSERVER_TASKS)]
 async fn webserver_task(
-    stack: Rc<Stack<WifiDevice<'static>>>,
+    ap: Ap,
     context: Rc<SharedWebContext>,
     mut task_control: TaskControlToken<()>,
 ) {
@@ -145,12 +141,15 @@ async fn webserver_task(
                 request_buffer: [0; 2048],
             });
 
-            while !stack.is_link_up() {
+            while !ap.is_active() {
                 Timer::after(Duration::from_millis(500)).await;
             }
 
-            let mut socket =
-                TcpSocket::new(&stack, &mut resources.rx_buffer, &mut resources.tx_buffer);
+            let mut socket = TcpSocket::new(
+                ap.stack(),
+                &mut resources.rx_buffer,
+                &mut resources.tx_buffer,
+            );
             socket.set_timeout(Some(Duration::from_secs(10)));
 
             BadServer::new()

@@ -1,5 +1,5 @@
 use crate::{
-    board::{hal::efuse::Efuse, initialized::Board},
+    board::{hal::efuse::Efuse, initialized::Board, wifi::sta::Sta},
     states::{menu::AppMenu, MENU_IDLE_DURATION, MIN_FRAME_TIME},
     timeout::Timeout,
     AppState,
@@ -9,10 +9,16 @@ use embassy_time::Ticker;
 use embedded_graphics::Drawable;
 use gui::{
     screens::about_menu::{AboutMenuData, AboutMenuEvents, AboutMenuScreen},
-    widgets::{battery_small::Battery, status_bar::StatusBar},
+    widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 
 pub async fn about_menu(board: &mut Board) -> AppState {
+    let sta = if !board.config.known_networks.is_empty() {
+        Some(board.enable_wifi_sta().await)
+    } else {
+        board.wifi.stop_if().await;
+        None
+    };
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
 
     let mac_address = Efuse::get_mac_address();
@@ -42,6 +48,7 @@ pub async fn about_menu(board: &mut Board) -> AppState {
                 board.battery_monitor.battery_data(),
                 board.config.battery_style(),
             ),
+            wifi: WifiStateView::new(sta.as_ref().map(Sta::connection_state)),
         },
     };
 
@@ -69,6 +76,9 @@ pub async fn about_menu(board: &mut Board) -> AppState {
         }
 
         menu_screen.status_bar.update_battery_data(battery_data);
+        if let Some(ref sta) = sta {
+            menu_screen.status_bar.wifi.update(sta.connection_state());
+        };
 
         board
             .display

@@ -1,5 +1,5 @@
 use crate::{
-    board::initialized::Board,
+    board::{initialized::Board, wifi::sta::Sta},
     heap::ALLOCATOR,
     states::{AppMenu, MENU_IDLE_DURATION, MIN_FRAME_TIME},
     timeout::Timeout,
@@ -12,12 +12,20 @@ use gui::{
         main_menu::{MainMenu, MainMenuEvents, MainMenuScreen},
         MENU_STYLE,
     },
-    widgets::{battery_small::Battery, status_bar::StatusBar},
+    widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 
 pub async fn main_menu(board: &mut Board) -> AppState {
-    let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
+    let sta = if !board.config.known_networks.is_empty() {
+        // Enable wifi STA. This enabled wifi for the whole menu and re-enables when the user exits
+        // the wifi AP config menu.
+        Some(board.enable_wifi_sta().await)
+    } else {
+        board.disable_wifi().await;
+        None
+    };
 
+    let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     log::info!("Free heap: {} bytes", ALLOCATOR.free());
 
     let menu_values = MainMenu {};
@@ -30,6 +38,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
                 board.battery_monitor.battery_data(),
                 board.config.battery_style(),
             ),
+            wifi: WifiStateView::new(sta.as_ref().map(Sta::connection_state)),
         },
     };
 
@@ -44,8 +53,9 @@ pub async fn main_menu(board: &mut Board) -> AppState {
         if let Some(event) = menu_screen.menu.interact(is_touched) {
             match event {
                 MainMenuEvents::Display => return AppState::Menu(AppMenu::Display),
-                MainMenuEvents::WifiSetup => return AppState::WifiAP,
                 MainMenuEvents::About => return AppState::Menu(AppMenu::About),
+                MainMenuEvents::WifiSetup => return AppState::Menu(AppMenu::WifiAP),
+                MainMenuEvents::WifiListVisible => return AppState::Menu(AppMenu::WifiListVisible),
                 MainMenuEvents::Shutdown => return AppState::Shutdown,
             };
         }
@@ -60,6 +70,9 @@ pub async fn main_menu(board: &mut Board) -> AppState {
         }
 
         menu_screen.status_bar.update_battery_data(battery_data);
+        if let Some(ref sta) = sta {
+            menu_screen.status_bar.wifi.update(sta.connection_state());
+        }
 
         board
             .display

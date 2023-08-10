@@ -4,7 +4,6 @@ use embedded_graphics::{
     prelude::DrawTarget,
     Drawable,
 };
-use embedded_layout::prelude::{horizontal, vertical, Align};
 use embedded_menu::{
     interaction::single_touch::SingleTouch,
     selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
@@ -16,7 +15,10 @@ use embedded_text::{
     TextBox,
 };
 
-use crate::{screens::MENU_STYLE, widgets::status_bar::StatusBar};
+use crate::{
+    screens::MENU_STYLE,
+    widgets::{status_bar::StatusBar, wifi::WifiState},
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ApMenuEvents {
@@ -33,15 +35,9 @@ pub enum ApMenuEvents {
 )]
 pub struct ApMenu {}
 
-#[derive(Clone, Copy, PartialEq)]
-pub enum WifiApScreenState {
-    Idle,
-    Connected,
-}
-
 pub struct WifiApScreen {
     pub menu: ApMenuMenuWrapper<SingleTouch, AnimatedPosition, AnimatedTriangle>,
-    pub state: WifiApScreenState,
+    pub state: WifiState,
     pub status_bar: StatusBar,
 }
 
@@ -49,7 +45,7 @@ impl WifiApScreen {
     pub fn new(status_bar: StatusBar) -> Self {
         Self {
             menu: ApMenu {}.create_menu_with_style(MENU_STYLE),
-            state: WifiApScreenState::Idle,
+            state: WifiState::NotConnected,
             status_bar,
         }
     }
@@ -59,17 +55,16 @@ impl Drawable for WifiApScreen {
     type Color = BinaryColor;
     type Output = ();
 
+    #[inline]
     fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
         self.menu.draw(display)?;
-
-        self.status_bar
-            .align_to(&display.bounding_box(), horizontal::Right, vertical::Top)
-            .draw(display)?;
+        self.status_bar.draw(display)?;
 
         // TODO: use actual network name
-        let text = match self.state {
-            WifiApScreenState::Idle => "No client connected. Look for a network called Card/IO",
-            WifiApScreenState::Connected => "Connected. Open site at 192.168.2.1",
+        let text = if self.state == WifiState::Connected {
+            "Connected. Open site at 192.168.2.1"
+        } else {
+            "No client connected. Look for a network called Card/IO"
         };
 
         let textbox_style = TextBoxStyleBuilder::new()

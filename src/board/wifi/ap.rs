@@ -1,9 +1,6 @@
 use alloc::rc::Rc;
-use core::{
-    mem::MaybeUninit,
-    ptr::{self, addr_of_mut},
-    sync::atomic::{AtomicU32, Ordering},
-};
+use core::sync::atomic::{AtomicU32, Ordering};
+use gui::widgets::wifi::WifiState;
 
 use crate::{
     board::{
@@ -19,9 +16,52 @@ use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
 use embedded_hal_old::prelude::_embedded_hal_blocking_rng_Read;
 use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi as _};
 use esp_wifi::{
-    wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState},
+    wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState as WifiStackState},
     EspWifiInitialization,
 };
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ApConnectionState {
+    NotConnected,
+    Connected,
+}
+
+impl From<ApConnectionState> for WifiState {
+    fn from(state: ApConnectionState) -> Self {
+        match state {
+            ApConnectionState::NotConnected => WifiState::NotConnected,
+            ApConnectionState::Connected => WifiState::Connected,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct Ap {
+    stack: Rc<Stack<WifiDevice<'static>>>,
+    client_count: Rc<AtomicU32>,
+}
+
+impl Ap {
+    pub fn is_active(&self) -> bool {
+        self.stack.is_link_up()
+    }
+
+    pub fn stack(&self) -> &Stack<WifiDevice<'static>> {
+        &self.stack
+    }
+
+    pub fn client_count(&self) -> u32 {
+        self.client_count.load(Ordering::Acquire)
+    }
+
+    pub fn connection_state(&self) -> ApConnectionState {
+        if self.client_count() > 0 {
+            ApConnectionState::Connected
+        } else {
+            ApConnectionState::NotConnected
+        }
+    }
+}
 
 pub(super) struct ApState {
     init: EspWifiInitialization,
@@ -35,55 +75,37 @@ pub(super) struct ApState {
 
 impl ApState {
     pub(super) fn init(
-        this: &mut MaybeUninit<Self>,
         init: EspWifiInitialization,
         config: Config,
         wifi: &'static mut Wifi,
         resources: &'static mut StackResources<3>,
         mut rng: Rng,
-    ) {
+    ) -> Self {
         log::info!("Configuring AP");
-
-        let this = this.as_mut_ptr();
 
         let (wifi_interface, controller) =
             esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap).unwrap();
 
         let mut seed = [0; 8];
         rng.read(&mut seed).unwrap();
+        let random_seed = u64::from_le_bytes(seed);
 
-        unsafe {
-            (*this).init = init;
-            ptr::write(
-                addr_of_mut!((*this).controller),
-                Rc::new(Mutex::new(controller)),
-            );
-            ptr::write(
-                addr_of_mut!((*this).stack),
-                Rc::new(Stack::new(
-                    wifi_interface,
-                    config,
-                    resources,
-                    u64::from_le_bytes(seed),
-                )),
-            );
-            ptr::write(
-                addr_of_mut!((*this).connection_task_control),
-                TaskController::new(),
-            );
-            ptr::write(
-                addr_of_mut!((*this).net_task_control),
-                TaskController::new(),
-            );
-            ptr::write(
-                addr_of_mut!((*this).client_count),
-                Rc::new(AtomicU32::new(0)),
-            );
-            (*this).started = false;
+        Self {
+            init,
+            controller: Rc::new(Mutex::new(controller)),
+            stack: Rc::new(Stack::new(wifi_interface, config, resources, random_seed)),
+            connection_task_control: TaskController::new(),
+            net_task_control: TaskController::new(),
+            client_count: Rc::new(AtomicU32::new(0)),
+            started: false,
         }
     }
 
-    pub(super) async fn start(&mut self) -> Rc<Stack<WifiDevice<'static>>> {
+    pub(super) fn unwrap(self) -> EspWifiInitialization {
+        self.init
+    }
+
+    pub(super) async fn start(&mut self) -> Ap {
         if !self.started {
             log::info!("Starting AP");
             let spawner = Spawner::for_current_executor().await;
@@ -100,7 +122,10 @@ impl ApState {
             self.started = true;
         }
 
-        self.stack.clone()
+        Ap {
+            stack: self.stack.clone(),
+            client_count: self.client_count.clone(),
+        }
     }
 
     pub(super) async fn stop(&mut self) {
@@ -124,10 +149,6 @@ impl ApState {
     pub(super) fn is_running(&self) -> bool {
         !self.connection_task_control.has_exited() && !self.net_task_control.has_exited()
     }
-
-    pub(super) async fn client_count(&self) -> u32 {
-        self.client_count.load(Ordering::Acquire)
-    }
 }
 
 #[embassy_executor::task]
@@ -144,27 +165,25 @@ pub(super) async fn ap_task(
                 controller.lock().await.get_capabilities()
             );
 
+            let client_config = Configuration::AccessPoint(AccessPointConfiguration {
+                ssid: "Card/IO".into(),
+                max_connections: 1,
+                ..Default::default()
+            });
+            controller
+                .lock()
+                .await
+                .set_configuration(&client_config)
+                .unwrap();
+            log::info!("Starting wifi");
+
+            controller.lock().await.start().await.unwrap();
+            log::info!("Wifi started!");
+
             loop {
-                if !matches!(controller.lock().await.is_started(), Ok(true)) {
-                    let client_config = Configuration::AccessPoint(AccessPointConfiguration {
-                        ssid: "Card/IO".into(),
-                        max_connections: 1,
-                        ..Default::default()
-                    });
-                    controller
-                        .lock()
-                        .await
-                        .set_configuration(&client_config)
-                        .unwrap();
-                    log::info!("Starting wifi");
-
-                    controller.lock().await.start().await.unwrap();
-                    log::info!("Wifi started!");
-                }
-
-                if let WifiState::ApStart
-                | WifiState::ApStaConnected
-                | WifiState::ApStaDisconnected = esp_wifi::wifi::get_wifi_state()
+                if let WifiStackState::ApStart
+                | WifiStackState::ApStaConnected
+                | WifiStackState::ApStaDisconnected = esp_wifi::wifi::get_wifi_state()
                 {
                     let events = controller
                         .lock()

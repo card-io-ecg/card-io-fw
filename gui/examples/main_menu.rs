@@ -13,7 +13,11 @@ use gui::{
         main_menu::{MainMenu, MainMenuEvents, MainMenuScreen},
         BatteryInfo, MENU_STYLE,
     },
-    widgets::battery_small::BatteryStyle,
+    widgets::{
+        battery_small::Battery,
+        status_bar::StatusBar,
+        wifi::{WifiState, WifiStateView},
+    },
 };
 
 fn main() -> Result<(), Infallible> {
@@ -30,12 +34,13 @@ fn main() -> Result<(), Infallible> {
         menu: MainMenu {}.create_menu_with_style(MENU_STYLE),
 
         status_bar: StatusBar {
-            battery: Slot::visible(Battery::percentage(BatteryInfo {
+            battery: Battery::percentage(Some(BatteryInfo {
                 voltage: 4200,
                 percentage: 100,
                 is_charging: false,
                 is_low: false,
             })),
+            wifi: WifiStateView::enabled(WifiState::Connected),
         },
     };
     let mut pressed = false;
