@@ -146,6 +146,11 @@ impl Board {
     }
 
     pub async fn enable_wifi_sta(&mut self) -> Option<Sta> {
+        if !self.can_enable_wifi() {
+            self.wifi.stop_if().await;
+            return None;
+        }
+
         self.wifi.initialize(&self.clocks);
 
         let sta = self
@@ -159,6 +164,11 @@ impl Board {
     }
 
     pub async fn enable_wifi_ap(&mut self) -> Option<Ap> {
+        if !self.can_enable_wifi() {
+            self.wifi.stop_if().await;
+            return None;
+        }
+
         self.wifi.initialize(&self.clocks);
 
         let ap = self
