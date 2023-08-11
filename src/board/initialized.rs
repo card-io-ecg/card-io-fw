@@ -145,7 +145,12 @@ impl Board {
         }
     }
 
-    pub async fn enable_wifi_sta(&mut self) -> Sta {
+    pub async fn enable_wifi_sta(&mut self) -> Option<Sta> {
+        if !self.can_enable_wifi() {
+            self.wifi.stop_if().await;
+            return None;
+        }
+
         self.wifi.initialize(&self.clocks);
 
         let sta = self
@@ -155,23 +160,38 @@ impl Board {
 
         sta.update_known_networks(&self.config.known_networks).await;
 
-        sta
+        Some(sta)
     }
 
-    pub async fn enable_wifi_ap(&mut self) -> Ap {
+    pub async fn enable_wifi_ap(&mut self) -> Option<Ap> {
+        if !self.can_enable_wifi() {
+            self.wifi.stop_if().await;
+            return None;
+        }
+
         self.wifi.initialize(&self.clocks);
 
-        self.wifi
+        let ap = self
+            .wifi
             .configure_ap(NetConfig::ipv4_static(StaticConfigV4 {
                 address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
                 gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
                 dns_servers: Default::default(),
             }))
-            .await
+            .await;
+
+        Some(ap)
     }
 
     /// Note: make sure Sta/Ap is released before calling this.
     pub async fn disable_wifi(&mut self) {
         self.wifi.stop_if().await
+    }
+
+    pub fn can_enable_wifi(&mut self) -> bool {
+        self.battery_monitor
+            .battery_data()
+            .map(|battery| battery.percentage > 50 || battery.is_charging)
+            .unwrap_or(false)
     }
 }

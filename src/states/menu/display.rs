@@ -16,7 +16,7 @@ use gui::{
 
 pub async fn display_menu(board: &mut Board) -> AppState {
     let sta = if !board.config.known_networks.is_empty() {
-        Some(board.enable_wifi_sta().await)
+        board.enable_wifi_sta().await
     } else {
         board.wifi.stop_if().await;
         None

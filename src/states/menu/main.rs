@@ -8,10 +8,7 @@ use crate::{
 use embassy_time::Ticker;
 use embedded_graphics::prelude::*;
 use gui::{
-    screens::{
-        main_menu::{MainMenu, MainMenuEvents, MainMenuScreen},
-        MENU_STYLE,
-    },
+    screens::main_menu::{MainMenuData, MainMenuEvents, MainMenuScreen},
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 
@@ -19,7 +16,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
     let sta = if !board.config.known_networks.is_empty() {
         // Enable wifi STA. This enabled wifi for the whole menu and re-enables when the user exits
         // the wifi AP config menu.
-        Some(board.enable_wifi_sta().await)
+        board.enable_wifi_sta().await
     } else {
         board.disable_wifi().await;
         None
@@ -28,10 +25,10 @@ pub async fn main_menu(board: &mut Board) -> AppState {
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     log::info!("Free heap: {} bytes", ALLOCATOR.free());
 
-    let menu_values = MainMenu {};
+    let menu_data = MainMenuData {};
 
     let mut menu_screen = MainMenuScreen {
-        menu: menu_values.create_menu_with_style(MENU_STYLE),
+        menu: menu_data.create_menu(board.can_enable_wifi()),
 
         status_bar: StatusBar {
             battery: Battery::with_style(

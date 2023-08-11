@@ -32,7 +32,10 @@ use crate::{
 };
 
 pub async fn wifi_ap(board: &mut Board) -> AppState {
-    let ap = board.enable_wifi_ap().await;
+    let Some(ap) = board.enable_wifi_ap().await else {
+        // FIXME: Show error screen
+        return AppState::Menu(AppMenu::Main);
+    };
 
     let spawner = Spawner::for_current_executor().await;
 
