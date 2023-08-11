@@ -10,7 +10,7 @@ use embedded_graphics_simulator::{
 };
 use gui::{
     screens::{
-        main_menu::{MainMenu, MainMenuEvents, MainMenuScreen},
+        main_menu::{MainMenuData, MainMenuEvents, MainMenuScreen},
         BatteryInfo, MENU_STYLE,
     },
     widgets::{
@@ -31,7 +31,7 @@ fn main() -> Result<(), Infallible> {
     let mut window = Window::new("Main menu screen", &output_settings);
 
     let mut menu_screen = MainMenuScreen {
-        menu: MainMenu {}.create_menu_with_style(MENU_STYLE),
+        menu: MainMenuData {}.create_menu_with_style(MENU_STYLE),
 
         status_bar: StatusBar {
             battery: Battery::percentage(Some(BatteryInfo {
