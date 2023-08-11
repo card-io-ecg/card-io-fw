@@ -1,5 +1,9 @@
 use crate::{
-    board::{hal::efuse::Efuse, initialized::Board, wifi::sta::Sta},
+    board::{
+        hal::efuse::Efuse,
+        initialized::{Board, StaMode},
+        wifi::sta::Sta,
+    },
     states::{menu::AppMenu, MENU_IDLE_DURATION, MIN_FRAME_TIME},
     timeout::Timeout,
     AppState,
@@ -14,7 +18,7 @@ use gui::{
 
 pub async fn about_menu(board: &mut Board) -> AppState {
     let sta = if !board.config.known_networks.is_empty() {
-        board.enable_wifi_sta().await
+        board.enable_wifi_sta(StaMode::OnDemand).await
     } else {
         board.wifi.stop_if().await;
         None

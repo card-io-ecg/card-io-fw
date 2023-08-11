@@ -109,6 +109,12 @@ impl InternalPartition for ConfigPartition {
     const SIZE: usize = 4032 * 1024;
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum StaMode {
+    Enable,
+    OnDemand,
+}
+
 pub struct Board {
     pub display: PoweredDisplay,
     pub frontend: EcgFrontend,
@@ -145,8 +151,14 @@ impl Board {
         }
     }
 
-    pub async fn enable_wifi_sta(&mut self) -> Option<Sta> {
-        if !self.can_enable_wifi() {
+    pub async fn enable_wifi_sta(&mut self, mode: StaMode) -> Option<Sta> {
+        let can_enable = self.can_enable_wifi()
+            && match mode {
+                StaMode::Enable => true,
+                StaMode::OnDemand => self.sta_has_work(),
+            };
+
+        if !can_enable {
             self.wifi.stop_if().await;
             return None;
         }
@@ -193,5 +205,13 @@ impl Board {
             .battery_data()
             .map(|battery| battery.percentage > 50 || battery.is_charging)
             .unwrap_or(false)
+    }
+
+    fn sta_has_work(&self) -> bool {
+        // TODO: we can do a flag that is true on boot, so that entering the menu will always
+        // connect and look for update, etc. We can also use a flag to see if we have ongoing
+        // communication, so we can keep wifi on. Question is: when/how do we disable wifi if
+        // it is in on-demand mode?
+        false
     }
 }
