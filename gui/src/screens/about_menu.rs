@@ -5,6 +5,7 @@ use embedded_layout::{
     prelude::{horizontal, vertical, Align, Chain, Link},
 };
 use embedded_menu::{
+    collection::MenuItems,
     interaction::single_touch::SingleTouch,
     items::NavigationItem,
     selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
@@ -19,14 +20,17 @@ pub enum AboutMenuEvents {
     Back,
 }
 
-type AboutMenu<'a> = Menu<
+type NavMenuItem = NavigationItem<String, &'static str, &'static str, AboutMenuEvents>;
+type AboutMenu = Menu<
+    &'static str,
     SingleTouch,
     chain! {
-        NavigationItem<'a, AboutMenuEvents>,
-        NavigationItem<'a, AboutMenuEvents>,
-        NavigationItem<'a, AboutMenuEvents>,
-        NavigationItem<'a, AboutMenuEvents>,
-        NavigationItem<'a, AboutMenuEvents>
+        MenuItems<
+            [NavMenuItem; 4],
+            NavMenuItem,
+            AboutMenuEvents
+        >,
+        NavigationItem<&'static str, &'static str, &'static str, AboutMenuEvents>
     },
     AboutMenuEvents,
     BinaryColor,
@@ -42,23 +46,25 @@ pub struct AboutMenuData {
 }
 
 impl AboutMenuData {
-    pub fn create(&self) -> AboutMenu<'_> {
+    pub fn create(self) -> AboutMenu {
         Menu::with_style("Device info", MENU_STYLE)
-            .add_item(NavigationItem::new(&self.serial, AboutMenuEvents::None))
-            .add_item(NavigationItem::new(&self.hw_version, AboutMenuEvents::None))
-            .add_item(NavigationItem::new(&self.fw_version, AboutMenuEvents::None))
-            .add_item(NavigationItem::new(&self.adc, AboutMenuEvents::None))
+            .add_items([
+                NavigationItem::new(self.serial, AboutMenuEvents::None),
+                NavigationItem::new(self.hw_version, AboutMenuEvents::None),
+                NavigationItem::new(self.fw_version, AboutMenuEvents::None),
+                NavigationItem::new(self.adc, AboutMenuEvents::None),
+            ])
             .add_item(NavigationItem::new("Back", AboutMenuEvents::Back))
             .build()
     }
 }
 
-pub struct AboutMenuScreen<'a> {
-    pub menu: AboutMenu<'a>,
+pub struct AboutMenuScreen {
+    pub menu: AboutMenu,
     pub status_bar: StatusBar,
 }
 
-impl Drawable for AboutMenuScreen<'_> {
+impl Drawable for AboutMenuScreen {
     type Color = BinaryColor;
     type Output = ();
 

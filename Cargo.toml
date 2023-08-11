@@ -11,7 +11,7 @@ embedded-graphics = "0.8.0"
 embedded-hal = "1.0.0-alpha.11"
 embedded-hal-async = "0.2.0-alpha.2"
 embedded-io = { version = "0.4", features = ["async"] }
-embedded-menu = { git = "https://github.com/bugadani/embedded-menu.git", rev = "5cde8e9" }
+embedded-menu = { git = "https://github.com/bugadani/embedded-menu.git", rev = "788b5be" }
 embedded-svc = { version = "0.25", default-features = false, features = [] }
 embassy-net = { version = "0.1.0", features = [
     "nightly",

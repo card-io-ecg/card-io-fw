@@ -1,3 +1,4 @@
+use alloc::string::String;
 use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
 use embedded_layout::{
     chain,
@@ -19,15 +20,18 @@ pub enum WifiStaMenuEvents {
     Back,
 }
 
-type WifiStaMenu<'a, 'b> = Menu<
+type NavMenuItem = NavigationItem<String, &'static str, &'static str, WifiStaMenuEvents>;
+
+type WifiStaMenu<'a> = Menu<
+    &'static str,
     SingleTouch,
     chain! {
         MenuItems<
-            'b,
-            NavigationItem<'a, WifiStaMenuEvents>,
+            &'a mut [NavMenuItem],
+            NavMenuItem,
             WifiStaMenuEvents
         >,
-        NavigationItem<'a, WifiStaMenuEvents>
+        NavigationItem<&'static str, &'static str, &'static str, WifiStaMenuEvents>
     },
     WifiStaMenuEvents,
     BinaryColor,
@@ -35,28 +39,28 @@ type WifiStaMenu<'a, 'b> = Menu<
     AnimatedTriangle,
 >;
 
-pub struct WifiStaMenuData<'a, 'b> {
-    pub networks: &'b mut [NavigationItem<'a, WifiStaMenuEvents>],
+pub struct WifiStaMenuData<'a> {
+    pub networks: &'a mut [NavMenuItem],
 }
 
-impl<'a, 'b> WifiStaMenuData<'a, 'b> {
+impl<'a> WifiStaMenuData<'a> {
     pub fn create(
-        &'b mut self,
+        &'a mut self,
         state: MenuState<SingleTouch, AnimatedPosition, AnimatedTriangle>,
-    ) -> WifiStaMenu<'a, 'b> {
+    ) -> WifiStaMenu<'a> {
         Menu::with_style("Access points", MENU_STYLE)
-            .add_items(self.networks)
+            .add_items(&mut *self.networks)
             .add_item(NavigationItem::new("Back", WifiStaMenuEvents::Back))
             .build_with_state(state)
     }
 }
 
-pub struct WifiStaMenuScreen<'a, 'b> {
-    pub menu: WifiStaMenu<'a, 'b>,
+pub struct WifiStaMenuScreen<'a> {
+    pub menu: WifiStaMenu<'a>,
     pub status_bar: StatusBar,
 }
 
-impl Drawable for WifiStaMenuScreen<'_, '_> {
+impl Drawable for WifiStaMenuScreen<'_> {
     type Color = BinaryColor;
     type Output = ();
 

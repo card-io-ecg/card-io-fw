@@ -21,7 +21,10 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
     let mut ssids = Vec::new();
 
     // Initial placeholder
-    ssids.push(String::from("Scanning..."));
+    ssids.push(NavigationItem::new(
+        String::from("Scanning..."),
+        WifiStaMenuEvents::None,
+    ));
 
     let mut released = false;
 
@@ -39,16 +42,17 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
 
             if released || !networks.is_empty() {
                 ssids.clear();
-                ssids.extend(networks.iter().map(|n| n.ssid.as_str()).map(String::from));
+                ssids.extend(
+                    networks
+                        .iter()
+                        .map(|n| String::from(n.ssid.as_str()))
+                        .map(|n| NavigationItem::new(n, WifiStaMenuEvents::None)),
+                );
             }
         }
 
-        let mut ssid_items = ssids
-            .iter()
-            .map(|n| NavigationItem::new(n, WifiStaMenuEvents::None))
-            .collect::<Vec<_>>();
         let mut menu_data = WifiStaMenuData {
-            networks: &mut ssid_items,
+            networks: &mut ssids,
         };
 
         let battery_data = board.battery_monitor.battery_data();
