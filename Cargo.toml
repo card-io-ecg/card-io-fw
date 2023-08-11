@@ -46,7 +46,7 @@ embassy-time = { version = "0.1.2", features = ["nightly", "unstable-traits"] }
 embedded-hal-old = { package = "embedded-hal", version = "0.2.7" }
 
 # esp32s2-hal = { version = "0.10.0", optional = true, features = ["rt", "async", "embassy", "embassy-time-systick", "eh1"] }
-esp32s3-hal = { version = "0.10.0", optional = true, features = [
+esp32s3-hal = { version = "0.11.0", optional = true, features = [
     "rt",
     "async",
     "embassy",
@@ -54,7 +54,7 @@ esp32s3-hal = { version = "0.10.0", optional = true, features = [
     "eh1",
 ] }
 # esp32s2 = { version = "0.15.0", optional = true }
-esp32s3 = { version = "0.19.0", optional = true }
+esp32s3 = { version = "0.20.0", optional = true }
 esp-backtrace = { version = "0.7.0", features = [
     "panic-handler",
     "exception-handler",
@@ -115,7 +115,6 @@ object-chain = { workspace = true }
 [patch.crates-io]
 # needed because of esp-wifi
 esp-hal-common = { git = "https://github.com/bugadani/esp-hal.git", branch = "dev" }
-esp32s3 = { git = "https://github.com/esp-rs/esp-pacs.git", rev = "ce6d5b5" }
 esp32s3-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "dev" }
 embassy-macros = { git = "https://github.com/embassy-rs/embassy.git", rev = "c1da2c0" }
 
