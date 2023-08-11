@@ -16,7 +16,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
     let sta = if !board.config.known_networks.is_empty() {
         // Enable wifi STA. This enabled wifi for the whole menu and re-enables when the user exits
         // the wifi AP config menu.
-        Some(board.enable_wifi_sta().await)
+        board.enable_wifi_sta().await
     } else {
         board.disable_wifi().await;
         None

@@ -12,7 +12,10 @@ use crate::{
 };
 
 pub async fn wifi_sta(board: &mut Board) -> AppState {
-    let sta = board.enable_wifi_sta().await;
+    let Some(sta) = board.enable_wifi_sta().await else {
+        // FIXME: Show error screen
+        return AppState::Menu(AppMenu::Main);
+    };
 
     const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
 
