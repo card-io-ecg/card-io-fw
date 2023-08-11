@@ -8,6 +8,7 @@ use embedded_layout::{
     prelude::{Chain, Link},
 };
 use embedded_menu::{
+    collection::MenuItems,
     interaction::single_touch::SingleTouch,
     items::NavigationItem,
     selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
@@ -28,16 +29,19 @@ pub enum MainMenuEvents {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct MainMenuData {}
 
+type NavItem = NavigationItem<&'static str, &'static str, &'static str, MainMenuEvents>;
+
 pub struct MainMenu {
     menu: Menu<
         &'static str,
         SingleTouch,
         chain! {
-            NavigationItem<&'static str, &'static str, &'static str, MainMenuEvents>,
-            NavigationItem<&'static str, &'static str, &'static str, MainMenuEvents>,
-            NavigationItem<&'static str, &'static str, &'static str, MainMenuEvents>,
-            NavigationItem<&'static str, &'static str, &'static str, MainMenuEvents>,
-            NavigationItem<&'static str, &'static str, &'static str, MainMenuEvents>
+            MenuItems<
+                heapless::Vec<NavItem, 4>,
+                NavItem,
+                MainMenuEvents
+            >,
+            NavItem
         },
         MainMenuEvents,
         BinaryColor,
@@ -58,22 +62,41 @@ impl MainMenu {
     }
 }
 impl MainMenuData {
-    pub fn create_menu(self) -> MainMenu {
+    pub fn create_menu(self, wifi_enabled: bool) -> MainMenu {
         let builder = Menu::with_style("Main menu", MENU_STYLE);
+
+        let mut items = heapless::Vec::new();
+
+        items
+            .push(NavigationItem::new(
+                "Display settings",
+                MainMenuEvents::Display,
+            ))
+            .ok()
+            .unwrap();
+        items
+            .push(NavigationItem::new("Device info", MainMenuEvents::About))
+            .ok()
+            .unwrap();
+
+        if wifi_enabled {
+            items
+                .push(NavigationItem::new("Wifi setup", MainMenuEvents::WifiSetup))
+                .ok()
+                .unwrap();
+            items
+                .push(NavigationItem::new(
+                    "Wifi networks",
+                    MainMenuEvents::WifiListVisible,
+                ))
+                .ok()
+                .unwrap();
+        }
 
         MainMenu {
             data: self,
             menu: builder
-                .add_item(NavigationItem::new(
-                    "Display settings",
-                    MainMenuEvents::Display,
-                ))
-                .add_item(NavigationItem::new("Device info", MainMenuEvents::About))
-                .add_item(NavigationItem::new("Wifi setup", MainMenuEvents::WifiSetup))
-                .add_item(NavigationItem::new(
-                    "Wifi networks",
-                    MainMenuEvents::WifiListVisible,
-                ))
+                .add_items(items)
                 .add_item(NavigationItem::new("Shutdown", MainMenuEvents::Shutdown))
                 .build(),
         }

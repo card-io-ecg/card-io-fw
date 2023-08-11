@@ -28,7 +28,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
     let menu_data = MainMenuData {};
 
     let mut menu_screen = MainMenuScreen {
-        menu: menu_data.create_menu(),
+        menu: menu_data.create_menu(board.can_enable_wifi()),
 
         status_bar: StatusBar {
             battery: Battery::with_style(

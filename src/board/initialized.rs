@@ -174,4 +174,11 @@ impl Board {
     pub async fn disable_wifi(&mut self) {
         self.wifi.stop_if().await
     }
+
+    pub fn can_enable_wifi(&mut self) -> bool {
+        self.battery_monitor
+            .battery_data()
+            .map(|battery| battery.percentage > 50 || battery.is_charging)
+            .unwrap_or(false)
+    }
 }
