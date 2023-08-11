@@ -72,8 +72,9 @@ impl<T: Copy, const N: usize> Buffer<T, N> {
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = T> + Clone + '_ {
+    pub fn as_slices(&self) -> (&[T], &[T]) {
         let read_index = self.read_index();
+
         let (start, end) = if read_index < self.write_idx {
             (&self.buffer[read_index..self.write_idx], &[][..])
         } else if !self.is_empty() {
@@ -82,10 +83,18 @@ impl<T: Copy, const N: usize> Buffer<T, N> {
             (&[][..], &[][..])
         };
 
-        start
-            .iter()
-            .chain(end.iter())
-            .map(|e| unsafe { e.assume_init() })
+        unsafe {
+            (
+                core::slice::from_raw_parts(start.as_ptr() as *const T, start.len()),
+                core::slice::from_raw_parts(end.as_ptr() as *const T, end.len()),
+            )
+        }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = T> + Clone + '_ {
+        let (start, end) = self.as_slices();
+
+        start.iter().chain(end.iter()).copied()
     }
 }
 

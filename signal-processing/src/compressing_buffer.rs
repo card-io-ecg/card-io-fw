@@ -95,6 +95,10 @@ impl<const N: usize> CompressingBuffer<N> {
         }
     }
 
+    pub fn capacity(&self) -> usize {
+        N
+    }
+
     pub fn len(&self) -> usize {
         self.element_count
     }
@@ -116,6 +120,10 @@ impl<const N: usize> CompressingBuffer<N> {
         self.first_element = 0;
         self.last_element = 0;
         self.buffer.clear();
+    }
+
+    pub fn as_slices(&self) -> (&[u8], &[u8]) {
+        self.buffer.as_slices()
     }
 }
 
