@@ -8,11 +8,14 @@ use gui::{
 };
 
 use crate::{
-    board::initialized::Board, states::MIN_FRAME_TIME, timeout::Timeout, AppMenu, AppState,
+    board::initialized::{Board, StaMode},
+    states::MIN_FRAME_TIME,
+    timeout::Timeout,
+    AppMenu, AppState,
 };
 
 pub async fn wifi_sta(board: &mut Board) -> AppState {
-    let Some(sta) = board.enable_wifi_sta().await else {
+    let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await else {
         // FIXME: Show error screen
         return AppState::Menu(AppMenu::Main);
     };
