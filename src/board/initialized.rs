@@ -40,6 +40,7 @@ pub struct Board {
     pub storage: Option<
         &'static mut Storage<&'static mut ReadCache<InternalDriver<ConfigPartition>, 256, 2>>,
     >,
+    pub sta_work_available: Option<bool>,
 }
 
 impl Board {
@@ -67,13 +68,18 @@ impl Board {
         let can_enable = self.can_enable_wifi()
             && match mode {
                 StaMode::Enable => true,
-                StaMode::OnDemand => self.sta_has_work(),
+                StaMode::OnDemand => self.sta_has_work().await,
             };
 
         if !can_enable {
             self.wifi.stop_if().await;
             return None;
         }
+
+        // Let's assume that when we disable STA, we don't have any work to do. This might be wrong,
+        // especially when we disconnect from an AP, but in that case it's fine to just not try
+        // again.
+        self.sta_work_available = Some(false);
 
         self.wifi.initialize(&self.clocks);
 
@@ -119,11 +125,15 @@ impl Board {
             .unwrap_or(false)
     }
 
-    fn sta_has_work(&self) -> bool {
+    async fn sta_has_work(&self) -> bool {
         // TODO: we can do a flag that is true on boot, so that entering the menu will always
         // connect and look for update, etc. We can also use a flag to see if we have ongoing
         // communication, so we can keep wifi on. Question is: when/how do we disable wifi if
         // it is in on-demand mode?
-        false
+        self.sta_work_available.unwrap_or(false) // TODO: scan FS for measurement files
+    }
+
+    pub fn signal_sta_work_available(&mut self) {
+        self.sta_work_available = Some(true);
     }
 }

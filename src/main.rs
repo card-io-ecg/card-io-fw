@@ -253,6 +253,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
             config,
             config_changed: false,
             storage,
+            sta_work_available: None,
         })
     })
     .await;

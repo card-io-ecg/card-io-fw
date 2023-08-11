@@ -3,7 +3,13 @@ use core::fmt::Write;
 use norfs::{writer::FileDataWriter, OnCollision, StorageError};
 use signal_processing::compressing_buffer::CompressingBuffer;
 
-use crate::{board::initialized::Board, AppState};
+use crate::{
+    board::{
+        initialized::{Board, StaMode},
+        wifi::sta::ConnectionState,
+    },
+    AppState,
+};
 
 /// Whether to store the measurement or not. Used instead of a bool to reduce confusion.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -39,20 +45,22 @@ async fn try_to_upload<const SIZE: usize>(
         return StoreMeasurement::DontStore;
     }
 
-    // TODO: scan/connection shouldn't be here.
-    let mut is_connected = false;
+    board.signal_sta_work_available();
+    let sta = if !board.config.known_networks.is_empty() {
+        board.enable_wifi_sta(StaMode::OnDemand).await
+    } else {
+        board.disable_wifi().await;
+        None
+    };
 
-    // If we're not connected, look around for a network to connect to.
-    if !is_connected {
-        if board.config.known_networks.is_empty() {
-            // We don't have networks configured. Best we can do is store the measurement.
-            return StoreMeasurement::Store;
-        }
+    let Some(sta) = sta else {
+        return StoreMeasurement::Store;
+    };
 
-        // TODO: scan and connect to known network
-    }
+    // TODO: we need to wait for the wifi to connect, or for the stack to conclude that connection
+    // is not possible.
 
-    if !is_connected {
+    if sta.connection_state() != ConnectionState::Connected {
         // If we do not have a network connection, save to file.
         return StoreMeasurement::Store;
     }
