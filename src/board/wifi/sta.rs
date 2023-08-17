@@ -10,7 +10,10 @@ use crate::{
 use alloc::{boxed::Box, rc::Rc, vec::Vec};
 use config_site::data::network::WifiNetwork;
 use embassy_executor::Spawner;
-use embassy_futures::join::join;
+use embassy_futures::{
+    join::join,
+    select::{select, Either},
+};
 use embassy_net::{Config, Stack, StackResources};
 use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
@@ -162,6 +165,7 @@ impl StaState {
                 self.networks.clone(),
                 self.known_networks.clone(),
                 self.state.clone(),
+                self.stack.clone(),
                 self.connection_task_control.token(),
             ));
             log::info!("Starting NET task");
@@ -185,6 +189,7 @@ pub(super) async fn sta_task(
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
     state: Rc<AtomicConnectionState>,
+    stack: Rc<Stack<WifiDevice<'static>>>,
     mut task_control: TaskControlToken<()>,
 ) {
     const SCAN_PERIOD: Duration = Duration::from_secs(5);
@@ -264,20 +269,47 @@ pub(super) async fn sta_task(
                 for _ in 0..CONNECT_RETRY_COUNT {
                     match controller.lock().await.connect().await {
                         Ok(_) => {
-                            log::info!("Wifi connected!");
-                            state.store(ConnectionState::Connected, Ordering::Release);
+                            log::info!("Waiting to get IP address...");
 
-                            controller
-                                .lock()
-                                .await
-                                .wait_for_event(WifiEvent::StaDisconnected)
-                                .await;
+                            let wait_for_ip = async {
+                                loop {
+                                    if let Some(config) = stack.config_v4() {
+                                        log::info!("Got IP: {}", config.address);
+                                        break;
+                                    }
+                                    Timer::after(Duration::from_millis(500)).await;
+                                }
+                            };
 
-                            // TODO: figure out if we should deprioritize, retry or just loop back
-                            // to the beginning. Maybe we could use a timer?
-                            log::info!("Wifi disconnected!");
-                            state.store(ConnectionState::NotConnected, Ordering::Release);
-                            continue 'scan_and_connect;
+                            let wait_for_disconnect = async {
+                                let mut controller = controller.lock().await;
+
+                                controller.wait_for_event(WifiEvent::StaDisconnected).await;
+                            };
+
+                            match select(wait_for_ip, wait_for_disconnect).await {
+                                Either::First(_) => {
+                                    log::info!("Wifi connected!");
+                                    state.store(ConnectionState::Connected, Ordering::Release);
+
+                                    // keep pending Disconnected event to avoid a race condition
+                                    controller
+                                        .lock()
+                                        .await
+                                        .wait_for_events(WifiEvent::StaDisconnected.into(), false)
+                                        .await;
+
+                                    // TODO: figure out if we should deprioritize, retry or just loop back
+                                    // to the beginning. Maybe we could use a timer?
+                                    log::info!("Wifi disconnected!");
+                                    state.store(ConnectionState::NotConnected, Ordering::Release);
+                                    continue 'scan_and_connect;
+                                }
+                                Either::Second(_) => {
+                                    log::info!("Wifi disconnected!");
+                                    state.store(ConnectionState::NotConnected, Ordering::Release);
+                                }
+                            }
                         }
                         Err(e) => {
                             log::warn!("Failed to connect to wifi: {e:?}");
