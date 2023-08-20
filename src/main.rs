@@ -91,9 +91,6 @@ fn FROM_CPU_INTR0() {
 extern "C" {
     static mut _stack_start_cpu0: u8;
     static mut _stack_end_cpu0: u8;
-
-    static mut _stack_start_cpu1: u8;
-    static mut _stack_end_cpu1: u8;
 }
 
 #[entry]
@@ -102,7 +99,7 @@ fn main() -> ! {
     let resources = StartupResources::initialize();
 
     // We only use a single core for now, so we can write both stack regions.
-    let stack_start = unsafe { addr_of!(_stack_start_cpu1) as u32 };
+    let stack_start = unsafe { addr_of!(_stack_start_cpu0) as u32 };
     let stack_end = unsafe { addr_of!(_stack_end_cpu0) as u32 };
     let _stack_protection = stack_protection::StackMonitor::protect((stack_start + 4)..stack_end);
 
