@@ -1,14 +1,23 @@
-#![allow(unused)]
+use core::cell::RefCell;
 
-use crate::board::{hal::gpio::GpioPin, pac};
+use crate::board::{
+    hal::{
+        gpio::{GpioPin, RTCPin, RtcFunction},
+        peripherals,
+        rtc_cntl::sleep::{RtcSleepConfig, WakeSource, WakeTriggers, WakeupLevel},
+        Rtc,
+    },
+    pac,
+};
 
-pub enum RtcioWakeupType {
+#[allow(unused)]
+enum RtcioWakeupType {
     Disable = 0,
     LowLevel = 4,
     HighLevel = 5,
 }
 
-pub fn enable_gpio_wakeup<MODE, const PIN: u8>(_pin: &GpioPin<MODE, PIN>, level: RtcioWakeupType) {
+fn enable_gpio_wakeup<MODE, const PIN: u8>(_pin: &GpioPin<MODE, PIN>, level: RtcioWakeupType) {
     let sens = unsafe { &*pac::SENS::PTR };
 
     // TODO: disable clock when not in use
@@ -22,57 +31,75 @@ pub fn enable_gpio_wakeup<MODE, const PIN: u8>(_pin: &GpioPin<MODE, PIN>, level:
 }
 
 // Wakeup remains enabled after waking from deep sleep, so we need to disable it manually.
+#[allow(unused)]
 pub fn disable_gpio_wakeup<MODE, const PIN: u8>(pin: &GpioPin<MODE, PIN>) {
     enable_gpio_wakeup(pin, RtcioWakeupType::Disable)
 }
 
-pub fn enable_gpio_pullup<MODE, const PIN: u8>(_pin: &GpioPin<MODE, PIN>) {
-    let rtcio = unsafe { &*pac::RTC_IO::PTR };
-    let rtc_ctrl = unsafe { &*pac::RTC_CNTL::PTR };
+/// RTC_IO wakeup source
+///
+/// RTC_IO wakeup allows configuring any combination of RTC_IO pins with
+/// arbitrary wakeup levels to wake up the chip from sleep. This wakeup source
+/// can be used to wake up from both light and deep sleep.
+#[allow(unused)]
+pub struct RtcioWakeupSource<'a, 'b> {
+    pins: RefCell<&'a mut [(&'b mut dyn RTCPin, WakeupLevel)]>,
+}
 
-    #[allow(clippy::single_match)]
-    match PIN {
-        17 => {
-            rtcio.pad_dac1.modify(|_, w| w.pdac1_rue().set_bit());
-            rtc_ctrl.pad_hold.modify(|_, w| w.pdac1_hold().set_bit())
+impl<'a, 'b> RtcioWakeupSource<'a, 'b> {
+    pub fn new(pins: &'a mut [(&'b mut dyn RTCPin, WakeupLevel)]) -> Self {
+        Self {
+            pins: RefCell::new(pins),
         }
-        21 => {
-            rtcio.rtc_pad21.modify(|_, w| w.rue().set_bit());
-            rtc_ctrl.pad_hold.modify(|_, w| w.pad21_hold().set_bit())
-        }
-        _ => {}
+    }
+
+    fn apply_pin(&self, pin: &mut dyn RTCPin, level: WakeupLevel) {
+        let rtcio = unsafe { &*peripherals::RTC_IO::PTR };
+
+        pin.rtc_set_config(true, true, RtcFunction::Rtc);
+
+        rtcio.pin[pin.number() as usize].modify(|_, w| {
+            w.wakeup_enable().set_bit().int_type().variant(match level {
+                WakeupLevel::Low => 4,
+                WakeupLevel::High => 5,
+            })
+        });
     }
 }
 
-// Assumptions: S3, Quad Flash/PSRAM, 2nd core stopped
-pub fn start_deep_sleep() {
-    // TODO: S2: disable brownout detector
-    // TODO: flush log buffers?
+impl WakeSource for RtcioWakeupSource<'_, '_> {
+    fn apply(&self, _rtc: &Rtc, triggers: &mut WakeTriggers, sleep_config: &mut RtcSleepConfig) {
+        let mut pins = self.pins.borrow_mut();
 
-    let rtc_ctrl = unsafe { &*pac::RTC_CNTL::PTR };
+        if pins.is_empty() {
+            return;
+        }
 
-    rtc_ctrl.dig_pwc.modify(|_, w| w.dg_wrap_pd_en().set_bit());
-    rtc_ctrl
-        .sdio_conf
-        .modify(|_, w| w.sdio_reg_pd_en().set_bit());
+        // don't power down RTC peripherals
+        sleep_config.set_rtc_peri_pd_en(false);
+        triggers.set_gpio(true);
 
-    // Enter Deep Sleep
-    const WAKEUP_SOURCE_GPIO: u32 = 0x4;
-    rtc_ctrl
-        .wakeup_state
-        .modify(|_, w| w.wakeup_ena().variant(WAKEUP_SOURCE_GPIO));
+        // Since we only use RTCIO pins, we can keep deep sleep enabled.
+        let sens = unsafe { &*peripherals::SENS::PTR };
 
-    rtc_ctrl.int_clr_rtc.write(|w| {
-        w.slp_reject_int_clr()
-            .set_bit()
-            .slp_wakeup_int_clr()
-            .set_bit()
-    });
+        // TODO: disable clock when not in use
+        sens.sar_peri_clk_gate_conf
+            .modify(|_, w| w.iomux_clk_en().set_bit());
 
-    rtc_ctrl
-        .int_clr_rtc
-        .write(|w| unsafe { w.bits(0x003F_FFFF) });
+        for (pin, level) in pins.iter_mut() {
+            self.apply_pin(*pin, *level);
+        }
+    }
+}
 
-    /* Start entry into sleep mode */
-    rtc_ctrl.state0.modify(|_, w| w.sleep_en().set_bit());
+impl Drop for RtcioWakeupSource<'_, '_> {
+    fn drop(&mut self) {
+        // should we have saved the pin configuration first?
+        // set pin back to IO_MUX (input_enable and func have no effect when pin is sent
+        // to IO_MUX)
+        let mut pins = self.pins.borrow_mut();
+        for (pin, _level) in pins.iter_mut() {
+            pin.rtc_set_config(true, false, RtcFunction::Rtc);
+        }
+    }
 }

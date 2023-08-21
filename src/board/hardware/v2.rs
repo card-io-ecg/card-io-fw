@@ -209,6 +209,7 @@ impl super::startup::StartupResources {
                 )
             }),
             clocks,
+            rtc,
             peripheral_clock_control: system.peripheral_clock_control,
 
             misc_pins: MiscPins {
