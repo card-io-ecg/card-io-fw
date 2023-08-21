@@ -25,6 +25,7 @@ use gui::{
         wifi::{WifiState, WifiStateView},
     },
 };
+use macros as cardio;
 
 use crate::{
     board::{initialized::Board, wifi::ap::Ap},
@@ -140,7 +141,7 @@ struct WebserverResources {
     request_buffer: [u8; 2048],
 }
 
-#[embassy_executor::task(pool_size = WEBSERVER_TASKS)]
+#[cardio::task(pool_size = WEBSERVER_TASKS)]
 async fn webserver_task(
     ap: Ap,
     context: Rc<SharedWebContext>,

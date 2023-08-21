@@ -23,6 +23,7 @@ use crate::{
 use alloc::{boxed::Box, rc::Rc};
 use embassy_net::{Config, Stack, StackResources};
 use esp_wifi::{wifi::WifiDevice, EspWifiInitFor, EspWifiInitialization};
+use macros as cardio;
 
 pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
     mem::transmute(what)
@@ -258,7 +259,7 @@ impl WifiDriver {
     }
 }
 
-#[embassy_executor::task]
+#[cardio::task]
 pub async fn net_task(
     stack: Rc<Stack<WifiDevice<'static>>>,
     mut task_control: TaskControlToken<!>,

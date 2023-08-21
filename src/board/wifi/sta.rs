@@ -27,6 +27,7 @@ use esp_wifi::{
     EspWifiInitialization,
 };
 use gui::widgets::wifi::WifiState;
+use macros as cardio;
 
 const SCAN_RESULTS: usize = 20;
 
@@ -182,7 +183,7 @@ impl StaState {
     }
 }
 
-#[embassy_executor::task]
+#[cardio::task]
 pub(super) async fn sta_task(
     controller: Shared<WifiController<'static>>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
