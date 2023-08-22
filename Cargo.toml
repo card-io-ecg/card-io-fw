@@ -8,8 +8,8 @@ license = "MIT"
 
 [workspace.dependencies]
 embedded-graphics = "0.8.0"
-embedded-hal = "1.0.0-alpha.11"
-embedded-hal-async = "0.2.0-alpha.2"
+embedded-hal = "1.0.0-rc.1"
+embedded-hal-async = "1.0.0-rc.1"
 embedded-io = { version = "0.4", features = ["async"] }
 embedded-menu = { git = "https://github.com/bugadani/embedded-menu.git", rev = "788b5be" }
 embedded-svc = { version = "0.25", default-features = false, features = [] }
@@ -74,8 +74,8 @@ esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "68dc11b", fe
     "embassy-net",
 ] }
 
-display-interface = { git = "https://github.com/therealprof/display-interface.git" }
-display-interface-spi = { git = "https://github.com/therealprof/display-interface.git" }
+display-interface = { git = "https://github.com/therealprof/display-interface.git", branch = "master" }
+display-interface-spi = { git = "https://github.com/therealprof/display-interface.git", branch = "master" }
 ssd1306 = { git = "https://github.com/bugadani/ssd1306.git", branch = "ehal1", features = [
     "async",
     "graphics",
@@ -114,9 +114,10 @@ object-chain = { workspace = true }
 
 [patch.crates-io]
 # needed because of esp-wifi
-esp-hal-common = { git = "https://github.com/esp-rs/esp-hal.git", rev = "0c47ceda3afbc71dc2f540589811257eab51199f" }
-esp32s3-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "0c47ceda3afbc71dc2f540589811257eab51199f" }
-embassy-macros = { git = "https://github.com/embassy-rs/embassy.git", rev = "c1da2c0" }
+esp-hal-common = { git = "https://github.com/esp-rs/esp-hal.git", rev = "bf4efcfd7f88c7911cfc5e8f3f335ede47df898f" }
+esp32s3-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "bf4efcfd7f88c7911cfc5e8f3f335ede47df898f" }
+embassy-macros = { git = "https://github.com/embassy-rs/embassy.git", rev = "4f453d7" }
+embassy-time = { git = "https://github.com/embassy-rs/embassy.git", rev = "4f453d7" }
 
 [patch.'https://github.com/esp-rs/esp-wifi']
 esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", branch = "dev" }
