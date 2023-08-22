@@ -20,7 +20,6 @@ use embassy_sync::{
     mutex::{Mutex, MutexGuard},
 };
 use embassy_time::{Duration, Timer};
-use embedded_hal_old::prelude::_embedded_hal_blocking_rng_Read;
 use embedded_svc::wifi::{AccessPointInfo, ClientConfiguration, Configuration, Wifi as _};
 use esp_wifi::{
     wifi::{WifiController, WifiDevice, WifiEvent, WifiMode},
@@ -115,9 +114,10 @@ impl StaState {
         let (wifi_interface, controller) =
             esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Sta).unwrap();
 
-        let mut seed = [0; 8];
-        rng.read(&mut seed).unwrap();
-        let random_seed = u64::from_le_bytes(seed);
+        let lower = rng.random() as u64;
+        let upper = rng.random() as u64;
+
+        let random_seed = upper << 32 | lower;
 
         Self {
             init,

@@ -13,7 +13,6 @@ use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_net::{Config, Stack, StackResources};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
-use embedded_hal_old::prelude::_embedded_hal_blocking_rng_Read;
 use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi as _};
 use esp_wifi::{
     wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState as WifiStackState},
@@ -86,9 +85,10 @@ impl ApState {
         let (wifi_interface, controller) =
             esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap).unwrap();
 
-        let mut seed = [0; 8];
-        rng.read(&mut seed).unwrap();
-        let random_seed = u64::from_le_bytes(seed);
+        let lower = rng.random() as u64;
+        let upper = rng.random() as u64;
+
+        let random_seed = upper << 32 | lower;
 
         Self {
             init,
