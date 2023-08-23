@@ -28,10 +28,7 @@ use crate::board::drivers::battery_adc::monitor_task_adc;
 use crate::board::drivers::battery_fg::monitor_task_fg;
 
 #[cfg(feature = "hw_v1")]
-use crate::{
-    board::{hal::gpio::RTCPinWithResistors, ChargerStatus},
-    sleep::disable_gpio_wakeup,
-};
+use crate::{board::hal::gpio::RTCPinWithResistors, sleep::disable_gpio_wakeup};
 
 #[cfg(feature = "hw_v2")]
 use crate::board::VbusDetect;
@@ -39,13 +36,18 @@ use crate::board::VbusDetect;
 use crate::{
     board::{
         config::{Config, ConfigFile},
-        hal::{self, entry, gpio::RTCPin, prelude::interrupt, rtc_cntl::sleep::WakeupLevel, Delay},
+        hal::{
+            self, entry,
+            gpio::RTCPin,
+            prelude::interrupt,
+            rtc_cntl::sleep::{RtcioWakeupSource, WakeupLevel},
+            Delay,
+        },
         initialized::{BatteryMonitor, BatteryState, Board, ConfigPartition},
         startup::StartupResources,
         TouchDetect,
     },
     interrupt::{InterruptExecutor, SwInterrupt0},
-    sleep::RtcioWakeupSource,
     states::{
         about_menu, adc_setup, app_error, charging, display_menu, initialize, main_menu, measure,
         wifi_ap, wifi_sta, AppMenu,
