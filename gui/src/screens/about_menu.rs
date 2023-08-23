@@ -12,7 +12,7 @@ use embedded_menu::{
     Menu,
 };
 
-use crate::{screens::MENU_STYLE, widgets::status_bar::StatusBar};
+use crate::{screens::menu_style, widgets::status_bar::StatusBar};
 
 #[derive(Clone, Copy)]
 pub enum AboutMenuEvents {
@@ -47,7 +47,7 @@ pub struct AboutMenuData {
 
 impl AboutMenuData {
     pub fn create(self) -> AboutMenu {
-        Menu::with_style("Device info", MENU_STYLE)
+        Menu::with_style("Device info", menu_style())
             .add_items([
                 NavigationItem::new(self.serial, AboutMenuEvents::None),
                 NavigationItem::new(self.hw_version, AboutMenuEvents::None),

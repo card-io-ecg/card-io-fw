@@ -12,7 +12,7 @@ use embedded_graphics::prelude::*;
 use gui::{
     screens::{
         display_menu::{DisplayMenu, DisplayMenuEvents, DisplayMenuScreen},
-        MENU_STYLE,
+        menu_style,
     },
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
@@ -33,7 +33,7 @@ pub async fn display_menu(board: &mut Board) -> AppState {
     };
 
     let mut menu_screen = DisplayMenuScreen {
-        menu: menu_values.create_menu_with_style(MENU_STYLE),
+        menu: menu_values.create_menu_with_style(menu_style()),
 
         status_bar: StatusBar {
             battery: Battery::with_style(

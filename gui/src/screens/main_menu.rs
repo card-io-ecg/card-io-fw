@@ -15,7 +15,7 @@ use embedded_menu::{
     Menu,
 };
 
-use crate::{screens::MENU_STYLE, widgets::status_bar::StatusBar};
+use crate::{screens::menu_style, widgets::status_bar::StatusBar};
 
 #[derive(Clone, Copy)]
 pub enum MainMenuEvents {
@@ -63,7 +63,7 @@ impl MainMenu {
 }
 impl MainMenuData {
     pub fn create_menu(self, wifi_enabled: bool) -> MainMenu {
-        let builder = Menu::with_style("Main menu", MENU_STYLE);
+        let builder = Menu::with_style("Main menu", menu_style());
 
         let mut items = heapless::Vec::new();
 

@@ -15,17 +15,19 @@ pub mod measure;
 pub mod wifi_ap;
 pub mod wifi_sta;
 
-pub const MENU_STYLE: MenuStyle<BinaryColor, AnimatedTriangle, SingleTouch, AnimatedPosition> =
+pub const fn menu_style<R>(
+) -> MenuStyle<BinaryColor, AnimatedTriangle, SingleTouch, AnimatedPosition, R> {
     MenuStyle::new(BinaryColor::On)
         .with_animated_selection_indicator(10)
         .with_details_delay(300)
         .with_selection_indicator(AnimatedTriangle::new(200))
-        .with_interaction_controller(SingleTouch {
+        .with_input_adapter(SingleTouch {
             debounce_time: 1,
             ignore_time: 15,
             max_time: 100,
         })
-        .with_title_font(&FONT_7X13_BOLD);
+        .with_title_font(&FONT_7X13_BOLD)
+}
 
 #[derive(Clone, Copy, PartialEq)]
 pub struct BatteryInfo {

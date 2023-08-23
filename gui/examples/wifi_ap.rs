@@ -10,8 +10,9 @@ use embedded_graphics_simulator::{
 };
 use gui::{
     screens::{
+        menu_style,
         wifi_ap::{ApMenu, WifiApScreen, WifiApScreenState},
-        BatteryInfo, MENU_STYLE,
+        BatteryInfo,
     },
     widgets::{
         battery_small::Battery,
@@ -34,7 +35,7 @@ fn main() -> Result<(), Infallible> {
         display.clear(BinaryColor::Off).unwrap();
 
         WifiApScreen {
-            menu: ApMenu {}.create_menu_with_style(MENU_STYLE),
+            menu: ApMenu {}.create_menu_with_style(menu_style()),
             state: WifiApScreenState::Idle,
             status_bar: StatusBar {
                 battery: Battery::percentage(Some(BatteryInfo {

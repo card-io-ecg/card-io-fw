@@ -11,7 +11,7 @@ use embedded_graphics_simulator::{
 use gui::{
     screens::{
         display_menu::{DisplayBrightness, DisplayMenu, DisplayMenuEvents, DisplayMenuScreen},
-        BatteryInfo, MENU_STYLE,
+        menu_style, BatteryInfo,
     },
     widgets::{
         battery_small::{Battery, BatteryStyle},
@@ -35,7 +35,7 @@ fn main() -> Result<(), Infallible> {
             brightness: DisplayBrightness::Normal,
             battery_display: BatteryStyle::MilliVolts,
         }
-        .create_menu_with_style(MENU_STYLE),
+        .create_menu_with_style(menu_style()),
 
         status_bar: StatusBar {
             battery: Battery::percentage(Some(BatteryInfo {

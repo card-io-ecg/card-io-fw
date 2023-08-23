@@ -16,7 +16,7 @@ use embedded_text::{
 };
 
 use crate::{
-    screens::MENU_STYLE,
+    screens::menu_style,
     widgets::{status_bar::StatusBar, wifi::WifiState},
 };
 
@@ -44,7 +44,7 @@ pub struct WifiApScreen {
 impl WifiApScreen {
     pub fn new(status_bar: StatusBar) -> Self {
         Self {
-            menu: ApMenu {}.create_menu_with_style(MENU_STYLE),
+            menu: ApMenu {}.create_menu_with_style(menu_style()),
             state: WifiState::NotConnected,
             status_bar,
         }

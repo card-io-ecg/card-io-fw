@@ -6,13 +6,13 @@ use embedded_layout::{
 };
 use embedded_menu::{
     collection::MenuItems,
-    interaction::single_touch::SingleTouch,
+    interaction::single_touch::{SingleTouch, SingleTouchAdapter},
     items::NavigationItem,
     selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
     Menu, MenuState,
 };
 
-use crate::{screens::MENU_STYLE, widgets::status_bar::StatusBar};
+use crate::{screens::menu_style, widgets::status_bar::StatusBar};
 
 #[derive(Clone, Copy)]
 pub enum WifiStaMenuEvents {
@@ -46,9 +46,9 @@ pub struct WifiStaMenuData<'a> {
 impl<'a> WifiStaMenuData<'a> {
     pub fn create(
         &'a mut self,
-        state: MenuState<SingleTouch, AnimatedPosition, AnimatedTriangle>,
+        state: MenuState<SingleTouchAdapter<WifiStaMenuEvents>, AnimatedPosition, AnimatedTriangle>,
     ) -> WifiStaMenu<'a> {
-        Menu::with_style("Access points", MENU_STYLE)
+        Menu::with_style("Access points", menu_style())
             .add_items(&mut *self.networks)
             .add_item(NavigationItem::new("Back", WifiStaMenuEvents::Back))
             .build_with_state(state)
