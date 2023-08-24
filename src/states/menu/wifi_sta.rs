@@ -20,6 +20,10 @@ pub enum WifiStaMenuEvents {
     Back,
 }
 
+fn list_item(label: &str) -> NavigationItem<String, &'static str, &'static str, WifiStaMenuEvents> {
+    NavigationItem::new(String::from(label), WifiStaMenuEvents::None)
+}
+
 pub async fn wifi_sta(board: &mut Board) -> AppState {
     let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await else {
         // FIXME: Show error screen
@@ -33,10 +37,7 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
     let mut ssids = Vec::new();
 
     // Initial placeholder
-    ssids.push(NavigationItem::new(
-        String::from("Scanning..."),
-        WifiStaMenuEvents::None,
-    ));
+    ssids.push(list_item("Scanning..."));
 
     let mut released = false;
 
@@ -54,12 +55,7 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
 
             if released || !networks.is_empty() {
                 ssids.clear();
-                ssids.extend(
-                    networks
-                        .iter()
-                        .map(|n| String::from(n.ssid.as_str()))
-                        .map(|n| NavigationItem::new(n, WifiStaMenuEvents::None)),
-                );
+                ssids.extend(networks.iter().map(|n| list_item(&n.ssid)));
             }
         }
 
