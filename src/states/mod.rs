@@ -25,3 +25,30 @@ const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
 const WEBSERVER_TASKS: usize = 2;
 
 pub use menu::AppMenu;
+
+use crate::board::EcgFrontend;
+
+/// Simple utility to process touch events in an interactive menu.
+pub struct TouchInputShaper<'a> {
+    frontend: &'a mut EcgFrontend,
+    released: bool,
+}
+
+impl<'a> TouchInputShaper<'a> {
+    pub fn new(frontend: &'a mut EcgFrontend) -> Self {
+        Self {
+            frontend,
+            released: false,
+        }
+    }
+
+    pub fn is_touched(&mut self) -> bool {
+        let is_touched = self.frontend.is_touched();
+
+        if !is_touched {
+            self.released = true;
+        }
+
+        self.released && is_touched
+    }
+}

@@ -20,7 +20,7 @@ use embassy_sync::{
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
 use gui::{
-    screens::measure::EcgScreen,
+    screens::{measure::EcgScreen, screen::Screen},
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 use object_chain::{chain, Chain, ChainElement, Link};
@@ -155,17 +155,20 @@ async fn measure_impl(
 
     ecg.heart_rate_calculator.clear();
 
-    let mut screen = EcgScreen::new(
-        96,
-        // discard transient
-        StatusBar {
+    let mut screen = Screen {
+        content: EcgScreen::new(
+            // discard transient
+            96,
+        ),
+
+        status_bar: StatusBar {
             battery: Battery::with_style(
                 board.battery_monitor.battery_data(),
                 board.config.battery_style(),
             ),
             wifi: WifiStateView::disabled(),
         },
-    );
+    };
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
 
@@ -180,7 +183,7 @@ async fn measure_impl(
                     if let Some(filtered) = ecg.filter.update(sample.voltage()) {
                         ecg.heart_rate_calculator.update(filtered);
                         if let Some(downsampled) = ecg.downsampler.update(filtered) {
-                            screen.push(downsampled);
+                            screen.content.push(downsampled);
                         }
                     }
                 }
@@ -193,9 +196,9 @@ async fn measure_impl(
         }
 
         if let Some(hr) = ecg.heart_rate_calculator.current_hr() {
-            screen.update_heart_rate(hr);
+            screen.content.update_heart_rate(hr);
         } else {
-            screen.clear_heart_rate();
+            screen.content.clear_heart_rate();
         }
 
         if debug_print_timer.is_elapsed() {

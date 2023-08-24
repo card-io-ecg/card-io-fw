@@ -3,7 +3,7 @@ use crate::{
         initialized::{Board, StaMode},
         wifi::sta::Sta,
     },
-    states::{AppMenu, MENU_IDLE_DURATION, MIN_FRAME_TIME},
+    states::{AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
     timeout::Timeout,
     AppState,
 };
@@ -11,8 +11,9 @@ use embassy_time::Ticker;
 use embedded_graphics::prelude::*;
 use gui::{
     screens::{
-        display_menu::{DisplayMenu, DisplayMenuEvents, DisplayMenuScreen},
+        display_menu::{DisplayMenu, DisplayMenuEvents},
         menu_style,
+        screen::Screen,
     },
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
@@ -32,8 +33,8 @@ pub async fn display_menu(board: &mut Board) -> AppState {
         battery_display: board.config.battery_display_style,
     };
 
-    let mut menu_screen = DisplayMenuScreen {
-        menu: menu_values.create_menu_with_style(menu_style()),
+    let mut menu_screen = Screen {
+        content: menu_values.create_menu_with_style(menu_style()),
 
         status_bar: StatusBar {
             battery: Battery::with_style(
@@ -45,14 +46,15 @@ pub async fn display_menu(board: &mut Board) -> AppState {
     };
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
+    let mut input = TouchInputShaper::new(&mut board.frontend);
 
     while !exit_timer.is_elapsed() {
-        let is_touched = board.frontend.is_touched();
+        let is_touched = input.is_touched();
         if is_touched {
             exit_timer.reset();
         }
 
-        if let Some(event) = menu_screen.menu.interact(is_touched) {
+        if let Some(event) = menu_screen.content.interact(is_touched) {
             match event {
                 DisplayMenuEvents::Back => {
                     board.save_config().await;
@@ -75,9 +77,9 @@ pub async fn display_menu(board: &mut Board) -> AppState {
             menu_screen.status_bar.wifi.update(sta.connection_state());
         }
 
-        if &menu_values != menu_screen.menu.data() {
+        if &menu_values != menu_screen.content.data() {
             log::debug!("Settings changed");
-            let new = *menu_screen.menu.data();
+            let new = *menu_screen.content.data();
             if menu_values.brightness != new.brightness {
                 board.config_changed = true;
                 board.config.display_brightness = new.brightness;
@@ -100,7 +102,7 @@ pub async fn display_menu(board: &mut Board) -> AppState {
         board
             .display
             .frame(|display| {
-                menu_screen.menu.update(display);
+                menu_screen.content.update(display);
                 menu_screen.draw(display)
             })
             .await

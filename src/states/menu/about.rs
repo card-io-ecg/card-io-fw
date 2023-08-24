@@ -4,17 +4,24 @@ use crate::{
         initialized::{Board, StaMode},
         wifi::sta::Sta,
     },
-    states::{menu::AppMenu, MENU_IDLE_DURATION, MIN_FRAME_TIME},
+    states::{menu::AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
     timeout::Timeout,
     AppState,
 };
 use alloc::format;
 use embassy_time::Ticker;
 use embedded_graphics::Drawable;
+use embedded_menu::{items::NavigationItem, Menu};
 use gui::{
-    screens::about_menu::{AboutMenuData, AboutMenuEvents, AboutMenuScreen},
+    screens::{menu_style, screen::Screen},
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
+
+#[derive(Clone, Copy)]
+pub enum AboutMenuEvents {
+    None,
+    Back,
+}
 
 pub async fn about_menu(board: &mut Board) -> AppState {
     let sta = if !board.config.known_networks.is_empty() {
@@ -27,10 +34,15 @@ pub async fn about_menu(board: &mut Board) -> AppState {
 
     let mac_address = Efuse::get_mac_address();
 
-    let menu_data = AboutMenuData {
-        hw_version: format!("FW: {:>16}", env!("FW_VERSION")),
-        fw_version: format!("HW: {:>16}", format!("ESP32-S3/{}", env!("HW_VERSION"))),
-        serial: format!(
+    let list_item = |label| NavigationItem::new(label, AboutMenuEvents::None);
+
+    let mut items = [
+        list_item(format!("FW: {:>16}", env!("FW_VERSION"))),
+        list_item(format!(
+            "HW: {:>16}",
+            format!("ESP32-S3/{}", env!("HW_VERSION"))
+        )),
+        list_item(format!(
             "Serial: {:02X}{:02X}{:02X}{:02X}{:02X}{:02X}",
             mac_address[0],
             mac_address[1],
@@ -38,15 +50,18 @@ pub async fn about_menu(board: &mut Board) -> AppState {
             mac_address[3],
             mac_address[4],
             mac_address[5]
-        ),
-        adc: match board.frontend.device_id() {
+        )),
+        list_item(match board.frontend.device_id() {
             Some(id) => format!("ADC: {:>15}", format!("{id:?}")),
             None => format!("ADC:         Unknown"),
-        },
-    };
+        }),
+    ];
 
-    let mut menu_screen = AboutMenuScreen {
-        menu: menu_data.create(),
+    let mut menu_screen = Screen {
+        content: Menu::with_style("Device info", menu_style())
+            .add_items(&mut items[..])
+            .add_item(NavigationItem::new("Back", AboutMenuEvents::Back))
+            .build(),
         status_bar: StatusBar {
             battery: Battery::with_style(
                 board.battery_monitor.battery_data(),
@@ -57,14 +72,15 @@ pub async fn about_menu(board: &mut Board) -> AppState {
     };
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
+    let mut input = TouchInputShaper::new(&mut board.frontend);
 
     while !exit_timer.is_elapsed() {
-        let is_touched = board.frontend.is_touched();
+        let is_touched = input.is_touched();
         if is_touched {
             exit_timer.reset();
         }
 
-        if let Some(event) = menu_screen.menu.interact(is_touched) {
+        if let Some(event) = menu_screen.content.interact(is_touched) {
             match event {
                 AboutMenuEvents::None => {}
                 AboutMenuEvents::Back => return AppState::Menu(AppMenu::Main),
@@ -87,7 +103,7 @@ pub async fn about_menu(board: &mut Board) -> AppState {
         board
             .display
             .frame(|display| {
-                menu_screen.menu.update(display);
+                menu_screen.content.update(display);
                 menu_screen.draw(display)
             })
             .await

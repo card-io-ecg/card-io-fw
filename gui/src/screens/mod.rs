@@ -5,15 +5,13 @@ use embedded_menu::{
     MenuStyle,
 };
 
-pub mod about_menu;
 pub mod charging;
 pub mod display_menu;
 pub mod error;
 pub mod init;
-pub mod main_menu;
 pub mod measure;
+pub mod screen;
 pub mod wifi_ap;
-pub mod wifi_sta;
 
 pub const fn menu_style<R>(
 ) -> MenuStyle<BinaryColor, AnimatedTriangle, SingleTouch, AnimatedPosition, R> {

@@ -4,16 +4,26 @@ use crate::{
         wifi::sta::Sta,
     },
     heap::ALLOCATOR,
-    states::{AppMenu, MENU_IDLE_DURATION, MIN_FRAME_TIME},
+    states::{AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
     timeout::Timeout,
     AppState,
 };
 use embassy_time::Ticker;
 use embedded_graphics::prelude::*;
+use embedded_menu::{items::NavigationItem, Menu};
 use gui::{
-    screens::main_menu::{MainMenuData, MainMenuEvents, MainMenuScreen},
+    screens::{menu_style, screen::Screen},
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
+
+#[derive(Clone, Copy)]
+pub enum MainMenuEvents {
+    Display,
+    About,
+    WifiSetup,
+    WifiListVisible,
+    Shutdown,
+}
 
 pub async fn main_menu(board: &mut Board) -> AppState {
     let sta = if !board.config.known_networks.is_empty() {
@@ -28,10 +38,41 @@ pub async fn main_menu(board: &mut Board) -> AppState {
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     log::info!("Free heap: {} bytes", ALLOCATOR.free());
 
-    let menu_data = MainMenuData {};
+    let builder = Menu::with_style("Main menu", menu_style());
 
-    let mut menu_screen = MainMenuScreen {
-        menu: menu_data.create_menu(board.can_enable_wifi()),
+    let mut items = heapless::Vec::<_, 4>::new();
+
+    items
+        .push(NavigationItem::new(
+            "Display settings",
+            MainMenuEvents::Display,
+        ))
+        .ok()
+        .unwrap();
+    items
+        .push(NavigationItem::new("Device info", MainMenuEvents::About))
+        .ok()
+        .unwrap();
+
+    if board.can_enable_wifi() {
+        items
+            .push(NavigationItem::new("Wifi setup", MainMenuEvents::WifiSetup))
+            .ok()
+            .unwrap();
+        items
+            .push(NavigationItem::new(
+                "Wifi networks",
+                MainMenuEvents::WifiListVisible,
+            ))
+            .ok()
+            .unwrap();
+    }
+
+    let mut menu_screen = Screen {
+        content: builder
+            .add_items(&mut items[..])
+            .add_item(NavigationItem::new("Shutdown", MainMenuEvents::Shutdown))
+            .build(),
 
         status_bar: StatusBar {
             battery: Battery::with_style(
@@ -43,14 +84,15 @@ pub async fn main_menu(board: &mut Board) -> AppState {
     };
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
+    let mut input = TouchInputShaper::new(&mut board.frontend);
 
     while !exit_timer.is_elapsed() {
-        let is_touched = board.frontend.is_touched();
+        let is_touched = input.is_touched();
         if is_touched {
             exit_timer.reset();
         }
 
-        if let Some(event) = menu_screen.menu.interact(is_touched) {
+        if let Some(event) = menu_screen.content.interact(is_touched) {
             match event {
                 MainMenuEvents::Display => return AppState::Menu(AppMenu::Display),
                 MainMenuEvents::About => return AppState::Menu(AppMenu::About),
@@ -77,7 +119,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
         board
             .display
             .frame(|display| {
-                menu_screen.menu.update(display);
+                menu_screen.content.update(display);
                 menu_screen.draw(display)
             })
             .await
