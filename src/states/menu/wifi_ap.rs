@@ -15,7 +15,10 @@ use embassy_net::tcp::TcpSocket;
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
 use gui::{
-    screens::wifi_ap::{ApMenuEvents, WifiApScreen},
+    screens::{
+        screen::Screen,
+        wifi_ap::{ApMenuEvents, WifiApScreen},
+    },
     widgets::{
         battery_small::Battery,
         status_bar::StatusBar,
@@ -48,13 +51,17 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         spawner.must_spawn(webserver_task(ap.clone(), context.clone(), control.token()));
     }
 
-    let mut screen = WifiApScreen::new(StatusBar {
-        battery: Battery::with_style(
-            board.battery_monitor.battery_data(),
-            board.config.battery_style(),
-        ),
-        wifi: WifiStateView::enabled(ap.connection_state()),
-    });
+    let mut screen = Screen {
+        content: WifiApScreen::new(),
+
+        status_bar: StatusBar {
+            battery: Battery::with_style(
+                board.battery_monitor.battery_data(),
+                board.config.battery_style(),
+            ),
+            wifi: WifiStateView::enabled(ap.connection_state()),
+        },
+    };
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
@@ -75,7 +82,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         let connection_state: WifiState = ap.connection_state().into();
         if connection_state != WifiState::Connected {
             // We start counting when the last client disconnects, and we reset on interaction.
-            if screen.state == WifiState::Connected || board.frontend.is_touched() {
+            if screen.content.state == WifiState::Connected || board.frontend.is_touched() {
                 exit_timer.reset();
             }
 
@@ -84,11 +91,12 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
             }
         };
 
-        screen.state = connection_state;
+        screen.content.state = connection_state;
         screen.status_bar.wifi = WifiStateView::enabled(connection_state);
 
         #[allow(irrefutable_let_patterns)]
-        if let Some(ApMenuEvents::Exit) = screen.menu.interact(board.frontend.is_touched()) {
+        if let Some(ApMenuEvents::Exit) = screen.content.menu.interact(board.frontend.is_touched())
+        {
             break;
         }
 

@@ -1,9 +1,9 @@
 use alloc::{string::String, vec::Vec};
 use embassy_time::{Duration, Ticker};
 use embedded_graphics::Drawable;
-use embedded_menu::items::NavigationItem;
+use embedded_menu::{items::NavigationItem, Menu};
 use gui::{
-    screens::wifi_sta::{WifiStaMenuData, WifiStaMenuEvents, WifiStaMenuScreen},
+    screens::{menu_style, screen::Screen},
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 
@@ -13,6 +13,12 @@ use crate::{
     timeout::Timeout,
     AppMenu, AppState,
 };
+
+#[derive(Clone, Copy)]
+pub enum WifiStaMenuEvents {
+    None,
+    Back,
+}
 
 pub async fn wifi_sta(board: &mut Board) -> AppState {
     let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await else {
@@ -57,10 +63,6 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
             }
         }
 
-        let mut menu_data = WifiStaMenuData {
-            networks: &mut ssids,
-        };
-
         let battery_data = board.battery_monitor.battery_data();
 
         #[cfg(feature = "battery_max17055")]
@@ -70,28 +72,32 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
             }
         }
 
-        let mut menu_screen = WifiStaMenuScreen {
-            menu: menu_data.create(menu_state),
+        let mut menu_screen = Screen {
+            content: Menu::with_style("Access points", menu_style())
+                .add_items(&mut ssids)
+                .add_item(NavigationItem::new("Back", WifiStaMenuEvents::Back))
+                .build_with_state(menu_state),
+
             status_bar: StatusBar {
                 battery: Battery::with_style(battery_data, board.config.battery_style()),
                 wifi: WifiStateView::enabled(sta.connection_state()),
             },
         };
 
-        if let Some(WifiStaMenuEvents::Back) = menu_screen.menu.interact(is_touched) {
+        if let Some(WifiStaMenuEvents::Back) = menu_screen.content.interact(is_touched) {
             return AppState::Menu(AppMenu::Main);
         }
 
         board
             .display
             .frame(|display| {
-                menu_screen.menu.update(display);
+                menu_screen.content.update(display);
                 menu_screen.draw(display)
             })
             .await
             .unwrap();
 
-        menu_state = menu_screen.menu.state();
+        menu_state = menu_screen.content.state();
 
         ticker.next().await;
     }

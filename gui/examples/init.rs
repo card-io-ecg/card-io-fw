@@ -8,14 +8,7 @@ use embedded_graphics::{
 use embedded_graphics_simulator::{
     BinaryColorTheme, OutputSettingsBuilder, SimulatorDisplay, SimulatorEvent, Window,
 };
-use gui::{
-    screens::{init::StartupScreen, BatteryInfo},
-    widgets::{
-        battery_small::Battery,
-        status_bar::StatusBar,
-        wifi::{WifiState, WifiStateView},
-    },
-};
+use gui::screens::init::StartupScreen;
 
 fn main() -> Result<(), Infallible> {
     let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(128, 64));
@@ -39,15 +32,6 @@ fn main() -> Result<(), Infallible> {
                 progress
             },
             max_progress: 255,
-            status_bar: StatusBar {
-                battery: Battery::icon(Some(BatteryInfo {
-                    voltage: 4200,
-                    percentage: 100,
-                    is_charging: true,
-                    is_low: false,
-                })),
-                wifi: WifiStateView::enabled(WifiState::Connected),
-            },
         }
         .draw(&mut display)
         .unwrap();

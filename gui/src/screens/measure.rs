@@ -1,6 +1,5 @@
 use core::{cell::RefCell, fmt::Write, num::NonZeroU8};
 
-use crate::widgets::status_bar::StatusBar;
 use embedded_graphics::{
     geometry::AnchorPoint,
     image::{Image, ImageRaw},
@@ -102,11 +101,10 @@ pub struct EcgScreen {
     discard: usize,
     pub heart_rate: Option<NonZeroU8>,
     camera: RefCell<Camera>,
-    pub status_bar: StatusBar,
 }
 
 impl EcgScreen {
-    pub fn new(discarded_samples: usize, status_bar: StatusBar) -> Self {
+    pub fn new(discarded_samples: usize) -> Self {
         Self {
             buffer: SlidingWindow::new(),
             discard: discarded_samples,
@@ -119,7 +117,6 @@ impl EcgScreen {
                     shrink_delay: 60,
                 },
             }),
-            status_bar,
         }
     }
 
@@ -168,8 +165,6 @@ impl Drawable for EcgScreen {
 
     #[inline]
     fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
-        self.status_bar.draw(display)?;
-
         if !self.buffer.is_full() {
             let text_style = MonoTextStyleBuilder::new()
                 .font(&FONT_6X10)

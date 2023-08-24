@@ -15,10 +15,7 @@ use embedded_text::{
     TextBox,
 };
 
-use crate::{
-    screens::menu_style,
-    widgets::{status_bar::StatusBar, wifi::WifiState},
-};
+use crate::{screens::menu_style, widgets::wifi::WifiState};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ApMenuEvents {
@@ -38,15 +35,13 @@ pub struct ApMenu {}
 pub struct WifiApScreen {
     pub menu: ApMenuMenuWrapper<SingleTouch, AnimatedPosition, AnimatedTriangle>,
     pub state: WifiState,
-    pub status_bar: StatusBar,
 }
 
 impl WifiApScreen {
-    pub fn new(status_bar: StatusBar) -> Self {
+    pub fn new() -> Self {
         Self {
             menu: ApMenu {}.create_menu_with_style(menu_style()),
             state: WifiState::NotConnected,
-            status_bar,
         }
     }
 }
@@ -58,7 +53,6 @@ impl Drawable for WifiApScreen {
     #[inline]
     fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
         self.menu.draw(display)?;
-        self.status_bar.draw(display)?;
 
         // TODO: use actual network name
         let text = if self.state == WifiState::Connected {

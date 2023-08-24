@@ -6,13 +6,12 @@ use embedded_graphics::{
 };
 use tinybmp::Bmp;
 
-use crate::widgets::{progress_bar::ProgressBar, status_bar::StatusBar};
+use crate::widgets::progress_bar::ProgressBar;
 
 pub struct StartupScreen<'a> {
     pub label: &'a str,
     pub progress: u32,
     pub max_progress: u32,
-    pub status_bar: StatusBar,
 }
 
 impl Drawable for StartupScreen<'_> {
@@ -32,8 +31,6 @@ impl Drawable for StartupScreen<'_> {
         let bmp = Bmp::from_slice(logo).unwrap();
 
         Image::new(&bmp, Point::new(1, 12)).draw(display)?;
-
-        self.status_bar.draw(display)?;
 
         Ok(())
     }

@@ -6,7 +6,7 @@ use crate::{
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
 use gui::{
-    screens::init::StartupScreen,
+    screens::{init::StartupScreen, screen::Screen},
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 
@@ -39,14 +39,16 @@ pub async fn initialize(board: &mut Board) -> AppState {
         let max_progress = 255;
         let progress = (elapsed_secs * max_progress) / max_secs;
 
-        let init_screen = StartupScreen {
-            label: if elapsed > MENU_THRESHOLD {
-                "Release to menu"
-            } else {
-                "Release to shutdown"
+        let init_screen = Screen{
+            content: StartupScreen {
+                label: if elapsed > MENU_THRESHOLD {
+                    "Release to menu"
+                } else {
+                    "Release to shutdown"
+                },
+                progress,
+                max_progress,
             },
-            progress,
-            max_progress,
 
             status_bar: StatusBar {
                 battery: Battery::with_style(

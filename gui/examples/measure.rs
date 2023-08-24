@@ -8,14 +8,7 @@ use embedded_graphics::{
 use embedded_graphics_simulator::{
     BinaryColorTheme, OutputSettingsBuilder, SimulatorDisplay, SimulatorEvent, Window,
 };
-use gui::{
-    screens::{measure::EcgScreen, BatteryInfo},
-    widgets::{
-        battery_small::Battery,
-        status_bar::StatusBar,
-        wifi::{WifiState, WifiStateView},
-    },
-};
+use gui::screens::measure::EcgScreen;
 
 fn main() -> Result<(), Infallible> {
     let mut display = SimulatorDisplay::<BinaryColor>::new(Size::new(128, 64));
@@ -27,18 +20,7 @@ fn main() -> Result<(), Infallible> {
 
     let mut window = Window::new("Measurement screen", &output_settings);
 
-    let mut screen = EcgScreen::new(
-        96,
-        StatusBar {
-            battery: Battery::percentage(Some(BatteryInfo {
-                voltage: 3650,
-                percentage: 50,
-                is_charging: true,
-                is_low: false,
-            })),
-            wifi: WifiStateView::enabled(WifiState::Connected),
-        },
-    );
+    let mut screen = EcgScreen::new(96);
 
     screen.update_heart_rate(67);
 

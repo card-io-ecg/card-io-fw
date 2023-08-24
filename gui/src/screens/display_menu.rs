@@ -1,14 +1,9 @@
-use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
+use embedded_graphics::{prelude::DrawTarget, Drawable};
 use embedded_io::asynch::{Read, Write};
-use embedded_menu::{
-    interaction::single_touch::SingleTouch,
-    items::select::SelectValue,
-    selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
-    Menu, SelectValue,
-};
+use embedded_menu::{items::select::SelectValue, Menu, SelectValue};
 use norfs::storable::{LoadError, Loadable, Storable};
 
-use crate::widgets::{battery_small::BatteryStyle, status_bar::StatusBar};
+use crate::widgets::battery_small::BatteryStyle;
 
 #[derive(Clone, Copy)]
 pub enum DisplayMenuEvents {
@@ -97,25 +92,4 @@ impl Storable for BatteryStyle {
 pub struct DisplayMenu {
     pub brightness: DisplayBrightness,
     pub battery_display: BatteryStyle,
-}
-
-pub struct DisplayMenuScreen {
-    pub menu: DisplayMenuMenuWrapper<SingleTouch, AnimatedPosition, AnimatedTriangle>,
-    pub status_bar: StatusBar,
-}
-
-impl Drawable for DisplayMenuScreen {
-    type Color = BinaryColor;
-    type Output = ();
-
-    #[inline]
-    fn draw<D>(&self, display: &mut D) -> Result<Self::Output, D::Error>
-    where
-        D: DrawTarget<Color = Self::Color>,
-    {
-        self.menu.draw(display)?;
-        self.status_bar.draw(display)?;
-
-        Ok(())
-    }
 }
