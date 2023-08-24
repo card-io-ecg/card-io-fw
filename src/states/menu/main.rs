@@ -4,7 +4,7 @@ use crate::{
         wifi::sta::Sta,
     },
     heap::ALLOCATOR,
-    states::{AppMenu, MENU_IDLE_DURATION, MIN_FRAME_TIME},
+    states::{AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
     timeout::Timeout,
     AppState,
 };
@@ -84,9 +84,10 @@ pub async fn main_menu(board: &mut Board) -> AppState {
     };
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
+    let mut input = TouchInputShaper::new(&mut board.frontend);
 
     while !exit_timer.is_elapsed() {
-        let is_touched = board.frontend.is_touched();
+        let is_touched = input.is_touched();
         if is_touched {
             exit_timer.reset();
         }

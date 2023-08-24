@@ -28,7 +28,7 @@ use gui::{
 
 use crate::{
     board::{initialized::Board, wifi::ap::Ap},
-    states::{AppMenu, MENU_IDLE_DURATION, MIN_FRAME_TIME, WEBSERVER_TASKS},
+    states::{AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME, WEBSERVER_TASKS},
     task_control::{TaskControlToken, TaskController},
     timeout::Timeout,
     AppState,
@@ -65,7 +65,11 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
+    let mut input = TouchInputShaper::new(&mut board.frontend);
+
     while board.wifi.ap_running() {
+        let is_touched = input.is_touched();
+
         let battery_data = board.battery_monitor.battery_data();
 
         #[cfg(feature = "battery_max17055")]
@@ -82,7 +86,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         let connection_state: WifiState = ap.connection_state().into();
         if connection_state != WifiState::Connected {
             // We start counting when the last client disconnects, and we reset on interaction.
-            if screen.content.state == WifiState::Connected || board.frontend.is_touched() {
+            if screen.content.state == WifiState::Connected || is_touched {
                 exit_timer.reset();
             }
 
@@ -95,8 +99,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         screen.status_bar.wifi = WifiStateView::enabled(connection_state);
 
         #[allow(irrefutable_let_patterns)]
-        if let Some(ApMenuEvents::Exit) = screen.content.menu.interact(board.frontend.is_touched())
-        {
+        if let Some(ApMenuEvents::Exit) = screen.content.menu.interact(is_touched) {
             break;
         }
 

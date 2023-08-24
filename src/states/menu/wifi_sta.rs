@@ -9,7 +9,7 @@ use gui::{
 
 use crate::{
     board::initialized::{Board, StaMode},
-    states::MIN_FRAME_TIME,
+    states::{TouchInputShaper, MIN_FRAME_TIME},
     timeout::Timeout,
     AppMenu, AppState,
 };
@@ -40,9 +40,10 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
 
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     let mut scan_idle_timer = Timeout::new(Duration::from_millis(0));
-    let mut released = false;
+
+    let mut input = TouchInputShaper::new(&mut board.frontend);
     while !exit_timer.is_elapsed() {
-        let is_touched = board.frontend.is_touched();
+        let is_touched = input.is_touched();
 
         if scan_idle_timer.is_elapsed() {
             scan_idle_timer = Timeout::new(SCAN_IDLE_DURATION);
@@ -55,12 +56,8 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
         }
 
         if is_touched {
+            scan_idle_timer.reset();
             exit_timer.reset();
-            if released {
-                scan_idle_timer.reset();
-            }
-        } else {
-            released = true;
         }
 
         let battery_data = board.battery_monitor.battery_data();
