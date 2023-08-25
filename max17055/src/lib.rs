@@ -237,6 +237,11 @@ impl<I2C> Max17055<I2C> {
         log::debug!("Design data: {config:?}");
         Self { i2c, config }
     }
+
+    fn write_register_data(addr: u8, value: u16) -> [u8; 3] {
+        let [lower, upper] = value.to_le_bytes();
+        [addr, lower, upper]
+    }
 }
 
 impl<I2C> Max17055<I2C>
@@ -244,9 +249,9 @@ where
     I2C: I2c,
 {
     fn write_one(&mut self, addr: u8, value: u16) -> Result<(), Error<I2C::Error>> {
-        let value = value.to_le_bytes();
+        let data = Self::write_register_data(addr, value);
         self.i2c
-            .write(Self::DEVICE_ADDR, &[addr, value[0], value[1]])
+            .write(Self::DEVICE_ADDR, &data)
             .map_err(Error::Transfer)
     }
 }
@@ -256,9 +261,9 @@ where
     I2C: AsyncI2c,
 {
     async fn write_one_async(&mut self, addr: u8, value: u16) -> Result<(), Error<I2C::Error>> {
-        let value = value.to_le_bytes();
+        let data = Self::write_register_data(addr, value);
         self.i2c
-            .write(Self::DEVICE_ADDR, &[addr, value[0], value[1]])
+            .write(Self::DEVICE_ADDR, &data)
             .await
             .map_err(Error::Transfer)
     }
