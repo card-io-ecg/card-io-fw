@@ -64,7 +64,7 @@ pub async fn monitor_task_fg(
 
                 {
                     let mut state = battery_state.lock().await;
-                    state.fg_data = Some(data);
+                    state.data = Some(data);
                 }
                 log::debug!("Battery data: {data:?}");
 

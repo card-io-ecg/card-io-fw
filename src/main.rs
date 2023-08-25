@@ -179,16 +179,15 @@ where
 
 #[embassy_executor::task]
 async fn main_task(_spawner: Spawner, resources: StartupResources) {
-    let mut battery_monitor = BatteryMonitor::new(
+    let battery_monitor = BatteryMonitor::start(
         resources.misc_pins.vbus_detect,
         resources.misc_pins.chg_status,
-    );
-
-    #[cfg(feature = "battery_adc")]
-    battery_monitor.start(resources.battery_adc).await;
-
-    #[cfg(feature = "battery_max17055")]
-    battery_monitor.start(resources.battery_fg).await;
+        #[cfg(feature = "battery_adc")]
+        resources.battery_adc,
+        #[cfg(feature = "battery_max17055")]
+        resources.battery_fg,
+    )
+    .await;
 
     hal::interrupt::enable(
         hal::peripherals::Interrupt::GPIO,

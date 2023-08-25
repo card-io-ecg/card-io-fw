@@ -115,7 +115,7 @@ pub async fn monitor_task_adc(
                         voltage: (voltage_accumulator / AVG_SAMPLE_COUNT) as u16,
                         charge_current: (current_accumulator / AVG_SAMPLE_COUNT) as u16,
                     };
-                    state.adc_data = Some(average);
+                    state.data = Some(average);
 
                     log::debug!("Battery data: {average:?}");
 
