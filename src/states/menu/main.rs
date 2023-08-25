@@ -95,7 +95,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
         if let Some(event) = menu_screen.content.interact(is_touched) {
             match event {
                 MainMenuEvents::Display => return AppState::Menu(AppMenu::Display),
-                MainMenuEvents::About => return AppState::Menu(AppMenu::About),
+                MainMenuEvents::About => return AppState::Menu(AppMenu::DeviceInfo),
                 MainMenuEvents::WifiSetup => return AppState::Menu(AppMenu::WifiAP),
                 MainMenuEvents::WifiListVisible => return AppState::Menu(AppMenu::WifiListVisible),
                 MainMenuEvents::Shutdown => return AppState::Shutdown,

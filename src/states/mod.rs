@@ -12,6 +12,8 @@ pub use charging::charging;
 pub use error::app_error;
 pub use init::initialize;
 pub use measure::measure;
+#[cfg(feature = "battery_max17055")]
+pub use menu::battery_info::battery_info_menu;
 pub use menu::{
     about::about_menu, display::display_menu, main::main_menu, wifi_ap::wifi_ap, wifi_sta::wifi_sta,
 };

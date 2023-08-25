@@ -11,9 +11,12 @@ extern crate alloc;
 
 use core::ptr::addr_of;
 
-use alloc::boxed::Box;
+use alloc::{boxed::Box, rc::Rc};
 use embassy_executor::{Executor, Spawner, _export::StaticCell};
-use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex, signal::Signal};
+use embassy_sync::{
+    blocking_mutex::raw::NoopRawMutex,
+    mutex::{Mutex, MutexGuard},
+};
 use embassy_time::{Duration, Timer};
 use norfs::{
     drivers::internal::InternalDriver,
@@ -21,21 +24,21 @@ use norfs::{
     Storage, StorageError,
 };
 
-#[cfg(feature = "battery_adc")]
-use crate::board::drivers::battery_adc::monitor_task_adc;
-
-#[cfg(feature = "battery_max17055")]
-use crate::board::drivers::battery_fg::monitor_task_fg;
-
 #[cfg(feature = "hw_v1")]
-use crate::{board::hal::gpio::RTCPinWithResistors, sleep::disable_gpio_wakeup};
+use crate::{
+    board::{hal::gpio::RTCPinWithResistors, ChargerStatus},
+    sleep::disable_gpio_wakeup,
+};
 
 #[cfg(feature = "hw_v2")]
 use crate::board::VbusDetect;
 
+#[cfg(feature = "battery_max17055")]
+use crate::states::battery_info_menu;
 use crate::{
     board::{
         config::{Config, ConfigFile},
+        drivers::battery_monitor::BatteryMonitor,
         hal::{
             self, entry,
             gpio::RTCPin,
@@ -43,7 +46,7 @@ use crate::{
             rtc_cntl::sleep::{RtcioWakeupSource, WakeupLevel},
             Delay,
         },
-        initialized::{BatteryMonitor, BatteryState, Board, ConfigPartition},
+        initialized::{Board, ConfigPartition},
         startup::StartupResources,
         TouchDetect,
     },
@@ -64,6 +67,9 @@ mod states;
 mod task_control;
 mod timeout;
 
+pub type Shared<T> = Rc<Mutex<NoopRawMutex, T>>;
+pub type SharedGuard<'a, T> = MutexGuard<'a, NoopRawMutex, T>;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AppError {
     Adc,
@@ -79,8 +85,6 @@ pub enum AppState {
     Error(AppError),
     Shutdown,
 }
-
-pub type SharedBatteryState = Mutex<NoopRawMutex, BatteryState>;
 
 static INT_EXECUTOR: InterruptExecutor<SwInterrupt0> = InterruptExecutor::new();
 
@@ -181,34 +185,16 @@ where
 }
 
 #[embassy_executor::task]
-async fn main_task(spawner: Spawner, resources: StartupResources) {
-    #[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
-    let fg_task_control = &*singleton!(Signal::new());
-
-    let battery_state = &*singleton!(Mutex::new(BatteryState {
+async fn main_task(_spawner: Spawner, resources: StartupResources) {
+    let battery_monitor = BatteryMonitor::start(
+        resources.misc_pins.vbus_detect,
+        resources.misc_pins.chg_status,
         #[cfg(feature = "battery_adc")]
-        adc_data: None,
+        resources.battery_adc,
         #[cfg(feature = "battery_max17055")]
-        fg_data: None,
-    }));
-
-    #[cfg(feature = "battery_adc")]
-    spawner
-        .spawn(monitor_task_adc(
-            resources.battery_adc,
-            battery_state,
-            fg_task_control,
-        ))
-        .ok();
-
-    #[cfg(feature = "battery_max17055")]
-    spawner
-        .spawn(monitor_task_fg(
-            resources.battery_fg,
-            battery_state,
-            fg_task_control,
-        ))
-        .ok();
+        resources.battery_fg,
+    )
+    .await;
 
     hal::interrupt::enable(
         hal::peripherals::Interrupt::GPIO,
@@ -232,17 +218,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             clocks: resources.clocks,
             peripheral_clock_control: resources.peripheral_clock_control,
             high_prio_spawner: INT_EXECUTOR.start(),
-            battery_monitor: BatteryMonitor {
-                battery_state,
-                vbus_detect: resources.misc_pins.vbus_detect,
-                charger_status: resources.misc_pins.chg_status,
-                last_battery_state: BatteryState {
-                    #[cfg(feature = "battery_adc")]
-                    adc_data: None,
-                    #[cfg(feature = "battery_max17055")]
-                    fg_data: None,
-                },
-            },
+            battery_monitor,
             wifi: resources.wifi,
             config,
             config_changed: false,
@@ -262,9 +238,11 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             AppState::Measure => measure(&mut board).await,
             AppState::Menu(AppMenu::Main) => main_menu(&mut board).await,
             AppState::Menu(AppMenu::Display) => display_menu(&mut board).await,
-            AppState::Menu(AppMenu::About) => about_menu(&mut board).await,
+            AppState::Menu(AppMenu::DeviceInfo) => about_menu(&mut board).await,
             AppState::Menu(AppMenu::WifiAP) => wifi_ap(&mut board).await,
             AppState::Menu(AppMenu::WifiListVisible) => wifi_sta(&mut board).await,
+            #[cfg(feature = "battery_max17055")]
+            AppState::Menu(AppMenu::BatteryInfo) => battery_info_menu(&mut board).await,
             AppState::Error(error) => app_error(&mut board, error).await,
             AppState::Shutdown => break,
         };
@@ -272,21 +250,19 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
 
     let _ = board.display.shut_down();
 
-    #[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
-    fg_task_control.signal(());
-
     board.frontend.wait_for_release().await;
     Timer::after(Duration::from_millis(100)).await;
 
     let is_charging = board.battery_monitor.is_plugged();
-    let (_, _, _, mut touch) = board.frontend.split();
-    let mut rtc = resources.rtc;
 
     #[cfg(feature = "hw_v1")]
-    let mut charger_pin = board.battery_monitor.charger_status;
+    let (_, mut charger_pin) = board.battery_monitor.stop().await;
 
     #[cfg(feature = "hw_v2")]
-    let mut charger_pin = board.battery_monitor.vbus_detect;
+    let (mut charger_pin, _) = board.battery_monitor.stop().await;
+
+    let (_, _, _, mut touch) = board.frontend.split();
+    let mut rtc = resources.rtc;
 
     let mut wakeup_pins = heapless::Vec::<(&mut dyn RTCPin, WakeupLevel), 2>::new();
     setup_wakeup_pins(&mut wakeup_pins, &mut touch, &mut charger_pin, is_charging);

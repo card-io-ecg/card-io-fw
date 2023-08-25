@@ -6,6 +6,7 @@ use crate::{
         wifi::net_task,
     },
     task_control::{TaskControlToken, TaskController},
+    Shared,
 };
 use alloc::{boxed::Box, rc::Rc, vec::Vec};
 use config_site::data::network::WifiNetwork;
@@ -28,8 +29,6 @@ use esp_wifi::{
 use gui::widgets::wifi::WifiState;
 
 const SCAN_RESULTS: usize = 20;
-
-type Shared<T> = Rc<Mutex<NoopRawMutex, T>>;
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum NetworkPreference {

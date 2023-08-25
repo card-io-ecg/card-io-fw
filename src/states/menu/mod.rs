@@ -1,4 +1,6 @@
 pub mod about;
+#[cfg(feature = "battery_max17055")]
+pub mod battery_info;
 pub mod display;
 pub mod main;
 pub mod wifi_ap;
@@ -8,7 +10,9 @@ pub mod wifi_sta;
 pub enum AppMenu {
     Main,
     Display,
-    About,
+    DeviceInfo,
+    #[cfg(feature = "battery_max17055")]
+    BatteryInfo,
     WifiAP,
     WifiListVisible,
 }

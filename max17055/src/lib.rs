@@ -418,10 +418,10 @@ where
     }
 
     /// Returns the number of charge cycles in %.
-    pub async fn read_charge_cycles(&mut self) -> Result<u8, Error<I2C::Error>> {
+    pub async fn read_charge_cycles(&mut self) -> Result<u16, Error<I2C::Error>> {
         let reg = self.read_register_async::<Cycles>().await?;
         let raw = reg.cycles_percentage().read().unwrap_or(0);
-        Ok((raw >> 8) as u8)
+        Ok((raw / 100) as u16)
     }
 
     /// Returns the cell voltage in μV.
