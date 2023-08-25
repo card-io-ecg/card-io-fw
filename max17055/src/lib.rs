@@ -18,7 +18,7 @@ pub enum Error<I2cE> {
     Verify,
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct DesignData {
     /// Design capacity
     /// LSB = 5μVH/r_sense
@@ -73,7 +73,7 @@ impl DesignData {
         let raw = raw as i16 as i32;
         let rsense = self.r_sense as i32;
 
-        raw * 1_5625 / (rsense * 10)
+        (raw * 1_5625) / (rsense * 10)
     }
 
     /// Converts the raw register value to a capacity value in μAh.
@@ -94,7 +94,7 @@ impl DesignData {
         let raw = raw as u32;
         let rsense = self.r_sense;
 
-        raw * 5_0000 / (rsense * 10)
+        (raw * 5_000) / rsense
     }
 
     /// Converts the raw register value to a voltage value in μV.
@@ -112,7 +112,9 @@ impl DesignData {
     /// ```
     #[allow(non_snake_case)]
     pub fn raw_voltage_to_uV(&self, raw: u16) -> u32 {
-        (raw as u32 * 625) / 8
+        let raw = raw as u32;
+
+        (raw * 625) / 8
     }
 }
 
@@ -232,6 +234,7 @@ impl<I2C> Max17055<I2C> {
     const DEVICE_ADDR: u8 = 0x36;
 
     pub fn new(i2c: I2C, config: DesignData) -> Self {
+        log::debug!("Design data: {config:?}");
         Self { i2c, config }
     }
 }
@@ -401,6 +404,13 @@ where
         }
 
         Ok(())
+    }
+
+    /// Returns the reported capacity in μAh.
+    pub async fn read_design_capacity(&mut self) -> Result<u32, Error<I2C::Error>> {
+        let reg = self.read_register_async::<DesignCap>().await?;
+        let raw = reg.capacity().read().unwrap_or(0);
+        Ok(self.config.raw_capacity_to_uAh(raw))
     }
 
     /// Returns the reported capacity in μAh.

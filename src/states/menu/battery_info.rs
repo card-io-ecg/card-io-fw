@@ -67,6 +67,12 @@ pub async fn battery_info_menu(board: &mut Board) -> AppState {
                 .ok()
                 .unwrap();
 
+            let capacity = sensor.fg.read_design_capacity().await.unwrap();
+            items
+                .push(list_item(format!("Nominal: {:>8}mAh", capacity / 1000)))
+                .ok()
+                .unwrap();
+
             let capacity = sensor.fg.read_reported_capacity().await.unwrap();
             items
                 .push(list_item(format!("Capacity: {:>7}mAh", capacity / 1000)))
