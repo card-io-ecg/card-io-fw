@@ -32,6 +32,7 @@ use crate::states::battery_info_menu;
 use crate::{
     board::{
         config::{Config, ConfigFile},
+        drivers::battery_monitor::{BatteryMonitor, BatteryState},
         hal::{
             self, entry,
             gpio::RTCPin,
@@ -39,7 +40,7 @@ use crate::{
             rtc_cntl::sleep::{RtcioWakeupSource, WakeupLevel},
             Delay,
         },
-        initialized::{BatteryMonitor, BatteryState, Board, ConfigPartition},
+        initialized::{Board, ConfigPartition},
         startup::StartupResources,
         TouchDetect,
     },
