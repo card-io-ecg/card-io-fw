@@ -8,7 +8,9 @@ use crate::{
     timeout::Timeout,
     AppState,
 };
-use alloc::{format, string::String};
+use alloc::format;
+#[cfg(feature = "battery_max17055")]
+use alloc::string::String;
 use embassy_time::Ticker;
 use embedded_graphics::Drawable;
 use embedded_menu::{items::NavigationItem, Menu};

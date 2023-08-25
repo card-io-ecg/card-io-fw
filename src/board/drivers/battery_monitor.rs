@@ -1,13 +1,11 @@
-use crate::SharedBatteryState;
-use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex, signal::Signal};
+use alloc::rc::Rc;
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
 use embedded_hal::digital::InputPin;
 use gui::screens::BatteryInfo;
 
 #[cfg(feature = "battery_adc")]
 use crate::board::{drivers::battery_adc, drivers::battery_adc::BatteryAdcData, BatteryAdc};
-
-#[cfg(feature = "battery_adc")]
-use signal_processing::battery::BatteryModel;
+use crate::task_control::TaskController;
 
 #[cfg(feature = "battery_max17055")]
 use crate::board::{drivers::battery_fg, drivers::battery_fg::BatteryFgData, BatteryFg};
@@ -26,15 +24,39 @@ pub struct BatteryState {
     pub fg_data: Option<BatteryFgData>,
 }
 
+pub type SharedBatteryState = Rc<Mutex<NoopRawMutex, BatteryState>>;
+
 pub struct BatteryMonitor<VBUS, CHG> {
-    pub battery_state: &'static SharedBatteryState,
+    pub battery_state: SharedBatteryState,
     pub vbus_detect: VBUS,
     pub charger_status: CHG,
     pub last_battery_state: BatteryState,
-    pub signal: &'static Signal<NoopRawMutex, ()>,
+    pub signal: TaskController<()>,
 }
 
 impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
+    pub fn new(vbus_detect: VBUS, charger_status: CHG) -> Self {
+        let battery_state = Rc::new(Mutex::new(BatteryState {
+            #[cfg(feature = "battery_adc")]
+            adc_data: None,
+            #[cfg(feature = "battery_max17055")]
+            fg_data: None,
+        }));
+
+        BatteryMonitor {
+            battery_state,
+            vbus_detect,
+            charger_status,
+            last_battery_state: BatteryState {
+                #[cfg(feature = "battery_adc")]
+                adc_data: None,
+                #[cfg(feature = "battery_max17055")]
+                fg_data: None,
+            },
+            signal: TaskController::new(),
+        }
+    }
+
     pub fn is_plugged(&self) -> bool {
         self.vbus_detect.is_high().unwrap()
     }
@@ -44,7 +66,7 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
     }
 
     pub async fn stop(&mut self) {
-        self.signal.signal(());
+        _ = self.signal.stop_from_outside().await;
     }
 
     #[cfg(not(any(feature = "battery_max17055", feature = "battery_adc")))]
@@ -55,17 +77,13 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
 
 #[cfg(feature = "battery_adc")]
 impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
-    pub async fn start(
-        &mut self,
-        adc: BatteryAdc,
-        battery_state: &'static Mutex<NoopRawMutex, BatteryState>,
-    ) {
+    pub async fn start(&mut self, adc: BatteryAdc) {
         let spawner = Spawner::for_current_executor().await;
         spawner
             .spawn(battery_adc::monitor_task_adc(
                 adc,
-                battery_state,
-                self.signal,
+                self.battery_state.clone(),
+                self.signal.token(),
             ))
             .ok();
     }
@@ -77,7 +95,9 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
     }
 
     pub fn battery_data(&mut self) -> Option<BatteryInfo> {
-        let battery_model = signal_processing::battery::BatteryModel {
+        use signal_processing::battery::BatteryModel;
+
+        let battery_model = BatteryModel {
             voltage: (2750, 4200),
             charge_current: (0, 1000),
         };
@@ -105,14 +125,14 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
 
 #[cfg(feature = "battery_max17055")]
 impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
-    pub async fn start(
-        &mut self,
-        fg: BatteryFg,
-        battery_state: &'static Mutex<NoopRawMutex, BatteryState>,
-    ) {
+    pub async fn start(&mut self, fg: BatteryFg) {
         let spawner = Spawner::for_current_executor().await;
         spawner
-            .spawn(battery_fg::monitor_task_fg(fg, battery_state, self.signal))
+            .spawn(battery_fg::monitor_task_fg(
+                fg,
+                self.battery_state.clone(),
+                self.signal.token(),
+            ))
             .ok();
     }
 

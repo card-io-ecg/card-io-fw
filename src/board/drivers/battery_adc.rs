@@ -1,16 +1,18 @@
 use crate::{
-    board::hal::{
-        adc::{
-            AdcCalEfuse, AdcCalLine, AdcConfig, AdcHasLineCal, AdcPin, Attenuation,
-            CalibrationAccess, ADC,
+    board::{
+        drivers::battery_monitor::SharedBatteryState,
+        hal::{
+            adc::{
+                AdcCalEfuse, AdcCalLine, AdcConfig, AdcHasLineCal, AdcPin, Attenuation,
+                CalibrationAccess, ADC,
+            },
+            peripheral::Peripheral,
+            prelude::*,
         },
-        peripheral::Peripheral,
-        prelude::*,
     },
-    SharedBatteryState,
+    task_control::TaskControlToken,
 };
 use embassy_futures::yield_now;
-use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use embassy_time::{Duration, Ticker};
 use embedded_hal_old::adc::{Channel, OneShot};
 
@@ -83,48 +85,52 @@ where
 #[embassy_executor::task]
 pub async fn monitor_task_adc(
     mut battery: crate::board::BatteryAdc,
-    battery_state: &'static SharedBatteryState,
-    task_control: &'static Signal<NoopRawMutex, ()>,
+    battery_state: SharedBatteryState,
+    mut task_control: TaskControlToken<()>,
 ) {
-    let mut timer = Ticker::every(Duration::from_millis(10));
-    log::info!("ADC monitor started");
+    task_control
+        .run_cancellable(async {
+            let mut timer = Ticker::every(Duration::from_millis(10));
+            log::info!("ADC monitor started");
 
-    battery.enable.set_high().unwrap();
+            battery.enable.set_high().unwrap();
 
-    let mut voltage_accumulator = 0;
-    let mut current_accumulator = 0;
+            let mut voltage_accumulator = 0;
+            let mut current_accumulator = 0;
 
-    let mut sample_count = 0;
+            let mut sample_count = 0;
 
-    const AVG_SAMPLE_COUNT: u32 = 128;
+            const AVG_SAMPLE_COUNT: u32 = 128;
 
-    while !task_control.signaled() {
-        let data = battery.read_data().await.unwrap();
+            loop {
+                let data = battery.read_data().await.unwrap();
 
-        voltage_accumulator += data.voltage as u32;
-        current_accumulator += data.charge_current as u32;
+                voltage_accumulator += data.voltage as u32;
+                current_accumulator += data.charge_current as u32;
 
-        if sample_count == AVG_SAMPLE_COUNT {
-            let mut state = battery_state.lock().await;
+                if sample_count == AVG_SAMPLE_COUNT {
+                    let mut state = battery_state.lock().await;
 
-            let average = BatteryAdcData {
-                voltage: (voltage_accumulator / AVG_SAMPLE_COUNT) as u16,
-                charge_current: (current_accumulator / AVG_SAMPLE_COUNT) as u16,
-            };
-            state.adc_data = Some(average);
+                    let average = BatteryAdcData {
+                        voltage: (voltage_accumulator / AVG_SAMPLE_COUNT) as u16,
+                        charge_current: (current_accumulator / AVG_SAMPLE_COUNT) as u16,
+                    };
+                    state.adc_data = Some(average);
 
-            log::debug!("Battery data: {average:?}");
+                    log::debug!("Battery data: {average:?}");
 
-            sample_count = 0;
+                    sample_count = 0;
 
-            voltage_accumulator = 0;
-            current_accumulator = 0;
-        } else {
-            sample_count += 1;
-        }
+                    voltage_accumulator = 0;
+                    current_accumulator = 0;
+                } else {
+                    sample_count += 1;
+                }
 
-        timer.next().await;
-    }
+                timer.next().await;
+            }
+        })
+        .await;
 
     battery.enable.set_low().unwrap();
 

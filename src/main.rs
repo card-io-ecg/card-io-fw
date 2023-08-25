@@ -13,7 +13,6 @@ use core::ptr::addr_of;
 
 use alloc::boxed::Box;
 use embassy_executor::{Executor, Spawner, _export::StaticCell};
-use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex, signal::Signal};
 use embassy_time::{Duration, Timer};
 use norfs::{
     drivers::internal::InternalDriver,
@@ -22,7 +21,10 @@ use norfs::{
 };
 
 #[cfg(feature = "hw_v1")]
-use crate::{board::hal::gpio::RTCPinWithResistors, sleep::disable_gpio_wakeup};
+use crate::{
+    board::{hal::gpio::RTCPinWithResistors, ChargerStatus},
+    sleep::disable_gpio_wakeup,
+};
 
 #[cfg(feature = "hw_v2")]
 use crate::board::VbusDetect;
@@ -32,7 +34,7 @@ use crate::states::battery_info_menu;
 use crate::{
     board::{
         config::{Config, ConfigFile},
-        drivers::battery_monitor::{BatteryMonitor, BatteryState},
+        drivers::battery_monitor::BatteryMonitor,
         hal::{
             self, entry,
             gpio::RTCPin,
@@ -76,8 +78,6 @@ pub enum AppState {
     Error(AppError),
     Shutdown,
 }
-
-pub type SharedBatteryState = Mutex<NoopRawMutex, BatteryState>;
 
 static INT_EXECUTOR: InterruptExecutor<SwInterrupt0> = InterruptExecutor::new();
 
@@ -179,35 +179,16 @@ where
 
 #[embassy_executor::task]
 async fn main_task(_spawner: Spawner, resources: StartupResources) {
-    let battery_state = &*singleton!(Mutex::new(BatteryState {
-        #[cfg(feature = "battery_adc")]
-        adc_data: None,
-        #[cfg(feature = "battery_max17055")]
-        fg_data: None,
-    }));
-
-    let mut battery_monitor = BatteryMonitor {
-        battery_state,
-        vbus_detect: resources.misc_pins.vbus_detect,
-        charger_status: resources.misc_pins.chg_status,
-        last_battery_state: BatteryState {
-            #[cfg(feature = "battery_adc")]
-            adc_data: None,
-            #[cfg(feature = "battery_max17055")]
-            fg_data: None,
-        },
-        signal: Box::leak(Box::new(Signal::new())),
-    };
+    let mut battery_monitor = BatteryMonitor::new(
+        resources.misc_pins.vbus_detect,
+        resources.misc_pins.chg_status,
+    );
 
     #[cfg(feature = "battery_adc")]
-    battery_monitor
-        .start(resources.battery_adc, battery_state)
-        .await;
+    battery_monitor.start(resources.battery_adc).await;
 
     #[cfg(feature = "battery_max17055")]
-    battery_monitor
-        .start(resources.battery_fg, battery_state)
-        .await;
+    battery_monitor.start(resources.battery_fg).await;
 
     hal::interrupt::enable(
         hal::peripherals::Interrupt::GPIO,
