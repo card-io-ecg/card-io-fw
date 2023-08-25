@@ -27,11 +27,11 @@ pub struct BatteryState {
 pub type SharedBatteryState = Rc<Mutex<NoopRawMutex, BatteryState>>;
 
 pub struct BatteryMonitor<VBUS, CHG> {
-    pub battery_state: SharedBatteryState,
-    pub vbus_detect: VBUS,
-    pub charger_status: CHG,
-    pub last_battery_state: BatteryState,
-    pub signal: TaskController<()>,
+    battery_state: SharedBatteryState,
+    vbus_detect: VBUS,
+    charger_status: CHG,
+    last_battery_state: BatteryState,
+    signal: TaskController<()>,
 }
 
 impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
@@ -65,8 +65,9 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
         self.charger_status.is_low().unwrap()
     }
 
-    pub async fn stop(&mut self) {
+    pub async fn stop(self) -> (VBUS, CHG) {
         _ = self.signal.stop_from_outside().await;
+        (self.vbus_detect, self.charger_status)
     }
 
     #[cfg(not(any(feature = "battery_max17055", feature = "battery_adc")))]

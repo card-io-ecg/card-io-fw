@@ -244,20 +244,19 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
 
     let _ = board.display.shut_down();
 
-    board.battery_monitor.stop().await;
-
     board.frontend.wait_for_release().await;
     Timer::after(Duration::from_millis(100)).await;
 
     let is_charging = board.battery_monitor.is_plugged();
-    let (_, _, _, mut touch) = board.frontend.split();
-    let mut rtc = resources.rtc;
 
     #[cfg(feature = "hw_v1")]
-    let mut charger_pin = board.battery_monitor.charger_status;
+    let (_, mut charger_pin) = board.battery_monitor.stop().await;
 
     #[cfg(feature = "hw_v2")]
-    let mut charger_pin = board.battery_monitor.vbus_detect;
+    let (mut charger_pin, _) = board.battery_monitor.stop().await;
+
+    let (_, _, _, mut touch) = board.frontend.split();
+    let mut rtc = resources.rtc;
 
     let mut wakeup_pins = heapless::Vec::<(&mut dyn RTCPin, WakeupLevel), 2>::new();
     setup_wakeup_pins(&mut wakeup_pins, &mut touch, &mut charger_pin, is_charging);
