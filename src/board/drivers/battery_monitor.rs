@@ -1,6 +1,6 @@
-use crate::task_control::TaskController;
+use crate::{task_control::TaskController, Shared};
 use alloc::rc::Rc;
-use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
+use embassy_sync::mutex::Mutex;
 use embedded_hal::digital::InputPin;
 use gui::screens::BatteryInfo;
 
@@ -27,7 +27,7 @@ pub struct BatteryState {
     pub data: Option<BatteryData>,
 }
 
-pub type SharedBatteryState = Rc<Mutex<NoopRawMutex, BatteryState>>;
+pub type SharedBatteryState = Shared<BatteryState>;
 
 pub struct BatteryMonitor<VBUS, CHG> {
     battery_state: SharedBatteryState,
@@ -35,12 +35,14 @@ pub struct BatteryMonitor<VBUS, CHG> {
     charger_status: CHG,
     last_battery_state: BatteryState,
     signal: TaskController<()>,
+    sensor: Shared<BatterySensor>,
 }
 
 impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
     pub async fn start(vbus_detect: VBUS, charger_status: CHG, adc: BatterySensor) -> Self {
         let this = BatteryMonitor {
             battery_state: Rc::new(Mutex::new(BatteryState::default())),
+            sensor: Rc::new(Mutex::new(adc)),
             vbus_detect,
             charger_status,
             last_battery_state: BatteryState::default(),
@@ -50,7 +52,7 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
         let spawner = Spawner::for_current_executor().await;
         spawner
             .spawn(monitor_task(
-                adc,
+                this.sensor.clone(),
                 this.battery_state.clone(),
                 this.signal.token(),
             ))

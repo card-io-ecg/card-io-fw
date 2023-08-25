@@ -3,7 +3,9 @@ use embedded_hal::digital::OutputPin;
 use embedded_hal_async::{delay::DelayUs, i2c::I2c};
 use max17055::Max17055;
 
-use crate::{board::drivers::battery_monitor::SharedBatteryState, task_control::TaskControlToken};
+use crate::{
+    board::drivers::battery_monitor::SharedBatteryState, task_control::TaskControlToken, Shared,
+};
 
 #[derive(Clone, Copy, Debug)]
 pub struct BatteryFgData {
@@ -48,7 +50,7 @@ where
 
 #[embassy_executor::task]
 pub async fn monitor_task_fg(
-    mut fuel_gauge: crate::board::BatteryFg,
+    fuel_gauge: Shared<crate::board::BatteryFg>,
     battery_state: SharedBatteryState,
     mut task_control: TaskControlToken<()>,
 ) {
@@ -57,10 +59,10 @@ pub async fn monitor_task_fg(
             let mut timer = Ticker::every(Duration::from_secs(1));
             log::info!("Fuel gauge monitor started");
 
-            fuel_gauge.enable(&mut Delay).await;
+            fuel_gauge.lock().await.enable(&mut Delay).await;
 
             loop {
-                let data = fuel_gauge.read_data().await.unwrap();
+                let data = fuel_gauge.lock().await.read_data().await.unwrap();
 
                 {
                     let mut state = battery_state.lock().await;
@@ -73,6 +75,6 @@ pub async fn monitor_task_fg(
         })
         .await;
 
-    fuel_gauge.disable();
+    fuel_gauge.lock().await.disable();
     log::info!("Monitor exited");
 }

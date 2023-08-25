@@ -11,8 +11,9 @@ extern crate alloc;
 
 use core::ptr::addr_of;
 
-use alloc::boxed::Box;
+use alloc::{boxed::Box, rc::Rc};
 use embassy_executor::{Executor, Spawner, _export::StaticCell};
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
 use embassy_time::{Duration, Timer};
 use norfs::{
     drivers::internal::InternalDriver,
@@ -62,6 +63,8 @@ mod stack_protection;
 mod states;
 mod task_control;
 mod timeout;
+
+pub type Shared<T> = Rc<Mutex<NoopRawMutex, T>>;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AppError {
