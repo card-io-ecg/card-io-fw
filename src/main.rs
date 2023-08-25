@@ -33,6 +33,8 @@ use crate::{board::hal::gpio::RTCPinWithResistors, sleep::disable_gpio_wakeup};
 #[cfg(feature = "hw_v2")]
 use crate::board::VbusDetect;
 
+#[cfg(feature = "battery_max17055")]
+use crate::states::battery_info_menu;
 use crate::{
     board::{
         config::{Config, ConfigFile},
@@ -262,9 +264,11 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             AppState::Measure => measure(&mut board).await,
             AppState::Menu(AppMenu::Main) => main_menu(&mut board).await,
             AppState::Menu(AppMenu::Display) => display_menu(&mut board).await,
-            AppState::Menu(AppMenu::About) => about_menu(&mut board).await,
+            AppState::Menu(AppMenu::DeviceInfo) => about_menu(&mut board).await,
             AppState::Menu(AppMenu::WifiAP) => wifi_ap(&mut board).await,
             AppState::Menu(AppMenu::WifiListVisible) => wifi_sta(&mut board).await,
+            #[cfg(feature = "battery_max17055")]
+            AppState::Menu(AppMenu::BatteryInfo) => battery_info_menu(&mut board).await,
             AppState::Error(error) => app_error(&mut board, error).await,
             AppState::Shutdown => break,
         };

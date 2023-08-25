@@ -3,13 +3,12 @@ use crate::{
         initialized::{Board, StaMode},
         wifi::sta::Sta,
     },
-    heap::ALLOCATOR,
-    states::{AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
+    states::{menu::AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
     timeout::Timeout,
     AppState,
 };
 use embassy_time::Ticker;
-use embedded_graphics::prelude::*;
+use embedded_graphics::Drawable;
 use embedded_menu::{items::NavigationItem, Menu};
 use gui::{
     screens::{menu_style, screen::Screen},
@@ -17,61 +16,28 @@ use gui::{
 };
 
 #[derive(Clone, Copy)]
-pub enum MainMenuEvents {
-    Display,
-    About,
-    WifiSetup,
-    WifiListVisible,
-    Shutdown,
+pub enum BatteryEvents {
+    // None,
+    Back,
 }
 
-pub async fn main_menu(board: &mut Board) -> AppState {
+pub async fn battery_info_menu(board: &mut Board) -> AppState {
     let sta = if !board.config.known_networks.is_empty() {
-        // Enable wifi STA. This enabled wifi for the whole menu and re-enables when the user exits
-        // the wifi AP config menu.
         board.enable_wifi_sta(StaMode::OnDemand).await
     } else {
-        board.disable_wifi().await;
+        board.wifi.stop_if().await;
         None
     };
-
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
-    log::info!("Free heap: {} bytes", ALLOCATOR.free());
 
-    let builder = Menu::with_style("Main menu", menu_style());
+    // let list_item = |label| NavigationItem::new(label, BatteryEvents::None);
 
-    let mut items = heapless::Vec::<_, 4>::new();
-
-    items
-        .push(NavigationItem::new(
-            "Display settings",
-            MainMenuEvents::Display,
-        ))
-        .ok()
-        .unwrap();
-    items
-        .push(NavigationItem::new("Device info", MainMenuEvents::About))
-        .ok()
-        .unwrap();
-
-    if board.can_enable_wifi() {
-        items
-            .push(NavigationItem::new("Wifi setup", MainMenuEvents::WifiSetup))
-            .ok()
-            .unwrap();
-        items
-            .push(NavigationItem::new(
-                "Wifi networks",
-                MainMenuEvents::WifiListVisible,
-            ))
-            .ok()
-            .unwrap();
-    }
+    // let mut items = heapless::Vec::<_, 5>::new();
 
     let mut menu_screen = Screen {
-        content: builder
-            .add_items(&mut items[..])
-            .add_item(NavigationItem::new("Shutdown", MainMenuEvents::Shutdown))
+        content: Menu::with_style("Battery info", menu_style())
+            // .add_items(&mut items[..])
+            .add_item(NavigationItem::new("Back", BatteryEvents::Back))
             .build(),
 
         status_bar: StatusBar {
@@ -94,17 +60,13 @@ pub async fn main_menu(board: &mut Board) -> AppState {
 
         if let Some(event) = menu_screen.content.interact(is_touched) {
             match event {
-                MainMenuEvents::Display => return AppState::Menu(AppMenu::Display),
-                MainMenuEvents::About => return AppState::Menu(AppMenu::DeviceInfo),
-                MainMenuEvents::WifiSetup => return AppState::Menu(AppMenu::WifiAP),
-                MainMenuEvents::WifiListVisible => return AppState::Menu(AppMenu::WifiListVisible),
-                MainMenuEvents::Shutdown => return AppState::Shutdown,
+                //BatteryEvents::None => {}
+                BatteryEvents::Back => return AppState::Menu(AppMenu::DeviceInfo),
             };
         }
 
         let battery_data = board.battery_monitor.battery_data();
 
-        #[cfg(feature = "battery_max17055")]
         if let Some(battery) = battery_data {
             if battery.is_low {
                 return AppState::Shutdown;
@@ -114,7 +76,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
         menu_screen.status_bar.update_battery_data(battery_data);
         if let Some(ref sta) = sta {
             menu_screen.status_bar.wifi.update(sta.connection_state());
-        }
+        };
 
         board
             .display
@@ -128,6 +90,5 @@ pub async fn main_menu(board: &mut Board) -> AppState {
         ticker.next().await;
     }
 
-    log::info!("Menu timeout");
-    AppState::Shutdown
+    AppState::Menu(AppMenu::Main)
 }

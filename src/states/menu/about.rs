@@ -8,7 +8,7 @@ use crate::{
     timeout::Timeout,
     AppState,
 };
-use alloc::format;
+use alloc::{format, string::String};
 use embassy_time::Ticker;
 use embedded_graphics::Drawable;
 use embedded_menu::{items::NavigationItem, Menu};
@@ -20,6 +20,8 @@ use gui::{
 #[derive(Clone, Copy)]
 pub enum AboutMenuEvents {
     None,
+    #[cfg(feature = "battery_max17055")]
+    ToBatteryInfo,
     Back,
 }
 
@@ -36,7 +38,9 @@ pub async fn about_menu(board: &mut Board) -> AppState {
 
     let list_item = |label| NavigationItem::new(label, AboutMenuEvents::None);
 
-    let mut items = [
+    let mut items = heapless::Vec::<_, 5>::new();
+
+    items.extend([
         list_item(format!("FW: {:>16}", env!("FW_VERSION"))),
         list_item(format!(
             "HW: {:>16}",
@@ -55,7 +59,18 @@ pub async fn about_menu(board: &mut Board) -> AppState {
             Some(id) => format!("ADC: {:>15}", format!("{id:?}")),
             None => format!("ADC:         Unknown"),
         }),
-    ];
+    ]);
+
+    #[cfg(feature = "battery_max17055")]
+    {
+        items
+            .push(NavigationItem::new(
+                String::from("Fuel gauge: MAX17055"),
+                AboutMenuEvents::ToBatteryInfo,
+            ))
+            .ok()
+            .unwrap();
+    }
 
     let mut menu_screen = Screen {
         content: Menu::with_style("Device info", menu_style())
@@ -83,6 +98,8 @@ pub async fn about_menu(board: &mut Board) -> AppState {
         if let Some(event) = menu_screen.content.interact(is_touched) {
             match event {
                 AboutMenuEvents::None => {}
+                #[cfg(feature = "battery_max17055")]
+                AboutMenuEvents::ToBatteryInfo => return AppState::Menu(AppMenu::BatteryInfo),
                 AboutMenuEvents::Back => return AppState::Menu(AppMenu::Main),
             };
         }
