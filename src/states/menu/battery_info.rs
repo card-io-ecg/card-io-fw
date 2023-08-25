@@ -7,7 +7,8 @@ use crate::{
     timeout::Timeout,
     AppState,
 };
-use embassy_time::Ticker;
+use alloc::format;
+use embassy_time::{Duration, Ticker};
 use embedded_graphics::Drawable;
 use embedded_menu::{items::NavigationItem, Menu};
 use gui::{
@@ -17,7 +18,7 @@ use gui::{
 
 #[derive(Clone, Copy)]
 pub enum BatteryEvents {
-    // None,
+    None,
     Back,
 }
 
@@ -29,38 +30,74 @@ pub async fn battery_info_menu(board: &mut Board) -> AppState {
         None
     };
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
+    let mut menu_state = Default::default();
 
-    // let list_item = |label| NavigationItem::new(label, BatteryEvents::None);
+    let list_item = |label| NavigationItem::new(label, BatteryEvents::None);
 
-    // let mut items = heapless::Vec::<_, 5>::new();
-
-    let mut menu_screen = Screen {
-        content: Menu::with_style("Battery info", menu_style())
-            // .add_items(&mut items[..])
-            .add_item(NavigationItem::new("Back", BatteryEvents::Back))
-            .build(),
-
-        status_bar: StatusBar {
-            battery: Battery::with_style(
-                board.battery_monitor.battery_data(),
-                board.config.battery_style(),
-            ),
-            wifi: WifiStateView::new(sta.as_ref().map(Sta::connection_state)),
-        },
-    };
+    let mut items = heapless::Vec::<_, 5>::new();
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let mut input = TouchInputShaper::new(&mut board.frontend);
 
+    let mut load_sensor_data = Timeout::new(Duration::from_secs(1));
+    let mut first = true;
     while !exit_timer.is_elapsed() {
         let is_touched = input.is_touched();
         if is_touched {
             exit_timer.reset();
         }
 
+        if first || load_sensor_data.is_elapsed() {
+            load_sensor_data.reset();
+            first = false;
+
+            items.clear();
+
+            let mut sensor = board.battery_monitor.sensor().await;
+
+            let voltage = sensor.fg.read_vcell().await.unwrap();
+            items
+                .push(list_item(format!("Voltage: {:>9}mV", voltage / 1000)))
+                .ok()
+                .unwrap();
+
+            let current = sensor.fg.read_current().await.unwrap();
+            items
+                .push(list_item(format!("Current: {:>9}mA", current / 1000)))
+                .ok()
+                .unwrap();
+
+            let capacity = sensor.fg.read_reported_capacity().await.unwrap();
+            items
+                .push(list_item(format!("Capacity: {:>7}mAh", capacity / 1000)))
+                .ok()
+                .unwrap();
+
+            let charge_cycles = sensor.fg.read_charge_cycles().await.unwrap();
+            items
+                .push(list_item(format!("Chg Cycles: {:>8}", charge_cycles)))
+                .ok()
+                .unwrap();
+        }
+
+        let mut menu_screen = Screen {
+            content: Menu::with_style("Battery info", menu_style())
+                .add_items(&mut items[..])
+                .add_item(NavigationItem::new("Back", BatteryEvents::Back))
+                .build_with_state(menu_state),
+
+            status_bar: StatusBar {
+                battery: Battery::with_style(
+                    board.battery_monitor.battery_data(),
+                    board.config.battery_style(),
+                ),
+                wifi: WifiStateView::new(sta.as_ref().map(Sta::connection_state)),
+            },
+        };
+
         if let Some(event) = menu_screen.content.interact(is_touched) {
             match event {
-                //BatteryEvents::None => {}
+                BatteryEvents::None => {}
                 BatteryEvents::Back => return AppState::Menu(AppMenu::DeviceInfo),
             };
         }
@@ -86,6 +123,8 @@ pub async fn battery_info_menu(board: &mut Board) -> AppState {
             })
             .await
             .unwrap();
+
+        menu_state = menu_screen.content.state();
 
         ticker.next().await;
     }

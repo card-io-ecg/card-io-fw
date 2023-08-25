@@ -123,7 +123,7 @@ embassy-time = { git = "https://github.com/embassy-rs/embassy.git", rev = "4f453
 esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", branch = "dev" }
 
 [features]
-default = ["esp32s3"]
+default = ["esp32s3", "hw_v2"]
 
 battery_adc = []
 battery_max17055 = ["dep:max17055"]
