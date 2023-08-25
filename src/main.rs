@@ -21,12 +21,6 @@ use norfs::{
     Storage, StorageError,
 };
 
-#[cfg(feature = "battery_adc")]
-use crate::board::drivers::battery_adc::monitor_task_adc;
-
-#[cfg(feature = "battery_max17055")]
-use crate::board::drivers::battery_fg::monitor_task_fg;
-
 #[cfg(feature = "hw_v1")]
 use crate::{board::hal::gpio::RTCPinWithResistors, sleep::disable_gpio_wakeup};
 
@@ -183,10 +177,7 @@ where
 }
 
 #[embassy_executor::task]
-async fn main_task(spawner: Spawner, resources: StartupResources) {
-    #[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
-    let fg_task_control = &*singleton!(Signal::new());
-
+async fn main_task(_spawner: Spawner, resources: StartupResources) {
     let battery_state = &*singleton!(Mutex::new(BatteryState {
         #[cfg(feature = "battery_adc")]
         adc_data: None,
@@ -194,23 +185,28 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
         fg_data: None,
     }));
 
+    let mut battery_monitor = BatteryMonitor {
+        battery_state,
+        vbus_detect: resources.misc_pins.vbus_detect,
+        charger_status: resources.misc_pins.chg_status,
+        last_battery_state: BatteryState {
+            #[cfg(feature = "battery_adc")]
+            adc_data: None,
+            #[cfg(feature = "battery_max17055")]
+            fg_data: None,
+        },
+        signal: Box::leak(Box::new(Signal::new())),
+    };
+
     #[cfg(feature = "battery_adc")]
-    spawner
-        .spawn(monitor_task_adc(
-            resources.battery_adc,
-            battery_state,
-            fg_task_control,
-        ))
-        .ok();
+    battery_monitor
+        .start(resources.battery_adc, battery_state)
+        .await;
 
     #[cfg(feature = "battery_max17055")]
-    spawner
-        .spawn(monitor_task_fg(
-            resources.battery_fg,
-            battery_state,
-            fg_task_control,
-        ))
-        .ok();
+    battery_monitor
+        .start(resources.battery_fg, battery_state)
+        .await;
 
     hal::interrupt::enable(
         hal::peripherals::Interrupt::GPIO,
@@ -234,17 +230,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
             clocks: resources.clocks,
             peripheral_clock_control: resources.peripheral_clock_control,
             high_prio_spawner: INT_EXECUTOR.start(),
-            battery_monitor: BatteryMonitor {
-                battery_state,
-                vbus_detect: resources.misc_pins.vbus_detect,
-                charger_status: resources.misc_pins.chg_status,
-                last_battery_state: BatteryState {
-                    #[cfg(feature = "battery_adc")]
-                    adc_data: None,
-                    #[cfg(feature = "battery_max17055")]
-                    fg_data: None,
-                },
-            },
+            battery_monitor,
             wifi: resources.wifi,
             config,
             config_changed: false,
@@ -276,8 +262,7 @@ async fn main_task(spawner: Spawner, resources: StartupResources) {
 
     let _ = board.display.shut_down();
 
-    #[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
-    fg_task_control.signal(());
+    board.battery_monitor.stop().await;
 
     board.frontend.wait_for_release().await;
     Timer::after(Duration::from_millis(100)).await;

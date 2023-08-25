@@ -1,5 +1,6 @@
 use crate::{
     board::{
+        self,
         config::Config,
         hal::{clock::Clocks, system::PeripheralClockControl},
         wifi::{ap::Ap, WifiDriver},
@@ -9,6 +10,7 @@ use crate::{
 };
 use embassy_executor::SendSpawner;
 use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex, signal::Signal};
 use embedded_hal::digital::InputPin;
 use gui::screens::BatteryInfo;
 use norfs::{
@@ -25,6 +27,8 @@ use crate::board::drivers::battery_fg::BatteryFgData;
 
 #[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
 use crate::board::LOW_BATTERY_PERCENTAGE;
+#[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
+use embassy_executor::Spawner;
 
 use super::wifi::sta::Sta;
 
@@ -41,9 +45,42 @@ pub struct BatteryMonitor<VBUS, CHG> {
     pub vbus_detect: VBUS,
     pub charger_status: CHG,
     pub last_battery_state: BatteryState,
+    pub signal: &'static Signal<NoopRawMutex, ()>,
 }
 
 impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
+    #[cfg(feature = "battery_adc")]
+    pub async fn start(
+        &mut self,
+        adc: board::BatteryAdc,
+        battery_state: &'static Mutex<NoopRawMutex, BatteryState>,
+    ) {
+        let spawner = Spawner::for_current_executor().await;
+        spawner
+            .spawn(board::drivers::battery_adc::monitor_task_adc(
+                adc,
+                battery_state,
+                self.signal,
+            ))
+            .ok();
+    }
+
+    #[cfg(feature = "battery_max17055")]
+    pub async fn start(
+        &mut self,
+        fg: board::BatteryFg,
+        battery_state: &'static Mutex<NoopRawMutex, BatteryState>,
+    ) {
+        let spawner = Spawner::for_current_executor().await;
+        spawner
+            .spawn(board::drivers::battery_fg::monitor_task_fg(
+                fg,
+                battery_state,
+                self.signal,
+            ))
+            .ok();
+    }
+
     fn load_battery_data(&mut self) {
         if let Ok(state) = self.battery_state.try_lock() {
             self.last_battery_state = *state;
@@ -100,6 +137,10 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
 
     pub fn is_charging(&self) -> bool {
         self.charger_status.is_low().unwrap()
+    }
+
+    pub async fn stop(&mut self) {
+        self.signal.signal(());
     }
 }
 
