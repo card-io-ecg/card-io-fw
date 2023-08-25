@@ -1,4 +1,4 @@
-use crate::{task_control::TaskController, Shared};
+use crate::{task_control::TaskController, Shared, SharedGuard};
 use alloc::rc::Rc;
 use embassy_sync::mutex::Mutex;
 use embedded_hal::digital::InputPin;
@@ -81,6 +81,10 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
 
     pub fn is_charging(&self) -> bool {
         self.charger_status.is_low().unwrap()
+    }
+
+    pub async fn sensor(&self) -> SharedGuard<'_, BatterySensor> {
+        self.sensor.lock().await
     }
 
     pub async fn stop(self) -> (VBUS, CHG) {
