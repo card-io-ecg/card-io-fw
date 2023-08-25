@@ -170,11 +170,12 @@ impl super::startup::StartupResources {
             // i_chg = 1000/4.7 = 212mA
             // i_chg_term = 212 * 0.0075 = 1.59mA
             // LSB = 1.5625μV/20mOhm = 78.125μA/LSB
+            // 1.59mA / 78.125μA/LSB ~~ 20 LSB
             let design = DesignData {
                 capacity: 320,
-                i_chg_term: 20, // 1.5625mA
-                v_empty: 300,
-                v_recovery: 97, // 3880mV
+                i_chg_term: 20,
+                v_empty: 3000,
+                v_recovery: 3880,
                 v_charge: 4200,
                 r_sense: 20,
             };

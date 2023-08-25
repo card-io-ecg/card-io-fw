@@ -27,14 +27,14 @@ pub struct DesignData {
     /// The IChgTerm register allows the device to detect when a charge cycle of the cell has
     /// completed.
     /// LSB = 1.5625μV/r_sense
-    pub i_chg_term: u16,
+    pub i_chg_term: i16,
 
     /// Empty Voltage Target, During Load.
-    /// LSB = 10mV
+    /// LSB = 1mV
     pub v_empty: u16,
 
     /// Recovery voltage
-    /// LSB = 40mV
+    /// LSB = 1mV
     pub v_recovery: u16,
 
     /// Cell charged voltage
@@ -95,6 +95,24 @@ impl DesignData {
         let rsense = self.r_sense;
 
         (raw * 5_000) / rsense
+    }
+
+    /// Converts the raw register value to a capacity value in μAh.
+    ///
+    /// ```rust
+    /// # use max17055::DesignData;
+    /// let design_data = DesignData {
+    ///    r_sense: 20,
+    ///   ..Default::default()
+    /// };
+    ///
+    /// assert_eq!(design_data.uAh_to_raw_capacity(0), 0);
+    /// assert_eq!(design_data.uAh_to_raw_capacity(250), 1);
+    /// assert_eq!(design_data.uAh_to_raw_capacity(16_383_750), 65535);
+    /// ```
+    #[allow(non_snake_case)]
+    pub fn uAh_to_raw_capacity(&self, uah: u32) -> u16 {
+        (uah * self.r_sense / 5_000) as u16
     }
 
     /// Converts the raw register value to a voltage value in μV.
@@ -363,23 +381,28 @@ where
         const CHG_V_HIGH: u32 = 51200;
         const CHG_THRESHOLD: u16 = 4275;
 
-        self.write_register_async(DesignCap::new(|w| w.capacity().write(config.capacity)))
+        let raw_capacity = config.uAh_to_raw_capacity(config.capacity as u32 * 1_000);
+
+        self.write_register_async(DesignCap::new(|w| w.capacity().write(raw_capacity)))
             .await?;
-        self.write_register_async(dQAcc::new(|w| w.capacity().write(config.capacity / 32)))
+        self.write_register_async(dQAcc::new(|w| w.capacity().write(raw_capacity / 32)))
             .await?;
-        self.write_register_async(IChgTerm::new(|w| w.current().write(config.i_chg_term)))
-            .await?;
-        self.write_register_async(VEmpty::new(|w| {
-            w.ve().write(config.v_empty).vr().write(config.v_recovery)
+        self.write_register_async(IChgTerm::new(|w| {
+            w.current().write(config.i_chg_term as u16)
         }))
         .await?;
-
-        let cap = config.capacity as u32;
+        self.write_register_async(VEmpty::new(|w| {
+            w.ve()
+                .write(config.v_empty / 10)
+                .vr()
+                .write(config.v_recovery / 40)
+        }))
+        .await?;
 
         if config.v_charge > CHG_THRESHOLD {
             log::debug!("Configuring 4.4V battery");
             self.write_register_async(dPAcc::new(|w| {
-                w.percentage().write((cap / 32 * CHG_V_HIGH / cap) as u16)
+                w.percentage().write((CHG_V_HIGH / 32) as u16)
             }))
             .await?;
             self.write_register_async(ModelCfg::new(|w| {
@@ -394,7 +417,7 @@ where
         } else {
             log::debug!("Configuring 4.2V battery");
             self.write_register_async(dPAcc::new(|w| {
-                w.percentage().write((cap / 32 * CHG_V_LOW / cap) as u16)
+                w.percentage().write((CHG_V_LOW / 32) as u16)
             }))
             .await?;
             self.write_register_async(ModelCfg::new(|w| {
