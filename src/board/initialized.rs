@@ -49,7 +49,26 @@ pub struct BatteryMonitor<VBUS, CHG> {
 }
 
 impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
-    #[cfg(feature = "battery_adc")]
+    pub fn is_plugged(&self) -> bool {
+        self.vbus_detect.is_high().unwrap()
+    }
+
+    pub fn is_charging(&self) -> bool {
+        self.charger_status.is_low().unwrap()
+    }
+
+    pub async fn stop(&mut self) {
+        self.signal.signal(());
+    }
+
+    #[cfg(not(any(feature = "battery_max17055", feature = "battery_adc")))]
+    pub fn battery_data(&mut self) -> Option<BatteryInfo> {
+        None
+    }
+}
+
+#[cfg(feature = "battery_adc")]
+impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
     pub async fn start(
         &mut self,
         adc: board::BatteryAdc,
@@ -65,29 +84,12 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
             .ok();
     }
 
-    #[cfg(feature = "battery_max17055")]
-    pub async fn start(
-        &mut self,
-        fg: board::BatteryFg,
-        battery_state: &'static Mutex<NoopRawMutex, BatteryState>,
-    ) {
-        let spawner = Spawner::for_current_executor().await;
-        spawner
-            .spawn(board::drivers::battery_fg::monitor_task_fg(
-                fg,
-                battery_state,
-                self.signal,
-            ))
-            .ok();
-    }
-
     fn load_battery_data(&mut self) {
         if let Ok(state) = self.battery_state.try_lock() {
             self.last_battery_state = *state;
         }
     }
 
-    #[cfg(feature = "battery_adc")]
     pub fn battery_data(&mut self) -> Option<BatteryInfo> {
         let battery_model = signal_processing::battery::BatteryModel {
             voltage: (2750, 4200),
@@ -113,8 +115,31 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
             }
         })
     }
+}
 
-    #[cfg(feature = "battery_max17055")]
+#[cfg(feature = "battery_max17055")]
+impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
+    pub async fn start(
+        &mut self,
+        fg: board::BatteryFg,
+        battery_state: &'static Mutex<NoopRawMutex, BatteryState>,
+    ) {
+        let spawner = Spawner::for_current_executor().await;
+        spawner
+            .spawn(board::drivers::battery_fg::monitor_task_fg(
+                fg,
+                battery_state,
+                self.signal,
+            ))
+            .ok();
+    }
+
+    fn load_battery_data(&mut self) {
+        if let Ok(state) = self.battery_state.try_lock() {
+            self.last_battery_state = *state;
+        }
+    }
+
     pub fn battery_data(&mut self) -> Option<BatteryInfo> {
         self.load_battery_data();
 
@@ -124,23 +149,6 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
             percentage: state.percentage,
             is_low: state.percentage < LOW_BATTERY_PERCENTAGE,
         })
-    }
-
-    #[cfg(not(any(feature = "battery_max17055", feature = "battery_adc")))]
-    pub fn battery_data(&mut self) -> Option<BatteryInfo> {
-        None
-    }
-
-    pub fn is_plugged(&self) -> bool {
-        self.vbus_detect.is_high().unwrap()
-    }
-
-    pub fn is_charging(&self) -> bool {
-        self.charger_status.is_low().unwrap()
-    }
-
-    pub async fn stop(&mut self) {
-        self.signal.signal(());
     }
 }
 
