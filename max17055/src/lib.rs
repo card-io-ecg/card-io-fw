@@ -256,7 +256,7 @@ impl<I2C> Max17055<I2C> {
     const DEVICE_ADDR: u8 = 0x36;
 
     pub fn new(i2c: I2C, config: DesignData) -> Self {
-        log::debug!("Design data: {config:?}");
+        log::debug!("Design data: {:?}", config);
         Self { i2c, config }
     }
 

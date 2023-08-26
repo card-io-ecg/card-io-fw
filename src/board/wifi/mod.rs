@@ -55,7 +55,7 @@ enum WifiDriverState {
 impl WifiDriverState {
     fn initialize(&mut self, clocks: &Clocks<'_>) {
         if let WifiDriverState::Uninitialized(_) = self {
-            log::info!("Initializing Wifi driver");
+            defmt::info!("Initializing Wifi driver");
             // The replacement value doesn't matter as we immediately overwrite it,
             // but we need to move out of the resources
             if let WifiDriverState::Uninitialized(resources) = self.replace_with(WifiMode::Ap) {
@@ -69,7 +69,7 @@ impl WifiDriverState {
                     )
                     .unwrap(),
                 );
-                log::info!("Wifi driver initialized");
+                defmt::info!("Wifi driver initialized");
             } else {
                 unsafe { unreachable_unchecked() }
             }

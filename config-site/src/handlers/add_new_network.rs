@@ -18,7 +18,7 @@ impl<'a> AddNewNetwork<'a> {
         status: ResponseStatus,
         message: &str,
     ) -> Result<(), HandleError<C>> {
-        log::warn!("Request error: {status:?}, {message}");
+        log::warn!("Request error: {:?}, {}", status, message);
         request
             .send_response(status)
             .await?
@@ -49,7 +49,7 @@ impl<C: Connection> RequestHandler<C> for AddNewNetwork<'_> {
         let post_body = match core::str::from_utf8(post_data) {
             Ok(body) => body,
             Err(err) => {
-                log::warn!("Invalid UTF-8 in POST body: {err}");
+                log::warn!("Invalid UTF-8 in POST body: {}", err);
                 return self
                     .request_error(
                         request,
@@ -59,7 +59,7 @@ impl<C: Connection> RequestHandler<C> for AddNewNetwork<'_> {
                     .await;
             }
         };
-        log::debug!("POST body: {post_body:?}");
+        log::debug!("POST body: {:?}", post_body);
 
         let (ssid, pass) = post_body.split_once('\n').unwrap_or((post_body, ""));
 

@@ -20,6 +20,7 @@ embassy-net = { version = "0.1.0", features = [
     "udp",
     "dhcpv4",
     "medium-ethernet",
+    "defmt"
 ] }
 embassy-sync = { version = "0.2.0" }
 embassy-executor = { version = "0.3.0", features = [
@@ -91,9 +92,9 @@ critical-section = "1.1"
 device-descriptor = { path = "device-descriptor" }
 register-access = { path = "register-access" }
 gui = { path = "gui" }
-ads129x = { path = "ads129x" }
 macros = { path = "macros" }
 embassy-alloc-taskpool = { path = "embassy-alloc-taskpool" }
+ads129x = { path = "ads129x", features = ["defmt"] }
 max17055 = { path = "max17055", optional = true }
 signal-processing = { path = "signal-processing", features = ["nostd"] }
 replace_with = { version = "0.1", default-features = false, features = [
@@ -115,7 +116,7 @@ norfs = { workspace = true }
 heapless = { workspace = true }
 log = { workspace = true }
 object-chain = { workspace = true }
-defmt = { version = "0.3.5" }
+defmt = { version = "=0.3.5" }
 
 [patch.'https://github.com/esp-rs/esp-wifi']
 esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", branch = "dev" }

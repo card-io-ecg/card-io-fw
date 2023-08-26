@@ -81,7 +81,7 @@ impl ApState {
         resources: &'static mut StackResources<3>,
         mut rng: Rng,
     ) -> Self {
-        log::info!("Configuring AP");
+        defmt::info!("Configuring AP");
 
         let (wifi_interface, controller) =
             esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap).unwrap();
@@ -108,16 +108,16 @@ impl ApState {
 
     pub(super) async fn start(&mut self) -> Ap {
         if !self.started {
-            log::info!("Starting AP");
+            defmt::info!("Starting AP");
             let spawner = Spawner::for_current_executor().await;
 
-            log::info!("Starting AP task");
+            defmt::info!("Starting AP task");
             spawner.must_spawn(ap_task(
                 self.controller.clone(),
                 self.connection_task_control.token(),
                 self.client_count.clone(),
             ));
-            log::info!("Starting NET task");
+            defmt::info!("Starting NET task");
             spawner.must_spawn(net_task(self.stack.clone(), self.net_task_control.token()));
 
             self.started = true;
@@ -131,7 +131,7 @@ impl ApState {
 
     pub(super) async fn stop(&mut self) {
         if self.started {
-            log::info!("Stopping AP");
+            defmt::info!("Stopping AP");
             let _ = join(
                 self.connection_task_control.stop_from_outside(),
                 self.net_task_control.stop_from_outside(),
@@ -142,7 +142,7 @@ impl ApState {
                 self.controller.lock().await.stop().await.unwrap();
             }
 
-            log::info!("Stopped AP");
+            defmt::info!("Stopped AP");
             self.started = false;
         }
     }
@@ -160,10 +160,10 @@ pub(super) async fn ap_task(
 ) {
     task_control
         .run_cancellable(async {
-            log::info!("Start connection task");
-            log::debug!(
+            defmt::info!("Start connection task");
+            defmt::debug!(
                 "Device capabilities: {:?}",
-                controller.lock().await.get_capabilities()
+                defmt::Debug2Format(&controller.lock().await.get_capabilities())
             );
 
             let client_config = Configuration::AccessPoint(AccessPointConfiguration {
@@ -176,10 +176,10 @@ pub(super) async fn ap_task(
                 .await
                 .set_configuration(&client_config)
                 .unwrap();
-            log::info!("Starting wifi");
+            defmt::info!("Starting wifi");
 
             controller.lock().await.start().await.unwrap();
-            log::info!("Wifi started!");
+            defmt::info!("Wifi started!");
 
             loop {
                 if let WifiStackState::ApStart
@@ -199,18 +199,18 @@ pub(super) async fn ap_task(
 
                     if events.contains(WifiEvent::ApStaconnected) {
                         let old_count = client_count.fetch_add(1, Ordering::Release);
-                        log::info!("Client connected, {} total", old_count + 1);
+                        defmt::info!("Client connected, {} total", old_count + 1);
                     }
                     if events.contains(WifiEvent::ApStadisconnected) {
                         let old_count = client_count.fetch_sub(1, Ordering::Release);
-                        log::info!("Client disconnected, {} left", old_count - 1);
+                        defmt::info!("Client disconnected, {} left", old_count - 1);
                     }
                     if events.contains(WifiEvent::ApStop) {
-                        log::info!("AP stopped");
+                        defmt::info!("AP stopped");
                         return;
                     }
 
-                    log::info!("Event processing done");
+                    defmt::info!("Event processing done");
                 }
             }
         })

@@ -17,7 +17,7 @@ use embassy_futures::yield_now;
 use embassy_time::{Duration, Ticker};
 use embedded_hal_old::adc::{Channel, OneShot};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, defmt::Format)]
 pub struct BatteryAdcData {
     pub voltage: u16,
     pub charge_current: u16,
@@ -99,7 +99,7 @@ pub async fn monitor_task_adc(
     task_control
         .run_cancellable(async {
             let mut timer = Ticker::every(Duration::from_millis(10));
-            log::info!("ADC monitor started");
+            defmt::info!("ADC monitor started");
 
             battery.lock().await.enable.set_high().unwrap();
 
@@ -125,7 +125,7 @@ pub async fn monitor_task_adc(
                     };
                     state.data = Some(average);
 
-                    log::debug!("Battery data: {average:?}");
+                    defmt::debug!("Battery data: {:?}", averate);
 
                     sample_count = 0;
 
@@ -142,5 +142,5 @@ pub async fn monitor_task_adc(
 
     battery.lock().await.enable.set_low().unwrap();
 
-    log::info!("Monitor exited");
+    defmt::info!("Monitor exited");
 }

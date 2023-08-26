@@ -242,7 +242,7 @@ where
                 }
             }
 
-            log::debug!("Buffer size: {pos}");
+            log::debug!("Buffer size: {}", pos);
 
             let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
             let mut req = httparse::Request::new(&mut headers);
@@ -256,7 +256,7 @@ where
                     // We need to read more
                 }
                 Err(e) => {
-                    log::warn!("Parsing request failed: {e}");
+                    log::warn!("Parsing request failed: {}", e);
                     return Err(HandleError::RequestParse(e));
                 }
             };

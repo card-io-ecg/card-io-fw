@@ -23,7 +23,9 @@ pub enum Error<SpiE> {
     Transfer(SpiE),
 }
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[cfg_attr(feature = "debug", derive(Debug))]
 pub struct ConfigRegisters {
     pub config1: Config1,
     pub config2: Config2,
@@ -379,6 +381,8 @@ where
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Sample {
     sample: i32,
 }
@@ -395,6 +399,8 @@ impl Sample {
     }
 }
 
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[cfg_attr(feature = "debug", derive(Debug))]
 pub struct AdsData {
     status: LoffStat,
     ch1: Sample,

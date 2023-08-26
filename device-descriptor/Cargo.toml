@@ -6,3 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+defmt = { version = "=0.3.5", optional = true }
+
+[features]
+default = ["debug"]
+defmt = ["dep:defmt"]
+debug = []

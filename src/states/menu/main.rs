@@ -36,7 +36,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
     };
 
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
-    log::info!("Free heap: {} bytes", ALLOCATOR.free());
+    defmt::info!("Free heap: {} bytes", ALLOCATOR.free());
 
     let builder = Menu::with_style("Main menu", menu_style());
 
@@ -128,6 +128,6 @@ pub async fn main_menu(board: &mut Board) -> AppState {
         ticker.next().await;
     }
 
-    log::info!("Menu timeout");
+    defmt::info!("Menu timeout");
     AppState::Shutdown
 }

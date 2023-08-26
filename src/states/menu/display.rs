@@ -79,7 +79,7 @@ pub async fn display_menu(board: &mut Board) -> AppState {
         }
 
         if &menu_values != menu_screen.content.data() {
-            log::debug!("Settings changed");
+            defmt::debug!("Settings changed");
             let new = *menu_screen.content.data();
             if menu_values.brightness != new.brightness {
                 board.config_changed = true;
@@ -116,7 +116,7 @@ pub async fn display_menu(board: &mut Board) -> AppState {
         ticker.next().await;
     }
 
-    log::info!("Menu timeout");
+    defmt::info!("Menu timeout");
     board.save_config().await;
     AppState::Shutdown
 }

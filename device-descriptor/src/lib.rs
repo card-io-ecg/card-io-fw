@@ -165,7 +165,9 @@ macro_rules! define_register_type {
             $name:ident = $value:expr
         ),+
     }) => {
-        #[derive(Debug, PartialEq, Copy, Clone)]
+        #[derive(PartialEq, Copy, Clone)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        #[cfg_attr(feature = "debug", derive(Debug))]
         pub enum $type {
             $(
                 $(#[$variant_attr])*
@@ -201,7 +203,9 @@ macro_rules! register {
         $($(#[$field_meta:meta])* $field:ident @ $range:expr => $type:ty ),*
     } ) => {
         $(#[$meta])*
-        #[derive(Debug, Copy, Clone)]
+        #[derive(Copy, Clone)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        #[cfg_attr(feature = "debug", derive(Debug))]
         #[must_use]
         #[allow(non_camel_case_types)]
         pub struct $reg {

@@ -191,7 +191,7 @@ where
 
         self.frontend.device_id = Some(device_id);
 
-        log::info!("ADC device id: {:?}", device_id);
+        defmt::info!("ADC device id: {}", device_id);
 
         let config = self.frontend.config();
         self.frontend.adc.apply_configuration_async(&config).await?;

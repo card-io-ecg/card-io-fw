@@ -30,7 +30,7 @@ impl<'req, 's, C: Connection> Request<'req, 's, C> {
             return Err(ResponseStatus::BadRequest);
         };
 
-        log::info!("[{}] {path}", method.as_str());
+        log::info!("[{}] {}", method.as_str(), path);
 
         Ok(Self {
             method,
@@ -54,7 +54,7 @@ impl<'req, 's, C: Connection> Request<'req, 's, C> {
         while !self.is_complete() && !buffer.is_empty() {
             read += self.read(&mut buffer[read..]).await?;
         }
-        log::debug!("Read {read} bytes");
+        log::debug!("Read {} bytes", read);
 
         Ok(&mut buffer[..read])
     }
