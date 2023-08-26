@@ -156,7 +156,13 @@ fn run(hw: HardwareVersion) -> AnyResult<()> {
 }
 
 fn monitor() -> AnyResult<()> {
-    cargo(&["espflash", "monitor"]).run()?;
+    cargo(&[
+        "espflash",
+        "monitor",
+        "-e",
+        "./target/xtensa-esp32s3-none-elf/release/card_io_fw",
+    ])
+    .run()?;
 
     Ok(())
 }
