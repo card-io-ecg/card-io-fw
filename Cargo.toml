@@ -136,11 +136,12 @@ esp32s3 = [
     "dep:esp32s3-hal",
     "esp-backtrace/esp32s3",
     "esp-println/esp32s3",
-    "jtag_serial",
+    "uart", # print via uart, serial_jtag seems to lose bytes
     "esp-wifi/esp32s3",
 ]
 
 # Print options
+uart = ["esp-backtrace/print-uart", "esp-println/uart"]
 jtag_serial = ["esp-backtrace/print-jtag-serial", "esp-println/jtag_serial"]
 rtt = ["esp-backtrace/print-rtt", "esp-println/rtt"]
 
