@@ -63,6 +63,7 @@ esp-println = { version = "0.6.0", default-features = false, features = [
     "critical-section",
     "colors",
     "log",
+    "defmt",
 ] }
 esp-alloc = { version = "0.3.0" }
 esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "02239f9", features = [
@@ -114,6 +115,7 @@ norfs = { workspace = true }
 heapless = { workspace = true }
 log = { workspace = true }
 object-chain = { workspace = true }
+defmt = { version = "0.3.5" }
 
 [patch.'https://github.com/esp-rs/esp-wifi']
 esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", branch = "dev" }
