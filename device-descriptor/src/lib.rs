@@ -131,12 +131,20 @@ where
 macro_rules! impl_fields {
     () => {};
 
-    ($($(#[$field_meta:meta])* $field:ident(pos = $pos:literal, width = $width:literal): $type:ty),*) => {
+    (@field_ty $type:ty, $start:literal) => {
+        Field<$start, { $start + 1 }, $type, Self>
+    };
+
+    (@field_ty $type:ty, $range:expr) => {
+        Field<{ $range.start }, { $range.end - $range.start }, $type, Self>
+    };
+
+    ($($(#[$field_meta:meta])* $field:ident @ $range:expr => $type:ty),*) => {
         $(
             $(#[$field_meta])*
             #[inline(always)]
             #[allow(non_snake_case)]
-            pub fn $field(self) -> Field<$pos, $width, $type, Self> {
+            pub fn $field(self) -> impl_fields!(@field_ty $type, $range) {
                 Field::new(self)
             }
         )*
@@ -182,7 +190,7 @@ macro_rules! define_register_type {
 #[macro_export]
 macro_rules! register {
     ($(#[$meta:meta])* $reg:ident ($rwt:tt @ $addr:literal) {
-        $($(#[$field_meta:meta])* $field:ident($($field_args:tt)*): $type:ty ),*
+        $($(#[$field_meta:meta])* $field:ident @ $range:expr => $type:ty ),*
     } ) => {
         $(#[$meta])*
         #[derive(Debug, Copy, Clone)]
@@ -217,14 +225,14 @@ macro_rules! register {
         }
 
         impl $reg {
-            $crate::impl_fields! { $($(#[$field_meta])* $field($($field_args)*): $type),* }
+            $crate::impl_fields! { $($(#[$field_meta])* $field @ $range => $type),* }
         }
     };
 
     ($(#[$meta:meta])* $reg:ident ($rwt:tt @ $addr:literal, default = $default:literal) {
-        $($(#[$field_meta:meta])* $field:ident($($field_args:tt)*): $type:ty ),*
+        $($(#[$field_meta:meta])* $field:ident @ $range:expr => $type:ty ),*
     } ) => {
-        $crate::register!($(#[$meta])* $reg($rwt @ $addr) { $( $field($($field_args)*): $type ),* });
+        $crate::register!($(#[$meta])* $reg($rwt @ $addr) { $( $field @ $range => $type ),* });
 
         impl Default for $reg {
             #[inline(always)]
@@ -240,12 +248,12 @@ macro_rules! register {
         }
 
         impl writer_proxies::$reg {
-            $crate::impl_fields! { $($(#[$field_meta])* $field($($field_args)*): $type),* }
+            $crate::impl_fields! { $($(#[$field_meta])* $field @ $range => $type),* }
         }
     };
 
     ($(#[$meta:meta])* $reg:ident ($rwt:tt @ $addr:literal $(,$($reg_args:tt)*)?) {
-        $($(#[$field_meta:meta])* $field:ident($($field_args:tt)*): $type:ident $({
+        $($(#[$field_meta:meta])* $field:ident @ $range:expr => $type:ident $({
             $($field_type_tokens:tt)*
         })? ),*
     } ) => {
@@ -260,7 +268,7 @@ macro_rules! register {
             )?
         )*
 
-        $crate::register!($(#[$meta])* $reg ($rwt @ $addr $(,$($reg_args)*)?) { $( $field($($field_args)*): $type ),*} );
+        $crate::register!($(#[$meta])* $reg ($rwt @ $addr $(,$($reg_args)*)?) { $( $field @ $range => $type ),*} );
     };
 }
 
