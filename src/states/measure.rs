@@ -19,6 +19,7 @@ use embassy_sync::{
 };
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
+use embedded_hal_bus::spi::DeviceError;
 use gui::{
     screens::{measure::EcgScreen, screen::Screen},
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
@@ -128,7 +129,7 @@ async fn measure_impl(
             if result.is_ok() {
                 frontend
                     .spi_mut()
-                    .spi
+                    .bus_mut()
                     .change_bus_frequency(4u32.MHz(), &board.clocks);
             }
 
@@ -262,7 +263,15 @@ async fn read_ecg(
                     log::warn!("Sample lost");
                 }
             }
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(match e {
+                    Error::InvalidState => Error::InvalidState,
+                    Error::UnexpectedDeviceId => Error::UnexpectedDeviceId,
+                    Error::Verification => Error::Verification,
+                    Error::Transfer(DeviceError::Spi(e)) => Error::Transfer(e),
+                    Error::Transfer(DeviceError::Cs(_)) => unreachable!(),
+                })
+            }
         }
     }
 

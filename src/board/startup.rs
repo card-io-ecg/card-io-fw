@@ -1,5 +1,7 @@
 use display_interface_spi::SPIInterface;
 use embassy_executor::_export::StaticCell;
+use embassy_time::Delay;
+use embedded_hal_bus::spi::ExclusiveDevice;
 
 #[cfg(feature = "battery_adc")]
 use crate::board::BatteryAdc;
@@ -18,7 +20,7 @@ use crate::{
             system::PeripheralClockControl,
             Rtc, Spi,
         },
-        utils::{DummyOutputPin, SpiDeviceWrapper},
+        utils::DummyOutputPin,
         wifi::WifiDriver,
         AdcChipSelect, AdcClockEnable, AdcDmaChannel, AdcDrdy, AdcMiso, AdcMosi, AdcReset, AdcSclk,
         AdcSpiInstance, Display, DisplayChipSelect, DisplayDataCommand, DisplayDmaChannel,
@@ -93,7 +95,7 @@ impl StartupResources {
 
         Display::new(
             SPIInterface::new(
-                SpiDeviceWrapper::new(display_spi, DummyOutputPin),
+                ExclusiveDevice::new(display_spi, DummyOutputPin, Delay),
                 display_dc,
             ),
             display_reset,
@@ -128,7 +130,7 @@ impl StartupResources {
         static mut ADC_SPI_DESCRIPTORS: [u32; 3] = [0; 3];
         static mut ADC_SPI_RX_DESCRIPTORS: [u32; 3] = [0; 3];
         Frontend::new(
-            SpiDeviceWrapper::new(
+            ExclusiveDevice::new(
                 Spi::new_no_cs(
                     adc_spi,
                     adc_sclk,
@@ -146,6 +148,7 @@ impl StartupResources {
                     DmaPriority::Priority1,
                 )),
                 adc_cs,
+                Delay,
             ),
             adc_drdy,
             adc_reset,

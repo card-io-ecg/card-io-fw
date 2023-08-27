@@ -10,6 +10,7 @@ license = "MIT"
 embedded-graphics = "0.8.0"
 embedded-hal = "1.0.0-rc.1"
 embedded-hal-async = "1.0.0-rc.1"
+embedded-hal-bus = { version = "0.1.0-rc.1", features = ["async"] }
 embedded-io = { version = "0.4", features = ["async"] }
 embedded-menu = "0.4.0"
 embedded-svc = { version = "0.25", default-features = false, features = [] }
@@ -101,6 +102,7 @@ bad-server = { path = "bad-server", features = ["embassy"] }
 embedded-graphics = { workspace = true }
 embedded-hal = { workspace = true }
 embedded-hal-async = { workspace = true }
+embedded-hal-bus = { workspace = true }
 embedded-io = { workspace = true }
 embedded-menu = { workspace = true }
 embedded-svc = { workspace = true }
