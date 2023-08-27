@@ -3,7 +3,7 @@ use device_descriptor::*;
 device! {
     /// The Status register maintains all flags related to
     /// alert thresholds and battery insertion or removal.
-    Status(u16, addr = 0x00, default = 0x0002) {
+    Status(u16 @ 0x00, default = 0x0002) {
         br(pos = 15, width = 1): BatteryRemoval {
             BatteryRemoved = 1,
             NoRemovalEvent = 0
@@ -33,25 +33,25 @@ device! {
             NoReset = 0
         }
     }
-    VAlrtTh(u16, addr = 0x01) {}
-    TAlrtTh(u16, addr = 0x02) {}
-    SAlrtTh(u16, addr = 0x03) {}
-    AtRate(u16, addr = 0x04) {
+    VAlrtTh(u16 @ 0x01) {}
+    TAlrtTh(u16 @ 0x02) {}
+    SAlrtTh(u16 @ 0x03) {}
+    AtRate(u16 @ 0x04) {
         /// Host software should write the AtRate register with a negative two’s-complement 16-bit
         /// value of a theoretical load current prior to reading any of the at-rate output registers
         /// (AtTTE, AtAvSOC, AtAvCap).
         current(pos = 0, width = 16): u16
     }
-    RepCap(u16, addr = 0x05) {
+    RepCap(u16 @ 0x05) {
         /// RepCap or reported remaining capacity in mAh.
         /// This register is protected from making sudden jumps during load changes.
         capacity(pos = 0, width = 16): u16
     }
-    RepSOC(u16, addr = 0x06) {
+    RepSOC(u16 @ 0x06) {
         /// RepSOC is the reported state-of-charge percentage output for use by the application GUI.
         percentage(pos = 0, width = 16): u16
     }
-    Age(u16, addr = 0x07) {
+    Age(u16 @ 0x07) {
         /// The Age register contains a calculated percentage value of the application's present cell
         /// capacity compared to its original design capacity. The result can be used by the host to
         /// gauge the battery pack health as compared to a new pack of the same type.
@@ -60,49 +60,49 @@ device! {
         /// For example, if DesignCap = 2000mAh and FullCapRep = 1800mAh, then Age = 90% (or 0x5A00)
         percentage(pos = 0, width = 16): u16
     }
-    Temp(u16, addr = 0x08) {}
-    VCell(u16, addr = 0x09) {
+    Temp(u16 @ 0x08) {}
+    VCell(u16 @ 0x09) {
         voltage(pos = 0, width = 16): u16
     }
-    Current(u16, addr = 0x0A) {
+    Current(u16 @ 0x0A) {
         current(pos = 0, width = 16): u16
     }
-    AvgCurrent(u16, addr = 0x0B) {
+    AvgCurrent(u16 @ 0x0B) {
         current(pos = 0, width = 16): u16
     }
-    QResidual(u16, addr = 0x0C) {
+    QResidual(u16 @ 0x0C) {
         /// The QResidual register provides the calculated amount of charge in mAh that is presently
         /// inside of, but cannot be removed from the cell under present application conditions
         /// (load and temperature). This value is subtracted from the MixCap value to determine
         /// capacity available to the user under present conditions (AvCap).
         capacity(pos = 0, width = 16): u16
     }
-    MixSOC(u16, addr = 0x0D) {
+    MixSOC(u16 @ 0x0D) {
         /// The MixCap and MixSOC registers holds the calculated remaining capacity and percentage
         /// of the cell before any empty compensation adjustments are performed.
         percentage(pos = 0, width = 16): u16
     }
-    AvSOC(u16, addr = 0x0E) {
+    AvSOC(u16 @ 0x0E) {
         /// The AvCap and AvSOC registers hold the calculated available capacity and percentage of
         /// the battery based on all inputs from the ModelGauge m5 algorithm including empty
         /// compensation. These registers provide unfiltered results. Jumps in the reported values
         /// can be caused by abrupt changes in load current or temperature.
         percentage(pos = 0, width = 16): u16
     }
-    MixCap(u16, addr = 0x0F, default = 0x0000) {
+    MixCap(u16 @ 0x0F, default = 0x0000) {
         /// The MixCap and MixSOC registers holds the calculated remaining capacity and percentage
         /// of the cell before any empty compensation adjustments are performed.
         capacity(pos = 0, width = 16): u16
     }
 
-    FullCapRep(u16, addr = 0x10, default = 0x0000) {
+    FullCapRep(u16 @ 0x10, default = 0x0000) {
         /// This register reports the full capacity that goes with RepCap, generally used for
         /// reporting to the GUI. Most applications should only monitor FullCapRep, instead of
         /// FullCap or FullCapNom. A new full-capacity value is calculated at the end of every
         /// charge cycle in the application.
         capacity(pos = 0, width = 16): u16
     }
-    TTE(u16, addr = 0x11) {
+    TTE(u16 @ 0x11) {
         /// The TTE register holds the estimated time to empty for the application under present
         /// temperature and load conditions. The TTE value is determined by relating AvCap with
         /// AvgCurrent. The corresponding AvgCurrent filtering gives a delay in TTE,
@@ -111,8 +111,8 @@ device! {
     }
     /// The QRTable00 to QRTable30 register locations contain characterization information
     /// regarding cell capacity under different application conditions.
-    QRTable00(u16, addr = 0x12) {}
-    FullSocThr(u16, addr = 0x13, default = 0x5F05) {
+    QRTable00(u16 @ 0x12) {}
+    FullSocThr(u16 @ 0x13, default = 0x5F05) {
         /// The FullSOCThr register gates detection of end-of-charge. VFSOC must be larger than the
         /// FullSOCThr value before IChgTerm is compared to the AvgCurrent register value.
         /// The recommended FullSOCThr register setting for most custom characterized applications
@@ -121,15 +121,15 @@ device! {
         /// See the IChgTerm register description and the End-Of-Charge Detection section for details
         percentage(pos = 0, width = 16): u16 // mask off 3 lowest bits
     }
-    RCell(u16, addr = 0x14, default = 0x0290) {
+    RCell(u16 @ 0x14, default = 0x0290) {
         /// The RCell register provides the calculated internal resistance of the cell. RCell is
         /// determined by comparing open-circuit voltage (VFOCV) against measured voltage (VCell)
         /// over a long time period while under load or charge current.
         resistance(pos = 0, width = 16): u16
     }
-    // Reserved(u16, addr = 0x15) {}
-    AvgTA(u16, addr = 0x16) {}
-    Cycles(u16, addr = 0x17, default = 0x0000) {
+    // Reserved(u16 @ 0x15) {}
+    AvgTA(u16 @ 0x16) {}
+    Cycles(u16 @ 0x17, default = 0x0000) {
         /// The Cycles register maintains a total count of the number of charge/discharge cycles of
         /// the cell that have occurred. The result is stored as a percentage of a full cycle.
         /// For example, a full charge/discharge cycle results in the Cycles register incrementing
@@ -138,19 +138,19 @@ device! {
         /// register has a full range of 0 to 655.35 cycles with a 1% LSb.
         cycles_percentage(pos = 0, width = 16): u16
     }
-    DesignCap(u16, addr = 0x18, default = 0x0000) {
+    DesignCap(u16 @ 0x18, default = 0x0000) {
         /// The DesignCap register holds the expected capacity of the cell.
         /// This value is used to determine age and health of the cell by comparing
         /// against the measured present cell capacity.
         capacity(pos = 0, width = 16): u16
     }
-    AvgVCell(u16, addr = 0x19) {
+    AvgVCell(u16 @ 0x19) {
         voltage(pos = 0, width = 16): u16
     }
-    MaxMinTemp(u16, addr = 0x1A) {}
-    MaxMinVolt(u16, addr = 0x1B) {}
-    MaxMinCurr(u16, addr = 0x1C) {}
-    Config(u16, addr = 0x1D, default = 0x2210) {
+    MaxMinTemp(u16 @ 0x1A) {}
+    MaxMinVolt(u16 @ 0x1B) {}
+    MaxMinCurr(u16 @ 0x1C) {}
+    Config(u16 @ 0x1D, default = 0x2210) {
         /// Set to 0 to use internal die temperature.
         /// Set to 1 to measure temperature using external thermistor.
         /// Set ETHRM to 1 when TSel is 1.
@@ -237,7 +237,7 @@ device! {
         /// by the AIN pin voltage, triggers an alert.
         ber(pos = 0, width = 1): Bit
     }
-    IChgTerm(u16, addr = 0x1E, default = 0x0640) {
+    IChgTerm(u16 @ 0x1E, default = 0x0640) {
         /// The IChgTerm register allows the device to detect when a charge cycle of the cell has
         /// completed.
         /// IChgTerm should be programmed to the exact charge termination current used in the
@@ -247,7 +247,7 @@ device! {
         /// - AND IChgTerm x 0.125 < AvgCurrent register < IChgTerm x 1.25
         current(pos = 0, width = 16): u16
     }
-    AvCap(u16, addr = 0x1F) {
+    AvCap(u16 @ 0x1F) {
         /// The AvCap and AvSOC registers hold the calculated available capacity and percentage of
         /// the battery based on all inputs from the ModelGauge m5 algorithm including empty
         /// compensation. These registers provide unfiltered results. Jumps in the reported values
@@ -255,7 +255,7 @@ device! {
         capacity(pos = 0, width = 16): u16
     }
 
-    TTF(u16, addr = 0x20) {
+    TTF(u16 @ 0x20) {
         /// The TTF register holds the estimated time to full for the application under present
         /// conditions. The TTF value is determined by learning the constant current and constant
         /// voltage portions of the charge cycle based on experience of prior charge cycles. Time to
@@ -264,37 +264,37 @@ device! {
         /// in the application.
         time(pos = 0, width = 16): u16
     }
-    DevName(u16, addr = 0x21) {
+    DevName(u16 @ 0x21) {
         /// The DevName register holds revision information. The initial silicon is DevName = 0x4010.
         revision(pos = 0, width = 16): u16
     }
     /// The QRTable00 to QRTable30 register locations contain characterization information
     /// regarding cell capacity under different application conditions.
-    QRTable10(u16, addr = 0x22) {}
-    FullCapNom(u16, addr = 0x23, default = 0x0000) {
+    QRTable10(u16 @ 0x22) {}
+    FullCapNom(u16 @ 0x23, default = 0x0000) {
         /// This register holds the calculated full capacity of the cell, not including temperature
         /// and empty compensation. A new full-capacity nominal value is calculated each time a cell
         /// relaxation event is detected.
         /// This register is used to calculate other outputs of the ModelGauge m5 algorithm.
         capacity(pos = 0, width = 16): u16
     }
-    // Reserved(u16, addr = 0x24) {}
-    // Reserved(u16, addr = 0x25) {}
-    // Reserved(u16, addr = 0x26) {}
-    AIN(u16, addr = 0x27) {
+    // Reserved(u16 @ 0x24) {}
+    // Reserved(u16 @ 0x25) {}
+    // Reserved(u16 @ 0x26) {}
+    AIN(u16 @ 0x27) {
         /// External temperature measurement on the AIN pin is compared to the THRM pin voltage.
         /// The MAX17055 stores the result as a ratio-metric value from 0% to 100% in the AIN
         /// register with an LSB of 0.0122%. The TGain, TOff, and Curve register values are then
         /// applied to this ratio-metric reading to convert the result to temperature.
         stage(pos = 0, width = 16): u16
     }
-    LearnCfg(u16, addr = 0x28, default = 0x4486) {
+    LearnCfg(u16 @ 0x28, default = 0x4486) {
         /// Learn Stage then advances to 7h over the course of two full cell cycles to make the
         /// coulomb counter dominate. Host software can write the Learn Stage value to 7h to advance
         /// to the final stage at any time. Writing any value between 1h and 6h is ignored.
         stage(pos = 4, width = 3): u8
     }
-    FilterCfg(u16, addr = 0x29, default = 0xCEA4) {
+    FilterCfg(u16 @ 0x29, default = 0xCEA4) {
         /// Sets the time constant for the AvgTA register.
         /// AvgTA time constant = 45s x 2^TEMP
         temp(pos = 11, width = 3): u8,
@@ -311,7 +311,7 @@ device! {
         /// AvgCurrent time constant = 45s x 2^(CURR-7)
         curr(pos = 0, width = 4): u8
     }
-    RelaxCfg(u16, addr = 0x2A) {
+    RelaxCfg(u16 @ 0x2A) {
         /// Sets the threshold, which the AvgCurrent and Current registers are compared against.
         /// The AvgCurrent and Current registers must remain below this threshold value for the cell
         /// to be considered unloaded. Load is an unsigned 7-bit value where 1 LSb = 50μV (5mA on
@@ -329,7 +329,7 @@ device! {
         /// Relaxation Period = 45s x 2^(dt-8)
         dt(pos = 0, width = 4): u8
     }
-    MiscCfg(u16, addr = 0x2B, default = 0x3870) {
+    MiscCfg(u16 @ 0x2B, default = 0x3870) {
         /// (Full Update Slope): This value prevents jumps in the RepSOC and FullCapRep registers by
         /// setting the rate of adjustment of FullCapRep near the end of a charge cycle. The update
         /// slope adjustment range is from 2% per 15 minutes (0000b) to a maximum of 32% per 15
@@ -351,49 +351,49 @@ device! {
             VFSOC = 3
         }
     }
-    TGain(u16, addr = 0x2C, default = 0xEE56) {
+    TGain(u16 @ 0x2C, default = 0xEE56) {
         /// The TGain, TOff, and Curve registers are used to calculate temperature from the measurement
         /// of the AIN pin with an accuracy of ±3°C over a range of -40°C to +85°C.
         gain(pos = 0, width = 16): u16
     }
-    TOff(u16, addr = 0x2D, default = 0x1DA4) {
+    TOff(u16 @ 0x2D, default = 0x1DA4) {
         /// The TGain, TOff, and Curve registers are used to calculate temperature from the measurement
         /// of the AIN pin with an accuracy of ±3°C over a range of -40°C to +85°C.
         offset(pos = 0, width = 16): u16
     }
-    CGain(u16, addr = 0x2E, default = 0x0400) {
+    CGain(u16 @ 0x2E, default = 0x0400) {
         /// The CGain register adjusts the gain and offset of the current measurement result.
         /// Current register = Current A/D reading × (CGain/0400h) + COff
         gain(pos = 0, width = 16): u16
     }
-    COff(u16, addr = 0x2F, default = 0x0000) {
+    COff(u16 @ 0x2F, default = 0x0000) {
         /// The COff register adjusts the gain and offset of the current measurement result.
         /// Current register = Current A/D reading × (CGain/0400h) + COff
         offset(pos = 0, width = 16): u16
     }
 
-    // Reserved(u16, addr = 0x30) {}
-    // Reserved(u16, addr = 0x31) {}
+    // Reserved(u16 @ 0x30) {}
+    // Reserved(u16 @ 0x31) {}
     /// The QRTable00 to QRTable30 register locations contain characterization information
     /// regarding cell capacity under different application conditions.
-    QRTable20(u16, addr = 0x32) {}
-    // Reserved(u16, addr = 0x33) {}
-    DieTemp(u16, addr = 0x34) {}
-    FullCap(u16, addr = 0x35) {
+    QRTable20(u16 @ 0x32) {}
+    // Reserved(u16 @ 0x33) {}
+    DieTemp(u16 @ 0x34) {}
+    FullCap(u16 @ 0x35) {
         /// FullCap is the full discharge capacity compensated according to the present conditions.
         /// A new full-capacity value is calculated continuously as application conditions change
         /// (temperature and load).
         capacity(pos = 0, width = 16): u16
     }
-    // Reserved(u16, addr = 0x36) {}
-    // Reserved(u16, addr = 0x37) {}
+    // Reserved(u16 @ 0x36) {}
+    // Reserved(u16 @ 0x37) {}
     /// The RComp0 register holds characterization information critical to computing the
     /// open-circuit voltage of a cell under loaded conditions.
-    RComp0(u16, addr = 0x38, default = 0x0000) {}
+    RComp0(u16 @ 0x38, default = 0x0000) {}
     /// The TempCo register holds temperature compensation information
     /// for the RComp0 register value.
-    TempCo(u16, addr = 0x39, default = 0x0000) {}
-    VEmpty(u16, addr = 0x3A, default = 0xA561) {
+    TempCo(u16 @ 0x39, default = 0x0000) {}
+    VEmpty(u16 @ 0x3A, default = 0xA561) {
         /// (Empty Voltage Target, During Load): The fuel gauge provides capacity and percentage
         /// relative to the empty voltage target, eventually declaring 0% at VE. A 10mV resolution
         /// gives a 0 to 5.11V range. This value is written to 3.3V after reset
@@ -404,9 +404,9 @@ device! {
         /// applications.
         vr(pos = 0, width = 7): u16
     }
-    // Reserved(u16, addr = 0x3B) {}
-    // Reserved(u16, addr = 0x3C) {}
-    FStat(u16, addr = 0x3D) {
+    // Reserved(u16 @ 0x3B) {}
+    // Reserved(u16 @ 0x3C) {}
+    FStat(u16 @ 0x3D) {
         /// (Relaxed Cell Detection): This bit is set to a 1 whenever the ModelGauge m5 algorithm
         /// detects that the cell is in a fully relaxed state. This bit is cleared to 0 whenever a
         /// current greater than the Load threshold is detected.
@@ -433,14 +433,14 @@ device! {
             NotReady = 1
         }
     }
-    Timer(u16, addr = 0x3E, default = 0x0000) {
+    Timer(u16 @ 0x3E, default = 0x0000) {
         /// TimerH and Timer provide a long-duration time count since last POR. 3.2 hour LSb gives
         /// a full scale range for the register of up to 23.94 years. The Timer register LSb is
         /// 175.8ms giving a full-scale range of 0 to 3.2 hours.
         /// TimerH and Timer can be interpreted together as a 32-bit timer.
         timer_l(pos = 0, width = 16): u16
     }
-    ShdnTimer(u16, addr = 0x3F, default = 0x0000) {
+    ShdnTimer(u16 @ 0x3F, default = 0x0000) {
         /// Sets the shutdown timeout period from a minimum of 45s to a maximum of 1.6h.
         /// The default POR value of 0h gives a shutdown delay of 45s.
         /// The equation setting the period is:
@@ -453,12 +453,12 @@ device! {
         ctr(pos = 0, width = 13): u16
     }
 
-    UserMem1(u16, addr = 0x40) {}
-    // Reserved(u16, addr = 0x41) {}
+    UserMem1(u16 @ 0x40) {}
+    // Reserved(u16 @ 0x41) {}
     /// The QRTable00 to QRTable30 register locations contain characterization information
     /// regarding cell capacity under different application conditions.
-    QRTable30(u16, addr = 0x42) {}
-    RGain(u16, addr = 0x43, default = 0x8080) {
+    QRTable30(u16 @ 0x42) {}
+    RGain(u16 @ 0x43, default = 0x8080) {
         /// Gain resistance used for peak current and power calculation.
         /// RGain1 = 80% + 0.15625% x RG1. The range of RGain1 is between 80~120%.
         r_gain_1(pos = 8, width = 8): u8,
@@ -471,39 +471,39 @@ device! {
         /// The maximum value of SPPCurrent = MPPCurrent x (0.75-SusToPeakRatio x 0.04).
         sus_to_max_ratio(pos = 0, width = 4): u8
     }
-    // Reserved(u16, addr = 0x44) {}
-    dQAcc(u16, addr = 0x45, default = 0x0017) {
+    // Reserved(u16 @ 0x44) {}
+    dQAcc(u16 @ 0x45, default = 0x0017) {
         /// Capacity (16mAh/LSB). This register tracks change in battery charge between relaxation
         /// points. It is available to the user for debug purposes
         capacity(pos = 0, width = 16): u16
     }
-    dPAcc(u16, addr = 0x46, default = 0x0190) {
+    dPAcc(u16 @ 0x46, default = 0x0190) {
         /// Percentage (1/16% per LSB). This register tracks change in battery state of charge
         /// between relaxation points. It is available to the user for debug purposes.
         percentage(pos = 0, width = 16): u16
     }
-    // Reserved(u16, addr = 0x47) {}
-    // Reserved(u16, addr = 0x48) {}
+    // Reserved(u16 @ 0x47) {}
+    // Reserved(u16 @ 0x48) {}
     /// The ConvgCfg register configures operation of the converge-to-empty feature.
     /// The default and recommended value for ConvgCfg is 0x2241
-    ConvgCfg(u16, addr = 0x49, default = 0x2241) {}
-    VFRemCap(u16, addr = 0x4A) {
+    ConvgCfg(u16 @ 0x49, default = 0x2241) {}
+    VFRemCap(u16 @ 0x4A) {
         /// The VFRemCap register holds the remaining capacity of the cell as determined by the
         /// voltage fuel gauge before any empty compensation adjustments are performed.
         capacity(pos = 0, width = 16): u16
     }
-    // Reserved(u16, addr = 0x4B) {}
-    // Reserved(u16, addr = 0x4C) {}
-    QH(u16, addr = 0x4D, default = 0x0000) {
+    // Reserved(u16 @ 0x4B) {}
+    // Reserved(u16 @ 0x4C) {}
+    QH(u16 @ 0x4D, default = 0x0000) {
         /// The QH register displays the raw coulomb count generated by the device.
         /// This register is used internally as an input to the mixing algorithm.
         /// Monitoring changes in QH over time can be useful for debugging device operation.
         capacity(pos = 0, width = 16): u16
     }
-    // Reserved(u16, addr = 0x4E) {}
-    // Reserved(u16, addr = 0x4F) {}
+    // Reserved(u16 @ 0x4E) {}
+    // Reserved(u16 @ 0x4F) {}
 
-    Status2(u16, addr = 0xB0, default = 0x0000) {
+    Status2(u16 @ 0xB0, default = 0x0000) {
         /// If AtRateReady = 1, AtRate output registers are filled by
         /// the firmware and ready to be read by the host.
         at_rate_ready(pos = 13, width = 1): Bit,
@@ -525,14 +525,14 @@ device! {
         /// when the device is in active mode. Hib is set to 0 at power-up.
         hib(pos = 1, width = 1): Bit
     }
-    Power(u16, addr = 0xB1) {}
-    ID_UserMem2(u16, addr = 0xB2) {}
-    AvgPower(u16, addr = 0xB3) {}
-    IAlrtTh(u16, addr = 0xB4) {}
-    // Reserved(u16, addr = 0xB5) {}
-    CVMixCap(u16, addr = 0xB6) {}
-    CVHalfTime(u16, addr = 0xB7) {}
-    CGTempCo(u16, addr = 0xB8, default = 0x0000) {
+    Power(u16 @ 0xB1) {}
+    ID_UserMem2(u16 @ 0xB2) {}
+    AvgPower(u16 @ 0xB3) {}
+    IAlrtTh(u16 @ 0xB4) {}
+    // Reserved(u16 @ 0xB5) {}
+    CVMixCap(u16 @ 0xB6) {}
+    CVHalfTime(u16 @ 0xB7) {}
+    CGTempCo(u16 @ 0xB8, default = 0x0000) {
         /// If CGTempCo is nonzero then CGTempCo is used to adjust current measurements for
         /// temperature. CGTempCo has a range of 0% to 3.1224% per °C with a step size of
         /// 3.1224/0x10000 percent per °C. If a copper trace is used to measure battery current,
@@ -540,7 +540,7 @@ device! {
         /// temperature coefficient of a copper trace.
         temp_co(pos = 0, width = 16): u16
     }
-    Curve(u16, addr = 0xB9) {
+    Curve(u16 @ 0xB9) {
         /// The upper half of the Curve register applies curvature correction current measurements
         /// made by the IC when using a copper trace as the sense resistor.
         metal_trace_curve(pos = 8, width = 8): u8,
@@ -549,7 +549,7 @@ device! {
         /// lower half of the register.
         thermistor(pos = 0, width = 8): u8
     }
-    HibCfg(u16, addr = 0xBA, default = 0x870C) {
+    HibCfg(u16 @ 0xBA, default = 0x870C) {
         /// When set to 1 the IC enters hibernate mode if conditions are met.
         /// When set to 0 the IC always remains in active mode of operation.
         en_hib(pos = 15, width = 1): Bit,
@@ -560,7 +560,7 @@ device! {
         /// operating current to 7µA by reducing ADC sampling to once every 5.625s.
         hib_config(pos = 0, width = 15): u16
     }
-    Config2(u16, addr = 0xBB, default = 0x3658) {
+    Config2(u16 @ 0xBB, default = 0x3658) {
         /// (AtRate Enable): When this bit is set to 0, AtRate calculations are disabled and
         /// registers AtQResidual/AtTTE/AtAvSOC/AtAvCap are not updated by AtRate calculations.
         at_rate_en(pos = 13, width = 1): Bit,
@@ -595,13 +595,13 @@ device! {
         /// time calculations are estimated assuming a constant-power load.
         cp_mode(pos = 1, width = 1): Bit
     }
-    VRipple(u16, addr = 0xBC, default = 0x0000) {
+    VRipple(u16 @ 0xBC, default = 0x0000) {
         /// The VRipple register holds the slow average RMS ripple value of VCell register reading
         /// variation compared to the AvgVCell register. The default filter time is 22.5 seconds.
         /// See RippleCfg register description. VRipple has an LSb weight of 1.25mV/128
         voltage(pos = 0, width = 16): u16
     }
-    RippleCfg(u16, addr = 0xBD, default = 0x0204) {
+    RippleCfg(u16 @ 0xBD, default = 0x0204) {
         /// (Ripple Empty Compensation Coefficient): Configures MAX17055 to compensate the fuel
         /// gauge % according to the ripple
         kdv(pos = 3, width = 13): u8,
@@ -611,17 +611,17 @@ device! {
         /// Ripple Time Range = 1.4 seconds x 2^NR
         nr(pos = 0, width = 3): u8
     }
-    TimerH(u16, addr = 0xBE, default = 0x0000) {
+    TimerH(u16 @ 0xBE, default = 0x0000) {
         /// TimerH and Timer provide a long-duration time count since last POR. 3.2 hour LSb gives
         /// a full scale range for the register of up to 23.94 years. The Timer register LSb is
         /// 175.8ms giving a full-scale range of 0 to 3.2 hours.
         /// TimerH and Timer can be interpreted together as a 32-bit timer.
         timer_h(pos = 0, width = 16): u16
     }
-    // Reserved(u16, addr = 0xBF) {}
+    // Reserved(u16 @ 0xBF) {}
 
-    RSense_UserMem3(u16, addr = 0xD0) {}
-    ScOcvLim(u16, addr = 0xD1, default = 0x479E) {
+    RSense_UserMem3(u16 @ 0xD0) {}
+    ScOcvLim(u16 @ 0xD1, default = 0x479E) {
         /// Defines the lower limit for keep-out OCV region.
         /// A 5mV resolution gives a 2.56 to 5.12V range. Lower limit voltage of OCV
         /// keep-out region is calculated as 2.56V + OCV_Low_Lim x 5mV.
@@ -634,8 +634,8 @@ device! {
         /// Default OCV_low is 3275mV and OCV_high is 3350mV
         ocv_delta(pos = 0, width = 7): u8
     }
-    // Reserved(u16, addr = 0xD2) {}
-    SOCHold(u16, addr = 0xD3) {
+    // Reserved(u16 @ 0xD2) {}
+    SOCHold(u16 @ 0xD3) {
         /// Enable bit for 99% hold feature during charging. When enabled,
         /// RepSOC holds a maximum value of 99% until full qualified is reached.
         hold_en_99pc(pos = 12, width = 1): Bit,
@@ -650,7 +650,7 @@ device! {
         /// has an LSb of 0.5% with a full range of 0 to 15.5%
         empty_soc_hold(pos = 0, width = 5): u8
     }
-    MaxPeakPower(u16, addr = 0xD4) {
+    MaxPeakPower(u16 @ 0xD4) {
         /// The MAX17055 estimates the maximum instantaneous peak output power of the battery pack
         /// in mW, which the battery can support for up to 10ms, given the external resistance and
         /// required minimum voltage of the voltage regulator.
@@ -660,7 +660,7 @@ device! {
         /// MaxPeakPower = MPPCurrent x AvgVCell
         power(pos = 0, width = 16): u16
     }
-    SusPeakPower(u16, addr = 0xD5) {
+    SusPeakPower(u16 @ 0xD5) {
         /// The fuel gauge estimates the sustainable peak output power of the battery pack in mW,
         /// which the battery supports for up to 10s, given the external resistance and required
         /// minimum voltage of the voltage regulator.
@@ -670,7 +670,7 @@ device! {
         /// SusPeakPower = SPPCurrent x AvgVCell
         power(pos = 0, width = 16): u16
     }
-    PackResistance(u16, addr = 0xD6) {
+    PackResistance(u16 @ 0xD6) {
         /// When the MAX17055 is installed host-side, simply set PackResistance to zero, since the
         /// MAX17055 can observe the total resistance between it and the battery.
         ///
@@ -683,7 +683,7 @@ device! {
         /// 0x1000 is 1000mΩ, which results in an LSB of 0.244140625mΩ per LSB.
         resistance(pos = 0, width = 16): u16
     }
-    SysResistance(u16, addr = 0xD7) {
+    SysResistance(u16 @ 0xD7) {
         /// Set SysResistance according to the total system resistance. This should include any
         /// connector and PCB trace between the MAX17055 and the system at risk for dropout when
         /// the voltage falls below MinSysVolt.
@@ -692,28 +692,28 @@ device! {
         /// 0x1000 is 1000mΩ, which results in an LSB of 0.244140625mΩ per LSB.
         resistance(pos = 0, width = 16): u16
     }
-    MinSysVoltage(u16, addr = 0xD8) {
+    MinSysVoltage(u16 @ 0xD8) {
         /// Set MinSysVoltage according to the minimum operating voltage of the system. This is
         /// generally associated with a regulator dropout or other system failure/shutdown.
         /// The system should still operate normally until this voltage.
         /// MinSysVoltage is initialized to the default value (3.0V).
         voltage(pos = 0, width = 16): u16
     }
-    MPPCurrent(u16, addr = 0xD9) {
+    MPPCurrent(u16 @ 0xD9) {
         /// The MAX17055 estimates the maximum instantaneous peak current of the battery pack in mA,
         /// which the battery can support for up to 10ms, given the external resistance and required
         /// minimum voltage of the voltage regulator.
         /// The MPPCurrent value is negative and updates every 175ms.
         current(pos = 0, width = 16): u16
     }
-    SPPCurrent(u16, addr = 0xDA) {
+    SPPCurrent(u16 @ 0xDA) {
         /// The MAX17055 estimates the sustained peak current of the battery pack in mA, which the
         /// battery can support for up to 10s, given the external resistance and required minimum
         /// voltage of the voltage regulator.
         /// The SPPCurrent value is negative and updates every 175ms.
         current(pos = 0, width = 16): u16
     }
-    ModelCfg(u16, addr = 0xDB, default = 0x0000) {
+    ModelCfg(u16 @ 0xDB, default = 0x0000) {
         /// Set 1 to command the model refreshing.
         /// After firmware executes the command, it will be cleared by firmware
         refresh(pos = 15, width = 1): Bit,
@@ -732,25 +732,25 @@ device! {
             LiFePO = 6
         }
     }
-    AtQResidual(u16, addr = 0xDC) {
+    AtQResidual(u16 @ 0xDC) {
         /// The AtQResidual register provides the calculated amount of charge in mAh that is
         /// presently inside of, but cannot be removed from the cell under present temperature
         /// and hypothetical load (AtRate). This value is subtracted from the MixCap value to
         /// determine capacity available to the user (AtAvCap).
         capacity(pos = 0, width = 16): u16
     }
-    AtTTE(u16, addr = 0xDD) {
+    AtTTE(u16 @ 0xDD) {
         /// The AtTTE register can be used to estimate time to empty for any theoretical load
         /// entered into the AtRate register.
         time(pos = 0, width = 16): u16
     }
-    AtAvSOC(u16, addr = 0xDE) {
+    AtAvSOC(u16 @ 0xDE) {
         /// The AtAvSOC register holds the theoretical state of charge of the cell based on the
         /// theoretical load of the AtRate register. The register value is stored as a percentage
         /// with a resolution of 1/256 % per LSB. The high byte indicates 1% resolution.
         percentage(pos = 0, width = 16): u16
     }
-    AtAvCap(u16, addr = 0xDF) {
+    AtAvCap(u16 @ 0xDF) {
         /// The AtAvCap register holds the estimated remaining capacity of the cell based on the
         /// theoretical load current value of the AtRate register. The value is stored in terms of
         /// µVh and must be divided by the application sense-resistor value to determine
@@ -758,18 +758,18 @@ device! {
         capacity(pos = 0, width = 16): u16
     }
 
-    VFOCV(u16, addr = 0xFB) {
+    VFOCV(u16 @ 0xFB) {
         /// The VFOCV register contains the calculated open-circuit voltage of the cell as determined
         /// by the voltage fuel gauge. This value is used in other internal calculations.
         voltage(pos = 0, width = 16): u16
     }
-    VFSOC(u16, addr = 0xFF) {
+    VFSOC(u16 @ 0xFF) {
         /// The VFSOC register holds the calculated present state of charge of the battery according
         /// to the voltage fuel gauge.
         percentage(pos = 0, width = 16): u16
     }
 
-    Command(u16, addr = 0x60, default = 0x0000) {
+    Command(u16 @ 0x60, default = 0x0000) {
         command(pos = 0, width = 16): CommandKind {
             Clear = 0x0000,
             SoftWakeup = 0x0090

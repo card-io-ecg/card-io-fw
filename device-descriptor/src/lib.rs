@@ -181,7 +181,7 @@ macro_rules! define_register_type {
 /// Specifying a default value for the register makes the register writeable.
 #[macro_export]
 macro_rules! register {
-    ($(#[$meta:meta])* $reg:ident ($rwt:ty, addr = $addr:literal) {
+    ($(#[$meta:meta])* $reg:ident ($rwt:tt @ $addr:literal) {
         $($(#[$field_meta:meta])* $field:ident($($field_args:tt)*): $type:ty ),*
     } ) => {
         $(#[$meta])*
@@ -221,10 +221,10 @@ macro_rules! register {
         }
     };
 
-    ($(#[$meta:meta])* $reg:ident ($rwt:ty, addr = $addr:literal, default = $default:literal) {
+    ($(#[$meta:meta])* $reg:ident ($rwt:tt @ $addr:literal, default = $default:literal) {
         $($(#[$field_meta:meta])* $field:ident($($field_args:tt)*): $type:ty ),*
     } ) => {
-        $crate::register!($(#[$meta])* $reg($rwt, addr=$addr) { $( $field($($field_args)*): $type ),* });
+        $crate::register!($(#[$meta])* $reg($rwt @ $addr) { $( $field($($field_args)*): $type ),* });
 
         impl Default for $reg {
             #[inline(always)]
@@ -244,7 +244,7 @@ macro_rules! register {
         }
     };
 
-    ($(#[$meta:meta])* $reg:ident ($rwt:ty, $($reg_args:tt)*) {
+    ($(#[$meta:meta])* $reg:ident ($rwt:tt @ $addr:literal $(,$($reg_args:tt)*)?) {
         $($(#[$field_meta:meta])* $field:ident($($field_args:tt)*): $type:ident $({
             $($field_type_tokens:tt)*
         })? ),*
@@ -260,16 +260,16 @@ macro_rules! register {
             )?
         )*
 
-        $crate::register!($(#[$meta])* $reg ($rwt, $($reg_args)*) { $( $field($($field_args)*): $type ),*} );
+        $crate::register!($(#[$meta])* $reg ($rwt @ $addr $(,$($reg_args)*)?) { $( $field($($field_args)*): $type ),*} );
     };
 }
 
 /// This macro will only generate a writeable register if a default value is specified.
 #[macro_export]
 macro_rules! writer_proxy {
-    ($(#[$meta:meta])* $reg:ident ($rwt:ty, addr = $addr:literal)) => {};
+    ($(#[$meta:meta])* $reg:ident ($rwt:tt @ $_addr:literal)) => {};
 
-    ($(#[$meta:meta])* $reg:ident ($rwt:ty, addr = $addr:literal, default = $default:literal)) => {
+    ($(#[$meta:meta])* $reg:ident ($rwt:tt @ $_addr:literal, default = $default:literal)) => {
         $(#[$meta])*
         #[allow(non_camel_case_types)]
         pub struct $reg {

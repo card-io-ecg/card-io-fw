@@ -37,7 +37,7 @@ impl From<Command> for ([u8; 2], usize) {
 
 device! {
     /// Device ID
-    Id(u8, addr=0x0) {
+    Id(u8 @ 0x0) {
         id(pos = 0, width = 8): DeviceId {
             ADS1191 = 0x50,
             ADS1192 = 0x51,
@@ -47,7 +47,7 @@ device! {
         }
     }
 
-    Config1(u8, addr=0x01, default=0x02) {
+    Config1(u8 @ 0x01, default=0x02) {
         sampling(pos = 7, width = 1): Sampling {
             Continuous = 0,
             SingleShot = 1
@@ -63,7 +63,7 @@ device! {
         }
     }
 
-    Config2(u8, addr=0x02, default=0x80) {
+    Config2(u8 @ 0x02, default=0x80) {
         pdb_loff_comp(pos = 6, width = 1): Buffer {
             PowerDown = 0,
             Enabled = 1
@@ -84,7 +84,7 @@ device! {
         }
     }
 
-    Loff(u8, addr=0x03, default=0x10) {
+    Loff(u8 @ 0x03, default=0x10) {
         comp_th(pos = 5, width = 3): ComparatorThreshold {
             _95 = 0,
             _92_5 = 1,
@@ -107,7 +107,7 @@ device! {
         }
     }
 
-    Ch1Set(u8, addr=0x04, default=0) {
+    Ch1Set(u8 @ 0x04, default=0) {
         enabled(pos = 7, width = 1): Channel {
             Enabled = 0,
             PowerDown = 1
@@ -135,7 +135,7 @@ device! {
         }
     }
 
-    Ch2Set(u8, addr=0x05, default=0) {
+    Ch2Set(u8 @ 0x05, default=0) {
         enabled(pos = 7, width = 1): Channel,
         gain(pos = 4, width = 3): Gain,
         mux(pos = 0, width = 4): Ch2Mux {
@@ -152,7 +152,7 @@ device! {
         }
     }
 
-    RldSens(u8, addr=0x06, default=0) {
+    RldSens(u8 @ 0x06, default=0) {
         chop(pos = 6, width = 2): ChopFrequency {
             Fmod16 = 0,
             Fmod2 = 2,
@@ -169,7 +169,7 @@ device! {
         rld1p(pos = 0, width = 1): Input
     }
 
-    LoffSens(u8, addr=0x07, default=0) {
+    LoffSens(u8 @ 0x07, default=0) {
         flip2(pos = 5, width = 1): CurrentDirection {
             Normal = 0,
             Flipped = 1
@@ -181,7 +181,7 @@ device! {
         loff1p(pos = 0, width = 1): Input
     }
 
-    LoffStat(u8, addr=0x08, default=0) {
+    LoffStat(u8 @ 0x08, default=0) {
         clk_div(pos = 6, width = 1): ClockDivider {
             External512kHz = 0,
             External2MHz = 1
@@ -196,7 +196,7 @@ device! {
         in1p(pos = 0, width = 1): LeadStatus
     }
 
-    Resp1(u8, addr=0x09, default=0x02) {
+    Resp1(u8 @ 0x09, default=0x02) {
         demod_en(pos = 7, width = 1): Respiration {
             Disabled = 0,
             Enabled = 1
@@ -226,7 +226,7 @@ device! {
         }
     }
 
-    Resp2(u8, addr=0x0A, default=0x05) {
+    Resp2(u8 @ 0x0A, default=0x05) {
         calibration(pos = 7, width = 1): Calibration {
             Disabled = 0,
             Enabled = 1
@@ -241,7 +241,7 @@ device! {
         }
     }
 
-    Gpio(u8, addr=0x0B, default=0x0C) {
+    Gpio(u8 @ 0x0B, default=0x0C) {
         c2(pos = 3, width = 1): PinDirection {
             Output = 0,
             Input = 1
