@@ -101,7 +101,8 @@ impl ConfigRegisters {
         if config_bytes == readback {
             Ok(())
         } else {
-            log::warn!(
+            #[cfg(feature = "defmt")]
+            defmt::warn!(
                 "Verification failed: received: {:?}, expected: {:?}",
                 readback,
                 config_bytes
@@ -345,10 +346,8 @@ where
         match read_result.read() {
             Some(id) => Ok(id),
             None => {
-                log::warn!(
-                    "Read unknown device id: {:?}",
-                    read_result.read_field_bits()
-                );
+                #[cfg(feature = "defmt")]
+                defmt::warn!("Read unknown device id: {}", read_result.read_field_bits());
                 Err(Error::UnexpectedDeviceId)
             }
         }

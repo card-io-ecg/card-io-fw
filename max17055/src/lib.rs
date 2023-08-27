@@ -13,12 +13,14 @@ use crate::descriptors::*;
 pub mod descriptors;
 
 #[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error<I2cE> {
     Transfer(I2cE),
     Verify,
 }
 
 #[derive(Clone, Copy, Default, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct DesignData {
     /// Design capacity
     /// LSB = 5μVH/r_sense
@@ -256,7 +258,8 @@ impl<I2C> Max17055<I2C> {
     const DEVICE_ADDR: u8 = 0x36;
 
     pub fn new(i2c: I2C, config: DesignData) -> Self {
-        log::debug!("Design data: {:?}", config);
+        #[cfg(feature = "defmt")]
+        defmt::debug!("Design data: {:?}", config);
         Self { i2c, config }
     }
 
@@ -332,15 +335,18 @@ where
         &mut self,
         delay: &mut impl AsyncDelayUs,
     ) -> Result<(), Error<I2C::Error>> {
-        log::trace!("Loading initial configuration");
+        #[cfg(feature = "defmt")]
+        defmt::trace!("Loading initial configuration");
 
         let por_status = self.read_register_async::<Status>().await?;
         if por_status.por().read() != Some(PowerOnReset::Reset) {
-            log::debug!("No power-on reset");
+            #[cfg(feature = "defmt")]
+            defmt::debug!("No power-on reset");
             return Ok(());
         }
 
-        log::debug!("Power-on reset, initializing");
+        #[cfg(feature = "defmt")]
+        defmt::debug!("Power-on reset, initializing");
         self.poll_async::<FStat>(delay, |reg| reg.dnr().read() == Some(DataNotReady::Ready))
             .await?;
 
@@ -404,7 +410,8 @@ where
         .await?;
 
         if config.v_charge > CHG_THRESHOLD {
-            log::debug!("Configuring 4.4V battery");
+            #[cfg(feature = "defmt")]
+            defmt::debug!("Configuring 4.4V battery");
             self.write_register_async(dPAcc::new(|w| {
                 w.percentage().write((CHG_V_HIGH / 32) as u16)
             }))
@@ -419,7 +426,8 @@ where
             }))
             .await?;
         } else {
-            log::debug!("Configuring 4.2V battery");
+            #[cfg(feature = "defmt")]
+            defmt::debug!("Configuring 4.2V battery");
             self.write_register_async(dPAcc::new(|w| {
                 w.percentage().write((CHG_V_LOW / 32) as u16)
             }))

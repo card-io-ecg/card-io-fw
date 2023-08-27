@@ -10,9 +10,8 @@ byteorder = { version = "1.4.3", default-features = false }
 device-descriptor = { path = "../device-descriptor" }
 embedded-hal = { workspace = true }
 embedded-hal-async = { workspace = true }
-log = { workspace = true }
 register-access = { path = "../register-access" }
-defmt = { version = "=0.3.5", optional = true }
+defmt = { workspace = true, optional = true }
 
 [features]
 default = ["debug"]
