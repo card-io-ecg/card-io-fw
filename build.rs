@@ -37,4 +37,6 @@ fn main() {
 
         panic!("Can't select more than one of: hw_v1, hw_v2");
     }
+
+    println!("cargo:rustc-env=DEFMT_LOG=trace");
 }
