@@ -12,11 +12,13 @@ pub trait RegisterWidthType: Copy {
 impl RegisterWidthType for u8 {
     const WIDTH: u8 = 8;
 
+    #[inline]
     fn from_32(data: u32) -> Self {
         debug_assert!(data <= u8::MAX as u32);
         data as u8
     }
 
+    #[inline]
     fn to_32(self) -> u32 {
         self as u32
     }
@@ -24,11 +26,13 @@ impl RegisterWidthType for u8 {
 impl RegisterWidthType for u16 {
     const WIDTH: u8 = 16;
 
+    #[inline]
     fn from_32(data: u32) -> Self {
         debug_assert!(data <= u16::MAX as u32);
         data as u16
     }
 
+    #[inline]
     fn to_32(self) -> u32 {
         self as u32
     }
@@ -81,6 +85,7 @@ where
 {
     const _CONST_CHECK: () = assert!(POS + WIDTH <= <P::RegisterWidth as RegisterWidthType>::WIDTH);
 
+    #[inline]
     pub const fn new(reg: P) -> Self {
         let _ = Self::_CONST_CHECK;
         Field {
@@ -171,6 +176,7 @@ macro_rules! define_register_type {
         impl core::convert::TryFrom<$rwt> for $type {
             type Error = $rwt;
 
+            #[inline]
             fn try_from(data: $rwt) -> Result<Self, Self::Error> {
                 match data {
                     $($value => Ok($type::$name)),+,
@@ -180,6 +186,7 @@ macro_rules! define_register_type {
         }
 
         impl From<$type> for $rwt {
+            #[inline]
             fn from(data: $type) -> $rwt {
                 data as $rwt
             }
