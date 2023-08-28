@@ -82,6 +82,7 @@ where
     const _CONST_CHECK: () = assert!(POS + WIDTH <= <P::RegisterWidth as RegisterWidthType>::WIDTH);
 
     pub const fn new(reg: P) -> Self {
+        let _ = Self::_CONST_CHECK;
         Field {
             _marker: PhantomData,
             reg,
@@ -132,7 +133,7 @@ macro_rules! impl_fields {
     () => {};
 
     (@field_ty $type:ty, $start:literal) => {
-        Field<$start, { $start + 1 }, $type, Self>
+        Field<$start, 1, $type, Self>
     };
 
     (@field_ty $type:ty, $range:expr) => {
