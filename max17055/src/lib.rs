@@ -69,6 +69,7 @@ impl DesignData {
     /// assert_eq!(design_data.raw_current_to_uA(0xFFFF), -156);
     /// ```
     #[allow(non_snake_case)]
+    #[inline]
     pub fn raw_current_to_uA(&self, raw: u16) -> i32 {
         let raw = raw as i16 as i32;
         let rsense = self.r_sense as i32;
@@ -90,6 +91,7 @@ impl DesignData {
     /// assert_eq!(design_data.raw_capacity_to_uAh(65535), 16_383_750);
     /// ```
     #[allow(non_snake_case)]
+    #[inline]
     pub fn raw_capacity_to_uAh(&self, raw: u16) -> u32 {
         let raw = raw as u32;
         let rsense = self.r_sense;
@@ -111,6 +113,7 @@ impl DesignData {
     /// assert_eq!(design_data.uAh_to_raw_capacity(16_383_750), 65535);
     /// ```
     #[allow(non_snake_case)]
+    #[inline]
     pub fn uAh_to_raw_capacity(&self, uah: u32) -> u16 {
         (uah * self.r_sense / 5_000) as u16
     }
@@ -129,6 +132,7 @@ impl DesignData {
     /// assert_eq!(design_data.raw_voltage_to_uV(65535), 5_119_921);
     /// ```
     #[allow(non_snake_case)]
+    #[inline]
     pub fn raw_voltage_to_uV(&self, raw: u16) -> u32 {
         let raw = raw as u32;
 
