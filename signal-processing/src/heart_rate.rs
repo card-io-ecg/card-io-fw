@@ -203,6 +203,7 @@ impl HeartRateCalculator {
         };
     }
 
+    #[inline]
     pub fn current_hr(&self) -> Option<u8> {
         self.current_hr
     }
