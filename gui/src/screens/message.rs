@@ -10,11 +10,11 @@ use embedded_text::{
     TextBox,
 };
 
-pub struct ErrorScreen<'a> {
+pub struct MessageScreen<'a> {
     pub message: &'a str,
 }
 
-impl Drawable for ErrorScreen<'_> {
+impl Drawable for MessageScreen<'_> {
     type Color = BinaryColor;
     type Output = ();
 

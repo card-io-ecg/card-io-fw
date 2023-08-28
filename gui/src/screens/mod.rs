@@ -7,9 +7,9 @@ use embedded_menu::{
 
 pub mod charging;
 pub mod display_menu;
-pub mod error;
 pub mod init;
 pub mod measure;
+pub mod message;
 pub mod screen;
 pub mod wifi_ap;
 
