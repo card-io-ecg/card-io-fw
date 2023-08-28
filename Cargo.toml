@@ -117,7 +117,6 @@ object-chain = { workspace = true }
 # needed because of esp-wifi
 esp-hal-common = { git = "https://github.com/esp-rs/esp-hal.git", rev = "e082d47" }
 esp32s3-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "e082d47" }
-embassy-macros = { git = "https://github.com/embassy-rs/embassy.git", rev = "4f453d7" }
 
 [patch.'https://github.com/esp-rs/esp-wifi']
 esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", branch = "dev" }

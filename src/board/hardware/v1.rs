@@ -18,10 +18,12 @@ use crate::board::{
         Rtc, IO,
     },
     startup::WIFI_DRIVER,
-    utils::{DummyOutputPin, SpiDeviceWrapper},
+    utils::DummyOutputPin,
     wifi::WifiDriver,
     *,
 };
+use embassy_time::Delay;
+use embedded_hal_bus::spi::ExclusiveDevice;
 
 use display_interface_spi::SPIInterface;
 
@@ -34,8 +36,11 @@ pub type DisplaySclk = GpioPin<Output<PushPull>, 12>;
 pub type DisplayMosi = GpioPin<Output<PushPull>, 11>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommand>;
-pub type DisplaySpi<'d> =
-    SpiDeviceWrapper<SpiDma<'d, DisplaySpiInstance, Channel0, FullDuplexMode>, DummyOutputPin>;
+pub type DisplaySpi<'d> = ExclusiveDevice<
+    SpiDma<'d, DisplaySpiInstance, Channel0, FullDuplexMode>,
+    DummyOutputPin,
+    Delay,
+>;
 
 pub type AdcDmaChannel = ChannelCreator1;
 pub type AdcSpiInstance = hal::peripherals::SPI3;
@@ -48,7 +53,7 @@ pub type AdcDrdy = GpioPin<Input<Floating>, 4>;
 pub type AdcReset = GpioPin<Output<PushPull>, 2>;
 pub type TouchDetect = GpioPin<Input<Floating>, 1>;
 pub type AdcSpi<'d> =
-    SpiDeviceWrapper<SpiDma<'d, AdcSpiInstance, Channel1, FullDuplexMode>, AdcChipSelect>;
+    ExclusiveDevice<SpiDma<'d, AdcSpiInstance, Channel1, FullDuplexMode>, AdcChipSelect, Delay>;
 
 pub type BatteryAdcInput = GpioPin<Analog, 17>;
 pub type BatteryAdcEnable = GpioPin<Output<PushPull>, 8>;

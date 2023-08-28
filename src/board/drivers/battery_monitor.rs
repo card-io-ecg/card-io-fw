@@ -83,6 +83,7 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
         self.charger_status.is_low().unwrap()
     }
 
+    #[allow(unused)]
     pub async fn sensor(&self) -> SharedGuard<'_, BatterySensor> {
         self.sensor.lock().await
     }
