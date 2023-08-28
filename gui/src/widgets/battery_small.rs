@@ -202,6 +202,7 @@ pub struct Battery {
 }
 
 impl Battery {
+    #[inline]
     pub fn with_style(data: Option<BatteryInfo>, style: BatteryStyle) -> Self {
         Self {
             data,
@@ -210,20 +211,24 @@ impl Battery {
         }
     }
 
+    #[inline]
     pub fn icon(data: Option<BatteryInfo>) -> Self {
         Self::with_style(data, BatteryStyle::Icon)
     }
 
+    #[inline]
     pub fn percentage(data: Option<BatteryInfo>) -> Self {
         Self::with_style(data, BatteryStyle::Percentage)
     }
 }
 
 impl View for Battery {
+    #[inline]
     fn translate_impl(&mut self, by: Point) {
         self.top_left += by;
     }
 
+    #[inline]
     fn bounds(&self) -> Rectangle {
         Rectangle::new(self.top_left, self.style.size())
     }

@@ -74,6 +74,7 @@ pub struct WifiStateView {
 }
 
 impl WifiStateView {
+    #[inline]
     pub fn new(data: Option<impl Into<WifiState>>) -> Self {
         Self {
             data: data.map(Into::into),
@@ -81,24 +82,29 @@ impl WifiStateView {
         }
     }
 
+    #[inline]
     pub fn enabled(data: impl Into<WifiState>) -> Self {
         Self::new(Some(data.into()))
     }
 
+    #[inline]
     pub fn disabled() -> Self {
         Self::new(None::<WifiState>)
     }
 
+    #[inline]
     pub fn update(&mut self, connection_state: impl Into<WifiState>) {
         self.data = Some(connection_state.into());
     }
 }
 
 impl View for WifiStateView {
+    #[inline]
     fn translate_impl(&mut self, by: Point) {
         self.top_left += by;
     }
 
+    #[inline]
     fn bounds(&self) -> Rectangle {
         let size = self.data.map(|data| data.size()).unwrap_or_default();
 
