@@ -12,7 +12,7 @@ extern crate alloc;
 use core::ptr::addr_of;
 
 use alloc::{boxed::Box, rc::Rc};
-use embassy_executor::{Executor, Spawner, _export::StaticCell};
+use embassy_executor::{Spawner, _export::StaticCell};
 use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
     mutex::{Mutex, MutexGuard},
@@ -40,8 +40,11 @@ use crate::{
         config::{Config, ConfigFile},
         drivers::battery_monitor::BatteryMonitor,
         hal::{
-            self, entry,
+            self,
+            embassy::executor::{Executor, FromCpu1, InterruptExecutor},
+            entry,
             gpio::RTCPin,
+            interrupt::Priority,
             prelude::interrupt,
             rtc_cntl::sleep::{RtcioWakeupSource, WakeupLevel},
             Delay,
@@ -50,7 +53,6 @@ use crate::{
         startup::StartupResources,
         TouchDetect,
     },
-    interrupt::{InterruptExecutor, SwInterrupt0},
     states::{
         about_menu, adc_setup, app_error, charging, display_menu, initialize, main_menu, measure,
         wifi_ap, wifi_sta, AppMenu,
@@ -59,7 +61,6 @@ use crate::{
 
 mod board;
 mod heap;
-mod interrupt;
 mod replace_with;
 mod sleep;
 mod stack_protection;
@@ -86,7 +87,12 @@ pub enum AppState {
     Shutdown,
 }
 
-static INT_EXECUTOR: InterruptExecutor<SwInterrupt0> = InterruptExecutor::new();
+static INT_EXECUTOR: InterruptExecutor<FromCpu1> = InterruptExecutor::new();
+
+#[interrupt]
+fn FROM_CPU_INTR1() {
+    unsafe { INT_EXECUTOR.on_interrupt() }
+}
 
 macro_rules! singleton {
     ($val:expr) => {{
@@ -95,11 +101,6 @@ macro_rules! singleton {
         let (x,) = STATIC_CELL.init(($val,));
         x
     }};
-}
-
-#[interrupt]
-fn FROM_CPU_INTR0() {
-    unsafe { INT_EXECUTOR.on_interrupt() }
 }
 
 extern "C" {
@@ -217,7 +218,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
             frontend: resources.frontend,
             clocks: resources.clocks,
             peripheral_clock_control: resources.peripheral_clock_control,
-            high_prio_spawner: INT_EXECUTOR.start(),
+            high_prio_spawner: INT_EXECUTOR.start(Priority::Priority3),
             battery_monitor,
             wifi: resources.wifi,
             config,
