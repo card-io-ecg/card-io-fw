@@ -104,30 +104,38 @@ fn cargo(args: &[&str]) -> Expression {
 }
 
 fn build(hw: HardwareVersion, opt: Option<BuildVariant>) -> AnyResult<()> {
-    let mut profile = "--release";
-    let extra_args = if let Some(option) = opt {
+    if let Some(option) = opt {
         match option {
             BuildVariant::StackSizes => {
-                profile = "--profile=lto";
-                vec!["--", "-Zemit-stack-sizes", "--emit=llvm-bc"]
+                cargo(&[
+                    "rustc",
+                    "--target=xtensa-esp32s3-none-elf",
+                    "-Zbuild-std=core,alloc",
+                    &format!("--features={}", hw.feature()),
+                    "--profile=lto",
+                    "--",
+                    "-Zemit-stack-sizes",
+                    "--emit=llvm-bc",
+                ])
+                .run()?;
+
+                return Ok(());
             }
         }
-    } else {
-        vec![]
-    };
+    }
 
-    let features = format!("--features={}", hw.feature());
-    let mut args_vec = vec![
-        "rustc",
+    cargo(&[
+        "espflash",
+        "save-image",
+        "--release",
+        "--chip",
+        "esp32s3",
         "--target=xtensa-esp32s3-none-elf",
+        &format!("--features={}", hw.feature()),
         "-Zbuild-std=core,alloc",
-        &profile,
-        &features,
-    ];
-
-    args_vec.extend_from_slice(&extra_args);
-
-    cargo(&args_vec).run()?;
+        "target/card_io_fw.bin",
+    ])
+    .run()?;
 
     Ok(())
 }
