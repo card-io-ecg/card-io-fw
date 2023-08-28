@@ -1,5 +1,3 @@
-#![allow(non_camel_case_types)]
-
 use device_descriptor::*;
 
 #[derive(Debug, Copy, Clone)]
@@ -113,13 +111,13 @@ device! {
             PowerDown = 1
         },
         gain @ 4..7 => Gain {
-            x6 = 0,
-            x1 = 1,
-            x2 = 2,
-            x3 = 3,
-            x4 = 4,
-            x8 = 5,
-            x12 = 6
+            X6 = 0,
+            X1 = 1,
+            X2 = 2,
+            X3 = 3,
+            X4 = 4,
+            X8 = 5,
+            X12 = 6
         },
         mux @ 0..4 => Ch1Mux {
             Normal = 0,

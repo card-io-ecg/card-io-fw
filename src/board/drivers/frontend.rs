@@ -69,14 +69,14 @@ where
             ch1set: Ch1Set::new(|r| {
                 r
                 .enabled().write(Channel::Enabled)
-                .gain().write(Gain::x1)
+                .gain().write(Gain::X1)
                 .mux().write(Ch1Mux::Normal)
             }),
 
             ch2set: Ch2Set::new(|r| {
                 r
                 .enabled().write(Channel::PowerDown)
-                .gain().write(Gain::x1)
+                .gain().write(Gain::X1)
                 .mux().write(Ch2Mux::Shorted)
             }),
 
