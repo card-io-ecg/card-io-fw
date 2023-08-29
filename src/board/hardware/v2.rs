@@ -98,9 +98,6 @@ impl super::startup::StartupResources {
         let mut system = peripherals.SYSTEM.split();
         let clocks = ClockControl::configure(system.clock_control, CpuClock::Clock240MHz).freeze();
 
-        let mut rtc = Rtc::new(peripherals.RTC_CNTL);
-        rtc.rwdt.disable();
-
         embassy::init(&clocks, SystemTimer::new(peripherals.SYSTIMER));
 
         let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
@@ -206,8 +203,8 @@ impl super::startup::StartupResources {
                 )
             }),
             clocks,
-            rtc,
             peripheral_clock_control: system.peripheral_clock_control,
+            rtc: Rtc::new(peripherals.RTC_CNTL),
 
             misc_pins: MiscPins {
                 vbus_detect: io.pins.gpio17.into(),
