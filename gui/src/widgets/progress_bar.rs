@@ -35,7 +35,7 @@ impl Drawable for ProgressBar<'_> {
             .draw(display)?;
 
         let filler_width = filler_area.size.width;
-        let empty_area_width = (self.progress * filler_width) / self.max_progress;
+        let empty_area_width = (self.progress * filler_width) / self.max_progress.max(1);
         // remaining as in remaining time until measurement starts
         let remaining_width = filler_width - empty_area_width;
 
