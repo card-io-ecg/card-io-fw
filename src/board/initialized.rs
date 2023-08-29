@@ -56,7 +56,7 @@ impl Board {
                 .store_writer("config", self.config, OnCollision::Overwrite)
                 .await
             {
-                defmt::error!("Failed to save config: {:?}", defmt::Debug2Format(&e));
+                defmt::error!("Failed to save config: {:?}", e);
             }
         } else {
             defmt::warn!("Storage unavailable");

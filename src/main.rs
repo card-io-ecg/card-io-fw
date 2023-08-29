@@ -12,7 +12,6 @@ extern crate alloc;
 use core::ptr::addr_of;
 
 use alloc::{boxed::Box, rc::Rc};
-use defmt::Debug2Format;
 use embassy_executor::Spawner;
 use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
@@ -140,7 +139,7 @@ async fn setup_storage(
     match storage {
         Ok(storage) => Some(make_static!(storage)),
         Err(e) => {
-            defmt::error!("Failed to mount storage: {:?}", defmt::Debug2Format(&e));
+            defmt::error!("Failed to mount storage: {:?}", e);
             None
         }
     }
@@ -163,18 +162,12 @@ where
             Ok(mut config) => match config.read_loadable::<ConfigFile>(storage).await {
                 Ok(config) => CONFIG.init(config.into_config()),
                 Err(e) => {
-                    defmt::warn!(
-                        "Failed to read config file: {}. Reverting to defaults",
-                        Debug2Format(&e)
-                    );
+                    defmt::warn!("Failed to read config file: {}. Reverting to defaults", e);
                     CONFIG.init(Config::default())
                 }
             },
             Err(e) => {
-                defmt::warn!(
-                    "Failed to load config: {}. Reverting to defaults",
-                    Debug2Format(&e)
-                );
+                defmt::warn!("Failed to load config: {}. Reverting to defaults", e);
                 CONFIG.init(Config::default())
             }
         }

@@ -161,10 +161,6 @@ pub(super) async fn ap_task(
     task_control
         .run_cancellable(async {
             defmt::info!("Start connection task");
-            defmt::debug!(
-                "Device capabilities: {:?}",
-                defmt::Debug2Format(&controller.lock().await.get_capabilities())
-            );
 
             let client_config = Configuration::AccessPoint(AccessPointConfiguration {
                 ssid: "Card/IO".into(),
