@@ -24,6 +24,7 @@ use gui::{
     screens::{measure::EcgScreen, screen::Screen},
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
+use macros as cardio;
 use object_chain::{chain, Chain, ChainElement, Link};
 use signal_processing::{
     compressing_buffer::CompressingBuffer,
@@ -231,7 +232,7 @@ async fn measure_impl(
     }
 }
 
-#[embassy_executor::task]
+#[cardio::task]
 async fn reader_task(params: EcgTaskParams) {
     let EcgTaskParams {
         sender,

@@ -18,6 +18,7 @@ use esp_wifi::{
     wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState as WifiStackState},
     EspWifiInitialization,
 };
+use macros as cardio;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ApConnectionState {
@@ -151,7 +152,7 @@ impl ApState {
     }
 }
 
-#[embassy_executor::task]
+#[cardio::task]
 pub(super) async fn ap_task(
     controller: Rc<Mutex<NoopRawMutex, WifiController<'static>>>,
     mut task_control: TaskControlToken<()>,
