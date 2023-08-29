@@ -51,8 +51,6 @@ esp32s3-hal = { version = "0.11.0", optional = true, features = [
     "embassy-time-systick",
     "eh1",
 ] }
-# esp32s2 = { version = "0.15.0", optional = true }
-esp32s3 = { version = "0.20.0", optional = true }
 esp-backtrace = { version = "0.7.0", features = [
     "panic-handler",
     "exception-handler",
@@ -133,7 +131,6 @@ hw_v2 = ["battery_max17055"] # also v3
 # MCU options
 # esp32s2 = ["dep:esp32s2", "dep:esp32s2-hal", "esp-backtrace/esp32s2", "esp-println/esp32s2", "rtt"]
 esp32s3 = [
-    "dep:esp32s3",
     "dep:esp32s3-hal",
     "esp-backtrace/esp32s3",
     "esp-println/esp32s3",

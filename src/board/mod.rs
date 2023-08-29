@@ -21,12 +21,6 @@ pub use esp32s2_hal as hal;
 #[cfg(feature = "esp32s3")]
 pub use esp32s3_hal as hal;
 
-#[cfg(feature = "esp32s2")]
-pub use esp32s2 as pac;
-
-#[cfg(feature = "esp32s3")]
-pub use esp32s3 as pac;
-
 pub use hardware::*;
 
 pub struct MiscPins {
