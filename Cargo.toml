@@ -115,8 +115,8 @@ object-chain = { workspace = true }
 
 [patch.crates-io]
 # needed because of esp-wifi
-esp-hal-common = { git = "https://github.com/bugadani/esp-hal.git", branch = "newexecutor" }
-esp32s3-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "newexecutor" }
+esp-hal-common = { git = "https://github.com/esp-rs/esp-hal.git", rev = "92a2cc7" }
+esp32s3-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "92a2cc7" }
 
 [patch.'https://github.com/esp-rs/esp-wifi']
 esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", branch = "dev" }
