@@ -2,10 +2,11 @@ use httparse::Header;
 
 use crate::{
     connector::Connection,
+    debug, info,
     method::Method,
     request_body::{ReadResult, RequestBody},
     response::{Headers, Response, ResponseStatus},
-    HandleError,
+    warn, HandleError,
 };
 
 pub struct Request<'req, 's, C: Connection> {
@@ -21,16 +22,16 @@ impl<'req, 's, C: Connection> Request<'req, 's, C> {
         body: RequestBody<'req, 's, C>,
     ) -> Result<Self, ResponseStatus> {
         let Some(path) = req.path else {
-            log::warn!("Path not set");
+            warn!("Path not set");
             return Err(ResponseStatus::BadRequest);
         };
 
         let Some(method) = req.method.and_then(Method::new) else {
-            log::warn!("Unknown method: {:?}", req.method);
+            warn!("Unknown method: {:?}", req.method);
             return Err(ResponseStatus::BadRequest);
         };
 
-        log::info!("[{}] {}", method.as_str(), path);
+        info!("[{}] {}", method.as_str(), path);
 
         Ok(Self {
             method,
@@ -54,7 +55,7 @@ impl<'req, 's, C: Connection> Request<'req, 's, C> {
         while !self.is_complete() && !buffer.is_empty() {
             read += self.read(&mut buffer[read..]).await?;
         }
-        log::debug!("Read {} bytes", read);
+        debug!("Read {} bytes", read);
 
         Ok(&mut buffer[..read])
     }

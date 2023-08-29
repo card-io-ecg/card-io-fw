@@ -4,6 +4,7 @@ use embedded_io::asynch::{Read, Write};
 use norfs::storable::{LoadError, Loadable, Storable};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct WifiNetwork {
     pub ssid: heapless::String<32>,
     pub pass: heapless::String<64>,

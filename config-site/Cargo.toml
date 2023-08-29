@@ -7,10 +7,11 @@ edition = "2021"
 
 [dependencies]
 bad-server = { workspace = true }
+defmt = { workspace = true, optional = true }
 embassy-sync = { workspace = true, optional = true }
 embedded-io = { workspace = true, optional = true }
 heapless = { workspace = true }
-log = { workspace = true }
+logger = { workspace = true }
 norfs = { git = "https://github.com/card-io-ecg/norfs.git", optional = true }
 smol = { version = "1.3", optional = true }
 
@@ -20,7 +21,7 @@ minify-html = "0.11.1"
 
 [[example]]
 name = "simple"
-required-features = ["bad-server/std"]
+required-features = ["bad-server/std", "bad-server/log"]
 
 [dev-dependencies]
 simple_logger = "4.1"
@@ -30,3 +31,5 @@ smol = "1"
 default = []
 embedded = ["dep:norfs", "dep:embassy-sync", "dep:embedded-io", "bad-server/embassy"]
 std = ["dep:smol", "bad-server/std"]
+log = ["bad-server/log"]
+defmt = ["dep:defmt", "bad-server/defmt"]

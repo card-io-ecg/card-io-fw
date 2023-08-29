@@ -33,6 +33,7 @@ log = { version = "0.4.18", default-features = false, features = [
     "max_level_info",
     "release_max_level_info",
 ] }
+logger = { path = "logger", features = ["defmt"] }
 norfs = { git = "https://github.com/card-io-ecg/norfs.git", features = [
     "esp32s3",
 ] }
@@ -88,6 +89,7 @@ ssd1306 = { git = "https://github.com/bugadani/ssd1306.git", branch = "ehal1", f
 atomic_enum = "0.2.0"
 config-site = { path = "config-site", default-features = false, features = [
     "embedded",
+    "defmt"
 ] }
 critical-section = "1.1"
 device-descriptor = { path = "device-descriptor" }
@@ -102,6 +104,7 @@ replace_with = { version = "0.1", default-features = false, features = [
     "nightly",
 ] }
 static_cell = { version = "1.2.0", features = ["nightly"] }
+bad-server = { path = "bad-server", features = ["embassy", "defmt"] }
 
 embedded-graphics = { workspace = true }
 embedded-hal = { workspace = true }

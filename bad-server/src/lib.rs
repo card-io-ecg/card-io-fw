@@ -20,6 +20,7 @@ use crate::{
     request_body::{ReadError, RequestBody},
     response::{Response, ResponseStatus},
 };
+use logger::*;
 
 pub use httparse::Header;
 
@@ -149,6 +150,37 @@ where
     }
 }
 
+#[cfg(feature = "defmt")]
+impl<C> defmt::Format for HandleError<C>
+where
+    C: Io,
+    C::Error: defmt::Format,
+{
+    fn format(&self, f: defmt::Formatter) {
+        match self {
+            HandleError::Read(f0) => defmt::write!(f, "Read({})", f0),
+            HandleError::Write(f0) => defmt::write!(f, "Write({})", f0),
+            HandleError::TooManyHeaders => defmt::write!(f, "TooManyHeaders"),
+            HandleError::InternalError => defmt::write!(f, "InternalError"),
+            HandleError::RequestParse(f0) => {
+                defmt::write!(
+                    f,
+                    "RequestParse({})",
+                    match f0 {
+                        httparse::Error::HeaderName => defmt::intern!("HeaderName"),
+                        httparse::Error::HeaderValue => defmt::intern!("HeaderValue"),
+                        httparse::Error::NewLine => defmt::intern!("NewLine"),
+                        httparse::Error::Status => defmt::intern!("Status"),
+                        httparse::Error::Token => defmt::intern!("Token"),
+                        httparse::Error::TooManyHeaders => defmt::intern!("TooManyHeaders"),
+                        httparse::Error::Version => defmt::intern!("Version"),
+                    }
+                )
+            }
+        }
+    }
+}
+
 impl<H, EH, RB: RequestBuffer, const MAX_HEADERS: usize> BadServer<H, EH, RB, MAX_HEADERS>
 where
     H: Handler,
@@ -197,28 +229,28 @@ where
 
     pub async fn listen(&mut self, socket: &mut H::Connection, port: u16) {
         loop {
-            log::info!("Wait for connection");
+            info!("Wait for connection");
 
             if let Err(e) = socket.listen(port).await {
-                log::warn!("Connect error: {:?}", e);
+                warn!("Connect error: {:?}", e);
                 socket.close();
                 continue;
             }
 
-            log::info!("Connected");
+            info!("Connected");
             let handle_result = self.handle(socket).await;
 
             if let Err(e) = socket.flush().await {
-                log::warn!("Flush error: {:?}", e);
+                warn!("Flush error: {:?}", e);
             }
 
             // Handle errors after flushing
             if let Err(e) = handle_result {
-                log::warn!("Handle error: {:?}", e);
+                warn!("Handle error: {:?}", e);
             }
 
             socket.close();
-            log::info!("Done");
+            info!("Done");
         }
     }
 
@@ -232,17 +264,17 @@ where
                 Ok(0) => {
                     // We're here because the previous read wasn't a complete request. Reading 0
                     // means the request will not ever be completed.
-                    log::warn!("read EOF");
+                    warn!("read EOF");
                     return Err(HandleError::Read(ReadError::UnexpectedEof));
                 }
                 Ok(len) => pos += len,
                 Err(e) => {
-                    log::warn!("read error: {:?}", e);
+                    warn!("read error: {:?}", e);
                     return Err(HandleError::Read(ReadError::Io(e)));
                 }
             }
 
-            log::debug!("Buffer size: {}", pos);
+            debug!("Buffer size: {}", pos);
 
             let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
             let mut req = httparse::Request::new(&mut headers);
@@ -256,7 +288,7 @@ where
                     // We need to read more
                 }
                 Err(e) => {
-                    log::warn!("Parsing request failed: {}", e);
+                    warn!("Parsing request failed: {}", e);
                     return Err(HandleError::RequestParse(e));
                 }
             };

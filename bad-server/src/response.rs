@@ -2,7 +2,7 @@ use core::{fmt::Write as _, marker::PhantomData};
 
 use httparse::Header;
 
-use crate::{connector::Connection, HandleError};
+use crate::{connector::Connection, debug, HandleError};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ResponseStatus {
@@ -76,7 +76,7 @@ impl<'s, C: Connection> Response<'s, C, Initial> {
             .await
             .map_err(HandleError::Write)?;
 
-        log::debug!("Response status: {}", status as u16);
+        debug!("Response status: {}", status as u16);
 
         let mut status_code = heapless::Vec::<u8, 4>::new();
         if write!(&mut status_code, "{}", status as u16).is_err() {

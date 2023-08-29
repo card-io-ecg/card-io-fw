@@ -13,6 +13,8 @@ pub trait Connection: Read + Write {
 
 #[cfg(feature = "embassy")]
 pub mod embassy_net_compat {
+    use crate::debug;
+
     use super::*;
     use embassy_net::{
         tcp::{AcceptError, TcpSocket},
@@ -29,7 +31,7 @@ pub mod embassy_net_compat {
         fn close(&mut self) {
             TcpSocket::close(self);
             TcpSocket::abort(self);
-            log::debug!("Socket closed");
+            debug!("Socket closed");
         }
     }
 }

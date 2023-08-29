@@ -7,12 +7,13 @@ edition = "2021"
 
 [dependencies]
 async-io = { version = "1", optional = true }
+defmt = { workspace = true, optional = true }
 embassy-net = { workspace = true, optional = true }
 embedded-io = { workspace = true }
 embedded-svc = { workspace = true }
 heapless = { workspace = true }
 httparse = { version = "1.8", default-features = false }
-log = { workspace = true }
+logger = { workspace = true }
 smol = { version = "1", optional = true }
 object-chain = { workspace = true }
 const-fnv1a-hash = "1.1"
@@ -25,7 +26,9 @@ simple_logger = "4.1"
 default = []
 std = ["async-io", "smol"]
 embassy = ["embassy-net"]
+log = ["logger/log"]
+defmt = ["dep:defmt", "logger/defmt"]
 
 [[example]]
 name = "simple"
-required-features = ["std"]
+required-features = ["std", "log"]
