@@ -27,6 +27,7 @@ use esp_wifi::{
     EspWifiInitialization,
 };
 use gui::widgets::wifi::WifiState;
+use logger::{info, warn};
 use macros as cardio;
 
 const SCAN_RESULTS: usize = 20;
@@ -109,7 +110,7 @@ impl StaState {
         resources: &'static mut StackResources<3>,
         mut rng: Rng,
     ) -> Self {
-        defmt::info!("Configuring STA");
+        info!("Configuring STA");
 
         let (wifi_interface, controller) =
             esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Sta).unwrap();
@@ -138,7 +139,7 @@ impl StaState {
 
     pub(super) async fn stop(&mut self) {
         if self.started {
-            defmt::info!("Stopping STA");
+            info!("Stopping STA");
             let _ = join(
                 self.connection_task_control.stop_from_outside(),
                 self.net_task_control.stop_from_outside(),
@@ -149,17 +150,17 @@ impl StaState {
                 self.controller.lock().await.stop().await.unwrap();
             }
 
-            defmt::info!("Stopped STA");
+            info!("Stopped STA");
             self.started = false;
         }
     }
 
     pub(super) async fn start(&mut self) -> Sta {
         if !self.started {
-            defmt::info!("Starting STA");
+            info!("Starting STA");
             let spawner = Spawner::for_current_executor().await;
 
-            defmt::info!("Starting STA task");
+            info!("Starting STA task");
             spawner.must_spawn(sta_task(
                 self.controller.clone(),
                 self.networks.clone(),
@@ -168,7 +169,7 @@ impl StaState {
                 self.stack.clone(),
                 self.connection_task_control.token(),
             ));
-            defmt::info!("Starting NET task");
+            info!("Starting NET task");
             spawner.must_spawn(net_task(self.stack.clone(), self.net_task_control.token()));
 
             self.started = true;
@@ -201,20 +202,20 @@ pub(super) async fn sta_task(
             'scan_and_connect: loop {
                 state.store(ConnectionState::NotConnected, Ordering::Release);
                 if !matches!(controller.lock().await.is_started(), Ok(true)) {
-                    defmt::info!("Starting wifi");
+                    info!("Starting wifi");
                     controller.lock().await.start().await.unwrap();
-                    defmt::info!("Wifi started!");
+                    info!("Wifi started!");
                 }
 
                 let connect_to = 'select: loop {
-                    defmt::info!("Scanning...");
+                    info!("Scanning...");
 
                     let mut scan_results =
                         Box::new(controller.lock().await.scan_n::<SCAN_RESULTS>().await);
 
                     match scan_results.as_mut() {
                         Ok((ref mut visible_networks, network_count)) => {
-                            defmt::info!("Found {} access points", network_count);
+                            info!("Found {} access points", network_count);
 
                             // Sort by signal strength, descending
                             visible_networks
@@ -247,13 +248,13 @@ pub(super) async fn sta_task(
                                 *preference = NetworkPreference::Preferred;
                             }
                         }
-                        Err(err) => defmt::warn!("Scan failed: {:?}", WifiError(*err)),
+                        Err(err) => warn!("Scan failed: {:?}", WifiError(*err)),
                     }
 
                     Timer::after(SCAN_PERIOD).await;
                 };
 
-                defmt::info!("Connecting to {}...", connect_to.ssid);
+                info!("Connecting to {}...", connect_to.ssid);
                 state.store(ConnectionState::Connecting, Ordering::Release);
 
                 controller
@@ -269,12 +270,12 @@ pub(super) async fn sta_task(
                 for _ in 0..CONNECT_RETRY_COUNT {
                     match controller.lock().await.connect().await {
                         Ok(_) => {
-                            defmt::info!("Waiting to get IP address...");
+                            info!("Waiting to get IP address...");
 
                             let wait_for_ip = async {
                                 loop {
                                     if let Some(config) = stack.config_v4() {
-                                        defmt::info!("Got IP: {}", config.address);
+                                        info!("Got IP: {}", config.address);
                                         break;
                                     }
                                     Timer::after(Duration::from_millis(500)).await;
@@ -289,7 +290,7 @@ pub(super) async fn sta_task(
 
                             match select(wait_for_ip, wait_for_disconnect).await {
                                 Either::First(_) => {
-                                    defmt::info!("Wifi connected!");
+                                    info!("Wifi connected!");
                                     state.store(ConnectionState::Connected, Ordering::Release);
 
                                     // keep pending Disconnected event to avoid a race condition
@@ -301,18 +302,18 @@ pub(super) async fn sta_task(
 
                                     // TODO: figure out if we should deprioritize, retry or just loop back
                                     // to the beginning. Maybe we could use a timer?
-                                    defmt::info!("Wifi disconnected!");
+                                    info!("Wifi disconnected!");
                                     state.store(ConnectionState::NotConnected, Ordering::Release);
                                     continue 'scan_and_connect;
                                 }
                                 Either::Second(_) => {
-                                    defmt::info!("Wifi disconnected!");
+                                    info!("Wifi disconnected!");
                                     state.store(ConnectionState::NotConnected, Ordering::Release);
                                 }
                             }
                         }
                         Err(e) => {
-                            defmt::warn!("Failed to connect to wifi: {:?}", WifiError(e));
+                            warn!("Failed to connect to wifi: {:?}", WifiError(e));
                             state.store(ConnectionState::NotConnected, Ordering::Release);
                             Timer::after(CONNECT_RETRY_PERIOD).await;
                         }

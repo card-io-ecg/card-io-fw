@@ -18,6 +18,7 @@ use embassy_sync::{
     mutex::{Mutex, MutexGuard},
 };
 use embassy_time::{Duration, Timer};
+use logger::{error, info, warn};
 use norfs::{
     drivers::internal::InternalDriver,
     medium::{cache::ReadCache, StorageMedium},
@@ -111,10 +112,10 @@ fn main() -> ! {
     let _stack_protection = stack_protection::StackMonitor::protect((stack_start + 4)..stack_end);
 
     #[cfg(feature = "hw_v1")]
-    defmt::info!("Hardware version: v1");
+    info!("Hardware version: v1");
 
     #[cfg(feature = "hw_v2")]
-    defmt::info!("Hardware version: v2");
+    info!("Hardware version: v2");
 
     let executor = make_static!(Executor::new());
     executor.run(move |spawner| {
@@ -130,7 +131,7 @@ async fn setup_storage(
     let storage = match Storage::mount(unsafe { &mut READ_CACHE }).await {
         Ok(storage) => Ok(storage),
         Err(StorageError::NotFormatted) => {
-            defmt::info!("Formatting storage");
+            info!("Formatting storage");
             Storage::format_and_mount(unsafe { &mut READ_CACHE }).await
         }
         e => e,
@@ -139,7 +140,7 @@ async fn setup_storage(
     match storage {
         Ok(storage) => Some(make_static!(storage)),
         Err(e) => {
-            defmt::error!("Failed to mount storage: {:?}", e);
+            error!("Failed to mount storage: {:?}", e);
             None
         }
     }
@@ -152,7 +153,7 @@ where
     static CONFIG: StaticCell<Config> = StaticCell::new();
 
     if let Some(storage) = storage {
-        defmt::info!(
+        info!(
             "Storage: {} / {} used",
             storage.capacity() - storage.free_bytes(),
             storage.capacity()
@@ -162,17 +163,17 @@ where
             Ok(mut config) => match config.read_loadable::<ConfigFile>(storage).await {
                 Ok(config) => CONFIG.init(config.into_config()),
                 Err(e) => {
-                    defmt::warn!("Failed to read config file: {}. Reverting to defaults", e);
+                    warn!("Failed to read config file: {:?}. Reverting to defaults", e);
                     CONFIG.init(Config::default())
                 }
             },
             Err(e) => {
-                defmt::warn!("Failed to load config: {}. Reverting to defaults", e);
+                warn!("Failed to load config: {:?}. Reverting to defaults", e);
                 CONFIG.init(Config::default())
             }
         }
     } else {
-        defmt::warn!("Storage unavailable. Using default config");
+        warn!("Storage unavailable. Using default config");
         CONFIG.init(Config::default())
     }
 }
@@ -223,7 +224,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
     let mut state = AppState::AdcSetup;
 
     loop {
-        defmt::info!("New app state: {}", state);
+        info!("New app state: {:?}", state);
         state = match state {
             AppState::AdcSetup => adc_setup(&mut board).await,
             AppState::Initialize => initialize(&mut board).await,

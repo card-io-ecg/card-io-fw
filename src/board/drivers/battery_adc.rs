@@ -125,7 +125,7 @@ pub async fn monitor_task_adc(
                     };
                     state.data = Some(average);
 
-                    defmt::debug!("Battery data: {:?}", averate);
+                    defmt::debug!("Battery data: {:?}", average);
 
                     sample_count = 0;
 

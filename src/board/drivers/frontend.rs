@@ -3,6 +3,7 @@ use device_descriptor::Register;
 use embassy_time::{Delay, Duration, Timer};
 use embedded_hal::digital::{InputPin, OutputPin};
 use embedded_hal_async::{digital::Wait, spi::SpiDevice as AsyncSpiDevice};
+use logger::info;
 use register_access::AsyncRegisterAccess;
 
 pub struct Frontend<S, DRDY, RESET, CLKEN, TOUCH> {
@@ -191,7 +192,7 @@ where
 
         self.frontend.device_id = Some(device_id);
 
-        defmt::info!("ADC device id: {}", device_id);
+        info!("ADC device id: {:?}", device_id);
 
         let config = self.frontend.config();
         self.frontend.adc.apply_configuration_async(&config).await?;

@@ -13,14 +13,13 @@ embedded-hal-async = "1.0.0-rc.1"
 embedded-hal-bus = { version = "0.1.0-rc.1", features = ["async"] }
 embedded-io = { version = "0.4", features = ["async"] }
 embedded-menu = "0.4.0"
-embedded-svc = { version = "0.25", default-features = false, features = ["defmt"] }
+embedded-svc = { version = "0.25", default-features = false }
 embassy-net = { version = "0.1.0", features = [
     "nightly",
     "tcp",
     "udp",
     "dhcpv4",
     "medium-ethernet",
-    "defmt"
 ] }
 embassy-sync = { version = "0.2.0" }
 embassy-executor = { version = "0.3.0", features = [
@@ -33,9 +32,8 @@ log = { version = "0.4.18", default-features = false, features = [
     "max_level_info",
     "release_max_level_info",
 ] }
-logger = { path = "logger", features = ["defmt"] }
+logger = { path = "logger" }
 norfs = { git = "https://github.com/card-io-ecg/norfs.git", features = [
-    "defmt",
     "esp32s3",
 ] }
 object-chain = "0.1.3"
@@ -67,7 +65,6 @@ esp-println = { version = "0.6.0", default-features = false, features = [
     "critical-section",
     "colors",
     "log",
-    "defmt",
 ] }
 esp-alloc = { version = "0.3.0" }
 esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "02239f9", features = [
@@ -90,7 +87,6 @@ ssd1306 = { git = "https://github.com/bugadani/ssd1306.git", branch = "ehal1", f
 atomic_enum = "0.2.0"
 config-site = { path = "config-site", default-features = false, features = [
     "embedded",
-    "defmt"
 ] }
 critical-section = "1.1"
 device-descriptor = { path = "device-descriptor" }
@@ -105,7 +101,7 @@ replace_with = { version = "0.1", default-features = false, features = [
     "nightly",
 ] }
 static_cell = { version = "1.2.0", features = ["nightly"] }
-bad-server = { path = "bad-server", features = ["embassy", "defmt"] }
+bad-server = { path = "bad-server", features = ["embassy"] }
 
 embedded-graphics = { workspace = true }
 embedded-hal = { workspace = true }
@@ -120,6 +116,7 @@ embassy-sync = { workspace = true }
 norfs = { workspace = true }
 heapless = { workspace = true }
 log = { workspace = true }
+logger = { workspace = true }
 object-chain = { workspace = true }
 defmt = { workspace = true }
 
@@ -127,7 +124,7 @@ defmt = { workspace = true }
 esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", branch = "dev" }
 
 [features]
-default = ["esp32s3"]
+default = ["esp32s3", "defmt"]
 
 battery_adc = []
 battery_max17055 = ["dep:max17055"]
@@ -141,7 +138,7 @@ esp32s3 = [
     "dep:esp32s3-hal",
     "esp-backtrace/esp32s3",
     "esp-println/esp32s3",
-    "uart", # print via uart, serial_jtag seems to lose bytes
+    "uart",                  # print via uart, serial_jtag seems to lose bytes
     "esp-wifi/esp32s3",
 ]
 
@@ -149,6 +146,26 @@ esp32s3 = [
 uart = ["esp-backtrace/print-uart", "esp-println/uart"]
 jtag_serial = ["esp-backtrace/print-jtag-serial", "esp-println/jtag_serial"]
 rtt = ["esp-backtrace/print-rtt", "esp-println/rtt"]
+
+log = [
+    "logger/log",
+    "config-site/log",
+    "norfs/log",
+    "ads129x/log",
+    "max17055/log",
+]
+
+defmt = [
+    "logger/defmt",
+    "config-site/defmt",
+    "embassy-net/defmt",
+    "norfs/defmt",
+    "esp-println/defmt",
+    "ads129x/defmt",
+    "max17055/defmt",
+    "bad-server/defmt",
+    "embedded-svc/defmt",
+]
 
 [package.metadata.espflash]
 partition_table = "partitions.csv"

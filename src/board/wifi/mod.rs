@@ -32,6 +32,7 @@ pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
 pub mod ap;
 pub mod sta;
 
+#[derive(Debug)]
 pub struct WifiError(pub esp_wifi::wifi::WifiError);
 impl defmt::Format for WifiError {
     fn format(&self, f: defmt::Formatter) {

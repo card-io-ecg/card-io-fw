@@ -7,6 +7,7 @@ use crate::board::{
 };
 use embassy_executor::SendSpawner;
 use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
+use logger::{error, info, warn};
 use norfs::{
     drivers::internal::{InternalDriver, InternalPartition},
     medium::cache::ReadCache,
@@ -48,7 +49,7 @@ impl Board {
             return;
         }
 
-        defmt::info!("Saving config");
+        info!("Saving config");
         self.config_changed = false;
 
         if let Some(storage) = self.storage.as_mut() {
@@ -56,10 +57,10 @@ impl Board {
                 .store_writer("config", self.config, OnCollision::Overwrite)
                 .await
             {
-                defmt::error!("Failed to save config: {:?}", e);
+                error!("Failed to save config: {:?}", e);
             }
         } else {
-            defmt::warn!("Storage unavailable");
+            warn!("Storage unavailable");
         }
     }
 
