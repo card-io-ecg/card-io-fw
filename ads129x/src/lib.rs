@@ -9,6 +9,7 @@ use embedded_hal::{
     spi::{Operation, SpiDevice},
 };
 use embedded_hal_async::spi::SpiDevice as AsyncSpiDevice;
+use logger::*;
 use register_access::{AsyncRegisterAccess, RegisterAccess};
 
 use crate::descriptors::*;
@@ -23,9 +24,8 @@ pub enum Error<SpiE> {
     Transfer(SpiE),
 }
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[cfg_attr(feature = "debug", derive(Debug))]
 pub struct ConfigRegisters {
     pub config1: Config1,
     pub config2: Config2,
@@ -101,11 +101,9 @@ impl ConfigRegisters {
         if config_bytes == readback {
             Ok(())
         } else {
-            #[cfg(feature = "defmt")]
-            defmt::warn!(
+            warn!(
                 "Verification failed: received: {:?}, expected: {:?}",
-                readback,
-                config_bytes
+                readback, config_bytes
             );
             Err(Error::Verification)
         }
@@ -346,8 +344,7 @@ where
         match read_result.read() {
             Some(id) => Ok(id),
             None => {
-                #[cfg(feature = "defmt")]
-                defmt::warn!("Read unknown device id: {}", read_result.read_field_bits());
+                warn!("Read unknown device id: {}", read_result.read_field_bits());
                 Err(Error::UnexpectedDeviceId)
             }
         }
@@ -379,9 +376,8 @@ where
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Sample {
     sample: i32,
 }
@@ -398,8 +394,8 @@ impl Sample {
     }
 }
 
+#[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[cfg_attr(feature = "debug", derive(Debug))]
 pub struct AdsData {
     status: LoffStat,
     ch1: Sample,

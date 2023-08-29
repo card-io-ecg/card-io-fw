@@ -1,4 +1,5 @@
 use core::fmt::Debug;
+use logger::*;
 
 use embedded_io::asynch::{Read, Write};
 
@@ -13,7 +14,6 @@ pub trait Connection: Read + Write {
 
 #[cfg(feature = "embassy")]
 pub mod embassy_net_compat {
-    use crate::debug;
 
     use super::*;
     use embassy_net::{
@@ -120,7 +120,7 @@ pub mod std_compat {
             let socket = socket.into_inner().unwrap();
 
             socket.shutdown(std::net::Shutdown::Both).unwrap();
-            log::debug!("Socket closed");
+            debug!("Socket closed");
         }
     }
 }

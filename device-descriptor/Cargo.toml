@@ -9,6 +9,5 @@ edition = "2021"
 defmt = { workspace = true, optional = true }
 
 [features]
-default = ["debug"]
+default = []
 defmt = ["dep:defmt"]
-debug = []

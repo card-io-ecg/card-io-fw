@@ -11,9 +11,9 @@ device-descriptor = { path = "../device-descriptor" }
 embedded-hal = { workspace = true }
 embedded-hal-async = { workspace = true }
 register-access = { path = "../register-access" }
+logger = { workspace = true }
 defmt = { workspace = true, optional = true }
 
 [features]
-default = ["debug"]
-defmt = ["dep:defmt", "device-descriptor/defmt"]
-debug = ["device-descriptor/debug"]
+default = []
+defmt = ["dep:defmt", "logger/defmt", "device-descriptor/defmt"]
