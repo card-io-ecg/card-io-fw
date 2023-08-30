@@ -67,14 +67,14 @@ esp-println = { version = "0.6.0", default-features = false, features = [
     "log",
 ] }
 esp-alloc = { version = "0.3.0" }
-esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "02239f9", features = [
+esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "02239f9", default-features = false, features = [
     "phy-enable-usb",
     "ps-min-modem",
     "wifi",
     "embedded-svc",
     "async",
     "embassy-net",
-    "defmt",
+    "utils"
 ] }
 
 display-interface = { git = "https://github.com/therealprof/display-interface.git", branch = "master" }
@@ -166,6 +166,7 @@ defmt = [
     "max17055/defmt",
     "bad-server/defmt",
     "embedded-svc/defmt",
+    "esp-wifi/defmt"
 ]
 
 [package.metadata.espflash]
