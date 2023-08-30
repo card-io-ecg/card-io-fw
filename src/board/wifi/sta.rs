@@ -3,7 +3,7 @@ use core::sync::atomic::Ordering;
 use crate::{
     board::{
         hal::{radio::Wifi, Rng},
-        wifi::{net_task, WifiError},
+        wifi::net_task,
     },
     task_control::{TaskControlToken, TaskController},
     Shared,
@@ -248,7 +248,7 @@ pub(super) async fn sta_task(
                                 *preference = NetworkPreference::Preferred;
                             }
                         }
-                        Err(err) => warn!("Scan failed: {:?}", WifiError(*err)),
+                        Err(err) => warn!("Scan failed: {:?}", err),
                     }
 
                     Timer::after(SCAN_PERIOD).await;
@@ -313,7 +313,7 @@ pub(super) async fn sta_task(
                             }
                         }
                         Err(e) => {
-                            warn!("Failed to connect to wifi: {:?}", WifiError(e));
+                            warn!("Failed to connect to wifi: {:?}", e);
                             state.store(ConnectionState::NotConnected, Ordering::Release);
                             Timer::after(CONNECT_RETRY_PERIOD).await;
                         }

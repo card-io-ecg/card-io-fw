@@ -74,6 +74,7 @@ esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "02239f9", fe
     "embedded-svc",
     "async",
     "embassy-net",
+    "defmt",
 ] }
 
 display-interface = { git = "https://github.com/therealprof/display-interface.git", branch = "master" }
