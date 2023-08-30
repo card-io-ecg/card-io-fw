@@ -83,12 +83,12 @@ where
             rldsens: RldSens::new(|r| {
                 r
                 .chop().write(ChopFrequency::Fmod2)
-                .pdb_rld().write(Buffer::PowerDown)
+                .pdb_rld().write(Buffer::Enabled)
                 .loff_sense().write(Input::NotConnected)
                 .rld2n().write(Input::NotConnected)
                 .rld2p().write(Input::NotConnected)
-                .rld1n().write(Input::NotConnected)
-                .rld1p().write(Input::NotConnected)
+                .rld1n().write(Input::Connected)
+                .rld1p().write(Input::Connected)
             }),
 
             loffsens: LoffSens::new(|r| {
@@ -233,7 +233,7 @@ where
         self.frontend.drdy.wait_for_falling_edge().await.unwrap();
 
         let sample = self.frontend.adc.read_data_1ch_async().await?;
-        self.touched = sample.ch1_leads_connected();
+        self.touched = sample.ch1_negative_lead_connected();
 
         Ok(sample)
     }

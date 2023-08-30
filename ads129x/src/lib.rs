@@ -428,14 +428,28 @@ impl AdsData {
         }
     }
 
-    pub fn ch1_leads_connected(&self) -> bool {
+    pub fn ch1_positive_lead_connected(&self) -> bool {
+        self.status.in1p().read() == Some(LeadStatus::Connected)
+    }
+
+    pub fn ch1_negative_lead_connected(&self) -> bool {
         self.status.in1n().read() == Some(LeadStatus::Connected)
-            && self.status.in1p().read() == Some(LeadStatus::Connected)
+    }
+
+    pub fn ch1_leads_connected(&self) -> bool {
+        self.ch1_negative_lead_connected() && self.ch1_positive_lead_connected()
+    }
+
+    pub fn ch2_positive_lead_connected(&self) -> bool {
+        self.status.in2p().read() == Some(LeadStatus::Connected)
+    }
+
+    pub fn ch2_negative_lead_connected(&self) -> bool {
+        self.status.in2n().read() == Some(LeadStatus::Connected)
     }
 
     pub fn ch2_leads_connected(&self) -> bool {
-        self.status.in2n().read() == Some(LeadStatus::Connected)
-            && self.status.in2p().read() == Some(LeadStatus::Connected)
+        self.ch2_negative_lead_connected() && self.ch2_positive_lead_connected()
     }
 
     pub fn ch1_sample(&self) -> Sample {
