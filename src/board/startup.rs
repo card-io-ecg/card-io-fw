@@ -62,16 +62,18 @@ impl StartupResources {
         dma_in_interrupt: peripherals::Interrupt,
         dma_out_interrupt: peripherals::Interrupt,
         display_spi: DisplaySpiInstance,
-        display_reset: DisplayReset,
-        display_dc: DisplayDataCommand,
-        mut display_cs: DisplayChipSelect,
-        display_sclk: DisplaySclk,
-        display_mosi: DisplayMosi,
+        display_reset: impl Into<DisplayReset>,
+        display_dc: impl Into<DisplayDataCommand>,
+        display_cs: impl Into<DisplayChipSelect>,
+        display_sclk: impl Into<DisplaySclk>,
+        display_mosi: impl Into<DisplayMosi>,
         pcc: &mut PeripheralClockControl,
         clocks: &Clocks,
     ) -> Display {
         interrupt::enable(dma_in_interrupt, interrupt::Priority::Priority1).unwrap();
         interrupt::enable(dma_out_interrupt, interrupt::Priority::Priority1).unwrap();
+
+        let mut display_cs: DisplayChipSelect = display_cs.into();
 
         display_cs.connect_peripheral_to_output(display_spi.cs_signal());
 
@@ -79,8 +81,8 @@ impl StartupResources {
         static mut DISPLAY_SPI_RX_DESCRIPTORS: [u32; 3] = [0; 3];
         let display_spi = Spi::new_no_cs_no_miso(
             display_spi,
-            display_sclk,
-            display_mosi,
+            display_sclk.into(),
+            display_mosi.into(),
             40u32.MHz(),
             SpiMode::Mode0,
             pcc,
@@ -96,9 +98,9 @@ impl StartupResources {
         Display::new(
             SPIInterface::new(
                 ExclusiveDevice::new(display_spi, DummyOutputPin, Delay),
-                display_dc,
+                display_dc.into(),
             ),
-            display_reset,
+            display_reset.into(),
         )
     }
 
@@ -109,21 +111,22 @@ impl StartupResources {
         dma_in_interrupt: peripherals::Interrupt,
         dma_out_interrupt: peripherals::Interrupt,
         adc_spi: AdcSpiInstance,
-        adc_sclk: AdcSclk,
-        adc_mosi: AdcMosi,
-        adc_miso: AdcMiso,
-
-        adc_drdy: AdcDrdy,
-        adc_reset: AdcReset,
-        adc_clock_enable: AdcClockEnable,
-        touch_detect: TouchDetect,
-        mut adc_cs: AdcChipSelect,
+        adc_sclk: impl Into<AdcSclk>,
+        adc_mosi: impl Into<AdcMosi>,
+        adc_miso: impl Into<AdcMiso>,
+        adc_drdy: impl Into<AdcDrdy>,
+        adc_reset: impl Into<AdcReset>,
+        adc_clock_enable: impl Into<AdcClockEnable>,
+        touch_detect: impl Into<TouchDetect>,
+        adc_cs: impl Into<AdcChipSelect>,
 
         pcc: &mut PeripheralClockControl,
         clocks: &Clocks,
     ) -> EcgFrontend {
         interrupt::enable(dma_in_interrupt, interrupt::Priority::Priority1).unwrap();
         interrupt::enable(dma_out_interrupt, interrupt::Priority::Priority1).unwrap();
+
+        let mut adc_cs: AdcChipSelect = adc_cs.into();
 
         adc_cs.set_high().unwrap();
 
@@ -133,9 +136,9 @@ impl StartupResources {
             ExclusiveDevice::new(
                 Spi::new_no_cs(
                     adc_spi,
-                    adc_sclk,
-                    adc_mosi,
-                    adc_miso,
+                    adc_sclk.into(),
+                    adc_mosi.into(),
+                    adc_miso.into(),
                     1u32.MHz(),
                     SpiMode::Mode1,
                     pcc,
@@ -150,10 +153,10 @@ impl StartupResources {
                 adc_cs,
                 Delay,
             ),
-            adc_drdy,
-            adc_reset,
-            adc_clock_enable,
-            touch_detect,
+            adc_drdy.into(),
+            adc_reset.into(),
+            adc_clock_enable.into(),
+            touch_detect.into(),
         )
     }
 }
