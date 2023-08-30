@@ -112,11 +112,11 @@ impl super::startup::StartupResources {
             peripherals::Interrupt::DMA_IN_CH0,
             peripherals::Interrupt::DMA_OUT_CH0,
             peripherals.SPI2,
-            io.pins.gpio12.into_push_pull_output(),
-            io.pins.gpio13.into_push_pull_output(),
-            io.pins.gpio11.into_push_pull_output(),
-            io.pins.gpio14.into_push_pull_output(),
-            io.pins.gpio21.into_push_pull_output(),
+            io.pins.gpio12,
+            io.pins.gpio13,
+            io.pins.gpio11,
+            io.pins.gpio14,
+            io.pins.gpio21,
             &mut system.peripheral_clock_control,
             &clocks,
         );
@@ -126,14 +126,14 @@ impl super::startup::StartupResources {
             peripherals::Interrupt::DMA_IN_CH1,
             peripherals::Interrupt::DMA_OUT_CH1,
             peripherals.SPI3,
-            io.pins.gpio6.into_push_pull_output(),
-            io.pins.gpio7.into_push_pull_output(),
-            io.pins.gpio5.into_floating_input(),
-            io.pins.gpio4.into_floating_input(),
-            io.pins.gpio2.into_push_pull_output(),
-            io.pins.gpio38.into_push_pull_output(),
-            io.pins.gpio1.into_floating_input(),
-            io.pins.gpio18.into_push_pull_output(),
+            io.pins.gpio6,
+            io.pins.gpio7,
+            io.pins.gpio5,
+            io.pins.gpio4,
+            io.pins.gpio2,
+            io.pins.gpio38,
+            io.pins.gpio1,
+            io.pins.gpio18,
             &mut system.peripheral_clock_control,
             &clocks,
         );
@@ -143,12 +143,7 @@ impl super::startup::StartupResources {
             // Battery ADC
             let analog = peripherals.SENS.split();
 
-            BatteryAdc::new(
-                analog.adc1,
-                io.pins.gpio9.into_analog(),
-                io.pins.gpio10.into_analog(),
-                io.pins.gpio8.into_push_pull_output(),
-            )
+            BatteryAdc::new(analog.adc1, io.pins.gpio9, io.pins.gpio10, io.pins.gpio8)
         };
 
         #[cfg(feature = "battery_max17055")]
@@ -190,10 +185,6 @@ impl super::startup::StartupResources {
             )
         };
 
-        // Charger
-        let vbus_detect = io.pins.gpio17.into_floating_input();
-        let chg_status = io.pins.gpio47.into_pull_up_input();
-
         // Wifi
         let (wifi, _) = peripherals.RADIO.split();
 
@@ -219,8 +210,8 @@ impl super::startup::StartupResources {
             peripheral_clock_control: system.peripheral_clock_control,
 
             misc_pins: MiscPins {
-                vbus_detect,
-                chg_status,
+                vbus_detect: io.pins.gpio17.into(),
+                chg_status: io.pins.gpio47.into(),
             },
         }
     }

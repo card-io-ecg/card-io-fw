@@ -42,13 +42,20 @@ where
     V: Channel<ADCI, ID = u8>,
     A: Channel<ADCI, ID = u8>,
 {
-    pub fn new(adc: ADCI, voltage_in: V, current_in: A, enable: EN) -> Self {
+    pub fn new(
+        adc: ADCI,
+        voltage_in: impl Into<V>,
+        current_in: impl Into<A>,
+        enable: impl Into<EN>,
+    ) -> Self {
         let mut adc_config = AdcConfig::new();
 
         Self {
-            voltage_in: adc_config.enable_pin_with_cal(voltage_in, Attenuation::Attenuation11dB),
-            current_in: adc_config.enable_pin_with_cal(current_in, Attenuation::Attenuation11dB),
-            enable,
+            voltage_in: adc_config
+                .enable_pin_with_cal(voltage_in.into(), Attenuation::Attenuation11dB),
+            current_in: adc_config
+                .enable_pin_with_cal(current_in.into(), Attenuation::Attenuation11dB),
+            enable: enable.into(),
             adc: ADC::adc(adc, adc_config).unwrap(),
         }
     }
