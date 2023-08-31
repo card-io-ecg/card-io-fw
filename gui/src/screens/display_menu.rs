@@ -79,6 +79,30 @@ impl Storable for BatteryStyle {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue)]
+pub enum FilterStrength {
+    Weak = 0,
+    Strong = 1,
+}
+
+impl Loadable for FilterStrength {
+    async fn load<R: Read>(reader: &mut R) -> Result<Self, LoadError<R::Error>> {
+        let data = match u8::load(reader).await? {
+            0 => Self::Weak,
+            1 => Self::Strong,
+            _ => return Err(LoadError::InvalidValue),
+        };
+
+        Ok(data)
+    }
+}
+
+impl Storable for FilterStrength {
+    async fn store<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
+        writer.write_all(&[*self as u8]).await
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Menu)]
 #[menu(
     title = "Display",
@@ -86,10 +110,12 @@ impl Storable for BatteryStyle {
     items = [
         data(label = "Brightness", field = brightness),
         data(label = "Battery", field = battery_display),
+        data(label = "ECG Filter", field = filter_strength),
         navigation(label = "Back", event = DisplayMenuEvents::Back)
     ]
 )]
 pub struct DisplayMenu {
     pub brightness: DisplayBrightness,
     pub battery_display: BatteryStyle,
+    pub filter_strength: FilterStrength,
 }

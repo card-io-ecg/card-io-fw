@@ -21,7 +21,7 @@ use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
 use embedded_hal_bus::spi::DeviceError;
 use gui::{
-    screens::{measure::EcgScreen, screen::Screen},
+    screens::{display_menu::FilterStrength, measure::EcgScreen, screen::Screen},
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 use macros as cardio;
@@ -30,7 +30,10 @@ use signal_processing::{
     compressing_buffer::CompressingBuffer,
     filter::{
         downsample::DownSampler,
-        iir::{precomputed::HIGH_PASS_FOR_DISPLAY, HighPass, Iir},
+        iir::{
+            precomputed::{HIGH_PASS_FOR_DISPLAY_STRONG, HIGH_PASS_FOR_DISPLAY_WEAK},
+            HighPass, Iir,
+        },
         pli::{adaptation_blocking::AdaptationBlocking, PowerLineFilter},
         Filter,
     },
@@ -83,9 +86,9 @@ struct EcgObjects {
 
 impl EcgObjects {
     #[inline(always)]
-    fn new() -> Self {
+    fn new(filter: Iir<'static, HighPass, 2>) -> Self {
         Self {
-            filter: Chain::new(HIGH_PASS_FOR_DISPLAY).append(PowerLineFilter::new(1000.0, [50.0])),
+            filter: Chain::new(filter).append(PowerLineFilter::new(1000.0, [50.0])),
             downsampler: Chain::new(DownSampler::new())
                 .append(DownSampler::new())
                 .append(DownSampler::new()),
@@ -97,7 +100,11 @@ impl EcgObjects {
 static mut ECG_BUFFER: CompressingBuffer<ECG_BUFFER_SIZE> = CompressingBuffer::EMPTY;
 
 pub async fn measure(board: &mut Board) -> AppState {
-    let mut ecg = Box::new(EcgObjects::new());
+    let filter = match board.config.filter_strength() {
+        FilterStrength::Weak => HIGH_PASS_FOR_DISPLAY_WEAK,
+        FilterStrength::Strong => HIGH_PASS_FOR_DISPLAY_STRONG,
+    };
+    let mut ecg = Box::new(EcgObjects::new(filter));
     let ecg_buffer = unsafe { &mut ECG_BUFFER };
 
     ecg_buffer.clear();
