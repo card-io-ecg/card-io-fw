@@ -6,6 +6,14 @@ use core::marker::PhantomData;
 pub mod precomputed {
     use super::{HighPass, Iir};
 
+    #[rustfmt::skip]
+    pub const HIGH_PASS_FOR_DISPLAY: Iir<'static, HighPass, 2>  = macros::designfilt!(
+        "highpassiir",
+        "FilterOrder", 2,
+        "HalfPowerFrequency", 0.5,
+        "SampleRate", 1000
+    );
+
     /// designfilt('highpassiir', 'FilterOrder', 2, 'HalfPowerFrequency', 50, 'SampleRate', 1000)
     pub const HIGH_PASS_50HZ: Iir<'static, HighPass, 2> = Iir::new(
         &[0.800_592_4, -1.601_184_8, 0.800_592_4],

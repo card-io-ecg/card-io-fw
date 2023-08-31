@@ -30,7 +30,7 @@ use signal_processing::{
     compressing_buffer::CompressingBuffer,
     filter::{
         downsample::DownSampler,
-        iir::{precomputed::HIGH_PASS_CUTOFF_1_59HZ, HighPass, Iir},
+        iir::{precomputed::HIGH_PASS_FOR_DISPLAY, HighPass, Iir},
         pli::{adaptation_blocking::AdaptationBlocking, PowerLineFilter},
         Filter,
     },
@@ -85,8 +85,7 @@ impl EcgObjects {
     #[inline(always)]
     fn new() -> Self {
         Self {
-            filter: Chain::new(HIGH_PASS_CUTOFF_1_59HZ)
-                .append(PowerLineFilter::new(1000.0, [50.0])),
+            filter: Chain::new(HIGH_PASS_FOR_DISPLAY).append(PowerLineFilter::new(1000.0, [50.0])),
             downsampler: Chain::new(DownSampler::new())
                 .append(DownSampler::new())
                 .append(DownSampler::new()),
