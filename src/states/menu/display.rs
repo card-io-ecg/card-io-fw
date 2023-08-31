@@ -31,6 +31,7 @@ pub async fn display_menu(board: &mut Board) -> AppState {
     let mut menu_values = DisplayMenu {
         brightness: board.config.display_brightness,
         battery_display: board.config.battery_display_style,
+        filter_strength: board.config.filter_strength,
     };
 
     let mut menu_screen = Screen {
@@ -94,6 +95,10 @@ pub async fn display_menu(board: &mut Board) -> AppState {
                 menu_screen
                     .status_bar
                     .update_battery_style(board.config.battery_style());
+            }
+            if menu_values.filter_strength != new.filter_strength {
+                board.config_changed = true;
+                board.config.filter_strength = new.filter_strength;
             }
 
             menu_values = new;

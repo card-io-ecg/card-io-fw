@@ -21,7 +21,7 @@ use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
 use embedded_hal_bus::spi::DeviceError;
 use gui::{
-    screens::{measure::EcgScreen, screen::Screen},
+    screens::{display_menu::FilterStrength, measure::EcgScreen, screen::Screen},
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 use macros as cardio;
@@ -97,7 +97,11 @@ impl EcgObjects {
 static mut ECG_BUFFER: CompressingBuffer<ECG_BUFFER_SIZE> = CompressingBuffer::EMPTY;
 
 pub async fn measure(board: &mut Board) -> AppState {
-    let mut ecg = Box::new(EcgObjects::new(HIGH_PASS_FOR_DISPLAY));
+    let filter = match board.config.filter_strength() {
+        FilterStrength::Weak => HIGH_PASS_FOR_DISPLAY,
+        FilterStrength::Strong => HIGH_PASS_FOR_DISPLAY,
+    };
+    let mut ecg = Box::new(EcgObjects::new(filter));
     let ecg_buffer = unsafe { &mut ECG_BUFFER };
 
     ecg_buffer.clear();

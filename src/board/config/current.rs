@@ -1,6 +1,9 @@
 use config_site::data::network::WifiNetwork;
 use embedded_io::asynch::{Read, Write};
-use gui::{screens::display_menu::DisplayBrightness, widgets::battery_small::BatteryStyle};
+use gui::{
+    screens::display_menu::{DisplayBrightness, FilterStrength},
+    widgets::battery_small::BatteryStyle,
+};
 use norfs::storable::{LoadError, Loadable, Storable};
 use ssd1306::prelude::Brightness;
 
@@ -11,13 +14,15 @@ pub struct Config {
     pub battery_display_style: BatteryStyle,
     pub display_brightness: DisplayBrightness,
     pub known_networks: heapless::Vec<WifiNetwork, 8>,
+    pub filter_strength: FilterStrength,
 }
 
-impl From<super::v1::Config> for Config {
-    fn from(value: super::v1::Config) -> Self {
+impl From<super::v2::Config> for Config {
+    fn from(value: super::v2::Config) -> Self {
         Self {
             battery_display_style: value.battery_display_style,
             display_brightness: value.display_brightness,
+            known_networks: value.known_networks,
             ..Default::default()
         }
     }
@@ -29,6 +34,7 @@ impl Default for Config {
             battery_display_style: BatteryStyle::LowIndicator,
             display_brightness: DisplayBrightness::Normal,
             known_networks: heapless::Vec::new(),
+            filter_strength: FilterStrength::Weak,
         }
     }
 }
@@ -47,6 +53,10 @@ impl Config {
             DisplayBrightness::Brightest => Brightness::BRIGHTEST,
         }
     }
+
+    pub fn filter_strength(&self) -> FilterStrength {
+        self.filter_strength
+    }
 }
 
 impl Loadable for Config {
@@ -55,6 +65,7 @@ impl Loadable for Config {
             battery_display_style: BatteryStyle::load(reader).await?,
             display_brightness: DisplayBrightness::load(reader).await?,
             known_networks: heapless::Vec::load(reader).await?,
+            filter_strength: FilterStrength::load(reader).await?,
         };
 
         Ok(data)
@@ -68,6 +79,7 @@ impl Storable for Config {
         self.battery_display_style.store(writer).await?;
         self.display_brightness.store(writer).await?;
         self.known_networks.store(writer).await?;
+        self.filter_strength.store(writer).await?;
 
         Ok(())
     }
