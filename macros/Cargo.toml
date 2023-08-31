@@ -9,5 +9,8 @@ quote = "1.0.9"
 darling = "0.20.1"
 proc-macro2 = "1.0.29"
 
+# for designfilt
+sci-rs = "0.2.7"
+
 [lib]
 proc-macro = true

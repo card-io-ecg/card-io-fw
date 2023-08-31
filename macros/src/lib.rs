@@ -9,6 +9,7 @@ use syn::{
     Token,
 };
 
+mod filter;
 mod task;
 
 struct Args {
@@ -60,4 +61,10 @@ pub fn task(args: TokenStream, item: TokenStream) -> TokenStream {
     let f = syn::parse_macro_input!(item as syn::ItemFn);
 
     task::run(&args.meta, f).into()
+}
+
+#[proc_macro]
+pub fn designfilt(item: TokenStream) -> TokenStream {
+    let spec = syn::parse_macro_input!(item as filter::FilterSpec);
+    filter::run(spec).into()
 }
