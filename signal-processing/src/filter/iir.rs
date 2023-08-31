@@ -14,28 +14,20 @@ pub mod precomputed {
         "SampleRate", 1000
     );
 
-    /// designfilt('highpassiir', 'FilterOrder', 2, 'HalfPowerFrequency', 50, 'SampleRate', 1000)
-    pub const HIGH_PASS_50HZ: Iir<'static, HighPass, 2> = Iir::new(
-        &[0.800_592_4, -1.601_184_8, 0.800_592_4],
-        &[-1.561_018_1, 0.641_351_5],
+    #[rustfmt::skip]
+    pub const HIGH_PASS_50HZ: Iir<'static, HighPass, 2>  = macros::designfilt!(
+        "highpassiir",
+        "FilterOrder", 2,
+        "HalfPowerFrequency", 50,
+        "SampleRate", 1000
     );
 
-    /// designfilt('highpassiir', 'FilterOrder', 2, 'HalfPowerFrequency', 80, 'SampleRate', 1000)
-    pub const HIGH_PASS_80HZ: Iir<'static, HighPass, 2> = Iir::new(
-        &[0.699_774_3, -1.399_548_6, 0.699_774_3],
-        &[-1.307_285_1, 0.491_812_23],
-    );
-
-    /// designfilt('highpassiir', 'FilterOrder', 2, 'PassbandFrequency', 1.59, 'PassbandRipple', 1, 'SampleRate', 1000)
-    pub const HIGH_PASS_CUTOFF_1_59HZ: Iir<'static, HighPass, 2> = Iir::new(
-        &[0.886_820_26, -1.773_640_5, 0.886_820_26],
-        &[-1.990_012_3, 0.990_102_35],
-    );
-
-    /// designfilt('highpassiir', 'FilterOrder', 2, 'PassbandFrequency', .55, 'PassbandRipple', 1, 'SampleRate', 50)
-    pub const HIGH_PASS_CUTOFF_0_55HZ: Iir<'static, HighPass, 2> = Iir::new(
-        &[0.860_691_6, -1.721_383_2, 0.860_691_6],
-        &[-1.929_33, 0.933_517_46],
+    #[rustfmt::skip]
+    pub const HIGH_PASS_80HZ: Iir<'static, HighPass, 2>  = macros::designfilt!(
+        "highpassiir",
+        "FilterOrder", 2,
+        "HalfPowerFrequency", 80,
+        "SampleRate", 1000
     );
 }
 
