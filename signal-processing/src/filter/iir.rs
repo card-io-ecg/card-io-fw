@@ -7,10 +7,18 @@ pub mod precomputed {
     use super::{HighPass, Iir};
 
     #[rustfmt::skip]
-    pub const HIGH_PASS_FOR_DISPLAY: Iir<'static, HighPass, 2> = macros::designfilt!(
+    pub const HIGH_PASS_FOR_DISPLAY_WEAK: Iir<'static, HighPass, 2> = macros::designfilt!(
         "highpassiir",
         "FilterOrder", 2,
         "HalfPowerFrequency", 0.5,
+        "SampleRate", 1000
+    );
+
+    #[rustfmt::skip]
+    pub const HIGH_PASS_FOR_DISPLAY_STRONG: Iir<'static, HighPass, 2> = macros::designfilt!(
+        "highpassiir",
+        "FilterOrder", 2,
+        "HalfPowerFrequency", 1.5,
         "SampleRate", 1000
     );
 

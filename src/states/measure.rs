@@ -30,7 +30,10 @@ use signal_processing::{
     compressing_buffer::CompressingBuffer,
     filter::{
         downsample::DownSampler,
-        iir::{precomputed::HIGH_PASS_FOR_DISPLAY, HighPass, Iir},
+        iir::{
+            precomputed::{HIGH_PASS_FOR_DISPLAY_STRONG, HIGH_PASS_FOR_DISPLAY_WEAK},
+            HighPass, Iir,
+        },
         pli::{adaptation_blocking::AdaptationBlocking, PowerLineFilter},
         Filter,
     },
@@ -98,8 +101,8 @@ static mut ECG_BUFFER: CompressingBuffer<ECG_BUFFER_SIZE> = CompressingBuffer::E
 
 pub async fn measure(board: &mut Board) -> AppState {
     let filter = match board.config.filter_strength() {
-        FilterStrength::Weak => HIGH_PASS_FOR_DISPLAY,
-        FilterStrength::Strong => HIGH_PASS_FOR_DISPLAY,
+        FilterStrength::Weak => HIGH_PASS_FOR_DISPLAY_WEAK,
+        FilterStrength::Strong => HIGH_PASS_FOR_DISPLAY_STRONG,
     };
     let mut ecg = Box::new(EcgObjects::new(filter));
     let ecg_buffer = unsafe { &mut ECG_BUFFER };
