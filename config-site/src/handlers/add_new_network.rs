@@ -49,8 +49,9 @@ impl<C: Connection> RequestHandler<C> for AddNewNetwork<'_> {
 
         let post_body = match core::str::from_utf8(post_data) {
             Ok(body) => body,
-            Err(err) => {
-                warn!("Invalid UTF-8 in POST body: {}", err);
+            Err(_err) => {
+                warn!("Invalid UTF-8 in POST body: {:?}", post_data);
+                // warn!("Invalid UTF-8 in POST body: {}", err);
                 return self
                     .request_error(
                         request,

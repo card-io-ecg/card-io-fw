@@ -5,6 +5,7 @@ use httparse::Header;
 use crate::{connector::Connection, debug, HandleError};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum ResponseStatus {
     Ok = 200,
     NotModified = 304,

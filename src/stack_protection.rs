@@ -29,8 +29,8 @@ impl StackMonitor {
     /// purposes.
     pub fn protect(stack: Range<usize>) -> Self {
         defmt::info!(
-            "StackMonitor::protect({:#x}, {})",
-            stack.start,
+            "StackMonitor::protect({:?}, {})",
+            stack.start as *const u32,
             stack.end - stack.start
         );
         let mut assist = conjure();

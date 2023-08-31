@@ -1,3 +1,5 @@
+use std::env;
+
 use anyhow::Result as AnyResult;
 use clap::{Parser, Subcommand, ValueEnum};
 
@@ -262,6 +264,8 @@ fn asm() -> AnyResult<()> {
 
 fn main() -> AnyResult<()> {
     let cli = Cli::parse();
+
+    env::set_var("DEFMT_LOG", "trace");
 
     match cli.subcommand {
         Subcommands::Build { hw, variant: opt } => build(hw.unwrap_or_default(), opt),

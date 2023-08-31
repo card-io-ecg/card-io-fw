@@ -160,6 +160,7 @@ defmt = [
     "logger/defmt",
     "config-site/defmt",
     "embassy-net/defmt",
+    "embedded-io/defmt",
     "norfs/defmt",
     "esp-println/defmt",
     "ads129x/defmt",

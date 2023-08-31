@@ -4,6 +4,9 @@ use logger::*;
 use embedded_io::asynch::{Read, Write};
 
 pub trait Connection: Read + Write {
+    #[cfg(feature = "defmt")]
+    type AcceptError: Debug + defmt::Format;
+    #[cfg(not(feature = "defmt"))]
     type AcceptError: Debug;
 
     // TODO: separate listener and socket

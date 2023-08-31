@@ -240,13 +240,15 @@ where
             info!("Connected");
             let handle_result = self.handle(socket).await;
 
-            if let Err(e) = socket.flush().await {
-                warn!("Flush error: {:?}", e);
+            if let Err(_e) = socket.flush().await {
+                warn!("Flush error");
+                //warn!("Flush error: {:?}", e);
             }
 
             // Handle errors after flushing
-            if let Err(e) = handle_result {
-                warn!("Handle error: {:?}", e);
+            if let Err(_e) = handle_result {
+                warn!("Handle error");
+                //warn!("Handle error: {:?}", e);
             }
 
             socket.close();
@@ -269,7 +271,8 @@ where
                 }
                 Ok(len) => pos += len,
                 Err(e) => {
-                    warn!("read error: {:?}", e);
+                    warn!("read error");
+                    //warn!("read error: {:?}", e);
                     return Err(HandleError::Read(ReadError::Io(e)));
                 }
             }
@@ -288,7 +291,8 @@ where
                     // We need to read more
                 }
                 Err(e) => {
-                    warn!("Parsing request failed: {}", e);
+                    warn!("Parsing request failed");
+                    //warn!("Parsing request failed: {}", e);
                     return Err(HandleError::RequestParse(e));
                 }
             };
