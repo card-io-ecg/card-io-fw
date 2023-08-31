@@ -124,6 +124,7 @@ pub enum HandleError<C: Io> {
     Read(ReadError<C>),
     Write(C::Error),
     TooManyHeaders,
+    InternalError,
     RequestParse(httparse::Error),
 }
 
@@ -142,6 +143,7 @@ where
             HandleError::Read(f0) => f.debug_tuple("Read").field(&f0).finish(),
             HandleError::Write(f0) => f.debug_tuple("Write").field(&f0).finish(),
             HandleError::TooManyHeaders => f.write_str("TooManyHeaders"),
+            HandleError::InternalError => f.write_str("InternalError"),
             HandleError::RequestParse(f0) => f.debug_tuple("RequestParse").field(&f0).finish(),
         }
     }
@@ -245,7 +247,7 @@ where
             let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
             let mut req = httparse::Request::new(&mut headers);
 
-            match req.parse(&buffer[0..pos]) {
+            match req.parse(&buffer[..pos]) {
                 Ok(Status::Complete(header_size)) => {
                     let (header, body) = buffer[..pos].split_at(header_size);
                     return Ok((header, body));
@@ -272,20 +274,23 @@ where
             Ok((header, body)) => {
                 let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
                 let mut req = httparse::Request::new(&mut headers);
-                req.parse(header).unwrap();
-
-                match RequestBody::new(req.headers, body, socket) {
-                    Ok(body) => match Request::new(req, body) {
-                        Ok(request) if self.handler.handles(&request) => {
-                            return self.handler.handle(request).await;
-                        }
-                        Ok(_request) => ResponseStatus::NotFound,
-                        Err(status) => status,
-                    },
-                    Err(err) => err.into(),
+                if req.parse(header).is_err() {
+                    ResponseStatus::InternalServerError
+                } else {
+                    match RequestBody::new(req.headers, body, socket) {
+                        Ok(body) => match Request::new(req, body) {
+                            Ok(request) if self.handler.handles(&request) => {
+                                return self.handler.handle(request).await;
+                            }
+                            Ok(_request) => ResponseStatus::NotFound,
+                            Err(status) => status,
+                        },
+                        Err(err) => err.into(),
+                    }
                 }
             }
             Err(HandleError::TooManyHeaders) => ResponseStatus::RequestEntityTooLarge,
+            Err(HandleError::InternalError) => ResponseStatus::InternalServerError,
             Err(HandleError::RequestParse(_)) => ResponseStatus::BadRequest,
             Err(HandleError::Read(ReadError::Io(_))) => ResponseStatus::InternalServerError,
             Err(HandleError::Read(ReadError::Encoding)) => ResponseStatus::BadRequest,

@@ -99,7 +99,10 @@ impl<C: Connection> RequestHandler<C> for StaticHandler<'_> {
             response.start_body().await.map(|_| ())
         } else {
             let mut length = heapless::String::<12>::new();
-            write!(length, "{}", self.body.len()).unwrap();
+            if write!(length, "{}", self.body.len()).is_err() {
+                return Err(HandleError::InternalError);
+            }
+
             let content_length_header = Header {
                 name: "Content-Length",
                 value: length.as_bytes(),

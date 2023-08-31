@@ -76,9 +76,13 @@ impl<'s, C: Connection> Response<'s, C, Initial> {
             .await
             .map_err(HandleError::Write)?;
 
-        let mut status_code = heapless::Vec::<u8, 4>::new();
         log::debug!("Response status: {}", status as u16);
-        write!(&mut status_code, "{}", status as u16).unwrap();
+
+        let mut status_code = heapless::Vec::<u8, 4>::new();
+        if write!(&mut status_code, "{}", status as u16).is_err() {
+            return Err(HandleError::InternalError);
+        }
+
         self.socket
             .write_all(&status_code)
             .await
@@ -192,7 +196,10 @@ impl<'s, C: Connection> Response<'s, C, BodyChunked> {
 
     pub async fn write_raw(&mut self, data: &[u8]) -> Result<(), HandleError<C>> {
         let mut chunk_header = heapless::Vec::<u8, 12>::new();
-        write!(&mut chunk_header, "{:X}\r\n", data.len()).unwrap();
+        if write!(&mut chunk_header, "{:X}\r\n", data.len()).is_err() {
+            return Err(HandleError::InternalError);
+        }
+
         self.socket
             .write_all(&chunk_header)
             .await
