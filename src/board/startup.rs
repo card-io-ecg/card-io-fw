@@ -29,6 +29,7 @@ use crate::{
     },
     heap::init_heap,
 };
+#[cfg(feature = "log")]
 use esp_println::logger::init_logger;
 
 pub static WIFI_DRIVER: StaticCell<WifiDriver> = StaticCell::new();
@@ -51,6 +52,7 @@ pub struct StartupResources {
 
 impl StartupResources {
     pub(super) fn common_init() {
+        #[cfg(feature = "log")]
         init_logger(log::LevelFilter::Trace); // we let the compile-time log level filter do the work
         init_heap();
     }

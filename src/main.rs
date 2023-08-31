@@ -11,6 +11,8 @@ extern crate alloc;
 
 use core::ptr::addr_of;
 
+use esp_println as _;
+
 use alloc::{boxed::Box, rc::Rc};
 use embassy_executor::Spawner;
 use embassy_sync::{

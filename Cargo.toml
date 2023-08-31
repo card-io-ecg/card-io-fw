@@ -63,8 +63,6 @@ esp-backtrace = { version = "0.8.0", features = [
 ] } # add "halt-cores"
 esp-println = { version = "0.6.0", default-features = false, features = [
     "critical-section",
-    "colors",
-    "log",
 ] }
 esp-alloc = { version = "0.3.0" }
 esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "02239f9", default-features = false, features = [
@@ -95,8 +93,8 @@ register-access = { path = "register-access" }
 gui = { path = "gui" }
 macros = { path = "macros" }
 embassy-alloc-taskpool = { path = "embassy-alloc-taskpool" }
-ads129x = { path = "ads129x", features = ["defmt"] }
-max17055 = { path = "max17055", features = ["defmt"], optional = true }
+ads129x = { path = "ads129x" }
+max17055 = { path = "max17055", optional = true }
 signal-processing = { path = "signal-processing", features = ["nostd"] }
 replace_with = { version = "0.1", default-features = false, features = [
     "nightly",
@@ -116,10 +114,10 @@ embassy-sync = { workspace = true }
 
 norfs = { workspace = true }
 heapless = { workspace = true }
-log = { workspace = true }
+log = { workspace = true, optional = true }
 logger = { workspace = true }
 object-chain = { workspace = true }
-defmt = { workspace = true }
+defmt = { workspace = true, optional = true }
 
 [patch.'https://github.com/esp-rs/esp-wifi']
 esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", branch = "dev" }
@@ -149,25 +147,34 @@ jtag_serial = ["esp-backtrace/print-jtag-serial", "esp-println/jtag_serial"]
 rtt = ["esp-backtrace/print-rtt", "esp-println/rtt"]
 
 log = [
+    "dep:log",
     "logger/log",
     "config-site/log",
     "norfs/log",
     "ads129x/log",
-    "max17055/log",
+    "max17055?/log",
+    "esp-println/log",
+    "esp-println/colors",
+    "esp-wifi/log",
+    "esp32s3-hal/log",
 ]
 
 defmt = [
+    "dep:defmt",
     "logger/defmt",
     "config-site/defmt",
     "embassy-net/defmt",
-    "embedded-io/defmt",
+    "embassy-futures/defmt",
+    "embassy-sync/defmt",
     "norfs/defmt",
-    "esp-println/defmt",
     "ads129x/defmt",
-    "max17055/defmt",
+    "max17055?/defmt",
     "bad-server/defmt",
+    "embedded-io/defmt",
     "embedded-svc/defmt",
-    "esp-wifi/defmt"
+    "esp-println/defmt",
+    "esp-wifi/defmt",
+    "esp32s3-hal/defmt",
 ]
 
 [package.metadata.espflash]
