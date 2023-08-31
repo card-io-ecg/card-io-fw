@@ -83,9 +83,9 @@ struct EcgObjects {
 
 impl EcgObjects {
     #[inline(always)]
-    fn new() -> Self {
+    fn new(filter: Iir<'static, HighPass, 2>) -> Self {
         Self {
-            filter: Chain::new(HIGH_PASS_FOR_DISPLAY).append(PowerLineFilter::new(1000.0, [50.0])),
+            filter: Chain::new(filter).append(PowerLineFilter::new(1000.0, [50.0])),
             downsampler: Chain::new(DownSampler::new())
                 .append(DownSampler::new())
                 .append(DownSampler::new()),
@@ -97,7 +97,7 @@ impl EcgObjects {
 static mut ECG_BUFFER: CompressingBuffer<ECG_BUFFER_SIZE> = CompressingBuffer::EMPTY;
 
 pub async fn measure(board: &mut Board) -> AppState {
-    let mut ecg = Box::new(EcgObjects::new());
+    let mut ecg = Box::new(EcgObjects::new(HIGH_PASS_FOR_DISPLAY));
     let ecg_buffer = unsafe { &mut ECG_BUFFER };
 
     ecg_buffer.clear();
