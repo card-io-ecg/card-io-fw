@@ -249,6 +249,8 @@ fn asm() -> AnyResult<()> {
     .stdout_path("target/asm.s")
     .run()?;
 
+    println!("🛠️  Assembly saved to target/asm.s");
+
     Ok(())
 }
 
