@@ -126,7 +126,7 @@ impl<'s, C: Connection> Buffer<'_, 's, C> {
         // Read wants to read at least one byte which will block
         // if we already loaded the complete body.
         if read == 0 {
-            self.socket.read(&mut buf[read..]).await
+            self.socket.read(buf).await
         } else {
             Ok(read)
         }
@@ -166,7 +166,7 @@ impl<'buf, 's, C: Connection> ContentLengthReader<'buf, 's, C> {
     }
 
     async fn read(&mut self, buf: &mut [u8]) -> ReadResult<usize, C> {
-        let len = self.length.min(buf.len() as u32) as usize;
+        let len = buf.len().min(self.length as usize);
 
         let read = self
             .buffer
