@@ -120,7 +120,7 @@ object-chain = { workspace = true }
 defmt = { workspace = true, optional = true }
 
 [patch.'https://github.com/esp-rs/esp-wifi']
-esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", branch = "dev" }
+esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", rev = "f5813bf" }
 
 [features]
 default = ["esp32s3", "defmt"]
