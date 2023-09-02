@@ -168,8 +168,6 @@ log = [
 defmt = [
     "dep:defmt",
     "embassy-net/defmt",
-    "embassy-futures/defmt",
-    "embassy-sync/defmt",
     "norfs/defmt",
     "embedded-io/defmt",
     "embedded-svc/defmt",
