@@ -251,19 +251,19 @@ async fn measure_impl(
                 },
             };
 
-            board
+            unwrap!(board
                 .display
                 .frame(|display| init_screen.draw(display))
                 .await
-                .unwrap();
+                .ok());
         } else {
             screen.status_bar.update_battery_data(battery_data);
 
-            board
+            unwrap!(board
                 .display
                 .frame(|display| screen.draw(display))
                 .await
-                .unwrap();
+                .ok());
         }
 
         ticker.next().await;

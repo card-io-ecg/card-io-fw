@@ -84,7 +84,7 @@ impl ApState {
         info!("Configuring AP");
 
         let (wifi_interface, controller) =
-            esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap).unwrap();
+            unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap));
 
         let lower = rng.random() as u64;
         let upper = rng.random() as u64;
@@ -139,7 +139,7 @@ impl ApState {
             .await;
 
             if matches!(self.controller.lock().await.is_started(), Ok(true)) {
-                self.controller.lock().await.stop().await.unwrap();
+                unwrap!(self.controller.lock().await.stop().await);
             }
 
             info!("Stopped AP");
@@ -167,14 +167,10 @@ pub(super) async fn ap_task(
                 max_connections: 1,
                 ..Default::default()
             });
-            controller
-                .lock()
-                .await
-                .set_configuration(&client_config)
-                .unwrap();
+            unwrap!(controller.lock().await.set_configuration(&client_config));
             info!("Starting wifi");
 
-            controller.lock().await.start().await.unwrap();
+            unwrap!(controller.lock().await.start().await);
             info!("Wifi started!");
 
             loop {

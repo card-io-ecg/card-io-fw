@@ -15,9 +15,17 @@ embedded-text = "0.6"
 embedded-layout = "0.3"
 tinybmp = "0.5"
 
-signal-processing = { path = "../signal-processing" }
+signal-processing = { workspace = true }
+logger = { workspace = true }
+
+defmt = { workspace = true, optional = true }
+log = { workspace = true, optional = true }
 
 itertools = { version = "0.11.0", default-features = false }
 
 [dev-dependencies]
 embedded-graphics-simulator = "0.5.0"
+
+[features]
+log = ["dep:log", "logger/log"]
+defmt = ["dep:defmt", "logger/defmt"]

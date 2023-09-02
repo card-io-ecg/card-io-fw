@@ -33,6 +33,7 @@ log = { version = "0.4.18", default-features = false, features = [
     "release_max_level_info",
 ] }
 logger = { path = "logger" }
+signal-processing = { path = "signal-processing" }
 norfs = { git = "https://github.com/card-io-ecg/norfs.git", features = [
     "esp32s3",
 ] }
@@ -95,7 +96,7 @@ macros = { path = "macros" }
 embassy-alloc-taskpool = { path = "embassy-alloc-taskpool" }
 ads129x = { path = "ads129x" }
 max17055 = { path = "max17055", optional = true }
-signal-processing = { path = "signal-processing", features = ["nostd"] }
+signal-processing = { workspace = true, features = ["nostd"] }
 replace_with = { version = "0.1", default-features = false, features = [
     "nightly",
 ] }
@@ -121,7 +122,7 @@ defmt = { workspace = true, optional = true }
 # defmt = { workspace = true }
 
 [patch.'https://github.com/esp-rs/esp-wifi']
-esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", rev = "f5813bf" }
+esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", rev = "5646556" }
 
 [features]
 default = ["esp32s3", "defmt"]
@@ -149,33 +150,40 @@ rtt = ["esp-backtrace/print-rtt", "esp-println/rtt"]
 
 log = [
     "dep:log",
-    "logger/log",
-    "config-site/log",
     "norfs/log",
-    "ads129x/log",
-    "max17055?/log",
     "esp-println/log",
     "esp-println/colors",
     "esp-wifi/log",
     "esp32s3-hal/log",
+
+    "logger/log",
+    "config-site/log",
+    "ads129x/log",
+    "max17055?/log",
+    "bad-server/log",
+    "gui/log",
+    "signal-processing/log",
 ]
 
 defmt = [
     "dep:defmt",
-    "logger/defmt",
-    "config-site/defmt",
     "embassy-net/defmt",
     "embassy-futures/defmt",
     "embassy-sync/defmt",
     "norfs/defmt",
-    "ads129x/defmt",
-    "max17055?/defmt",
-    "bad-server/defmt",
     "embedded-io/defmt",
     "embedded-svc/defmt",
     "esp-println/defmt",
     "esp-wifi/defmt",
     "esp32s3-hal/defmt",
+
+    "logger/defmt",
+    "config-site/defmt",
+    "ads129x/defmt",
+    "max17055?/defmt",
+    "bad-server/defmt",
+    "gui/defmt",
+    "signal-processing/defmt",
 ]
 
 [package.metadata.espflash]

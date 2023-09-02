@@ -53,11 +53,10 @@ impl StackMonitor {
             ),
         }
 
-        interrupt::enable(
+        unwrap!(interrupt::enable(
             peripherals::Interrupt::ASSIST_DEBUG,
             interrupt::Priority::Priority3,
-        )
-        .unwrap();
+        ));
 
         Self { assist }
     }

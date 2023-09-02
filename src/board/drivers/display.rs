@@ -42,10 +42,11 @@ where
     }
 
     pub async fn enable(mut self) -> Result<PoweredDisplay<RESET>, DisplayError> {
-        self.display
+        unwrap!(self
+            .display
             .reset_async::<_, Delay>(&mut self.reset, &mut Delay)
             .await
-            .unwrap();
+            .ok());
 
         self.display
             .init_with_addr_mode_async(AddrMode::Horizontal)
@@ -112,7 +113,7 @@ where
     RESET: OutputPin,
 {
     pub fn shut_down(mut self) -> Display<RESET> {
-        self.display.reset.set_low().unwrap();
+        unwrap!(self.display.reset.set_low().ok());
         self.display
     }
 }

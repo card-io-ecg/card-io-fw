@@ -44,11 +44,11 @@ pub async fn initialize(board: &mut Board) -> AppState {
             },
         };
 
-        board
+        unwrap!(board
             .display
             .frame(|display| init_screen.draw(display))
             .await
-            .unwrap();
+            .ok());
 
         ticker.next().await;
     }

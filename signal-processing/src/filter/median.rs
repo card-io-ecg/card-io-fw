@@ -43,7 +43,7 @@ impl<const N: usize> Filter for MedianFilter<N> {
             let mut iter = self.buffer.iter();
 
             let mut copy: [f32; N] = [0.0; N];
-            copy.fill_with(|| iter.next().unwrap());
+            copy.fill_with(|| unwrap!(iter.next()));
             debug_assert!(iter.next().is_none());
 
             Some(Self::nth(&mut copy, N / 2))

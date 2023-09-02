@@ -3,6 +3,9 @@
 #![feature(generic_const_exprs)] // norfs needs this
 #![allow(incomplete_features)] // generic_const_exprs
 
+#[macro_use]
+extern crate logger;
+
 extern crate alloc;
 
 pub mod screens;

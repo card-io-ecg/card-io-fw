@@ -154,11 +154,10 @@ impl super::startup::StartupResources {
                 &clocks,
             );
 
-            interrupt::enable(
+            unwrap!(interrupt::enable(
                 peripherals::Interrupt::I2C_EXT0,
                 interrupt::Priority::Priority1,
-            )
-            .unwrap();
+            ));
 
             // MCP73832T-2ACI/OT
             // - ITerm/Ireg = 7.5%

@@ -266,11 +266,11 @@ where
     where
         RESET: OutputPin,
     {
-        reset.set_high().unwrap();
+        unwrap!(reset.set_high().ok());
         delay.delay_ms(Self::MIN_T_POR);
-        reset.set_low().unwrap();
+        unwrap!(reset.set_low().ok());
         delay.delay_ms(Self::MIN_T_RST);
-        reset.set_high().unwrap();
+        unwrap!(reset.set_high().ok());
         delay.delay_ms(Self::MIN_RST_WAIT);
     }
 }
@@ -298,9 +298,9 @@ where
             .await
             .map_err(Error::Transfer)?;
 
-        Ok(AdsData::new_single_channel(
-            buffer[bytes..bytes + 6].try_into().unwrap(),
-        ))
+        Ok(AdsData::new_single_channel(unwrap!(buffer
+            [bytes..bytes + 6]
+            .try_into())))
     }
 
     pub async fn read_data_2ch_async_rdatac(&mut self) -> Result<AdsData, Error<SPI::Error>> {
@@ -322,7 +322,7 @@ where
             .await
             .map_err(Error::Transfer)?;
 
-        Ok(AdsData::new(buffer[bytes..bytes + 9].try_into().unwrap()))
+        Ok(AdsData::new(unwrap!(buffer[bytes..bytes + 9].try_into())))
     }
 
     pub async fn write_command_async(
@@ -367,11 +367,11 @@ where
     where
         RESET: OutputPin,
     {
-        reset.set_high().unwrap();
+        unwrap!(reset.set_high().ok());
         delay.delay_ms(Self::MIN_T_POR).await;
-        reset.set_low().unwrap();
+        unwrap!(reset.set_low().ok());
         delay.delay_ms(Self::MIN_T_RST).await;
-        reset.set_high().unwrap();
+        unwrap!(reset.set_high().ok());
         delay.delay_ms(Self::MIN_RST_WAIT).await;
 
         self.write_command_async(Command::SDATAC, &mut []).await
@@ -417,16 +417,16 @@ impl AdsData {
 
     pub fn new(buffer: [u8; 9]) -> Self {
         Self {
-            status: Self::read_status(buffer[0..3].try_into().unwrap()),
-            ch1: Self::read_channel(buffer[3..6].try_into().unwrap()),
-            ch2: Self::read_channel(buffer[6..9].try_into().unwrap()),
+            status: Self::read_status(unwrap!(buffer[0..3].try_into())),
+            ch1: Self::read_channel(unwrap!(buffer[3..6].try_into())),
+            ch2: Self::read_channel(unwrap!(buffer[6..9].try_into())),
         }
     }
 
     pub fn new_single_channel(buffer: [u8; 6]) -> Self {
         Self {
-            status: Self::read_status(buffer[0..3].try_into().unwrap()),
-            ch1: Self::read_channel(buffer[3..6].try_into().unwrap()),
+            status: Self::read_status(unwrap!(buffer[0..3].try_into())),
+            ch1: Self::read_channel(unwrap!(buffer[3..6].try_into())),
             ch2: Sample { sample: 0 },
         }
     }

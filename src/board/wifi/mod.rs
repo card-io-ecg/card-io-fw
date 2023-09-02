@@ -59,16 +59,13 @@ impl WifiDriverState {
             // The replacement value doesn't matter as we immediately overwrite it,
             // but we need to move out of the resources
             if let WifiDriverState::Uninitialized(resources) = self.replace_with(WifiMode::Ap) {
-                *self = WifiDriverState::Initialized(
-                    esp_wifi::initialize(
-                        EspWifiInitFor::Wifi,
-                        resources.timer,
-                        resources.rng,
-                        resources.rcc,
-                        clocks,
-                    )
-                    .unwrap(),
-                );
+                *self = WifiDriverState::Initialized(unwrap!(esp_wifi::initialize(
+                    EspWifiInitFor::Wifi,
+                    resources.timer,
+                    resources.rng,
+                    resources.rcc,
+                    clocks,
+                )));
                 info!("Wifi driver initialized");
             } else {
                 unsafe { unreachable_unchecked() }

@@ -27,7 +27,7 @@ impl Drawable for StartupScreen<'_> {
         .draw(display)?;
 
         let logo = include_bytes!("../static/logo.bmp");
-        let bmp = Bmp::from_slice(logo).unwrap();
+        let bmp = unwrap!(Bmp::from_slice(logo).ok());
 
         Image::new(&bmp, Point::new(1, 12)).draw(display)?;
 

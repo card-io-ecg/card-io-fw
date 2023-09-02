@@ -65,13 +65,12 @@ pub async fn about_menu(board: &mut Board) -> AppState {
 
     #[cfg(feature = "battery_max17055")]
     {
-        items
+        unwrap!(items
             .push(NavigationItem::new(
                 String::from("Fuel gauge: MAX17055"),
                 AboutMenuEvents::ToBatteryInfo,
             ))
-            .ok()
-            .unwrap();
+            .ok());
     }
 
     let mut menu_screen = Screen {
@@ -119,14 +118,14 @@ pub async fn about_menu(board: &mut Board) -> AppState {
             menu_screen.status_bar.wifi.update(sta.connection_state());
         };
 
-        board
+        unwrap!(board
             .display
             .frame(|display| {
                 menu_screen.content.update(display);
                 menu_screen.draw(display)
             })
             .await
-            .unwrap();
+            .ok());
 
         ticker.next().await;
     }

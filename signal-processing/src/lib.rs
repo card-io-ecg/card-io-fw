@@ -1,5 +1,8 @@
 #![cfg_attr(feature = "nostd", no_std)]
 
+#[macro_use]
+extern crate logger;
+
 pub mod battery;
 pub mod buffer;
 pub mod compressing_buffer;

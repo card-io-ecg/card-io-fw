@@ -29,14 +29,14 @@ where
     }
 
     pub async fn enable<D: DelayUs>(&mut self, delay: &mut D) {
-        self.enable.set_high().unwrap();
+        unwrap!(self.enable.set_high().ok());
         delay.delay_ms(10).await;
-        self.fg.load_initial_config_async(delay).await.unwrap();
+        unwrap!(self.fg.load_initial_config_async(delay).await.ok());
     }
 
     pub async fn read_data(&mut self) -> Result<BatteryFgData, ()> {
-        let voltage_uv = self.fg.read_vcell().await.unwrap();
-        let percentage = self.fg.read_reported_soc().await.unwrap();
+        let voltage_uv = unwrap!(self.fg.read_vcell().await.ok());
+        let percentage = unwrap!(self.fg.read_reported_soc().await.ok());
 
         Ok(BatteryFgData {
             voltage: (voltage_uv / 1000) as u16, // mV
@@ -45,7 +45,7 @@ where
     }
 
     pub fn disable(&mut self) {
-        self.enable.set_low().unwrap();
+        unwrap!(self.enable.set_low().ok());
     }
 }
 
@@ -63,7 +63,7 @@ pub async fn monitor_task_fg(
             fuel_gauge.lock().await.enable(&mut Delay).await;
 
             loop {
-                let data = fuel_gauge.lock().await.read_data().await.unwrap();
+                let data = unwrap!(fuel_gauge.lock().await.read_data().await);
 
                 {
                     let mut state = battery_state.lock().await;

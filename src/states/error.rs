@@ -17,7 +17,7 @@ pub async fn app_error(board: &mut Board, error: AppError) -> AppState {
             }
         }
 
-        board
+        unwrap!(board
             .display
             .frame(|display| {
                 Screen {
@@ -38,7 +38,7 @@ pub async fn app_error(board: &mut Board, error: AppError) -> AppState {
                 .draw(display)
             })
             .await
-            .unwrap();
+            .ok());
 
         ticker.next().await;
     }

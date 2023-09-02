@@ -76,11 +76,11 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
     }
 
     pub fn is_plugged(&self) -> bool {
-        self.vbus_detect.is_high().unwrap()
+        unwrap!(self.vbus_detect.is_high().ok())
     }
 
     pub fn is_charging(&self) -> bool {
-        self.charger_status.is_low().unwrap()
+        unwrap!(self.charger_status.is_low().ok())
     }
 
     #[allow(unused)]

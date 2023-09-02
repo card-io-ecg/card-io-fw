@@ -104,14 +104,14 @@ pub async fn display_menu(board: &mut Board) -> AppState {
             menu_values = new;
         }
 
-        board
+        unwrap!(board
             .display
             .frame(|display| {
                 menu_screen.content.update(display);
                 menu_screen.draw(display)
             })
             .await
-            .unwrap();
+            .ok());
 
         ticker.next().await;
     }

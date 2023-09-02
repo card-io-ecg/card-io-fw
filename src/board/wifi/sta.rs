@@ -112,7 +112,7 @@ impl StaState {
         info!("Configuring STA");
 
         let (wifi_interface, controller) =
-            esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Sta).unwrap();
+            unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Sta));
 
         let lower = rng.random() as u64;
         let upper = rng.random() as u64;
@@ -146,7 +146,7 @@ impl StaState {
             .await;
 
             if matches!(self.controller.lock().await.is_started(), Ok(true)) {
-                self.controller.lock().await.stop().await.unwrap();
+                unwrap!(self.controller.lock().await.stop().await);
             }
 
             info!("Stopped STA");
@@ -202,7 +202,7 @@ pub(super) async fn sta_task(
                 state.store(ConnectionState::NotConnected, Ordering::Release);
                 if !matches!(controller.lock().await.is_started(), Ok(true)) {
                     info!("Starting wifi");
-                    controller.lock().await.start().await.unwrap();
+                    unwrap!(controller.lock().await.start().await);
                     info!("Wifi started!");
                 }
 
@@ -256,15 +256,14 @@ pub(super) async fn sta_task(
                 info!("Connecting to {}...", connect_to.ssid);
                 state.store(ConnectionState::Connecting, Ordering::Release);
 
-                controller
+                unwrap!(controller
                     .lock()
                     .await
                     .set_configuration(&Configuration::Client(ClientConfiguration {
                         ssid: connect_to.ssid.clone(),
                         password: connect_to.pass,
                         ..Default::default()
-                    }))
-                    .unwrap();
+                    })));
 
                 for _ in 0..CONNECT_RETRY_COUNT {
                     match controller.lock().await.connect().await {

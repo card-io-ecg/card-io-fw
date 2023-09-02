@@ -56,7 +56,7 @@ where
             current_in: adc_config
                 .enable_pin_with_cal(current_in.into(), Attenuation::Attenuation11dB),
             enable: enable.into(),
-            adc: ADC::adc(adc, adc_config).unwrap(),
+            adc: unwrap!(ADC::adc(adc, adc_config)),
         }
     }
 
@@ -101,7 +101,7 @@ pub async fn monitor_task_adc(
             let mut timer = Ticker::every(Duration::from_millis(10));
             info!("ADC monitor started");
 
-            battery.lock().await.enable.set_high().unwrap();
+            unwrap!(battery.lock().await.enable.set_high().ok());
 
             let mut voltage_accumulator = 0;
             let mut current_accumulator = 0;
@@ -111,7 +111,7 @@ pub async fn monitor_task_adc(
             const AVG_SAMPLE_COUNT: u32 = 128;
 
             loop {
-                let data = battery.lock().await.read_data().await.unwrap();
+                let data = unwrap!(battery.lock().await.read_data().await);
 
                 voltage_accumulator += data.voltage as u32;
                 current_accumulator += data.charge_current as u32;
@@ -140,7 +140,7 @@ pub async fn monitor_task_adc(
         })
         .await;
 
-    battery.lock().await.enable.set_low().unwrap();
+    unwrap!(battery.lock().await.enable.set_low().ok());
 
     info!("Monitor exited");
 }

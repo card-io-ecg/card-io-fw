@@ -196,15 +196,14 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
     )
     .await;
 
-    hal::interrupt::enable(
+    unwrap!(hal::interrupt::enable(
         hal::peripherals::Interrupt::GPIO,
         hal::interrupt::Priority::Priority3,
-    )
-    .unwrap();
+    ));
 
     let mut storage = setup_storage().await;
     let config = load_config(storage.as_deref_mut()).await;
-    let mut display = resources.display.enable().await.unwrap();
+    let mut display = unwrap!(resources.display.enable().await.ok());
 
     let _ = display
         .update_brightness_async(config.display_brightness())
@@ -281,7 +280,7 @@ fn setup_wakeup_pins<'a, const N: usize>(
     charger_pin: &'a mut ChargerStatus,
     is_charging: bool,
 ) {
-    wakeup_pins.push((touch, WakeupLevel::Low)).ok().unwrap();
+    unwrap!(wakeup_pins.push((touch, WakeupLevel::Low)).ok());
 
     if is_charging {
         // This is a bit awkward as unplugging then replugging will not wake the
@@ -296,10 +295,7 @@ fn setup_wakeup_pins<'a, const N: usize>(
         charger_pin.rtcio_pad_hold(true);
         charger_pin.rtcio_pullup(true);
 
-        wakeup_pins
-            .push((charger_pin, WakeupLevel::Low))
-            .ok()
-            .unwrap();
+        unwrap!(wakeup_pins.push((charger_pin, WakeupLevel::Low)).ok());
     }
 }
 
@@ -321,6 +317,6 @@ fn setup_wakeup_pins<'a, const N: usize>(
         WakeupLevel::High
     };
 
-    wakeup_pins.push((touch, WakeupLevel::Low)).ok().unwrap();
-    wakeup_pins.push((charger_pin, charger_level)).ok().unwrap();
+    unwrap!(wakeup_pins.push((touch, WakeupLevel::Low)).ok());
+    unwrap!(wakeup_pins.push((charger_pin, charger_level)).ok());
 }
