@@ -98,16 +98,14 @@ impl Camera {
 
 pub struct EcgScreen {
     buffer: SlidingWindow<128>,
-    discard: usize,
     pub heart_rate: Option<NonZeroU8>,
     camera: RefCell<Camera>,
 }
 
 impl EcgScreen {
-    pub fn new(discarded_samples: usize) -> Self {
+    pub fn new() -> Self {
         Self {
             buffer: SlidingWindow::new(),
-            discard: discarded_samples,
             heart_rate: None,
             camera: RefCell::new(Camera {
                 min_limit: Limit::new(LimitKind::Min),
@@ -121,10 +119,6 @@ impl EcgScreen {
     }
 
     pub fn push(&mut self, sample: f32) {
-        if self.discard > 0 {
-            self.discard -= 1;
-            return;
-        }
         self.buffer.push(sample);
     }
 
