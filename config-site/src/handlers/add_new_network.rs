@@ -4,7 +4,6 @@ use bad_server::{
     connector::Connection, handler::RequestHandler, request::Request, response::ResponseStatus,
     HandleError,
 };
-use logger::*;
 
 use crate::data::{network::WifiNetwork, SharedWebContext};
 

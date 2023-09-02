@@ -3,6 +3,9 @@
 #![feature(impl_trait_projections)]
 #![allow(incomplete_features)]
 
+#[macro_use]
+extern crate logger;
+
 use core::{fmt::Debug, marker::PhantomData};
 
 use embedded_io::{
@@ -20,7 +23,6 @@ use crate::{
     request_body::{ReadError, RequestBody},
     response::{Response, ResponseStatus},
 };
-use logger::*;
 
 pub use httparse::Header;
 

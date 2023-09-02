@@ -7,7 +7,6 @@ use crate::board::{
 };
 use embassy_executor::SendSpawner;
 use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
-use logger::{error, info, warn};
 use norfs::{
     drivers::internal::{InternalDriver, InternalPartition},
     medium::cache::ReadCache,

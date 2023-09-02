@@ -2,11 +2,13 @@
 #![feature(async_fn_in_trait)]
 #![allow(incomplete_features)]
 
+#[macro_use]
+extern crate logger;
+
 use byte_slice_cast::AsMutByteSlice;
 use device_descriptor::{ReadOnlyRegister, ReaderProxy, Register};
 use embedded_hal::i2c::I2c;
 use embedded_hal_async::{delay::DelayUs as AsyncDelayUs, i2c::I2c as AsyncI2c};
-use logger::*;
 use register_access::{AsyncRegisterAccess, RegisterAccess};
 
 use crate::descriptors::*;

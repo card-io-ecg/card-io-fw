@@ -27,7 +27,6 @@ use esp_wifi::{
     EspWifiInitialization,
 };
 use gui::widgets::wifi::WifiState;
-use logger::{info, warn};
 use macros as cardio;
 
 const SCAN_RESULTS: usize = 20;

@@ -1,5 +1,4 @@
 use core::fmt::Debug;
-use logger::*;
 
 use embedded_io::asynch::{Read, Write};
 

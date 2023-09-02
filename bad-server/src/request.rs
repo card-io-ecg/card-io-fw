@@ -2,11 +2,10 @@ use httparse::Header;
 
 use crate::{
     connector::Connection,
-    debug, info,
     method::Method,
     request_body::{ReadResult, RequestBody},
     response::{Headers, Response, ResponseStatus},
-    warn, HandleError,
+    HandleError,
 };
 
 pub struct Request<'req, 's, C: Connection> {

@@ -2,7 +2,7 @@ use core::{fmt::Write as _, marker::PhantomData};
 
 use httparse::Header;
 
-use crate::{connector::Connection, debug, HandleError};
+use crate::{connector::Connection, HandleError};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]

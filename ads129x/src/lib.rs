@@ -2,6 +2,9 @@
 #![feature(async_fn_in_trait)]
 #![allow(incomplete_features)]
 
+#[macro_use]
+extern crate logger;
+
 use byteorder::{BigEndian, ByteOrder};
 use device_descriptor::{ReadOnlyRegister, ReaderProxy, Register};
 use embedded_hal::{
@@ -9,7 +12,6 @@ use embedded_hal::{
     spi::{Operation, SpiDevice},
 };
 use embedded_hal_async::spi::SpiDevice as AsyncSpiDevice;
-use logger::*;
 use register_access::{AsyncRegisterAccess, RegisterAccess};
 
 use crate::descriptors::*;

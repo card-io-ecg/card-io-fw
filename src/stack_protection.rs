@@ -94,6 +94,6 @@ fn ASSIST_DEBUG() {
     }
 
     if is_overflow {
-        panic!("Core {cpu:?} stack overflow detected - PC = {pc:#X}");
+        panic!("Core {:?} stack overflow detected - PC = {:#X}", cpu, pc);
     }
 }

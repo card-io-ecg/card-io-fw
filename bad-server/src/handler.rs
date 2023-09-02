@@ -64,7 +64,7 @@ impl<'a> StaticHandler<'a> {
         let hash = fnv1a_hash_32(body, None);
         let hash = match const_base::encode(&hash.to_le_bytes(), const_base::Config::B64) {
             Ok(hash) => hash,
-            Err(_err) => panic!("Failed to base64-encode hash"),
+            Err(_err) => ::core::panic!("Failed to base64-encode hash"),
         };
 
         Self {
