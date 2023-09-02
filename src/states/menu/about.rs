@@ -118,14 +118,13 @@ pub async fn about_menu(board: &mut Board) -> AppState {
             menu_screen.status_bar.wifi.update(sta.connection_state());
         };
 
-        unwrap!(board
+        board
             .display
             .frame(|display| {
                 menu_screen.content.update(display);
                 menu_screen.draw(display)
             })
-            .await
-            .ok());
+            .await;
 
         ticker.next().await;
     }

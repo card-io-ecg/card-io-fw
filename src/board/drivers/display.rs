@@ -85,7 +85,7 @@ impl<RESET> DrawTarget for PoweredDisplay<RESET> {
 }
 
 impl<RESET> PoweredDisplay<RESET> {
-    pub async fn frame(
+    async fn frame_impl(
         &mut self,
         render: impl FnOnce(&mut Self) -> Result<(), DisplayError>,
     ) -> Result<(), DisplayError> {
@@ -94,6 +94,10 @@ impl<RESET> PoweredDisplay<RESET> {
         render(self)?;
 
         self.flush().await
+    }
+
+    pub async fn frame(&mut self, render: impl FnOnce(&mut Self) -> Result<(), DisplayError>) {
+        unwrap!(self.frame_impl(render).await.ok());
     }
 
     pub async fn flush(&mut self) -> Result<(), DisplayError> {

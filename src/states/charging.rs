@@ -35,11 +35,10 @@ pub async fn charging(board: &mut Board) -> AppState {
         charging_screen.battery_data = board.battery_monitor.battery_data();
         charging_screen.frames += 1;
 
-        unwrap!(board
+        board
             .display
             .frame(|display| charging_screen.draw(display))
-            .await
-            .ok());
+            .await;
 
         ticker.next().await;
     }

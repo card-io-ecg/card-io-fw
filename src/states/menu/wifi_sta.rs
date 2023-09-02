@@ -85,14 +85,13 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
             return AppState::Menu(AppMenu::Main);
         }
 
-        unwrap!(board
+        board
             .display
             .frame(|display| {
                 menu_screen.content.update(display);
                 menu_screen.draw(display)
             })
-            .await
-            .ok());
+            .await;
 
         menu_state = menu_screen.content.state();
 

@@ -98,11 +98,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
             break;
         }
 
-        unwrap!(board
-            .display
-            .frame(|display| screen.draw(display))
-            .await
-            .ok());
+        board.display.frame(|display| screen.draw(display)).await;
 
         ticker.next().await;
     }
