@@ -99,7 +99,7 @@ pub async fn monitor_task_adc(
     task_control
         .run_cancellable(async {
             let mut timer = Ticker::every(Duration::from_millis(10));
-            defmt::info!("ADC monitor started");
+            info!("ADC monitor started");
 
             battery.lock().await.enable.set_high().unwrap();
 
@@ -125,7 +125,7 @@ pub async fn monitor_task_adc(
                     };
                     state.data = Some(average);
 
-                    defmt::debug!("Battery data: {:?}", average);
+                    debug!("Battery data: {:?}", average);
 
                     sample_count = 0;
 
@@ -142,5 +142,5 @@ pub async fn monitor_task_adc(
 
     battery.lock().await.enable.set_low().unwrap();
 
-    defmt::info!("Monitor exited");
+    info!("Monitor exited");
 }

@@ -3,7 +3,7 @@ rustflags = [
   "-C", "link-arg=-nostartfiles",
   "-C", "link-arg=-Wl,-Tlinkall.x",
   "-C", "link-arg=-Trom_functions.x",
-  "-C", "link-arg=-Tdefmt.x",
+  #"-C", "link-arg=-Tdefmt.x",
 ]
 
 [target.xtensa-esp32s2-none-elf]
@@ -11,7 +11,7 @@ rustflags = [
   "-C", "link-arg=-nostartfiles",
   "-C", "link-arg=-Wl,-Tlinkall.x",
   "-C", "link-arg=-Trom_functions.x",
-  "-C", "link-arg=-Tdefmt.x",
+  #"-C", "link-arg=-Tdefmt.x",
 
   # tell the core library have atomics even though it's not specified in the target definition
   "--cfg", "target_has_atomic_load_store",

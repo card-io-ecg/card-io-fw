@@ -118,6 +118,7 @@ log = { workspace = true, optional = true }
 logger = { workspace = true }
 object-chain = { workspace = true }
 defmt = { workspace = true, optional = true }
+# defmt = { workspace = true }
 
 [patch.'https://github.com/esp-rs/esp-wifi']
 esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", rev = "f5813bf" }

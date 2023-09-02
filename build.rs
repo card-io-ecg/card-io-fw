@@ -37,4 +37,8 @@ fn main() {
 
         panic!("Can't select more than one of: hw_v1, hw_v2");
     }
+
+    if cfg!(feature = "defmt") {
+        println!("cargo:rustc-link-arg=-Tdefmt.x");
+    }
 }

@@ -136,7 +136,7 @@ async fn measure_impl(
 
     let ret = match frontend.read_clksel().await {
         Ok(PinState::Low) => {
-            defmt::info!("CLKSEL low, enabling faster clock speeds");
+            info!("CLKSEL low, enabling faster clock speeds");
             let result = frontend.enable_fast_clock().await;
 
             if result.is_ok() {
@@ -221,7 +221,7 @@ async fn measure_impl(
         }
 
         if debug_print_timer.is_elapsed() {
-            defmt::debug!(
+            debug!(
                 "Collected {} samples in {}ms",
                 samples,
                 debug_print_timer.elapsed().as_millis()
@@ -293,7 +293,7 @@ async fn read_ecg(
         match frontend.read().await {
             Ok(sample) => {
                 if !frontend.is_touched() {
-                    defmt::info!("Not touched, stopping");
+                    info!("Not touched, stopping");
                     return Ok(());
                 }
 
@@ -301,7 +301,7 @@ async fn read_ecg(
                     .try_send(Message::Sample(sample.ch1_sample()))
                     .is_err()
                 {
-                    defmt::warn!("Sample lost");
+                    warn!("Sample lost");
                 }
             }
             Err(e) => {
@@ -316,6 +316,6 @@ async fn read_ecg(
         }
     }
 
-    defmt::info!("Stop requested, stopping");
+    info!("Stop requested, stopping");
     Ok(())
 }

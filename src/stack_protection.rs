@@ -28,7 +28,7 @@ impl StackMonitor {
     /// accessing the canary prior to that. However, this is a good enough approximation for our
     /// purposes.
     pub fn protect(stack: Range<usize>) -> Self {
-        defmt::info!(
+        info!(
             "StackMonitor::protect({:?}, {})",
             stack.start as *const u32,
             stack.end - stack.start

@@ -7,7 +7,8 @@ use crate::{
     board::drivers::battery_monitor::SharedBatteryState, task_control::TaskControlToken, Shared,
 };
 
-#[derive(Clone, Copy, Debug, defmt::Format)]
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct BatteryFgData {
     pub voltage: u16,
     pub percentage: u8,
@@ -57,7 +58,7 @@ pub async fn monitor_task_fg(
     task_control
         .run_cancellable(async {
             let mut timer = Ticker::every(Duration::from_secs(1));
-            defmt::info!("Fuel gauge monitor started");
+            info!("Fuel gauge monitor started");
 
             fuel_gauge.lock().await.enable(&mut Delay).await;
 
@@ -68,7 +69,7 @@ pub async fn monitor_task_fg(
                     let mut state = battery_state.lock().await;
                     state.data = Some(data);
                 }
-                defmt::debug!("Battery data: {:?}", data);
+                debug!("Battery data: {:?}", data);
 
                 timer.next().await;
             }
@@ -76,5 +77,5 @@ pub async fn monitor_task_fg(
         .await;
 
     fuel_gauge.lock().await.disable();
-    defmt::info!("Monitor exited");
+    info!("Monitor exited");
 }

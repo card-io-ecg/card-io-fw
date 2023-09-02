@@ -146,7 +146,7 @@ async fn webserver_task(
     context: Rc<SharedWebContext>,
     mut task_control: TaskControlToken<()>,
 ) {
-    defmt::info!("Started webserver task");
+    info!("Started webserver task");
     task_control
         .run_cancellable(async {
             let mut resources = Box::new(WebserverResources {
@@ -173,5 +173,5 @@ async fn webserver_task(
                 .await;
         })
         .await;
-    defmt::info!("Stopped webserver task");
+    info!("Stopped webserver task");
 }

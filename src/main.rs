@@ -9,6 +9,9 @@
 
 extern crate alloc;
 
+#[macro_use]
+extern crate logger;
+
 use core::ptr::addr_of;
 
 use esp_println as _;
@@ -75,12 +78,14 @@ mod timeout;
 pub type Shared<T> = Rc<Mutex<NoopRawMutex, T>>;
 pub type SharedGuard<'a, T> = MutexGuard<'a, NoopRawMutex, T>;
 
-#[derive(Clone, Copy, Debug, PartialEq, defmt::Format)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum AppError {
     Adc,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, defmt::Format)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum AppState {
     AdcSetup,
     Initialize,
