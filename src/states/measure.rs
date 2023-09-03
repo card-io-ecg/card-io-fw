@@ -1,3 +1,5 @@
+use core::convert::Infallible;
+
 use crate::{
     board::{
         hal::{prelude::*, spi::Error as SpiError},
@@ -164,10 +166,7 @@ async fn measure_impl(
     ecg.heart_rate_calculator.clear();
 
     let mut screen = Screen {
-        content: EcgScreen::new(
-            // discard transient
-            96,
-        ),
+        content: EcgScreen::new(),
 
         status_bar: StatusBar {
             battery: Battery::with_style(
@@ -255,6 +254,8 @@ async fn read_ecg(
     queue: &MessageSender,
     frontend: &mut PoweredEcgFrontend,
 ) -> Result<(), Error<SpiError>> {
+    Timer::after(Duration::from_millis(500)).await;
+
     while !THREAD_CONTROL.signaled() {
         match frontend.read().await {
             Ok(sample) => {
@@ -277,7 +278,7 @@ async fn read_ecg(
                     Error::Verification => Error::Verification,
                     Error::Transfer(DeviceError::Spi(e)) => Error::Transfer(e),
                     Error::Transfer(DeviceError::Cs(_)) => unreachable!(),
-                })
+                });
             }
         }
     }
