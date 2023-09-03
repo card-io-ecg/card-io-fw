@@ -11,6 +11,7 @@ use embedded_graphics::{
     Drawable,
 };
 use embedded_layout::prelude::{horizontal, vertical, Align};
+use itertools::Itertools;
 use signal_processing::{
     lerp::{Interval, Lerp},
     sliding::SlidingWindow,
@@ -213,15 +214,16 @@ impl Drawable for EcgScreen {
 
         let scaler = self.camera.borrow_mut().update(min, max, display);
 
-        let points = self
+        const LINE_STYLE: PrimitiveStyle<BinaryColor> =
+            PrimitiveStyle::with_stroke(BinaryColor::On, 1);
+
+        let line_segments = self
             .buffer
             .iter()
             .enumerate()
-            .map(|(x, y)| Point::new(x as i32, scaler.map(y) as i32));
-
-        let line_segments = points.clone().zip(points.skip(1)).map(|(from, to)| {
-            Line::new(from, to).into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
-        });
+            .map(|(x, y)| Point::new(x as i32, scaler.map(y) as i32))
+            .tuple_windows()
+            .map(|(from, to)| Line::new(from, to).into_styled(LINE_STYLE));
 
         for line in line_segments {
             line.draw(display)?;
