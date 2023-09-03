@@ -212,7 +212,7 @@ impl Drawable for EcgScreen {
 
         let (min, max) = self.limits();
 
-        let scaler = self.camera.borrow_mut().update(min, max, display);
+        let scaler = unwrap!(self.camera.try_borrow_mut()).update(min, max, display);
 
         const LINE_STYLE: PrimitiveStyle<BinaryColor> =
             PrimitiveStyle::with_stroke(BinaryColor::On, 1);
