@@ -1,7 +1,7 @@
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use sci_rs::signal::filter::design::{
-    iirfilter_dyn, BaFormatFilter, DigitalFilter, FilterBandType, FilterType,
+    iirfilter_dyn, BaFormatFilter, DigitalFilter, FilterBandType, FilterOutputType, FilterType,
 };
 use std::collections::HashMap;
 use syn::{
@@ -116,7 +116,7 @@ pub fn run(args: FilterSpec) -> TokenStream {
                 Some(FilterBandType::Highpass),
                 Some(FilterType::Butterworth),
                 Some(false),
-                None,
+                Some(FilterOutputType::Ba),
                 args.options.get("samplerate").copied(),
             );
 
@@ -124,6 +124,7 @@ pub fn run(args: FilterSpec) -> TokenStream {
                 unreachable!()
             };
 
+            // count trailing zeros
             let zeros_a = a.iter().rev().take_while(|&&x| x == 0.0).count();
             let zeros_b = b.iter().rev().take_while(|&&x| x == 0.0).count();
 
@@ -132,12 +133,17 @@ pub fn run(args: FilterSpec) -> TokenStream {
             a.truncate(a.len() - remove);
             b.truncate(b.len() - remove);
 
+            // Strip off always-1 coefficient
             assert!(a.swap_remove(0) == 1.0);
 
             a.reverse();
+            b.reverse();
+
+            let n = a.len();
+            let kind = quote! { HighPass };
 
             quote! {
-                #module::iir::Iir::new(&[#(#b,)*], &[#(#a,)*])
+                #module::iir::Iir::<#kind, #n>::new(&[#(#b,)*], &[#(#a,)*])
             }
         }
     }

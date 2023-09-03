@@ -146,3 +146,136 @@ where
         self.previous_outputs.clear();
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_iir_no_input() {
+        let input = [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.];
+        let expectation = [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.];
+
+        #[rustfmt::skip]
+        test_filter(
+            macros::designfilt!(
+                "highpassiir",
+                "FilterOrder", 1,
+                "HalfPowerFrequency", 1,
+                "SampleRate", 10
+            ),
+            &input,
+            &expectation,
+            0.0001
+        );
+    }
+
+    #[test]
+    fn test_iir_impluse_response_order1() {
+        let input = [0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0.];
+        let expectation = [
+            0.7548, -0.3702, -0.1886, -0.0961, -0.0490, -0.0250, -0.0127, -0.0065, -0.0033, -0.0017,
+        ];
+
+        #[rustfmt::skip]
+        test_filter(
+            macros::designfilt!(
+                "highpassiir",
+                "FilterOrder", 1,
+                "HalfPowerFrequency", 1,
+                "SampleRate", 10
+            ),
+            &input,
+            &expectation,
+            0.0001
+        );
+    }
+
+    #[test]
+    fn test_iir_step_response_order1() {
+        let input = [0., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1.];
+        let expectation = [
+            0.7548, 0.3846, 0.1959, 0.0998, 0.0509, 0.0259, 0.0132, 0.0067, 0.0034, 0.0017,
+        ];
+
+        #[rustfmt::skip]
+        test_filter(
+            macros::designfilt!(
+                "highpassiir",
+                "FilterOrder", 1,
+                "HalfPowerFrequency", 1,
+                "SampleRate", 10
+            ),
+            &input,
+            &expectation,
+            0.0001
+        );
+    }
+
+    #[test]
+    fn test_iir_step_response_order2() {
+        let input = [0., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1.];
+        let expectation = [
+            0.6389, 0.0914, -0.1593, -0.2198, -0.1855, -0.1213, -0.0620, -0.0208, 0.0018, 0.0106,
+        ];
+
+        #[rustfmt::skip]
+        test_filter(
+            macros::designfilt!(
+                "highpassiir",
+                "FilterOrder", 2,
+                "HalfPowerFrequency", 1,
+                "SampleRate", 10
+            ),
+            &input,
+            &expectation,
+            0.0001
+        );
+    }
+
+    #[test]
+    fn test_iir_impluse_response_order2() {
+        let input = [0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.];
+        let expectation = [
+            0.6389, -0.5476, -0.2507, -0.0605, 0.0343, 0.0642, 0.0592, 0.0412, 0.0226, 0.0089,
+        ];
+
+        #[rustfmt::skip]
+        test_filter(
+            macros::designfilt!(
+                "highpassiir",
+                "FilterOrder", 2,
+                "HalfPowerFrequency", 1,
+                "SampleRate", 10
+            ),
+            &input,
+            &expectation,
+            0.0001
+        );
+    }
+
+    #[track_caller]
+    fn test_filter(mut filter: impl Filter, input: &[f32], expectation: &[f32], epsilon: f32) {
+        let mut output = vec![];
+        for sample in input.iter().copied() {
+            if let Some(out_sample) = filter.update(sample) {
+                output.push(out_sample);
+            }
+        }
+
+        let pairs = output.iter().copied().zip(expectation.iter().copied());
+
+        for (out_sample, expectation) in pairs.clone() {
+            assert!(
+                (out_sample - expectation).abs() < epsilon,
+                "[\n  // (output, expectation)\n{}]",
+                pairs
+                    .map(|(a, b)| format!(
+                        "   {} ({a:>7.04}, {b:>7.04})\n",
+                        if (a - b).abs() < epsilon { " " } else { "!" }
+                    ))
+                    .collect::<String>()
+            );
+        }
+    }
+}
