@@ -1,5 +1,3 @@
-use core::convert::Infallible;
-
 use crate::{
     board::{
         hal::{prelude::*, spi::Error as SpiError},
