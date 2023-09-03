@@ -1,7 +1,6 @@
 use num_complex::Complex;
 
 use crate::{filter::Filter, sliding::SlidingWindow, ComplExt};
-use core::marker::PhantomData;
 
 pub mod precomputed {
     use super::{HighPass, Iir};
@@ -39,13 +38,33 @@ pub mod precomputed {
     );
 }
 
-pub struct HighPass;
+pub struct HighPass {
+    first_sample: Option<f32>,
+}
 pub struct LowPass;
 
-pub trait FilterType {}
+pub trait FilterType {
+    const NEW: Self;
 
-impl FilterType for HighPass {}
-impl FilterType for LowPass {}
+    fn precondition(&mut self, sample: f32) -> f32;
+}
+
+impl FilterType for HighPass {
+    const NEW: Self = Self { first_sample: None };
+
+    fn precondition(&mut self, sample: f32) -> f32 {
+        let first_sample = self.first_sample.get_or_insert(sample);
+        sample - *first_sample
+    }
+}
+
+impl FilterType for LowPass {
+    const NEW: Self = Self;
+
+    fn precondition(&mut self, sample: f32) -> f32 {
+        sample
+    }
+}
 
 pub struct Iir<'a, T, const N: usize>
 where
@@ -57,7 +76,7 @@ where
     num_coeffs: &'a [f32],
     denom_coeffs: &'a [f32],
 
-    _marker: PhantomData<T>,
+    filter_kind: T,
 }
 
 impl<'a, T, const N: usize> Iir<'a, T, N>
@@ -71,7 +90,7 @@ where
             previous_outputs: SlidingWindow::new(),
             num_coeffs: num,
             denom_coeffs: denom,
-            _marker: PhantomData,
+            filter_kind: T::NEW,
         }
     }
 
@@ -98,6 +117,8 @@ where
     T: FilterType,
 {
     fn update(&mut self, sample: f32) -> Option<f32> {
+        let sample = self.filter_kind.precondition(sample);
+
         let mut y_out = sample * self.num_coeffs[0];
 
         for (coeff, spl) in self
