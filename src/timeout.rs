@@ -7,10 +7,11 @@ pub struct Timeout {
 
 impl Timeout {
     pub fn new(duration: Duration) -> Self {
-        Self {
-            start: Instant::now(),
-            duration,
-        }
+        Self::new_with_start(duration, Instant::now())
+    }
+
+    pub fn new_with_start(duration: Duration, start: Instant) -> Self {
+        Self { start, duration }
     }
 
     pub fn reset(&mut self) {

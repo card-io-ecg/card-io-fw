@@ -5,7 +5,7 @@ use crate::{
         PoweredEcgFrontend,
     },
     replace_with::replace_with_or_abort_and_return_async,
-    states::MIN_FRAME_TIME,
+    states::{to_progress, AppMenu, MIN_FRAME_TIME},
     timeout::Timeout,
     AppError, AppState,
 };
@@ -17,11 +17,13 @@ use embassy_sync::{
     channel::{Channel, Sender},
     signal::Signal,
 };
-use embassy_time::{Duration, Ticker, Timer};
+use embassy_time::{Duration, Instant, Ticker, Timer};
 use embedded_graphics::Drawable;
 use embedded_hal_bus::spi::DeviceError;
 use gui::{
-    screens::{display_menu::FilterStrength, measure::EcgScreen, screen::Screen},
+    screens::{
+        display_menu::FilterStrength, init::StartupScreen, measure::EcgScreen, screen::Screen,
+    },
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 use macros as cardio;
@@ -175,10 +177,14 @@ async fn measure_impl(
         },
     };
 
-    let mut ticker = Ticker::every(MIN_FRAME_TIME);
-
     let mut samples = 0; // Counter and 1s timer to debug perf issues
     let mut debug_print_timer = Timeout::new(Duration::from_secs(1));
+
+    const INIT_TIME: Duration = Duration::from_secs(4);
+    const MENU_THRESHOLD: Duration = Duration::from_secs(2);
+
+    let mut ticker = Ticker::every(MIN_FRAME_TIME);
+    let shutdown_timer = Timeout::new_with_start(INIT_TIME, Instant::now() - MENU_THRESHOLD);
     loop {
         while let Ok(message) = queue.try_recv() {
             match message {
@@ -192,10 +198,14 @@ async fn measure_impl(
                         }
                     }
                 }
-                Message::End(frontend, _result) => {
+                Message::End(frontend, result) => {
                     board.frontend = frontend.shut_down().await;
 
-                    return (AppState::Shutdown, board);
+                    return if result.is_ok() && !shutdown_timer.is_elapsed() {
+                        (AppState::Menu(AppMenu::Main), board)
+                    } else {
+                        (AppState::Shutdown, board)
+                    };
                 }
             }
         }
@@ -223,13 +233,33 @@ async fn measure_impl(
             }
         }
 
-        screen.status_bar.update_battery_data(battery_data);
+        if !shutdown_timer.is_elapsed() {
+            let init_screen = Screen {
+                content: StartupScreen {
+                    label: "Release to menu",
+                    progress: to_progress(shutdown_timer.elapsed(), INIT_TIME),
+                },
 
-        board
-            .display
-            .frame(|display| screen.draw(display))
-            .await
-            .unwrap();
+                status_bar: StatusBar {
+                    battery: Battery::with_style(battery_data, board.config.battery_style()),
+                    wifi: WifiStateView::disabled(),
+                },
+            };
+
+            board
+                .display
+                .frame(|display| init_screen.draw(display))
+                .await
+                .unwrap();
+        } else {
+            screen.status_bar.update_battery_data(battery_data);
+
+            board
+                .display
+                .frame(|display| screen.draw(display))
+                .await
+                .unwrap();
+        }
 
         ticker.next().await;
     }

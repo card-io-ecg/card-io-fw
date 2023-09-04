@@ -28,3 +28,28 @@ impl Lerp {
         }
     }
 }
+
+pub fn interpolate(value: u32, x_min: u32, x_max: u32, y_min: u32, y_max: u32) -> u32 {
+    let x_range = x_max - x_min;
+    let y_range = y_max - y_min;
+
+    if x_range == 0 {
+        y_min
+    } else {
+        let x = value - x_min;
+        let y = x * y_range / x_range;
+
+        y + y_min
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn interpolate_basic() {
+        assert_eq!(interpolate(0, 0, 100, 0, 100), 0);
+        assert_eq!(interpolate(50, 0, 100, 0, 100), 50);
+        assert_eq!(interpolate(100, 0, 100, 0, 100), 100);
+        assert_eq!(interpolate(100, 0, 10, 0, 100), 1000);
+    }
+}

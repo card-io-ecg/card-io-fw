@@ -14,6 +14,18 @@ use embedded_text::{
 
 use crate::utils::BinaryColorDrawTargetExt;
 
+const TEXTBOX_STYLE: embedded_text::style::TextBoxStyle = TextBoxStyleBuilder::new()
+    .height_mode(HeightMode::Exact(VerticalOverdraw::FullRowsOnly))
+    .alignment(HorizontalAlignment::Center)
+    .vertical_alignment(VerticalAlignment::Middle)
+    .build();
+
+const CHARACTER_STYLE: embedded_graphics::mono_font::MonoTextStyle<'_, BinaryColor> =
+    MonoTextStyleBuilder::new()
+        .font(&FONT_6X10)
+        .text_color(BinaryColor::On) // On on normally-Off background
+        .build();
+
 // TODO: this is currently aligned to the bottom of the screen
 pub struct ProgressBar<'a> {
     pub label: &'a str,
@@ -35,7 +47,8 @@ impl Drawable for ProgressBar<'_> {
             .draw(display)?;
 
         let filler_width = filler_area.size.width;
-        let empty_area_width = (self.progress * filler_width) / self.max_progress.max(1);
+        let empty_area_width =
+            (self.progress.min(self.max_progress) * filler_width) / self.max_progress.max(1);
         // remaining as in remaining time until measurement starts
         let remaining_width = filler_width - empty_area_width;
 
@@ -54,24 +67,10 @@ impl Drawable for ProgressBar<'_> {
         // of the progress bar with one draw call
         let mut draw_area = display.invert_area(&progress_filler);
 
-        let textbox_style = TextBoxStyleBuilder::new()
-            .height_mode(HeightMode::Exact(VerticalOverdraw::FullRowsOnly))
-            .alignment(HorizontalAlignment::Center)
-            .vertical_alignment(VerticalAlignment::Middle)
-            .build();
-
         // using embedded-text because I'm lazy to position the label vertically
-        TextBox::with_textbox_style(
-            self.label,
-            progress_bar,
-            MonoTextStyleBuilder::new()
-                .font(&FONT_6X10)
-                .text_color(BinaryColor::On) // On on normally-Off background
-                .build(),
-            textbox_style,
-        )
-        .set_vertical_offset(1) // Slight adjustment
-        .draw(&mut draw_area)?;
+        TextBox::with_textbox_style(self.label, progress_bar, CHARACTER_STYLE, TEXTBOX_STYLE)
+            .set_vertical_offset(1) // Slight adjustment
+            .draw(&mut draw_area)?;
 
         Ok(())
     }
