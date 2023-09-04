@@ -11,7 +11,6 @@ use crate::widgets::progress_bar::ProgressBar;
 pub struct StartupScreen<'a> {
     pub label: &'a str,
     pub progress: u32,
-    pub max_progress: u32,
 }
 
 impl Drawable for StartupScreen<'_> {
@@ -23,7 +22,7 @@ impl Drawable for StartupScreen<'_> {
         ProgressBar {
             label: self.label,
             progress: self.progress,
-            max_progress: self.max_progress,
+            max_progress: 255,
         }
         .draw(display)?;
 

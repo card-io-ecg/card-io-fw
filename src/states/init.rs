@@ -1,28 +1,34 @@
 use crate::{
     board::initialized::Board,
     states::{AppMenu, MIN_FRAME_TIME},
+    timeout::Timeout,
     AppState,
 };
-use embassy_time::{Duration, Instant, Ticker};
+use embassy_time::{Duration, Ticker};
 use embedded_graphics::Drawable;
 use gui::{
     screens::{init::StartupScreen, screen::Screen},
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
+use signal_processing::lerp::interpolate;
 
 pub async fn initialize(board: &mut Board) -> AppState {
     const INIT_TIME: Duration = Duration::from_secs(4);
     const MENU_THRESHOLD: Duration = Duration::from_secs(2);
 
-    let entered = Instant::now();
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    while let elapsed = entered.elapsed() && elapsed <= INIT_TIME {
+    let shutdown_timer = Timeout::new(INIT_TIME);
+    while !shutdown_timer.is_elapsed() {
+        let elapsed = shutdown_timer.elapsed();
+
+        let (on_exit, label) = if elapsed > MENU_THRESHOLD {
+            (AppState::Menu(AppMenu::Main), "Release to menu")
+        } else {
+            (AppState::Shutdown, "Release to shutdown")
+        };
+
         if !board.frontend.is_touched() {
-            return if elapsed > MENU_THRESHOLD {
-                AppState::Menu(AppMenu::Main)
-            } else {
-                AppState::Shutdown
-            };
+            return on_exit;
         }
 
         let battery_data = board.battery_monitor.battery_data();
@@ -33,33 +39,20 @@ pub async fn initialize(board: &mut Board) -> AppState {
             }
         }
 
-        let elapsed_secs = elapsed.as_millis() as u32;
-        let max_secs = (INIT_TIME.as_millis() as u32).max(elapsed_secs);
-
-        let max_progress = 255;
-        let progress = (elapsed_secs * max_progress) / max_secs;
-
-        let init_screen = Screen{
+        let init_screen = Screen {
             content: StartupScreen {
-                label: if elapsed > MENU_THRESHOLD {
-                    "Release to menu"
-                } else {
-                    "Release to shutdown"
-                },
-                progress,
-                max_progress,
+                label,
+                progress: to_progress(elapsed, INIT_TIME),
             },
 
             status_bar: StatusBar {
-                battery: Battery::with_style(
-                    battery_data,
-                    board.config.battery_style(),
-                ),
+                battery: Battery::with_style(battery_data, board.config.battery_style()),
                 wifi: WifiStateView::disabled(),
             },
         };
 
-        board.display
+        board
+            .display
             .frame(|display| init_screen.draw(display))
             .await
             .unwrap();
@@ -68,4 +61,14 @@ pub async fn initialize(board: &mut Board) -> AppState {
     }
 
     AppState::Measure
+}
+
+fn to_progress(elapsed: Duration, max_duration: Duration) -> u32 {
+    interpolate(
+        elapsed.as_millis() as u32,
+        0,
+        max_duration.as_millis() as u32,
+        0,
+        255,
+    )
 }
