@@ -5,6 +5,8 @@ use crate::{filter::Filter, sliding::SlidingWindow, ComplExt};
 pub mod precomputed {
     use super::{HighPass, Iir};
 
+    pub const HIGH_PASS_FOR_DISPLAY_NONE: Iir<'static, HighPass, 2> = Iir::new(&[1.], &[]);
+
     #[rustfmt::skip]
     pub const HIGH_PASS_FOR_DISPLAY_WEAK: Iir<'static, HighPass, 2> = macros::designfilt!(
         "highpassiir",

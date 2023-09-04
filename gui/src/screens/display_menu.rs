@@ -81,15 +81,17 @@ impl Storable for BatteryStyle {
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue)]
 pub enum FilterStrength {
-    Weak = 0,
-    Strong = 1,
+    None = 0,
+    Weak = 1,
+    Strong = 2,
 }
 
 impl Loadable for FilterStrength {
     async fn load<R: Read>(reader: &mut R) -> Result<Self, LoadError<R::Error>> {
         let data = match u8::load(reader).await? {
-            0 => Self::Weak,
-            1 => Self::Strong,
+            0 => Self::None,
+            1 => Self::Weak,
+            2 => Self::Strong,
             _ => return Err(LoadError::InvalidValue),
         };
 
