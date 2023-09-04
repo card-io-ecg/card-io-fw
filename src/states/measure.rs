@@ -1,9 +1,8 @@
 use crate::{
     board::{
-        drivers::battery_monitor::BatteryMonitor,
         hal::{prelude::*, spi::Error as SpiError},
         initialized::Board,
-        ChargerStatus, PoweredDisplay, PoweredEcgFrontend, VbusDetect,
+        PoweredEcgFrontend,
     },
     replace_with::replace_with_or_abort_and_return_async,
     states::{to_progress, AppMenu, MIN_FRAME_TIME},
@@ -25,11 +24,7 @@ use gui::{
     screens::{
         display_menu::FilterStrength, init::StartupScreen, measure::EcgScreen, screen::Screen,
     },
-    widgets::{
-        battery_small::{Battery, BatteryStyle},
-        status_bar::StatusBar,
-        wifi::WifiStateView,
-    },
+    widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 use macros as cardio;
 use object_chain::{chain, Chain, ChainElement, Link};
@@ -106,58 +101,6 @@ impl EcgObjects {
 
 static mut ECG_BUFFER: CompressingBuffer<ECG_BUFFER_SIZE> = CompressingBuffer::EMPTY;
 
-pub async fn prepare(
-    frontend: &mut PoweredEcgFrontend,
-    display: &mut PoweredDisplay,
-    battery_monitor: &mut BatteryMonitor<VbusDetect, ChargerStatus>,
-    style: BatteryStyle,
-) -> Option<AppState> {
-    const INIT_TIME: Duration = Duration::from_secs(4);
-    const MENU_THRESHOLD: Duration = Duration::from_secs(2);
-
-    let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    let shutdown_timer = Timeout::new_with_start(INIT_TIME, Instant::now() - MENU_THRESHOLD);
-    while !shutdown_timer.is_elapsed() {
-        let elapsed = shutdown_timer.elapsed();
-
-        if !frontend.read().await.is_ok() {
-            return Some(AppState::Error(AppError::Adc));
-        }
-        if !frontend.is_touched() {
-            return Some(AppState::Menu(AppMenu::Main));
-        }
-
-        let battery_data = battery_monitor.battery_data();
-
-        if let Some(battery) = battery_data {
-            if battery.is_low {
-                return Some(AppState::Shutdown);
-            }
-        }
-
-        let init_screen = Screen {
-            content: StartupScreen {
-                label: "Release to menu",
-                progress: to_progress(elapsed, INIT_TIME),
-            },
-
-            status_bar: StatusBar {
-                battery: Battery::with_style(battery_data, style),
-                wifi: WifiStateView::disabled(),
-            },
-        };
-
-        display
-            .frame(|display| init_screen.draw(display))
-            .await
-            .unwrap();
-
-        ticker.next().await;
-    }
-
-    None
-}
-
 pub async fn measure(board: &mut Board) -> AppState {
     let filter = match board.config.filter_strength() {
         FilterStrength::Weak => HIGH_PASS_FOR_DISPLAY_WEAK,
@@ -186,18 +129,6 @@ async fn measure_impl(
             return (AppState::Error(AppError::Adc), board);
         }
     };
-
-    if let Some(state) = prepare(
-        &mut frontend,
-        &mut board.display,
-        &mut board.battery_monitor,
-        board.config.battery_style(),
-    )
-    .await
-    {
-        board.frontend = frontend.shut_down().await;
-        return (state, board);
-    }
 
     let ret = match frontend.read_clksel().await {
         Ok(PinState::Low) => {
@@ -246,10 +177,14 @@ async fn measure_impl(
         },
     };
 
-    let mut ticker = Ticker::every(MIN_FRAME_TIME);
-
     let mut samples = 0; // Counter and 1s timer to debug perf issues
     let mut debug_print_timer = Timeout::new(Duration::from_secs(1));
+
+    const INIT_TIME: Duration = Duration::from_secs(4);
+    const MENU_THRESHOLD: Duration = Duration::from_secs(2);
+
+    let mut ticker = Ticker::every(MIN_FRAME_TIME);
+    let shutdown_timer = Timeout::new_with_start(INIT_TIME, Instant::now() - MENU_THRESHOLD);
     loop {
         while let Ok(message) = queue.try_recv() {
             match message {
@@ -263,10 +198,14 @@ async fn measure_impl(
                         }
                     }
                 }
-                Message::End(frontend, _result) => {
+                Message::End(frontend, result) => {
                     board.frontend = frontend.shut_down().await;
 
-                    return (AppState::Shutdown, board);
+                    return if result.is_ok() && !shutdown_timer.is_elapsed() {
+                        (AppState::Menu(AppMenu::Main), board)
+                    } else {
+                        (AppState::Shutdown, board)
+                    };
                 }
             }
         }
@@ -294,13 +233,33 @@ async fn measure_impl(
             }
         }
 
-        screen.status_bar.update_battery_data(battery_data);
+        if !shutdown_timer.is_elapsed() {
+            let init_screen = Screen {
+                content: StartupScreen {
+                    label: "Release to menu",
+                    progress: to_progress(shutdown_timer.elapsed(), INIT_TIME),
+                },
 
-        board
-            .display
-            .frame(|display| screen.draw(display))
-            .await
-            .unwrap();
+                status_bar: StatusBar {
+                    battery: Battery::with_style(battery_data, board.config.battery_style()),
+                    wifi: WifiStateView::disabled(),
+                },
+            };
+
+            board
+                .display
+                .frame(|display| init_screen.draw(display))
+                .await
+                .unwrap();
+        } else {
+            screen.status_bar.update_battery_data(battery_data);
+
+            board
+                .display
+                .frame(|display| screen.draw(display))
+                .await
+                .unwrap();
+        }
 
         ticker.next().await;
     }
