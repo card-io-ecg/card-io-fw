@@ -27,6 +27,7 @@ const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
 const WEBSERVER_TASKS: usize = 2;
 
 pub use menu::AppMenu;
+use signal_processing::lerp::interpolate;
 
 use crate::board::EcgFrontend;
 
@@ -53,4 +54,14 @@ impl<'a> TouchInputShaper<'a> {
 
         self.released && is_touched
     }
+}
+
+fn to_progress(elapsed: Duration, max_duration: Duration) -> u32 {
+    interpolate(
+        elapsed.as_millis() as u32,
+        0,
+        max_duration.as_millis() as u32,
+        0,
+        255,
+    )
 }

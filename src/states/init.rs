@@ -1,6 +1,6 @@
 use crate::{
     board::initialized::Board,
-    states::{AppMenu, MIN_FRAME_TIME},
+    states::{to_progress, MIN_FRAME_TIME},
     timeout::Timeout,
     AppState,
 };
@@ -10,25 +10,18 @@ use gui::{
     screens::{init::StartupScreen, screen::Screen},
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
-use signal_processing::lerp::interpolate;
 
 pub async fn initialize(board: &mut Board) -> AppState {
     const INIT_TIME: Duration = Duration::from_secs(4);
     const MENU_THRESHOLD: Duration = Duration::from_secs(2);
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    let shutdown_timer = Timeout::new(INIT_TIME);
+    let shutdown_timer = Timeout::new(MENU_THRESHOLD);
     while !shutdown_timer.is_elapsed() {
         let elapsed = shutdown_timer.elapsed();
 
-        let (on_exit, label) = if elapsed > MENU_THRESHOLD {
-            (AppState::Menu(AppMenu::Main), "Release to menu")
-        } else {
-            (AppState::Shutdown, "Release to shutdown")
-        };
-
         if !board.frontend.is_touched() {
-            return on_exit;
+            return AppState::Shutdown;
         }
 
         let battery_data = board.battery_monitor.battery_data();
@@ -41,7 +34,7 @@ pub async fn initialize(board: &mut Board) -> AppState {
 
         let init_screen = Screen {
             content: StartupScreen {
-                label,
+                label: "Release to shutdown",
                 progress: to_progress(elapsed, INIT_TIME),
             },
 
@@ -61,14 +54,4 @@ pub async fn initialize(board: &mut Board) -> AppState {
     }
 
     AppState::Measure
-}
-
-fn to_progress(elapsed: Duration, max_duration: Duration) -> u32 {
-    interpolate(
-        elapsed.as_millis() as u32,
-        0,
-        max_duration.as_millis() as u32,
-        0,
-        255,
-    )
 }
