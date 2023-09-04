@@ -14,6 +14,7 @@ embedded-svc = { workspace = true }
 heapless = { workspace = true }
 httparse = { version = "1.8", default-features = false }
 logger = { workspace = true }
+log = { workspace = true, optional = true }
 smol = { version = "1", optional = true }
 object-chain = { workspace = true }
 const-fnv1a-hash = "1.1"
@@ -26,7 +27,7 @@ simple_logger = "4.1"
 default = []
 std = ["async-io", "smol"]
 embassy = ["embassy-net"]
-log = ["logger/log"]
+log = ["dep:log", "logger/log"]
 defmt = ["dep:defmt", "logger/defmt"]
 
 [[example]]
