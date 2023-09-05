@@ -20,7 +20,14 @@ fn conjure() -> DebugAssist<'static> {
 }
 
 impl StackMonitor {
-    pub fn protect(stack: Range<u32>) -> Self {
+    /// Enable stack overflow detection for the given memory region, for the current CPU core.
+    /// The stack grows from high address (top) to low address (bottom). We place a 4-byte canary at
+    /// the end of the stack, and watch for reads from and writes to it.
+    ///
+    /// Note that this is not perfect as code may simply access memory below the canary without
+    /// accessing the canary prior to that. However, this is a good enough approximation for our
+    /// purposes.
+    pub fn protect(stack: Range<usize>) -> Self {
         log::info!(
             "StackMonitor::protect({:#x}, {})",
             stack.start,
@@ -30,10 +37,18 @@ impl StackMonitor {
 
         // We watch writes to the last word in the stack.
         match get_core() {
-            Cpu::ProCpu => assist.enable_region0_monitor(stack.start, stack.start + 4, true, true),
-            Cpu::AppCpu => {
-                assist.enable_core1_region0_monitor(stack.start, stack.start + 4, true, true)
-            }
+            Cpu::ProCpu => assist.enable_region0_monitor(
+                stack.start as u32,
+                stack.start as u32 + 4,
+                true,
+                true,
+            ),
+            Cpu::AppCpu => assist.enable_core1_region0_monitor(
+                stack.start as u32,
+                stack.start as u32 + 4,
+                true,
+                true,
+            ),
         }
 
         interrupt::enable(
@@ -77,6 +92,6 @@ fn ASSIST_DEBUG() {
     }
 
     if is_overflow {
-        panic!("Core {cpu:?} stack overflow detected - PC = 0x{pc:x}");
+        panic!("Core {cpu:?} stack overflow detected - PC = {pc:#X}");
     }
 }

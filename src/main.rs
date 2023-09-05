@@ -106,8 +106,8 @@ fn main() -> ! {
     let resources = StartupResources::initialize();
 
     // We only use a single core for now, so we can write both stack regions.
-    let stack_start = unsafe { addr_of!(_stack_start_cpu0) as u32 };
-    let stack_end = unsafe { addr_of!(_stack_end_cpu0) as u32 };
+    let stack_start = unsafe { addr_of!(_stack_start_cpu0) as usize };
+    let stack_end = unsafe { addr_of!(_stack_end_cpu0) as usize };
     let _stack_protection = stack_protection::StackMonitor::protect((stack_start + 4)..stack_end);
 
     #[cfg(feature = "hw_v1")]
