@@ -161,12 +161,12 @@ impl Drawable for EcgScreen {
     #[inline]
     fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
         if !self.buffer.is_full() {
-            let text_style = MonoTextStyleBuilder::new()
+            const TEXT_STYLE: MonoTextStyle<'_, BinaryColor> = MonoTextStyleBuilder::new()
                 .font(&FONT_6X10)
                 .text_color(BinaryColor::On)
                 .build();
 
-            Text::new("Collecting data...", Point::zero(), text_style)
+            Text::new("Collecting data...", Point::zero(), TEXT_STYLE)
                 .align_to(
                     &display.bounding_box(),
                     horizontal::Center,

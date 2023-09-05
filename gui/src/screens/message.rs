@@ -23,18 +23,19 @@ impl Drawable for MessageScreen<'_> {
     where
         D: DrawTarget<Color = Self::Color>,
     {
-        let character_style = MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
-        let text_style = TextBoxStyleBuilder::new()
+        const TEXT_STYLE: embedded_text::style::TextBoxStyle = TextBoxStyleBuilder::new()
             .alignment(HorizontalAlignment::Center)
             .vertical_alignment(VerticalAlignment::Middle)
             .height_mode(HeightMode::Exact(VerticalOverdraw::Visible))
             .build();
+        const CHARACTER_STYLE: MonoTextStyle<'static, BinaryColor> =
+            MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
 
         TextBox::with_textbox_style(
             self.message,
             display.bounding_box(),
-            character_style,
-            text_style,
+            CHARACTER_STYLE,
+            TEXT_STYLE,
         )
         .draw(display)?;
 

@@ -1,6 +1,6 @@
 use core::fmt::Write;
 use embedded_graphics::{
-    mono_font::{ascii::FONT_6X10, MonoTextStyleBuilder},
+    mono_font::{ascii::FONT_6X10, MonoTextStyle, MonoTextStyleBuilder},
     pixelcolor::BinaryColor,
     prelude::DrawTarget,
     Drawable,
@@ -12,7 +12,7 @@ use embedded_menu::{
 };
 use embedded_text::{
     alignment::{HorizontalAlignment, VerticalAlignment},
-    style::{HeightMode, TextBoxStyleBuilder, VerticalOverdraw},
+    style::{HeightMode, TextBoxStyle, TextBoxStyleBuilder, VerticalOverdraw},
     TextBox,
 };
 
@@ -71,12 +71,12 @@ impl Drawable for WifiApScreen {
             }
         }
 
-        let textbox_style = TextBoxStyleBuilder::new()
+        const TEXTBOX_STYLE: TextBoxStyle = TextBoxStyleBuilder::new()
             .height_mode(HeightMode::Exact(VerticalOverdraw::FullRowsOnly))
             .alignment(HorizontalAlignment::Center)
             .vertical_alignment(VerticalAlignment::Bottom)
             .build();
-        let character_style = MonoTextStyleBuilder::new()
+        const CHARACTER_STYLE: MonoTextStyle<'_, BinaryColor> = MonoTextStyleBuilder::new()
             .font(&FONT_6X10)
             .text_color(BinaryColor::On) // On on normally-Off background
             .build();
@@ -84,8 +84,8 @@ impl Drawable for WifiApScreen {
         TextBox::with_textbox_style(
             text.as_str(),
             display.bounding_box(),
-            character_style,
-            textbox_style,
+            CHARACTER_STYLE,
+            TEXTBOX_STYLE,
         )
         .draw(display)?;
 
