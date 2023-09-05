@@ -25,4 +25,8 @@ impl Timeout {
     pub fn elapsed(&self) -> Duration {
         self.start.elapsed()
     }
+
+    pub fn remaining(&self) -> Duration {
+        self.duration - self.elapsed()
+    }
 }

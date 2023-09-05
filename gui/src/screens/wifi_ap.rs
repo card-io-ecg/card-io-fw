@@ -1,3 +1,4 @@
+use core::fmt::Write;
 use embedded_graphics::{
     mono_font::{ascii::FONT_6X10, MonoTextStyleBuilder},
     pixelcolor::BinaryColor,
@@ -35,6 +36,7 @@ pub struct ApMenu {}
 pub struct WifiApScreen {
     pub menu: ApMenuMenuWrapper<SingleTouch, AnimatedPosition, AnimatedTriangle>,
     pub state: WifiState,
+    pub timeout: Option<u8>,
 }
 
 impl WifiApScreen {
@@ -42,6 +44,7 @@ impl WifiApScreen {
         Self {
             menu: ApMenu {}.create_menu_with_style(menu_style()),
             state: WifiState::NotConnected,
+            timeout: None,
         }
     }
 }
@@ -55,11 +58,18 @@ impl Drawable for WifiApScreen {
         self.menu.draw(display)?;
 
         // TODO: use actual network name
-        let text = if self.state == WifiState::Connected {
-            "Connected. Open site at 192.168.2.1"
+        let network_name = "Card/IO";
+
+        let mut text = heapless::String::<128>::new();
+        if self.state == WifiState::Connected {
+            unwrap!(text.push_str("Connected. Open site at 192.168.2.1"));
         } else {
-            "No client connected. Look for a network called Card/IO"
-        };
+            unwrap!(text.push_str("No client connected. Look for a network called "));
+            unwrap!(text.push_str(network_name));
+            if let Some(timeout) = self.timeout {
+                unwrap!(write!(&mut text, "\nExiting in {}", timeout).map_err(|_| ()));
+            }
+        }
 
         let textbox_style = TextBoxStyleBuilder::new()
             .height_mode(HeightMode::Exact(VerticalOverdraw::FullRowsOnly))
@@ -70,8 +80,14 @@ impl Drawable for WifiApScreen {
             .font(&FONT_6X10)
             .text_color(BinaryColor::On) // On on normally-Off background
             .build();
-        TextBox::with_textbox_style(text, display.bounding_box(), character_style, textbox_style)
-            .draw(display)?;
+
+        TextBox::with_textbox_style(
+            text.as_str(),
+            display.bounding_box(),
+            character_style,
+            textbox_style,
+        )
+        .draw(display)?;
 
         Ok(())
     }
