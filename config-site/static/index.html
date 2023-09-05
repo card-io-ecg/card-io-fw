@@ -148,7 +148,7 @@
             <input type="text" id="netssid" placeholder="Network SSID" /><br />
             <label for="password">Password</label><br />
             <input type="password" id="netpass" placeholder="Network password" /><br />
-            <button onclick="$fe.an();">Submit</button>
+            <button onclick="$fe.an();">Add</button>
             <button onclick="$fe.start();">Back</button>
         </div>
     </div>
@@ -298,6 +298,18 @@
             return result;
         }
 
+        $post = async (action, url, body) => {
+            try {
+                await $fetch(url, {
+                    method: 'POST',
+                    body: body
+                });
+                $fe.start();
+            } catch (e) {
+                $toast(`Failed to ${action}: ${e.message}`);
+            }
+        }
+
         return {
             start: () => $page('start', async (tpl) => {
                 let system_info = await $load('/si');
@@ -311,34 +323,13 @@
 
             an: async () => {
                 let form = $("#content");
-                let ssid = form.$("#netssid").value;
-                let pass = form.$("#netpass").value;
-
-                try {
-                    await $fetch('/nn', {
-                        method: 'POST',
-                        body: ssid + "\n" + pass
-                    });
-                    $fe.start();
-                } catch (e) {
-                    $toast(`Failed to add network: ${e.message}`);
-                }
+                await $post("add network", '/an', `${form.$("#netssid").value}\n${form.$("#netpass").value}`);
             },
 
             dn: async (el) => {
-                let container = el.parentElement;
-                let index = container.$(".index").innerHTML;
-
-                try {
-                    await $fetch('/dn', {
-                        method: 'POST',
-                        body: index
-                    });
-                    $fe.start();
-                } catch (e) {
-                    $toast(`Failed to delete network: ${e.message}`);
-                }
-            }
+                let index = el.parentElement.$(".index").innerHTML;
+                await $post("delete network", '/dn', index);
+            },
         }
     })();
 
