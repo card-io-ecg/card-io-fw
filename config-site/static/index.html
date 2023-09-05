@@ -77,12 +77,6 @@
             cursor: pointer;
         }
 
-        #content {
-            padding: 1em;
-            background-color: #eee;
-            border-radius: 1em;
-        }
-
         .center {
             text-align: center;
         }
@@ -101,6 +95,29 @@
                 flex-direction: column-reverse;
             }
         }
+
+        fieldset {
+            margin: 1em 0;
+            padding: 1em;
+            border-radius: 1em;
+            border-width: 0;
+            background-color: #eee;
+        }
+
+        fieldset>legend {
+            font-weight: bold;
+            font: 1.5em Poppins;
+            border-radius: 0.5em;
+            border-width: 0;
+            padding: 0 0.5em;
+            background-color: #eee;
+        }
+
+        fieldset>hr {
+            margin: 1em 0;
+            border: 0 solid #ccc;
+            border-top-width: 1px;
+        }
     </style>
 </head>
 
@@ -110,7 +127,6 @@
     </div>
     <div id="frame">
         <div id="header-container">
-            <div id="header"></div>
             <svg id="logo" viewBox="0 0 287 101" width="150" height="62">
                 <path
                     d="M 1.944 57.912 Q 3.024 51.648 6.408 46.968 Q 9.792 42.288 14.796 39.768 Q 19.8 37.248 25.704 37.248 Q 33.264 37.248 37.656 41.208 Q 42.048 45.168 42.336 52.368 L 29.232 52.368 Q 28.44 47.76 23.616 47.76 Q 20.232 47.76 17.784 50.388 Q 15.336 53.016 14.472 57.912 Q 14.184 59.424 14.184 61.08 Q 14.184 64.464 15.768 66.264 Q 17.352 68.064 20.088 68.064 Q 24.84 68.064 27.216 63.456 L 40.392 63.456 Q 37.584 70.512 31.752 74.544 Q 25.92 78.576 18.432 78.576 Q 10.656 78.576 6.084 74.292 Q 1.512 70.008 1.512 62.592 Q 1.512 60.36 1.944 57.912 Z M 45.503 57.84 Q 46.583 51.648 49.751 46.968 Q 52.919 42.288 57.383 39.768 Q 61.847 37.248 66.815 37.248 Q 71.063 37.248 73.943 38.976 Q 76.823 40.704 78.119 43.512 L 79.127 37.824 L 91.439 37.824 L 84.311 78 L 71.999 78 L 73.079 72.312 Q 70.775 75.12 67.247 76.848 Q 63.719 78.576 59.471 78.576 Q 55.223 78.576 51.947 76.632 Q 48.671 74.688 46.871 71.124 Q 45.071 67.56 45.071 62.736 Q 45.071 60.432 45.503 57.84 Z M 75.599 57.912 Q 75.815 56.616 75.815 55.536 Q 75.815 52.008 73.763 49.992 Q 71.711 47.976 68.543 47.976 Q 64.871 47.976 61.847 50.604 Q 58.823 53.232 58.031 57.84 Q 57.815 59.136 57.815 60.216 Q 57.815 63.744 59.867 65.796 Q 61.919 67.848 65.015 67.848 Q 68.687 67.848 71.711 65.184 Q 74.735 62.52 75.599 57.912 Z M 111.307 45.096 Q 114.115 41.496 117.751 39.444 Q 121.387 37.392 125.347 37.392 L 123.043 50.424 L 119.659 50.424 Q 115.051 50.424 112.387 52.404 Q 109.723 54.384 108.859 59.352 L 105.547 78 L 93.235 78 L 100.291 37.824 L 112.603 37.824 L 111.307 45.096 Z M 125.204 57.84 Q 126.284 51.648 129.452 46.968 Q 132.62 42.288 137.084 39.768 Q 141.548 37.248 146.516 37.248 Q 150.476 37.248 153.464 38.904 Q 156.452 40.56 157.82 43.368 L 161.132 24.72 L 173.444 24.72 L 164.012 78 L 151.7 78 L 152.708 72.24 Q 150.404 75.12 146.948 76.848 Q 143.492 78.576 139.244 78.576 Q 134.996 78.576 131.72 76.632 Q 128.444 74.688 126.608 71.088 Q 124.772 67.488 124.772 62.664 Q 124.772 60.432 125.204 57.84 Z M 155.3 57.912 Q 155.516 56.616 155.516 55.536 Q 155.516 52.008 153.464 49.992 Q 151.412 47.976 148.244 47.976 Q 144.572 47.976 141.548 50.604 Q 138.524 53.232 137.732 57.84 Q 137.516 59.136 137.516 60.216 Q 137.516 63.744 139.568 65.796 Q 141.62 67.848 144.716 67.848 Q 148.388 67.848 151.412 65.184 Q 154.436 62.52 155.3 57.912 Z"
@@ -129,44 +145,46 @@
 
     <!-- templates -->
     <div id="start" class="tpl">
-        <h1 class="header">Welcome!</h1>
-        <div class="content">
+        <fieldset>
+            <legend>System info</legend>
             Firmware version: <span class="fw"></span>
-            Known networks: <span class="kn"></span>
+        </fieldset>
+
+        <fieldset>
+            <legend>Known networks</legend>
+            <div class="kn"></div>
             <button onclick="$fe.nn();">Add network</button>
-            Backend URL: <span class="bu"></span>
+            <hr />
+            <div>Backend URL: <span class="bu"></span></div>
             <button onclick="$fe.buc();">Change URL</button>
-        </div>
+        </fieldset>
     </div>
 
+    <fieldset id="nn" class="tpl">
+        <legend>Add network</legend>
+        <label for="ssid">SSID</label><br />
+        <input type="text" id="netssid" placeholder="Network SSID" /><br />
+        <label for="password">Password</label><br />
+        <input type="password" id="netpass" placeholder="Network password" /><br />
+        <button onclick="$fe.an();">Add</button>
+        <button onclick="$fe.start();">Back</button>
+    </fieldset>
+
+    <fieldset id="buc" class="tpl">
+        <legend>Change backend URL</legend>
+        <label for="url">New URL</label><br />
+        <input type="text" id="url" placeholder="Backend URL" /><br />
+        <button onclick="$fe.cbu();">Change</button>
+        <button onclick="$fe.start();">Back</button>
+    </fieldset>
+
+    <fieldset id="spinner" class="tpl">
+        <legend>Loading...</legend>
+    </fieldset>
+
+    <!-- list item templates -->
     <div id="network" class="tpl">
         SSID #<span class="index"></span>: <span class="data"></span><button onclick="$fe.dn(this)">Delete</button>
-    </div>
-
-    <div id="nn" class="tpl">
-        <h1 class="header">Add network</h1>
-        <div class="content">
-            <label for="ssid">SSID</label><br />
-            <input type="text" id="netssid" placeholder="Network SSID" /><br />
-            <label for="password">Password</label><br />
-            <input type="password" id="netpass" placeholder="Network password" /><br />
-            <button onclick="$fe.an();">Add</button>
-            <button onclick="$fe.start();">Back</button>
-        </div>
-    </div>
-
-    <div id="buc" class="tpl">
-        <h1 class="header">Change backend URL</h1>
-        <div class="content">
-            <label for="url">URL</label><br />
-            <input type="text" id="url" placeholder="URL" /><br />
-            <button onclick="$fe.cbu();">Change</button>
-            <button onclick="$fe.start();">Back</button>
-        </div>
-    </div>
-
-    <div id="spinner" class="content center tpl">
-        Loading...
     </div>
 </body>
 
@@ -215,40 +233,40 @@
         let $tpl = (id) => {
             let tpl = $clone($("#" + id));
             $removeClass(tpl, "tpl");
+            tpl.id = null;
 
-            let c = tpl.$(".content");
-            if (c) {
-                c.set = (name, value, sep = undefined) => $set(tpl, name, value, sep);
-                c.set_list = (name, item_tpl, value, sep = undefined) => {
-                    // value is a newline-delimited list of items
-                    let item_template = $tpl(item_tpl);
-                    let list_node = tpl.$("." + name);
+            tpl.set = (name, value, sep = undefined) => $set(tpl, name, value, sep);
+            tpl.set_list = (name, item_tpl, value, sep = undefined) => {
+                // value is a newline-delimited list of items
+                let item_template = $tpl(item_tpl);
 
-                    let lines = value.split("\n");
-                    if (lines.length && lines[lines.length - 1].trim() == "") {
-                        lines.pop();
-                    }
+                let list_node = tpl.$("." + name);
 
-                    for (let [i, line] of lines.entries()) {
-                        let node = $clone(item_template);
-                        $set(node, "data", line, sep);
-                        $set(node, "index", i);
-                        list_node.appendChild(node);
-                    }
+                let lines = value.split("\n");
+                if (lines.length && lines[lines.length - 1].trim() == "") {
+                    lines.pop();
+                }
+
+                for (let [i, line] of lines.entries()) {
+                    let node = $clone(item_template);
+                    $set(node, "data", line, sep);
+                    $set(node, "index", i);
+                    list_node.appendChild(node);
                 }
             }
 
             return tpl;
         }
-        let $show = (id, n) => {
-            let e = $("#" + id);
-            while (e.lastChild) e.removeChild(e.lastChild);
-            e.appendChild(n);
+
+        let $content = $("#content");
+
+        let $show = (n) => {
+            while ($content.lastChild) $content.removeChild($content.lastChild);
+            $content.appendChild(n);
         }
+
         let $page = async (tpln, fn) => {
             let tpl = $tpl(tpln);
-
-            $show("header", tpl.$(".header"));
 
             // Prevent rapid flashing
             let delay;
@@ -256,17 +274,18 @@
             new Promise((res) => setTimeout(res, 100)).then(() => {
                 if (!loaded) {
                     delay = new Promise((res) => setTimeout(res, 500));
-                    $show("content", $tpl("spinner"));
+                    $show($tpl("spinner"));
                 }
             });
 
-            let node = tpl.$(".content");
+            let node = tpl;
             if (fn) await fn(node);
             loaded = true;
             if (delay) await delay;
 
-            $show("content", node);
+            $show(node);
         }
+
         let $load = async (url, retry = 5) => {
             for (let i = 0; i < retry; i++) {
                 try {
@@ -299,6 +318,7 @@
                 }, 3000);
             }, 1000);
         }
+
         let $fetch = async (url, params = undefined) => {
             let result = await fetch(url, params);
 
@@ -310,7 +330,7 @@
             return result;
         }
 
-        $post = async (action, url, body) => {
+        let $post = async (action, url, body) => {
             try {
                 await $fetch(url, {
                     method: 'POST',
@@ -337,8 +357,7 @@
             buc: () => $page('buc'),
 
             an: async () => {
-                let form = $("#content");
-                await $post("add network", '/nn', `${form.$("#netssid").value}\n${form.$("#netpass").value}`);
+                await $post("add network", '/nn', `${$content.$("#netssid").value}\n${$content.$("#netpass").value}`);
             },
 
             dn: async (el) => {
@@ -347,8 +366,7 @@
             },
 
             cbu: async () => {
-                let form = $("#content");
-                await $post("change backend URL", '/cbu', form.$("#url").value);
+                await $post("change backend URL", '/cbu', $content.$("#url").value);
             },
         }
     })();
