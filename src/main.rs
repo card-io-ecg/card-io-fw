@@ -12,7 +12,7 @@ extern crate alloc;
 use core::ptr::addr_of;
 
 use alloc::{boxed::Box, rc::Rc};
-use embassy_executor::{Spawner, _export::StaticCell};
+use embassy_executor::Spawner;
 use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
     mutex::{Mutex, MutexGuard},
@@ -23,6 +23,7 @@ use norfs::{
     medium::{cache::ReadCache, StorageMedium},
     Storage, StorageError,
 };
+use static_cell::{make_static, StaticCell};
 
 #[cfg(feature = "hw_v1")]
 use crate::{
@@ -94,15 +95,6 @@ fn FROM_CPU_INTR1() {
     unsafe { INT_EXECUTOR.on_interrupt() }
 }
 
-macro_rules! singleton {
-    ($val:expr) => {{
-        type T = impl Sized;
-        static STATIC_CELL: StaticCell<T> = StaticCell::new();
-        let (x,) = STATIC_CELL.init(($val,));
-        x
-    }};
-}
-
 extern "C" {
     static mut _stack_start_cpu0: u8;
     static mut _stack_end_cpu0: u8;
@@ -124,7 +116,7 @@ fn main() -> ! {
     #[cfg(feature = "hw_v2")]
     log::info!("Hardware version: v2");
 
-    let executor = singleton!(Executor::new());
+    let executor = make_static!(Executor::new());
     executor.run(move |spawner| {
         spawner.spawn(main_task(spawner, resources)).ok();
     })
@@ -145,7 +137,7 @@ async fn setup_storage(
     };
 
     match storage {
-        Ok(storage) => Some(singleton!(storage)),
+        Ok(storage) => Some(make_static!(storage)),
         Err(e) => {
             log::error!("Failed to mount storage: {:?}", e);
             None
