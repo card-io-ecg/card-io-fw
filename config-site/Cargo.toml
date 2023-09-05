@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bad-server = { path = "../bad-server" }
+bad-server = { workspace = true }
 embassy-sync = { workspace = true, optional = true }
 embedded-io = { workspace = true, optional = true }
 heapless = { workspace = true }
@@ -28,5 +28,5 @@ smol = "1"
 
 [features]
 default = []
-embedded = ["dep:norfs", "dep:embassy-sync", "dep:embedded-io"]
+embedded = ["dep:norfs", "dep:embassy-sync", "dep:embedded-io", "bad-server/embassy"]
 std = ["dep:smol", "bad-server/std"]

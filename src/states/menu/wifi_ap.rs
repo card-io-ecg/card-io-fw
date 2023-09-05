@@ -1,15 +1,7 @@
 use alloc::{boxed::Box, rc::Rc};
-use bad_server::{
-    handler::{RequestHandler, StaticHandler},
-    BadServer,
-};
 use config_site::{
+    self,
     data::{SharedWebContext, WebContext},
-    handlers::{
-        add_new_network::AddNewNetwork, backend_url::BackendUrl,
-        change_backend_url::ChangeBackendUrl, delete_network::DeleteNetwork,
-        list_known_networks::ListKnownNetworks, HEADER_FONT, INDEX_HANDLER,
-    },
 };
 use embassy_executor::Spawner;
 use embassy_net::tcp::TcpSocket;
@@ -174,32 +166,9 @@ async fn webserver_task(
             );
             socket.set_timeout(Some(Duration::from_secs(10)));
 
-            BadServer::new()
+            config_site::create(&context, env!("FW_VERSION"))
                 .with_request_buffer(&mut resources.request_buffer[..])
                 .with_header_count::<24>()
-                .with_handler(RequestHandler::get("/", INDEX_HANDLER))
-                .with_handler(RequestHandler::get("/font", HEADER_FONT))
-                .with_handler(RequestHandler::get(
-                    "/si",
-                    StaticHandler::new(&[], env!("FW_VERSION").as_bytes()),
-                ))
-                .with_handler(RequestHandler::get(
-                    "/kn",
-                    ListKnownNetworks { context: &context },
-                ))
-                .with_handler(RequestHandler::post(
-                    "/nn",
-                    AddNewNetwork { context: &context },
-                ))
-                .with_handler(RequestHandler::post(
-                    "/dn",
-                    DeleteNetwork { context: &context },
-                ))
-                .with_handler(RequestHandler::get("/bu", BackendUrl { context: &context }))
-                .with_handler(RequestHandler::post(
-                    "/cbu",
-                    ChangeBackendUrl { context: &context },
-                ))
                 .listen(&mut socket, 8080)
                 .await;
         })
