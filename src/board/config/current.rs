@@ -15,6 +15,7 @@ pub struct Config {
     pub display_brightness: DisplayBrightness,
     pub known_networks: heapless::Vec<WifiNetwork, 8>,
     pub filter_strength: FilterStrength,
+    pub backend_url: heapless::String<64>,
 }
 
 impl From<super::v2::Config> for Config {
@@ -35,6 +36,7 @@ impl Default for Config {
             display_brightness: DisplayBrightness::Normal,
             known_networks: heapless::Vec::new(),
             filter_strength: FilterStrength::Weak,
+            backend_url: heapless::String::new(),
         }
     }
 }
@@ -66,6 +68,7 @@ impl Loadable for Config {
             display_brightness: DisplayBrightness::load(reader).await?,
             known_networks: heapless::Vec::load(reader).await?,
             filter_strength: FilterStrength::load(reader).await?,
+            backend_url: heapless::String::load(reader).await?,
         };
 
         Ok(data)
@@ -80,6 +83,7 @@ impl Storable for Config {
         self.display_brightness.store(writer).await?;
         self.known_networks.store(writer).await?;
         self.filter_strength.store(writer).await?;
+        self.backend_url.store(writer).await?;
 
         Ok(())
     }
