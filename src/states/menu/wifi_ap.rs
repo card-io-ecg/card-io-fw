@@ -1,14 +1,7 @@
 use alloc::{boxed::Box, rc::Rc};
-use bad_server::{
-    handler::{RequestHandler, StaticHandler},
-    BadServer,
-};
 use config_site::{
+    self,
     data::{SharedWebContext, WebContext},
-    handlers::{
-        add_new_network::AddNewNetwork, delete_network::DeleteNetwork,
-        list_known_networks::ListKnownNetworks, HEADER_FONT, INDEX_HANDLER,
-    },
 };
 use embassy_executor::Spawner;
 use embassy_net::tcp::TcpSocket;
@@ -45,6 +38,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
     let context = Rc::new(SharedWebContext::new(WebContext {
         known_networks: board.config.known_networks.clone(),
+        backend_url: board.config.backend_url.clone(),
     }));
 
     let webserver_task_control = [(); WEBSERVER_TASKS].map(|_| TaskController::new());
@@ -127,9 +121,14 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
                 .known_networks
                 .clone_from(&context.known_networks);
             board.config_changed = true;
-            board.save_config().await;
+        }
+        if context.backend_url != board.config.backend_url {
+            board.config.backend_url.clone_from(&context.backend_url);
+            board.config_changed = true;
         }
     }
+
+    board.save_config().await;
 
     AppState::Menu(AppMenu::Main)
 }
@@ -167,27 +166,9 @@ async fn webserver_task(
             );
             socket.set_timeout(Some(Duration::from_secs(10)));
 
-            BadServer::new()
+            config_site::create(&context, env!("FW_VERSION"))
                 .with_request_buffer(&mut resources.request_buffer[..])
                 .with_header_count::<24>()
-                .with_handler(RequestHandler::get("/", INDEX_HANDLER))
-                .with_handler(RequestHandler::get("/font", HEADER_FONT))
-                .with_handler(RequestHandler::get(
-                    "/si",
-                    StaticHandler::new(&[], env!("FW_VERSION").as_bytes()),
-                ))
-                .with_handler(RequestHandler::get(
-                    "/kn",
-                    ListKnownNetworks { context: &context },
-                ))
-                .with_handler(RequestHandler::post(
-                    "/nn",
-                    AddNewNetwork { context: &context },
-                ))
-                .with_handler(RequestHandler::post(
-                    "/dn",
-                    DeleteNetwork { context: &context },
-                ))
                 .listen(&mut socket, 8080)
                 .await;
         })
