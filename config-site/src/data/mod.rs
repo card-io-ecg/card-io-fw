@@ -10,6 +10,7 @@ use smol::lock::Mutex;
 
 pub struct WebContext {
     pub known_networks: heapless::Vec<WifiNetwork, 8>,
+    pub backend_url: heapless::String<64>,
 }
 
 #[cfg(feature = "embedded")]

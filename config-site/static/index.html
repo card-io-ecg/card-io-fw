@@ -134,6 +134,8 @@
             Firmware version: <span class="fw"></span>
             Known networks: <span class="kn"></span>
             <button onclick="$fe.nn();">Add network</button>
+            Backend URL: <span class="bu"></span>
+            <button onclick="$fe.buc();">Change URL</button>
         </div>
     </div>
 
@@ -149,6 +151,16 @@
             <label for="password">Password</label><br />
             <input type="password" id="netpass" placeholder="Network password" /><br />
             <button onclick="$fe.an();">Add</button>
+            <button onclick="$fe.start();">Back</button>
+        </div>
+    </div>
+
+    <div id="buc" class="tpl">
+        <h1 class="header">Change backend URL</h1>
+        <div class="content">
+            <label for="url">URL</label><br />
+            <input type="text" id="url" placeholder="URL" /><br />
+            <button onclick="$fe.cbu();">Change</button>
             <button onclick="$fe.start();">Back</button>
         </div>
     </div>
@@ -313,22 +325,30 @@
         return {
             start: () => $page('start', async (tpl) => {
                 let system_info = await $load('/si');
+                let backend_url = await $load('/bu');
                 let known_networks = await $load('/kn');
 
                 tpl.set("fw", await system_info.text());
+                tpl.set("bu", await backend_url.text());
                 tpl.set_list("kn", "network", await known_networks.text());
             }),
 
             nn: () => $page('nn'),
+            buc: () => $page('buc'),
 
             an: async () => {
                 let form = $("#content");
-                await $post("add network", '/an', `${form.$("#netssid").value}\n${form.$("#netpass").value}`);
+                await $post("add network", '/nn', `${form.$("#netssid").value}\n${form.$("#netpass").value}`);
             },
 
             dn: async (el) => {
                 let index = el.parentElement.$(".index").innerHTML;
                 await $post("delete network", '/dn', index);
+            },
+
+            cbu: async () => {
+                let form = $("#content");
+                await $post("change backend URL", '/cbu', form.$("#url").value);
             },
         }
     })();

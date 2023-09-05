@@ -1,4 +1,6 @@
 pub mod add_new_network;
+pub mod backend_url;
+pub mod change_backend_url;
 pub mod delete_network;
 pub mod list_known_networks;
 

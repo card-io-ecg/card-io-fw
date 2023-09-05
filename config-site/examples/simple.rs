@@ -9,7 +9,8 @@ use bad_server::{
 use config_site::{
     data::{network::WifiNetwork, SharedWebContext, WebContext},
     handlers::{
-        add_new_network::AddNewNetwork, delete_network::DeleteNetwork,
+        add_new_network::AddNewNetwork, backend_url::BackendUrl,
+        change_backend_url::ChangeBackendUrl, delete_network::DeleteNetwork,
         list_known_networks::ListKnownNetworks, HEADER_FONT, INDEX_HANDLER,
     },
 };
@@ -43,7 +44,10 @@ pub async fn run() {
         })
         .unwrap();
 
-    let context = SharedWebContext::new(WebContext { known_networks });
+    let context = SharedWebContext::new(WebContext {
+        known_networks,
+        backend_url: heapless::String::from("http://localhost:8080"),
+    });
 
     BadServer::new()
         .with_request_buffer_size::<2048>()
@@ -65,6 +69,11 @@ pub async fn run() {
         .with_handler(RequestHandler::post(
             "/dn",
             DeleteNetwork { context: &context },
+        ))
+        .with_handler(RequestHandler::get("/bu", BackendUrl { context: &context }))
+        .with_handler(RequestHandler::post(
+            "/cbu",
+            ChangeBackendUrl { context: &context },
         ))
         .listen(&mut socket, 8080)
         .await;

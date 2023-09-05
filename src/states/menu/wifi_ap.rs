@@ -6,7 +6,8 @@ use bad_server::{
 use config_site::{
     data::{SharedWebContext, WebContext},
     handlers::{
-        add_new_network::AddNewNetwork, delete_network::DeleteNetwork,
+        add_new_network::AddNewNetwork, backend_url::BackendUrl,
+        change_backend_url::ChangeBackendUrl, delete_network::DeleteNetwork,
         list_known_networks::ListKnownNetworks, HEADER_FONT, INDEX_HANDLER,
     },
 };
@@ -45,6 +46,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
     let context = Rc::new(SharedWebContext::new(WebContext {
         known_networks: board.config.known_networks.clone(),
+        backend_url: board.config.backend_url.clone(),
     }));
 
     let webserver_task_control = [(); WEBSERVER_TASKS].map(|_| TaskController::new());
@@ -127,9 +129,14 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
                 .known_networks
                 .clone_from(&context.known_networks);
             board.config_changed = true;
-            board.save_config().await;
+        }
+        if context.backend_url != board.config.backend_url {
+            board.config.backend_url.clone_from(&context.backend_url);
+            board.config_changed = true;
         }
     }
+
+    board.save_config().await;
 
     AppState::Menu(AppMenu::Main)
 }
@@ -187,6 +194,11 @@ async fn webserver_task(
                 .with_handler(RequestHandler::post(
                     "/dn",
                     DeleteNetwork { context: &context },
+                ))
+                .with_handler(RequestHandler::get("/bu", BackendUrl { context: &context }))
+                .with_handler(RequestHandler::post(
+                    "/cbu",
+                    ChangeBackendUrl { context: &context },
                 ))
                 .listen(&mut socket, 8080)
                 .await;
