@@ -1,5 +1,3 @@
-use core::fmt::Write;
-
 use embedded_graphics::{
     geometry::AnchorPoint,
     image::{Image, ImageRaw},
@@ -11,6 +9,7 @@ use embedded_graphics::{
     Drawable,
 };
 use embedded_layout::prelude::*;
+use ufmt::uwrite;
 
 use crate::screens::BatteryInfo;
 
@@ -136,17 +135,14 @@ impl BatteryStyle {
         let battery_data_width = match self {
             BatteryStyle::MilliVolts => {
                 let mut string = heapless::String::<8>::new();
-
-                let volts = data.voltage / 1000;
-                let millis = data.voltage - volts * 1000;
-                write!(&mut string, "{volts}.{millis:03}V").ok();
+                unwrap!(uwrite!(&mut string, "{}mV", data.voltage));
 
                 self.draw_text(target, &string)?
             }
             BatteryStyle::Percentage => {
                 let mut string = heapless::String::<4>::new();
 
-                write!(&mut string, "{}%", data.percentage).ok();
+                unwrap!(uwrite!(&mut string, "{}%", data.percentage));
 
                 self.draw_text(target, &string)?
             }

@@ -1,6 +1,7 @@
-use core::{fmt::Write as _, marker::PhantomData};
+use core::marker::PhantomData;
 
 use embedded_io::asynch::Write;
+use ufmt::uwrite;
 
 use crate::{
     connector::Connection,
@@ -35,11 +36,11 @@ where
         let mut response = response.send_status(status).await?.start_body().await?;
 
         let mut body = heapless::String::<128>::new();
-        let _ = write!(
+        let _ = uwrite!(
             &mut body,
-            "<html><body><h1>{code} {reason}</h1></body></html>\r\n",
-            code = status as u16,
-            reason = status.name(),
+            "<html><body><h1>{} {}</h1></body></html>\r\n",
+            status as u16,
+            status.name(),
         );
 
         response.write(&body).await

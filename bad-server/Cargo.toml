@@ -11,7 +11,7 @@ defmt = { workspace = true, optional = true }
 embassy-net = { workspace = true, optional = true }
 embedded-io = { workspace = true }
 embedded-svc = { workspace = true }
-heapless = { workspace = true }
+heapless = { workspace = true, features = ["ufmt-impl"] }
 httparse = { version = "1.8", default-features = false }
 logger = { workspace = true }
 log = { workspace = true, optional = true }
@@ -19,6 +19,7 @@ smol = { version = "1", optional = true }
 object-chain = { workspace = true }
 const-fnv1a-hash = "1.1"
 const_base = "0.2.0"
+ufmt = { workspace = true }
 
 [dev-dependencies]
 simple_logger = "4.1"

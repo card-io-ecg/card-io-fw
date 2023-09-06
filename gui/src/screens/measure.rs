@@ -1,4 +1,4 @@
-use core::{cell::RefCell, fmt::Write, num::NonZeroU8};
+use core::{cell::RefCell, num::NonZeroU8};
 
 use embedded_graphics::{
     geometry::AnchorPoint,
@@ -16,6 +16,7 @@ use signal_processing::{
     lerp::{Interval, Lerp},
     sliding::SlidingWindow,
 };
+use ufmt::uwrite;
 
 struct CameraConfig {
     shrink_frames: usize,
@@ -199,7 +200,7 @@ impl Drawable for EcgScreen {
             image.draw(display)?;
 
             let mut hr_string = heapless::String::<3>::new();
-            write!(&mut hr_string, "{hr}").ok();
+            unwrap!(uwrite!(&mut hr_string, "{}", hr));
 
             Text::with_baseline(
                 &hr_string,

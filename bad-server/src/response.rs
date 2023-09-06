@@ -1,7 +1,8 @@
-use core::{fmt::Write as _, marker::PhantomData};
+use core::marker::PhantomData;
 
 use embedded_io::Io;
 use httparse::Header;
+use ufmt::uwrite;
 
 use crate::{connector::Connection, HandleError};
 
@@ -81,7 +82,7 @@ impl<'s, C: Connection> Response<'s, C, Initial> {
         debug!("Response status: {}", status as u16);
 
         let mut status_code = heapless::Vec::<u8, 4>::new();
-        if write!(&mut status_code, "{}", status as u16).is_err() {
+        if uwrite!(&mut status_code, "{}", status as u16).is_err() {
             return Err(HandleError::InternalError);
         }
 
@@ -170,7 +171,7 @@ impl<'s, C: Connection> Response<'s, C, Headers> {
     pub async fn send_body(mut self, data: impl AsRef<[u8]>) -> Result<(), HandleError<C>> {
         let data = data.as_ref();
         let mut buffer = heapless::String::<12>::new();
-        if write!(&mut buffer, "{}", data.len()).is_err() {
+        if uwrite!(&mut buffer, "{}", data.len()).is_err() {
             return Err(HandleError::InternalError);
         }
 
@@ -198,7 +199,7 @@ impl<'s, C: Connection> Response<'s, C, BodyChunked> {
     pub async fn write(&mut self, data: impl AsRef<[u8]>) -> Result<(), HandleError<C>> {
         let data = data.as_ref();
         let mut chunk_header = heapless::Vec::<u8, 12>::new();
-        if write!(&mut chunk_header, "{:X}\r\n", data.len()).is_err() {
+        if uwrite!(&mut chunk_header, "{:X}\r\n", data.len()).is_err() {
             return Err(HandleError::InternalError);
         }
 
