@@ -36,36 +36,32 @@ pub async fn main_menu(board: &mut Board) -> AppState {
     };
 
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
-    log::info!("Free heap: {} bytes", ALLOCATOR.free());
+    info!("Free heap: {} bytes", ALLOCATOR.free());
 
     let builder = Menu::with_style("Main menu", menu_style());
 
     let mut items = heapless::Vec::<_, 4>::new();
 
-    items
+    unwrap!(items
         .push(NavigationItem::new(
             "Display settings",
             MainMenuEvents::Display,
         ))
-        .ok()
-        .unwrap();
-    items
+        .ok());
+    unwrap!(items
         .push(NavigationItem::new("Device info", MainMenuEvents::About))
-        .ok()
-        .unwrap();
+        .ok());
 
     if board.can_enable_wifi() {
-        items
+        unwrap!(items
             .push(NavigationItem::new("Wifi setup", MainMenuEvents::WifiSetup))
-            .ok()
-            .unwrap();
-        items
+            .ok());
+        unwrap!(items
             .push(NavigationItem::new(
                 "Wifi networks",
                 MainMenuEvents::WifiListVisible,
             ))
-            .ok()
-            .unwrap();
+            .ok());
     }
 
     let mut menu_screen = Screen {
@@ -122,12 +118,11 @@ pub async fn main_menu(board: &mut Board) -> AppState {
                 menu_screen.content.update(display);
                 menu_screen.draw(display)
             })
-            .await
-            .unwrap();
+            .await;
 
         ticker.next().await;
     }
 
-    log::info!("Menu timeout");
+    info!("Menu timeout");
     AppState::Shutdown
 }

@@ -1,4 +1,5 @@
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Method {
     Delete,
     Get,

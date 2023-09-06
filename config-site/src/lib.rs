@@ -19,6 +19,9 @@ use crate::{
     },
 };
 
+#[macro_use]
+extern crate logger;
+
 pub mod data;
 pub mod handlers;
 

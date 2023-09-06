@@ -2,6 +2,7 @@ use bad_server::{
     connector::Connection, handler::RequestHandler, request::Request, response::ResponseStatus,
     HandleError,
 };
+use logger::{debug, warn};
 
 use crate::data::SharedWebContext;
 
@@ -16,7 +17,7 @@ impl<'a> ChangeBackendUrl<'a> {
         status: ResponseStatus,
         message: &str,
     ) -> Result<(), HandleError<C>> {
-        log::warn!("Request error: {status:?}, {message}");
+        warn!("Request error: {:?}, {}", status, message);
         request
             .send_response(status)
             .await?
@@ -31,7 +32,7 @@ impl<C: Connection> RequestHandler<C> for ChangeBackendUrl<'_> {
     async fn handle(&self, mut request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
         let mut buf = [0u8; 100];
 
-        log::debug!("Reading POST data");
+        debug!("Reading POST data");
         let post_data = request.read_all(&mut buf).await?;
 
         if !request.is_complete() {
@@ -46,8 +47,8 @@ impl<C: Connection> RequestHandler<C> for ChangeBackendUrl<'_> {
 
         let post_body = match core::str::from_utf8(post_data) {
             Ok(body) => body,
-            Err(err) => {
-                log::warn!("Invalid UTF-8 in POST body: {err}");
+            Err(_err) => {
+                warn!("Invalid UTF-8 in POST body: {:?}", post_data);
                 return self
                     .request_error(
                         request,
@@ -57,7 +58,7 @@ impl<C: Connection> RequestHandler<C> for ChangeBackendUrl<'_> {
                     .await;
             }
         };
-        log::debug!("POST body: {post_body:?}");
+        debug!("POST body: {:?}", post_body);
 
         if !validate_url(post_body) {
             return self

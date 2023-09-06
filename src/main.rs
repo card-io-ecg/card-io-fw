@@ -9,7 +9,12 @@
 
 extern crate alloc;
 
+#[macro_use]
+extern crate logger;
+
 use core::ptr::addr_of;
+
+use esp_println as _;
 
 use alloc::{boxed::Box, rc::Rc};
 use embassy_executor::Spawner;
@@ -73,11 +78,13 @@ pub type Shared<T> = Rc<Mutex<NoopRawMutex, T>>;
 pub type SharedGuard<'a, T> = MutexGuard<'a, NoopRawMutex, T>;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum AppError {
     Adc,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum AppState {
     AdcSetup,
     Initialize,
@@ -111,10 +118,10 @@ fn main() -> ! {
     let _stack_protection = stack_protection::StackMonitor::protect((stack_start + 4)..stack_end);
 
     #[cfg(feature = "hw_v1")]
-    log::info!("Hardware version: v1");
+    info!("Hardware version: v1");
 
     #[cfg(feature = "hw_v2")]
-    log::info!("Hardware version: v2");
+    info!("Hardware version: v2");
 
     let executor = make_static!(Executor::new());
     executor.run(move |spawner| {
@@ -130,7 +137,7 @@ async fn setup_storage(
     let storage = match Storage::mount(unsafe { &mut READ_CACHE }).await {
         Ok(storage) => Ok(storage),
         Err(StorageError::NotFormatted) => {
-            log::info!("Formatting storage");
+            info!("Formatting storage");
             Storage::format_and_mount(unsafe { &mut READ_CACHE }).await
         }
         e => e,
@@ -139,7 +146,7 @@ async fn setup_storage(
     match storage {
         Ok(storage) => Some(make_static!(storage)),
         Err(e) => {
-            log::error!("Failed to mount storage: {:?}", e);
+            error!("Failed to mount storage: {:?}", e);
             None
         }
     }
@@ -152,7 +159,7 @@ where
     static CONFIG: StaticCell<Config> = StaticCell::new();
 
     if let Some(storage) = storage {
-        log::info!(
+        info!(
             "Storage: {} / {} used",
             storage.capacity() - storage.free_bytes(),
             storage.capacity()
@@ -162,17 +169,17 @@ where
             Ok(mut config) => match config.read_loadable::<ConfigFile>(storage).await {
                 Ok(config) => CONFIG.init(config.into_config()),
                 Err(e) => {
-                    log::warn!("Failed to read config file: {e:?}. Reverting to defaults");
+                    warn!("Failed to read config file: {:?}. Reverting to defaults", e);
                     CONFIG.init(Config::default())
                 }
             },
             Err(e) => {
-                log::warn!("Failed to load config: {e:?}. Reverting to defaults");
+                warn!("Failed to load config: {:?}. Reverting to defaults", e);
                 CONFIG.init(Config::default())
             }
         }
     } else {
-        log::warn!("Storage unavailable. Using default config");
+        warn!("Storage unavailable. Using default config");
         CONFIG.init(Config::default())
     }
 }
@@ -189,15 +196,14 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
     )
     .await;
 
-    hal::interrupt::enable(
+    unwrap!(hal::interrupt::enable(
         hal::peripherals::Interrupt::GPIO,
         hal::interrupt::Priority::Priority3,
-    )
-    .unwrap();
+    ));
 
     let mut storage = setup_storage().await;
     let config = load_config(storage.as_deref_mut()).await;
-    let mut display = resources.display.enable().await.unwrap();
+    let mut display = unwrap!(resources.display.enable().await.ok());
 
     let _ = display
         .update_brightness_async(config.display_brightness())
@@ -223,7 +229,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
     let mut state = AppState::AdcSetup;
 
     loop {
-        log::info!("New app state: {state:?}");
+        info!("New app state: {:?}", state);
         state = match state {
             AppState::AdcSetup => adc_setup(&mut board).await,
             AppState::Initialize => initialize(&mut board).await,
@@ -274,7 +280,7 @@ fn setup_wakeup_pins<'a, const N: usize>(
     charger_pin: &'a mut ChargerStatus,
     is_charging: bool,
 ) {
-    wakeup_pins.push((touch, WakeupLevel::Low)).ok().unwrap();
+    unwrap!(wakeup_pins.push((touch, WakeupLevel::Low)).ok());
 
     if is_charging {
         // This is a bit awkward as unplugging then replugging will not wake the
@@ -289,10 +295,7 @@ fn setup_wakeup_pins<'a, const N: usize>(
         charger_pin.rtcio_pad_hold(true);
         charger_pin.rtcio_pullup(true);
 
-        wakeup_pins
-            .push((charger_pin, WakeupLevel::Low))
-            .ok()
-            .unwrap();
+        unwrap!(wakeup_pins.push((charger_pin, WakeupLevel::Low)).ok());
     }
 }
 
@@ -314,6 +317,6 @@ fn setup_wakeup_pins<'a, const N: usize>(
         WakeupLevel::High
     };
 
-    wakeup_pins.push((touch, WakeupLevel::Low)).ok().unwrap();
-    wakeup_pins.push((charger_pin, charger_level)).ok().unwrap();
+    unwrap!(wakeup_pins.push((touch, WakeupLevel::Low)).ok());
+    unwrap!(wakeup_pins.push((charger_pin, charger_level)).ok());
 }

@@ -42,10 +42,11 @@ where
     }
 
     pub async fn enable(mut self) -> Result<PoweredDisplay<RESET>, DisplayError> {
-        self.display
+        unwrap!(self
+            .display
             .reset_async::<_, Delay>(&mut self.reset, &mut Delay)
             .await
-            .unwrap();
+            .ok());
 
         self.display
             .init_with_addr_mode_async(AddrMode::Horizontal)
@@ -84,7 +85,7 @@ impl<RESET> DrawTarget for PoweredDisplay<RESET> {
 }
 
 impl<RESET> PoweredDisplay<RESET> {
-    pub async fn frame(
+    async fn frame_impl(
         &mut self,
         render: impl FnOnce(&mut Self) -> Result<(), DisplayError>,
     ) -> Result<(), DisplayError> {
@@ -93,6 +94,10 @@ impl<RESET> PoweredDisplay<RESET> {
         render(self)?;
 
         self.flush().await
+    }
+
+    pub async fn frame(&mut self, render: impl FnOnce(&mut Self) -> Result<(), DisplayError>) {
+        unwrap!(self.frame_impl(render).await.ok());
     }
 
     pub async fn flush(&mut self) -> Result<(), DisplayError> {
@@ -112,7 +117,7 @@ where
     RESET: OutputPin,
 {
     pub fn shut_down(mut self) -> Display<RESET> {
-        self.display.reset.set_low().unwrap();
+        unwrap!(self.display.reset.set_low().ok());
         self.display
     }
 }

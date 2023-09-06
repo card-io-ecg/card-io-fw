@@ -1,3 +1,5 @@
+use std::env;
+
 use anyhow::Result as AnyResult;
 use clap::{Parser, Subcommand, ValueEnum};
 
@@ -156,7 +158,13 @@ fn run(hw: HardwareVersion) -> AnyResult<()> {
 }
 
 fn monitor() -> AnyResult<()> {
-    cargo(&["espflash", "monitor"]).run()?;
+    cargo(&[
+        "espflash",
+        "monitor",
+        "-e",
+        "./target/xtensa-esp32s3-none-elf/release/card_io_fw",
+    ])
+    .run()?;
 
     Ok(())
 }
@@ -224,7 +232,7 @@ fn example(package: String, name: String, watch: bool) -> AnyResult<()> {
 
     // Add required features, etc.
     match (package.as_str(), name.as_str()) {
-        ("config-site", "simple") => args.extend_from_slice(&["--features=std"]),
+        ("config-site", "simple") => args.extend_from_slice(&["--features=std,log"]),
         _ => {}
     }
 
@@ -256,6 +264,8 @@ fn asm() -> AnyResult<()> {
 
 fn main() -> AnyResult<()> {
     let cli = Cli::parse();
+
+    env::set_var("DEFMT_LOG", "card_io_fw=debug,info");
 
     match cli.subcommand {
         Subcommands::Build { hw, variant: opt } => build(hw.unwrap_or_default(), opt),

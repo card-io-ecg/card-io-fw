@@ -2,6 +2,9 @@
 #![feature(async_fn_in_trait)]
 #![allow(incomplete_features)]
 
+#[macro_use]
+extern crate logger;
+
 use byteorder::{BigEndian, ByteOrder};
 use device_descriptor::{ReadOnlyRegister, ReaderProxy, Register};
 use embedded_hal::{
@@ -16,6 +19,7 @@ use crate::descriptors::*;
 pub mod descriptors;
 
 #[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error<SpiE> {
     InvalidState,
     UnexpectedDeviceId,
@@ -23,7 +27,8 @@ pub enum Error<SpiE> {
     Transfer(SpiE),
 }
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Default, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct ConfigRegisters {
     pub config1: Config1,
     pub config2: Config2,
@@ -99,10 +104,9 @@ impl ConfigRegisters {
         if config_bytes == readback {
             Ok(())
         } else {
-            log::warn!(
+            warn!(
                 "Verification failed: received: {:?}, expected: {:?}",
-                readback,
-                config_bytes
+                readback, config_bytes
             );
             Err(Error::Verification)
         }
@@ -263,11 +267,11 @@ where
     where
         RESET: OutputPin,
     {
-        reset.set_high().unwrap();
+        unwrap!(reset.set_high().ok());
         delay.delay_ms(Self::MIN_T_POR);
-        reset.set_low().unwrap();
+        unwrap!(reset.set_low().ok());
         delay.delay_ms(Self::MIN_T_RST);
-        reset.set_high().unwrap();
+        unwrap!(reset.set_high().ok());
         delay.delay_ms(Self::MIN_RST_WAIT);
     }
 }
@@ -295,9 +299,9 @@ where
             .await
             .map_err(Error::Transfer)?;
 
-        Ok(AdsData::new_single_channel(
-            buffer[bytes..bytes + 6].try_into().unwrap(),
-        ))
+        Ok(AdsData::new_single_channel(unwrap!(buffer
+            [bytes..bytes + 6]
+            .try_into())))
     }
 
     pub async fn read_data_2ch_async_rdatac(&mut self) -> Result<AdsData, Error<SPI::Error>> {
@@ -319,7 +323,7 @@ where
             .await
             .map_err(Error::Transfer)?;
 
-        Ok(AdsData::new(buffer[bytes..bytes + 9].try_into().unwrap()))
+        Ok(AdsData::new(unwrap!(buffer[bytes..bytes + 9].try_into())))
     }
 
     pub async fn write_command_async(
@@ -343,10 +347,7 @@ where
         match read_result.read() {
             Some(id) => Ok(id),
             None => {
-                log::warn!(
-                    "Read unknown device id: {:?}",
-                    read_result.read_field_bits()
-                );
+                warn!("Read unknown device id: {}", read_result.read_field_bits());
                 Err(Error::UnexpectedDeviceId)
             }
         }
@@ -367,18 +368,19 @@ where
     where
         RESET: OutputPin,
     {
-        reset.set_high().unwrap();
+        unwrap!(reset.set_high().ok());
         delay.delay_ms(Self::MIN_T_POR).await;
-        reset.set_low().unwrap();
+        unwrap!(reset.set_low().ok());
         delay.delay_ms(Self::MIN_T_RST).await;
-        reset.set_high().unwrap();
+        unwrap!(reset.set_high().ok());
         delay.delay_ms(Self::MIN_RST_WAIT).await;
 
         self.write_command_async(Command::SDATAC, &mut []).await
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Sample {
     sample: i32,
 }
@@ -395,6 +397,8 @@ impl Sample {
     }
 }
 
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct AdsData {
     status: LoffStat,
     ch1: Sample,
@@ -414,16 +418,16 @@ impl AdsData {
 
     pub fn new(buffer: [u8; 9]) -> Self {
         Self {
-            status: Self::read_status(buffer[0..3].try_into().unwrap()),
-            ch1: Self::read_channel(buffer[3..6].try_into().unwrap()),
-            ch2: Self::read_channel(buffer[6..9].try_into().unwrap()),
+            status: Self::read_status(unwrap!(buffer[0..3].try_into())),
+            ch1: Self::read_channel(unwrap!(buffer[3..6].try_into())),
+            ch2: Self::read_channel(unwrap!(buffer[6..9].try_into())),
         }
     }
 
     pub fn new_single_channel(buffer: [u8; 6]) -> Self {
         Self {
-            status: Self::read_status(buffer[0..3].try_into().unwrap()),
-            ch1: Self::read_channel(buffer[3..6].try_into().unwrap()),
+            status: Self::read_status(unwrap!(buffer[0..3].try_into())),
+            ch1: Self::read_channel(unwrap!(buffer[3..6].try_into())),
             ch2: Sample { sample: 0 },
         }
     }

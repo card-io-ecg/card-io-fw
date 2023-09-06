@@ -55,35 +55,30 @@ pub async fn battery_info_menu(board: &mut Board) -> AppState {
 
             let mut sensor = board.battery_monitor.sensor().await;
 
-            let voltage = sensor.fg.read_vcell().await.unwrap();
-            items
+            let voltage = unwrap!(sensor.fg.read_vcell().await.ok());
+            unwrap!(items
                 .push(list_item(format!("Voltage: {:>9}mV", voltage / 1000)))
-                .ok()
-                .unwrap();
+                .ok());
 
-            let current = sensor.fg.read_current().await.unwrap();
-            items
+            let current = unwrap!(sensor.fg.read_current().await.ok());
+            unwrap!(items
                 .push(list_item(format!("Current: {:>9}mA", current / 1000)))
-                .ok()
-                .unwrap();
+                .ok());
 
-            let capacity = sensor.fg.read_design_capacity().await.unwrap();
-            items
+            let capacity = unwrap!(sensor.fg.read_design_capacity().await.ok());
+            unwrap!(items
                 .push(list_item(format!("Nominal: {:>8}mAh", capacity / 1000)))
-                .ok()
-                .unwrap();
+                .ok());
 
-            let capacity = sensor.fg.read_reported_capacity().await.unwrap();
-            items
+            let capacity = unwrap!(sensor.fg.read_reported_capacity().await.ok());
+            unwrap!(items
                 .push(list_item(format!("Capacity: {:>7}mAh", capacity / 1000)))
-                .ok()
-                .unwrap();
+                .ok());
 
-            let charge_cycles = sensor.fg.read_charge_cycles().await.unwrap();
-            items
+            let charge_cycles = unwrap!(sensor.fg.read_charge_cycles().await.ok());
+            unwrap!(items
                 .push(list_item(format!("Chg Cycles: {:>8}", charge_cycles)))
-                .ok()
-                .unwrap();
+                .ok());
         }
 
         let mut menu_screen = Screen {
@@ -127,8 +122,7 @@ pub async fn battery_info_menu(board: &mut Board) -> AppState {
                 menu_screen.content.update(display);
                 menu_screen.draw(display)
             })
-            .await
-            .unwrap();
+            .await;
 
         menu_state = menu_screen.content.state();
 

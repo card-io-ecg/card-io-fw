@@ -47,8 +47,7 @@ pub async fn initialize(board: &mut Board) -> AppState {
         board
             .display
             .frame(|display| init_screen.draw(display))
-            .await
-            .unwrap();
+            .await;
 
         ticker.next().await;
     }

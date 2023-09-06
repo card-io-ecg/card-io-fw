@@ -28,9 +28,9 @@ impl StackMonitor {
     /// accessing the canary prior to that. However, this is a good enough approximation for our
     /// purposes.
     pub fn protect(stack: Range<usize>) -> Self {
-        log::info!(
-            "StackMonitor::protect({:#x}, {})",
-            stack.start,
+        info!(
+            "StackMonitor::protect({:?}, {})",
+            stack.start as *const u32,
             stack.end - stack.start
         );
         let mut assist = conjure();
@@ -53,11 +53,10 @@ impl StackMonitor {
             ),
         }
 
-        interrupt::enable(
+        unwrap!(interrupt::enable(
             peripherals::Interrupt::ASSIST_DEBUG,
             interrupt::Priority::Priority3,
-        )
-        .unwrap();
+        ));
 
         Self { assist }
     }
@@ -94,6 +93,6 @@ fn ASSIST_DEBUG() {
     }
 
     if is_overflow {
-        panic!("Core {cpu:?} stack overflow detected - PC = {pc:#X}");
+        panic!("Core {:?} stack overflow detected - PC = {:#X}", cpu, pc);
     }
 }

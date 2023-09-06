@@ -29,6 +29,7 @@ use crate::{
     },
     heap::init_heap,
 };
+#[cfg(feature = "log")]
 use esp_println::logger::init_logger;
 
 pub static WIFI_DRIVER: StaticCell<WifiDriver> = StaticCell::new();
@@ -51,6 +52,7 @@ pub struct StartupResources {
 
 impl StartupResources {
     pub(super) fn common_init() {
+        #[cfg(feature = "log")]
         init_logger(log::LevelFilter::Trace); // we let the compile-time log level filter do the work
         init_heap();
     }
@@ -70,8 +72,14 @@ impl StartupResources {
         pcc: &mut PeripheralClockControl,
         clocks: &Clocks,
     ) -> Display {
-        interrupt::enable(dma_in_interrupt, interrupt::Priority::Priority1).unwrap();
-        interrupt::enable(dma_out_interrupt, interrupt::Priority::Priority1).unwrap();
+        unwrap!(interrupt::enable(
+            dma_in_interrupt,
+            interrupt::Priority::Priority1
+        ));
+        unwrap!(interrupt::enable(
+            dma_out_interrupt,
+            interrupt::Priority::Priority1
+        ));
 
         let mut display_cs: DisplayChipSelect = display_cs.into();
 
@@ -123,12 +131,18 @@ impl StartupResources {
         pcc: &mut PeripheralClockControl,
         clocks: &Clocks,
     ) -> EcgFrontend {
-        interrupt::enable(dma_in_interrupt, interrupt::Priority::Priority1).unwrap();
-        interrupt::enable(dma_out_interrupt, interrupt::Priority::Priority1).unwrap();
+        unwrap!(interrupt::enable(
+            dma_in_interrupt,
+            interrupt::Priority::Priority1
+        ));
+        unwrap!(interrupt::enable(
+            dma_out_interrupt,
+            interrupt::Priority::Priority1
+        ));
 
         let mut adc_cs: AdcChipSelect = adc_cs.into();
 
-        adc_cs.set_high().unwrap();
+        unwrap!(adc_cs.set_high().ok());
 
         static mut ADC_SPI_DESCRIPTORS: [u32; 3] = [0; 3];
         static mut ADC_SPI_RX_DESCRIPTORS: [u32; 3] = [0; 3];

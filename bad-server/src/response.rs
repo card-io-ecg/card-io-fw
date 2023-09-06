@@ -5,6 +5,7 @@ use httparse::Header;
 use crate::{connector::Connection, HandleError};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum ResponseStatus {
     Ok = 200,
     NotModified = 304,
@@ -76,7 +77,7 @@ impl<'s, C: Connection> Response<'s, C, Initial> {
             .await
             .map_err(HandleError::Write)?;
 
-        log::debug!("Response status: {}", status as u16);
+        debug!("Response status: {}", status as u16);
 
         let mut status_code = heapless::Vec::<u8, 4>::new();
         if write!(&mut status_code, "{}", status as u16).is_err() {

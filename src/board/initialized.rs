@@ -48,7 +48,7 @@ impl Board {
             return;
         }
 
-        log::info!("Saving config");
+        info!("Saving config");
         self.config_changed = false;
 
         if let Some(storage) = self.storage.as_mut() {
@@ -56,10 +56,10 @@ impl Board {
                 .store_writer("config", self.config, OnCollision::Overwrite)
                 .await
             {
-                log::error!("Failed to save config: {e:?}");
+                error!("Failed to save config: {:?}", e);
             }
         } else {
-            log::warn!("Storage unavailable");
+            warn!("Storage unavailable");
         }
     }
 

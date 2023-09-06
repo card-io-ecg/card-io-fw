@@ -37,8 +37,7 @@ pub async fn app_error(board: &mut Board, error: AppError) -> AppState {
                 }
                 .draw(display)
             })
-            .await
-            .unwrap();
+            .await;
 
         ticker.next().await;
     }

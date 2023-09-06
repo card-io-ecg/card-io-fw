@@ -183,7 +183,10 @@ impl<'buf, 's, C: Connection> ContentLengthReader<'buf, 's, C> {
     }
 }
 
-pub enum ReadError<C: Io> {
+pub enum ReadError<C>
+where
+    C: Io,
+{
     Io(C::Error),
     Encoding,
     UnexpectedEof,
@@ -198,6 +201,21 @@ where
             ReadError::Io(f0) => f.debug_tuple("Io").field(&f0).finish(),
             ReadError::Encoding => f.write_str("Encoding"),
             ReadError::UnexpectedEof => f.write_str("UnexpectedEof"),
+        }
+    }
+}
+
+#[cfg(feature = "defmt")]
+impl<C> defmt::Format for ReadError<C>
+where
+    C: Io,
+    C::Error: defmt::Format,
+{
+    fn format(&self, f: defmt::Formatter) {
+        match self {
+            ReadError::Io(f0) => defmt::write!(f, "Io({})", f0),
+            ReadError::Encoding => defmt::write!(f, "Encoding"),
+            ReadError::UnexpectedEof => defmt::write!(f, "UnexpectedEof"),
         }
     }
 }

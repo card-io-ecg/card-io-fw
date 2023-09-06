@@ -133,14 +133,14 @@ where
     }
 
     pub fn is_touched(&self) -> bool {
-        self.touch.is_low().unwrap()
+        unwrap!(self.touch.is_low().ok())
     }
 
     pub async fn wait_for_release(&mut self)
     where
         TOUCH: Wait,
     {
-        self.touch.wait_for_high().await.unwrap();
+        unwrap!(self.touch.wait_for_high().await.ok());
     }
 
     pub fn split(self) -> (S, DRDY, RESET, TOUCH) {
@@ -178,7 +178,7 @@ where
     S: AsyncSpiDevice,
 {
     async fn enable(&mut self) -> Result<(), Error<S::Error>> {
-        self.frontend.clken.set_high().unwrap();
+        unwrap!(self.frontend.clken.set_high().ok());
 
         Timer::after(Duration::from_millis(1)).await;
 
@@ -191,7 +191,7 @@ where
 
         self.frontend.device_id = Some(device_id);
 
-        log::info!("ADC device id: {:?}", device_id);
+        info!("ADC device id: {:?}", device_id);
 
         let config = self.frontend.config();
         self.frontend.adc.apply_configuration_async(&config).await?;
@@ -214,7 +214,7 @@ where
 
     pub async fn read_clksel(&mut self) -> Result<PinState, Error<S::Error>> {
         let register = self.frontend.adc.read_register_async::<Gpio>().await?;
-        Ok(register.d2().read().unwrap())
+        Ok(unwrap!(register.d2().read()))
     }
 
     pub async fn enable_fast_clock(&mut self) -> Result<(), Error<S::Error>> {
@@ -230,7 +230,7 @@ where
     where
         DRDY: Wait,
     {
-        self.frontend.drdy.wait_for_falling_edge().await.unwrap();
+        unwrap!(self.frontend.drdy.wait_for_falling_edge().await.ok());
 
         let sample = self.frontend.adc.read_data_1ch_async().await?;
         self.touched = sample.ch1_negative_lead_connected();
@@ -255,13 +255,13 @@ where
             .write_command_async(Command::RESET, &mut [])
             .await;
 
-        self.frontend.reset.set_low().unwrap();
+        unwrap!(self.frontend.reset.set_low().ok());
 
         // Datasheet says to wait 2^10 clock cycles to enter power down mode. We give it a bit of
         // extra time.
         Timer::after(Duration::from_millis(5)).await;
 
-        self.frontend.clken.set_low().unwrap();
+        unwrap!(self.frontend.clken.set_low().ok());
 
         self.frontend
     }

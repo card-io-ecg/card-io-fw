@@ -11,7 +11,7 @@ pub fn init_heap() {
 
     unsafe {
         let heap_size = HEAP.len();
-        log::info!("Heap size: {heap_size}");
+        info!("Heap size: {}", heap_size);
         ALLOCATOR.init(addr_of_mut!(HEAP).cast(), heap_size);
     }
 }

@@ -91,8 +91,7 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
                 menu_screen.content.update(display);
                 menu_screen.draw(display)
             })
-            .await
-            .unwrap();
+            .await;
 
         menu_state = menu_screen.content.state();
 

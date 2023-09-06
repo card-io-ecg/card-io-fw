@@ -13,7 +13,7 @@ embedded-hal-async = "1.0.0-rc.1"
 embedded-hal-bus = { version = "0.1.0-rc.1", features = ["async"] }
 embedded-io = { version = "0.4", features = ["async"] }
 embedded-menu = "0.4.0"
-embedded-svc = { version = "0.25", default-features = false, features = [] }
+embedded-svc = { version = "0.25", default-features = false }
 embassy-net = { version = "0.1.0", features = [
     "nightly",
     "tcp",
@@ -32,11 +32,14 @@ log = { version = "0.4.18", default-features = false, features = [
     "max_level_info",
     "release_max_level_info",
 ] }
+logger = { path = "logger" }
+signal-processing = { path = "signal-processing" }
 norfs = { git = "https://github.com/card-io-ecg/norfs.git", features = [
     "esp32s3",
 ] }
 object-chain = "0.1.3"
 bad-server = { path = "bad-server" }
+defmt = { version = "=0.3.5" }
 
 [dependencies]
 embassy-futures = { version = "0.1.0" }
@@ -58,20 +61,19 @@ esp32s3-hal = { version = "0.12.0", optional = true, features = [
 esp-backtrace = { version = "0.8.0", features = [
     "panic-handler",
     "exception-handler",
-] } # add "halt-cores"
+] }
 esp-println = { version = "0.6.0", default-features = false, features = [
     "critical-section",
-    "colors",
-    "log",
 ] }
 esp-alloc = { version = "0.3.0" }
-esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "02239f9", features = [
+esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "15e5a55", default-features = false, features = [
     "phy-enable-usb",
     "ps-min-modem",
     "wifi",
     "embedded-svc",
     "async",
     "embassy-net",
+    "utils"
 ] }
 
 display-interface = { git = "https://github.com/therealprof/display-interface.git", branch = "master" }
@@ -90,15 +92,16 @@ critical-section = "1.1"
 device-descriptor = { path = "device-descriptor" }
 register-access = { path = "register-access" }
 gui = { path = "gui" }
-ads129x = { path = "ads129x" }
 macros = { path = "macros" }
 embassy-alloc-taskpool = { path = "embassy-alloc-taskpool" }
+ads129x = { path = "ads129x" }
 max17055 = { path = "max17055", optional = true }
-signal-processing = { path = "signal-processing", features = ["nostd"] }
+signal-processing = { workspace = true, features = ["nostd"] }
 replace_with = { version = "0.1", default-features = false, features = [
     "nightly",
 ] }
 static_cell = { version = "1.2.0", features = ["nightly"] }
+bad-server = { path = "bad-server", features = ["embassy"] }
 
 embedded-graphics = { workspace = true }
 embedded-hal = { workspace = true }
@@ -112,14 +115,14 @@ embassy-sync = { workspace = true }
 
 norfs = { workspace = true }
 heapless = { workspace = true }
-log = { workspace = true }
 object-chain = { workspace = true }
 
-[patch.'https://github.com/esp-rs/esp-wifi']
-esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", branch = "dev" }
+logger = { workspace = true }
+log = { workspace = true, optional = true }
+defmt = { workspace = true, optional = true }
 
 [features]
-default = ["esp32s3"]
+default = ["esp32s3", "defmt"]
 
 battery_adc = []
 battery_max17055 = ["dep:max17055"]
@@ -133,13 +136,50 @@ esp32s3 = [
     "dep:esp32s3-hal",
     "esp-backtrace/esp32s3",
     "esp-println/esp32s3",
-    "jtag_serial",
+    "uart",                  # print via uart, serial_jtag seems to lose bytes
     "esp-wifi/esp32s3",
 ]
 
 # Print options
+uart = ["esp-backtrace/print-uart", "esp-println/uart"]
 jtag_serial = ["esp-backtrace/print-jtag-serial", "esp-println/jtag_serial"]
 rtt = ["esp-backtrace/print-rtt", "esp-println/rtt"]
+
+log = [
+    "dep:log",
+    "norfs/log",
+    "esp-println/log",
+    "esp-println/colors",
+    "esp-wifi/log",
+    "esp32s3-hal/log",
+
+    "logger/log",
+    "config-site/log",
+    "ads129x/log",
+    "max17055?/log",
+    "bad-server/log",
+    "gui/log",
+    "signal-processing/log",
+]
+
+defmt = [
+    "dep:defmt",
+    "embassy-net/defmt",
+    "norfs/defmt",
+    "embedded-io/defmt",
+    "embedded-svc/defmt",
+    "esp-println/defmt",
+    "esp-wifi/defmt",
+    "esp32s3-hal/defmt",
+
+    "logger/defmt",
+    "config-site/defmt",
+    "ads129x/defmt",
+    "max17055?/defmt",
+    "bad-server/defmt",
+    "gui/defmt",
+    "signal-processing/defmt",
+]
 
 [package.metadata.espflash]
 partition_table = "partitions.csv"

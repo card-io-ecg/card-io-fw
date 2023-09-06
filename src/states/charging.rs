@@ -38,8 +38,7 @@ pub async fn charging(board: &mut Board) -> AppState {
         board
             .display
             .frame(|display| charging_screen.draw(display))
-            .await
-            .unwrap();
+            .await;
 
         ticker.next().await;
     }
