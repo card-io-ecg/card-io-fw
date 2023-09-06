@@ -10,24 +10,6 @@ pub struct ChangeBackendUrl<'a> {
     pub context: &'a SharedWebContext,
 }
 
-impl<'a> ChangeBackendUrl<'a> {
-    async fn request_error<C: Connection>(
-        &self,
-        request: Request<'_, '_, C>,
-        status: ResponseStatus,
-        message: &str,
-    ) -> Result<(), HandleError<C>> {
-        warn!("Request error: {:?}, {}", status, message);
-        request
-            .send_response(status)
-            .await?
-            .start_body()
-            .await?
-            .write_string(message)
-            .await
-    }
-}
-
 impl<C: Connection> RequestHandler<C> for ChangeBackendUrl<'_> {
     async fn handle(&self, mut request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
         let mut buf = [0u8; 100];
@@ -36,12 +18,8 @@ impl<C: Connection> RequestHandler<C> for ChangeBackendUrl<'_> {
         let post_data = request.read_all(&mut buf).await?;
 
         if !request.is_complete() {
-            return self
-                .request_error(
-                    request,
-                    ResponseStatus::RequestEntityTooLarge,
-                    "POST body too large",
-                )
+            return request
+                .send_error_response(ResponseStatus::RequestEntityTooLarge, "POST body too large")
                 .await;
         }
 
@@ -49,24 +27,16 @@ impl<C: Connection> RequestHandler<C> for ChangeBackendUrl<'_> {
             Ok(body) => body,
             Err(_err) => {
                 warn!("Invalid UTF-8 in POST body: {:?}", post_data);
-                return self
-                    .request_error(
-                        request,
-                        ResponseStatus::BadRequest,
-                        "Input is not valid text",
-                    )
+                return request
+                    .send_error_response(ResponseStatus::BadRequest, "Input is not valid text")
                     .await;
             }
         };
         debug!("POST body: {:?}", post_body);
 
         if !validate_url(post_body) {
-            return self
-                .request_error(
-                    request,
-                    ResponseStatus::BadRequest,
-                    "Input is not a valid URL",
-                )
+            return request
+                .send_error_response(ResponseStatus::BadRequest, "Input is not a valid URL")
                 .await;
         }
 
@@ -78,13 +48,12 @@ impl<C: Connection> RequestHandler<C> for ChangeBackendUrl<'_> {
         };
 
         if result.is_err() {
-            return self
-                .request_error(request, ResponseStatus::BadRequest, "URL is too long")
+            return request
+                .send_error_response(ResponseStatus::BadRequest, "URL is too long")
                 .await;
         }
 
-        let response = request.send_response(ResponseStatus::Ok).await?;
-        response.start_body().await.map(|_| ())
+        request.send_response("").await
     }
 }
 

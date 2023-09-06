@@ -11,11 +11,11 @@ pub struct BackendUrl<'a> {
 
 impl<C: Connection> RequestHandler<C> for BackendUrl<'_> {
     async fn handle(&self, request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
-        let response = request.send_response(ResponseStatus::Ok).await?;
+        let response = request.start_response(ResponseStatus::Ok).await?;
         let mut response = response.start_chunked_body().await?;
 
         let context = self.context.lock().await;
-        response.write_string(&context.backend_url).await?;
+        response.write(&context.backend_url).await?;
 
         response.end_chunked_response().await
     }

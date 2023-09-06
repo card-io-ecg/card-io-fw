@@ -1,5 +1,6 @@
 use core::{fmt::Write as _, marker::PhantomData};
 
+use embedded_io::Io;
 use httparse::Header;
 
 use crate::{connector::Connection, HandleError};
@@ -126,27 +127,20 @@ impl<'s, C: Connection> Response<'s, C, Headers> {
     }
 
     async fn send_raw_header(&mut self, header: Header<'_>) -> Result<(), HandleError<C>> {
-        self.socket
-            .write_all(header.name.as_bytes())
-            .await
-            .map_err(HandleError::Write)?;
-        self.socket
-            .write_all(b": ")
-            .await
-            .map_err(HandleError::Write)?;
-        self.socket
-            .write_all(header.value)
-            .await
-            .map_err(HandleError::Write)?;
-        self.socket
-            .write_all(b"\r\n")
-            .await
-            .map_err(HandleError::Write)?;
+        async fn send<C: Connection>(
+            socket: &mut C,
+            header: Header<'_>,
+        ) -> Result<(), <C as Io>::Error> {
+            socket.write_all(header.name.as_bytes()).await?;
+            socket.write_all(b": ").await?;
+            socket.write_all(header.value).await?;
+            socket.write_all(b"\r\n").await
+        }
 
-        Ok(())
+        send(self.socket, header).await.map_err(HandleError::Write)
     }
 
-    pub async fn start_body(self) -> Result<Response<'s, C, Body>, HandleError<C>> {
+    async fn end_headers<B: ResponseState>(self) -> Result<Response<'s, C, B>, HandleError<C>> {
         self.socket
             .write_all(b"\r\n")
             .await
@@ -155,6 +149,10 @@ impl<'s, C: Connection> Response<'s, C, Headers> {
             socket: self.socket,
             _state: PhantomData,
         })
+    }
+
+    pub async fn start_body(self) -> Result<Response<'s, C, Body>, HandleError<C>> {
+        self.end_headers().await
     }
 
     pub async fn start_chunked_body(
@@ -165,37 +163,40 @@ impl<'s, C: Connection> Response<'s, C, Headers> {
             value: b"chunked",
         })
         .await?;
-        self.socket
-            .write_all(b"\r\n")
-            .await
-            .map_err(HandleError::Write)?;
 
-        Ok(Response {
-            socket: self.socket,
-            _state: PhantomData,
+        self.end_headers().await
+    }
+
+    pub async fn send_body(mut self, data: impl AsRef<[u8]>) -> Result<(), HandleError<C>> {
+        let data = data.as_ref();
+        let mut buffer = heapless::String::<12>::new();
+        if write!(&mut buffer, "{}", data.len()).is_err() {
+            return Err(HandleError::InternalError);
+        }
+
+        self.send_header(Header {
+            name: "Content-Length",
+            value: buffer.as_bytes(),
         })
+        .await?;
+
+        let mut response = self.start_body().await?;
+        response.write(data).await
     }
 }
 
 impl<'s, C: Connection> Response<'s, C, Body> {
-    pub async fn write_string(&mut self, data: &str) -> Result<(), HandleError<C>> {
-        self.write_raw(data.as_bytes()).await
-    }
-
-    pub async fn write_raw(&mut self, data: &[u8]) -> Result<(), HandleError<C>> {
+    pub async fn write(&mut self, data: impl AsRef<[u8]>) -> Result<(), HandleError<C>> {
         self.socket
-            .write_all(data)
+            .write_all(data.as_ref())
             .await
             .map_err(HandleError::Write)
     }
 }
 
 impl<'s, C: Connection> Response<'s, C, BodyChunked> {
-    pub async fn write_string(&mut self, data: &str) -> Result<(), HandleError<C>> {
-        self.write_raw(data.as_bytes()).await
-    }
-
-    pub async fn write_raw(&mut self, data: &[u8]) -> Result<(), HandleError<C>> {
+    pub async fn write(&mut self, data: impl AsRef<[u8]>) -> Result<(), HandleError<C>> {
+        let data = data.as_ref();
         let mut chunk_header = heapless::Vec::<u8, 12>::new();
         if write!(&mut chunk_header, "{:X}\r\n", data.len()).is_err() {
             return Err(HandleError::InternalError);
@@ -216,6 +217,6 @@ impl<'s, C: Connection> Response<'s, C, BodyChunked> {
     }
 
     pub async fn end_chunked_response(mut self) -> Result<(), HandleError<C>> {
-        self.write_raw(&[]).await
+        self.write("").await
     }
 }

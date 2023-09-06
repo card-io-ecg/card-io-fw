@@ -42,6 +42,6 @@ where
             reason = status.name(),
         );
 
-        response.write_string(&body).await
+        response.write(&body).await
     }
 }

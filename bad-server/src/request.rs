@@ -71,12 +71,39 @@ impl<'req, 's, C: Connection> Request<'req, 's, C> {
             .and_then(|header| core::str::from_utf8(header).ok())
     }
 
-    pub async fn send_response(
+    pub async fn start_response(
         self,
         status: ResponseStatus,
     ) -> Result<Response<'s, C, Headers>, HandleError<C>> {
         let socket = self.body.take_socket();
 
         Response::new(socket).send_status(status).await
+    }
+
+    async fn send_response_impl(
+        self,
+        status: ResponseStatus,
+        body: impl AsRef<[u8]>,
+    ) -> Result<(), HandleError<C>> {
+        let socket = self.body.take_socket();
+
+        Response::new(socket)
+            .send_status(status)
+            .await?
+            .send_body(body)
+            .await
+    }
+
+    pub async fn send_response(self, body: impl AsRef<[u8]>) -> Result<(), HandleError<C>> {
+        self.send_response_impl(ResponseStatus::Ok, body).await
+    }
+
+    pub async fn send_error_response(
+        self,
+        status: ResponseStatus,
+        message: &str,
+    ) -> Result<(), HandleError<C>> {
+        warn!("Request error: {:?}, {}", status, message);
+        self.send_response_impl(status, message).await
     }
 }

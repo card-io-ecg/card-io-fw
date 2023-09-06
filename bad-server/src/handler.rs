@@ -1,4 +1,4 @@
-use core::{fmt::Write as _, marker::PhantomData};
+use core::marker::PhantomData;
 
 use const_base::ArrayStr;
 use const_fnv1a_hash::fnv1a_hash_32;
@@ -92,29 +92,17 @@ impl<C: Connection> RequestHandler<C> for StaticHandler<'_> {
             ResponseStatus::Ok
         };
 
-        let mut response = request.send_response(status).await?;
+        let mut response = request.start_response(status).await?;
         if status == ResponseStatus::NotModified {
-            response.send_headers(&[]).await?;
-
             response.start_body().await.map(|_| ())
         } else {
-            let mut length = heapless::String::<12>::new();
-            if write!(length, "{}", self.body.len()).is_err() {
-                return Err(HandleError::InternalError);
-            }
-
-            let content_length_header = Header {
-                name: "Content-Length",
-                value: length.as_bytes(),
-            };
-
             response
                 .send_headers(self.headers)
                 .await?
-                .send_headers(&[etag_header, content_length_header])
+                .send_headers(&[etag_header])
                 .await?;
 
-            response.start_body().await?.write_raw(self.body).await
+            response.send_body(self.body).await
         }
     }
 }
