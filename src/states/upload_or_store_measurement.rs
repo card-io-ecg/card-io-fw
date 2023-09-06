@@ -1,3 +1,9 @@
+use embassy_time::{Duration, Timer};
+use embedded_graphics::Drawable;
+use gui::{
+    screens::{message::MessageScreen, screen::Screen},
+    widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
+};
 use norfs::{writer::FileDataWriter, OnCollision, StorageError};
 use signal_processing::compressing_buffer::CompressingBuffer;
 use ufmt::uwrite;
@@ -17,6 +23,23 @@ enum StoreMeasurement {
     DontStore,
 }
 
+async fn display_message(board: &mut Board, message: &str) {
+    let sta = board.enable_wifi_sta(StaMode::OnDemand).await;
+    let battery_data = board.battery_monitor.battery_data();
+    let screen = Screen {
+        content: MessageScreen { message },
+
+        status_bar: StatusBar {
+            battery: Battery::with_style(battery_data, board.config.battery_style()),
+            wifi: WifiStateView::enabled(
+                sta.map(|sta| sta.connection_state())
+                    .unwrap_or(ConnectionState::NotConnected),
+            ),
+        },
+    };
+    unwrap!(screen.draw(&mut board.display).ok());
+}
+
 pub async fn upload_or_store_measurement<const SIZE: usize>(
     board: &mut Board,
     buffer: &mut CompressingBuffer<SIZE>,
@@ -24,7 +47,10 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
 ) -> AppState {
     if try_to_upload(board, buffer).await == StoreMeasurement::Store {
         if let Err(e) = try_store_measurement(board, buffer).await {
+            display_message(board, "Could not store measurement").await;
             error!("Failed to store measurement: {:?}", e);
+
+            Timer::after(Duration::from_secs(2)).await;
         }
     }
 
@@ -85,9 +111,12 @@ async fn try_store_measurement<const SIZE: usize>(
 ) -> Result<(), StorageError> {
     debug!("Trying to store measurement");
 
-    let Some(storage) = &mut board.storage else {
+    display_message(board, "Saving measurement...").await;
+    let Some(storage) = board.storage.as_mut() else {
         return Ok(());
     };
+
+    let timeout = Timer::after(Duration::from_secs(2));
 
     let mut max_index = None;
     let mut dir = storage.read_dir().await?;
@@ -143,6 +172,8 @@ async fn try_store_measurement<const SIZE: usize>(
     measurement.clear();
 
     info!("Measurement saved to {}", filename);
+
+    timeout.await;
 
     Ok(())
 }
