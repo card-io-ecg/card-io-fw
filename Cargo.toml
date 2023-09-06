@@ -66,7 +66,7 @@ esp-println = { version = "0.6.0", default-features = false, features = [
     "critical-section",
 ] }
 esp-alloc = { version = "0.3.0" }
-esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "02239f9", default-features = false, features = [
+esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "15e5a55", default-features = false, features = [
     "phy-enable-usb",
     "ps-min-modem",
     "wifi",
@@ -120,9 +120,6 @@ object-chain = { workspace = true }
 logger = { workspace = true }
 log = { workspace = true, optional = true }
 defmt = { workspace = true, optional = true }
-
-[patch.'https://github.com/esp-rs/esp-wifi']
-esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", rev = "5646556" }
 
 [features]
 default = ["esp32s3", "defmt"]
