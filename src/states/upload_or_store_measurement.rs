@@ -1,9 +1,4 @@
 use embassy_time::{Duration, Timer};
-use embedded_graphics::Drawable;
-use gui::{
-    screens::{message::MessageScreen, screen::Screen},
-    widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
-};
 use norfs::{writer::FileDataWriter, OnCollision, StorageError};
 use signal_processing::compressing_buffer::CompressingBuffer;
 use ufmt::uwrite;
@@ -13,6 +8,7 @@ use crate::{
         initialized::{Board, StaMode},
         wifi::sta::ConnectionState,
     },
+    states::display_message,
     AppState,
 };
 
@@ -21,23 +17,6 @@ use crate::{
 enum StoreMeasurement {
     Store,
     DontStore,
-}
-
-async fn display_message(board: &mut Board, message: &str) {
-    let sta = board.enable_wifi_sta(StaMode::OnDemand).await;
-    let battery_data = board.battery_monitor.battery_data();
-    let screen = Screen {
-        content: MessageScreen { message },
-
-        status_bar: StatusBar {
-            battery: Battery::with_style(battery_data, board.config.battery_style()),
-            wifi: WifiStateView::enabled(
-                sta.map(|sta| sta.connection_state())
-                    .unwrap_or(ConnectionState::NotConnected),
-            ),
-        },
-    };
-    unwrap!(screen.draw(&mut board.display).ok());
 }
 
 pub async fn upload_or_store_measurement<const SIZE: usize>(

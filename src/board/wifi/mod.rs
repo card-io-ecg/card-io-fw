@@ -127,10 +127,26 @@ impl WifiDriverState {
             ),
         }
     }
+
+    fn as_ap(&self) -> Option<Ap> {
+        if let WifiDriverState::Ap(ap, _) = self {
+            unsafe { ap.assume_init_read().handle() }
+        } else {
+            None
+        }
+    }
+
+    fn as_sta(&self) -> Option<Sta> {
+        if let WifiDriverState::Sta(sta, _) = self {
+            unsafe { sta.assume_init_read().handle() }
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
-enum WifiMode {
+pub enum WifiMode {
     Ap,
     Sta,
 }
@@ -160,7 +176,7 @@ impl WifiDriver {
         self.state.initialize(clocks);
     }
 
-    fn wifi_mode(&self) -> Option<WifiMode> {
+    pub fn wifi_mode(&self) -> Option<WifiMode> {
         match self.state {
             WifiDriverState::Ap(_, _) => Some(WifiMode::Ap),
             WifiDriverState::Sta(_, _) => Some(WifiMode::Sta),
@@ -253,6 +269,14 @@ impl WifiDriver {
         } else {
             false
         }
+    }
+
+    pub fn as_ap(&self) -> Option<Ap> {
+        self.state.as_ap()
+    }
+
+    pub fn as_sta(&self) -> Option<Sta> {
+        self.state.as_sta()
     }
 }
 

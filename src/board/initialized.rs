@@ -2,11 +2,15 @@ use crate::board::{
     config::Config,
     drivers::battery_monitor::BatteryMonitor,
     hal::{clock::Clocks, system::PeripheralClockControl},
-    wifi::{ap::Ap, WifiDriver},
+    wifi::{
+        ap::{self, Ap},
+        sta, WifiDriver, WifiMode,
+    },
     ChargerStatus, EcgFrontend, PoweredDisplay, VbusDetect,
 };
 use embassy_executor::SendSpawner;
 use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
+use gui::widgets::wifi::WifiState;
 use norfs::{
     drivers::internal::{InternalDriver, InternalPartition},
     medium::cache::ReadCache,
@@ -19,6 +23,23 @@ pub struct ConfigPartition;
 impl InternalPartition for ConfigPartition {
     const OFFSET: usize = 0x410000;
     const SIZE: usize = 4032 * 1024;
+}
+
+#[derive(PartialEq)]
+pub enum GenericConnectionState {
+    Sta(sta::ConnectionState),
+    Ap(ap::ApConnectionState),
+    Disabled,
+}
+
+impl From<GenericConnectionState> for WifiState {
+    fn from(state: GenericConnectionState) -> Self {
+        match state {
+            GenericConnectionState::Sta(state) => state.into(),
+            GenericConnectionState::Ap(state) => state.into(),
+            GenericConnectionState::Disabled => WifiState::NotConnected,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -135,5 +156,17 @@ impl Board {
 
     pub fn signal_sta_work_available(&mut self) {
         self.sta_work_available = Some(true);
+    }
+
+    pub fn connection_state(&self) -> GenericConnectionState {
+        match self.wifi.wifi_mode() {
+            Some(WifiMode::Sta) => {
+                GenericConnectionState::Sta(unwrap!(self.wifi.as_sta()).connection_state())
+            }
+            Some(WifiMode::Ap) => {
+                GenericConnectionState::Ap(unwrap!(self.wifi.as_ap()).connection_state())
+            }
+            None => GenericConnectionState::Disabled,
+        }
     }
 }

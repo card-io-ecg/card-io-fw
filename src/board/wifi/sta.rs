@@ -181,6 +181,15 @@ impl StaState {
             state: self.state.clone(),
         }
     }
+
+    pub(crate) fn handle(&self) -> Option<Sta> {
+        self.started.then_some(Sta {
+            _stack: self.stack.clone(),
+            networks: self.networks.clone(),
+            known_networks: self.known_networks.clone(),
+            state: self.state.clone(),
+        })
+    }
 }
 
 #[cardio::task]
