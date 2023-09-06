@@ -45,6 +45,11 @@ async fn try_to_upload<const SIZE: usize>(
         return StoreMeasurement::DontStore;
     }
 
+    if board.config.backend_url.is_empty() {
+        debug!("No backend URL configured, not uploading.");
+        return StoreMeasurement::Store;
+    }
+
     board.signal_sta_work_available();
     let sta = if !board.config.known_networks.is_empty() {
         board.enable_wifi_sta(StaMode::OnDemand).await
