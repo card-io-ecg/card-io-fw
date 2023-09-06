@@ -40,7 +40,7 @@ async fn try_to_upload<const SIZE: usize>(
 ) -> StoreMeasurement {
     const SAMPLE_RATE: usize = 1000; // samples/sec
     if buffer.len() < 20 * SAMPLE_RATE {
-        debug!("Buffer is too short to upload.");
+        debug!("Buffer is too short to upload or store.");
         // We don't want to store too-short measurements.
         return StoreMeasurement::DontStore;
     }
