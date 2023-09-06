@@ -88,7 +88,10 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
             if exit_timer.is_elapsed() {
                 break;
             }
-        };
+            screen.content.timeout = Some(exit_timer.remaining().as_secs() as u8);
+        } else {
+            screen.content.timeout = None;
+        }
 
         screen.content.state = connection_state;
         screen.status_bar.wifi = WifiStateView::enabled(connection_state);
