@@ -1,4 +1,3 @@
-use core::fmt::Write;
 use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
 use embedded_menu::{
     interaction::single_touch::SingleTouch,
@@ -6,6 +5,7 @@ use embedded_menu::{
     Menu,
 };
 use embedded_text::TextBox;
+use ufmt::uwrite;
 
 use crate::{
     screens::{menu_style, BOTTOM_CENTERED_TEXTBOX, NORMAL_TEXT},
@@ -61,7 +61,7 @@ impl Drawable for WifiApScreen {
             unwrap!(text.push_str("No client connected. Look for a network called "));
             unwrap!(text.push_str(network_name));
             if let Some(timeout) = self.timeout {
-                unwrap!(write!(&mut text, "\nExiting in {}", timeout).map_err(|_| ()));
+                unwrap!(uwrite!(&mut text, "\nExiting in {}", timeout).map_err(|_| ()));
             }
         }
 

@@ -117,6 +117,7 @@ embassy-sync = { workspace = true }
 norfs = { workspace = true }
 heapless = { workspace = true }
 object-chain = { workspace = true }
+ufmt = { workspace = true }
 
 logger = { workspace = true }
 log = { workspace = true, optional = true }

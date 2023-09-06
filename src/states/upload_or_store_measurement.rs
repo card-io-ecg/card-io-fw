@@ -1,7 +1,6 @@
-use core::fmt::Write;
-
 use norfs::{writer::FileDataWriter, OnCollision, StorageError};
 use signal_processing::compressing_buffer::CompressingBuffer;
+use ufmt::uwrite;
 
 use crate::{
     board::{
@@ -64,6 +63,7 @@ async fn try_to_upload<const SIZE: usize>(
 
     // TODO: we need to wait for the wifi to connect, or for the stack to conclude that connection
     // is not possible.
+    // TODO: display status on the screen.
 
     if sta.connection_state() != ConnectionState::Connected {
         // If we do not have a network connection, save to file.
@@ -121,7 +121,7 @@ async fn try_store_measurement<const SIZE: usize>(
     }
 
     let mut filename = heapless::String::<16>::new();
-    if write!(
+    if uwrite!(
         &mut filename,
         "meas.{}",
         max_index.map(|idx| idx + 1).unwrap_or(0)
