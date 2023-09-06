@@ -199,6 +199,7 @@ pub(super) async fn ap_task(
                     }
                     if events.contains(WifiEvent::ApStop) {
                         info!("AP stopped");
+                        client_count.store(0, Ordering::Relaxed);
                         return;
                     }
 
