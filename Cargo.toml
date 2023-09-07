@@ -130,6 +130,7 @@ battery_max17055 = ["dep:max17055"]
 
 hw_v1 = ["battery_adc"]
 hw_v2 = ["battery_max17055"] # also v3
+hw_v4 = ["battery_max17055"]
 
 # MCU options
 # esp32s2 = ["dep:esp32s2", "dep:esp32s2-hal", "esp-backtrace/esp32s2", "esp-println/esp32s2", "rtt"]

@@ -73,6 +73,7 @@ pub enum HardwareVersion {
     V1,
     #[default]
     V2,
+    V4,
 }
 
 impl HardwareVersion {
@@ -80,6 +81,7 @@ impl HardwareVersion {
         match self {
             HardwareVersion::V1 => "hw_v1",
             HardwareVersion::V2 => "hw_v2",
+            HardwareVersion::V4 => "hw_v4",
         }
     }
 }
