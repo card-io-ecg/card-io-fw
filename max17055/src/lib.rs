@@ -339,7 +339,14 @@ where
     ) -> Result<(), Error<I2C::Error>> {
         trace!("Loading initial configuration");
 
-        let por_status = self.read_register_async::<Status>().await?;
+        let por_status = match self.read_register_async::<Status>().await {
+            Ok(por_status) => por_status,
+            Err(e) => {
+                error!("Failed to read status register");
+                return Err(e);
+            }
+        };
+
         if por_status.por().read() != Some(PowerOnReset::Reset) {
             debug!("No power-on reset");
             return Ok(());
