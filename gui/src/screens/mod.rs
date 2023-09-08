@@ -1,8 +1,18 @@
-use embedded_graphics::{mono_font::ascii::FONT_7X13_BOLD, pixelcolor::BinaryColor};
+use embedded_graphics::{
+    mono_font::{
+        ascii::{FONT_6X10, FONT_7X13_BOLD},
+        MonoTextStyle,
+    },
+    pixelcolor::BinaryColor,
+};
 use embedded_menu::{
     interaction::single_touch::SingleTouch,
     selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
     MenuStyle,
+};
+use embedded_text::{
+    alignment::{HorizontalAlignment, VerticalAlignment},
+    style::{HeightMode, TextBoxStyle, TextBoxStyleBuilder, VerticalOverdraw},
 };
 
 pub mod charging;
@@ -26,6 +36,21 @@ pub const fn menu_style<R>(
         })
         .with_title_font(&FONT_7X13_BOLD)
 }
+
+pub const CENTERED_TEXTBOX: TextBoxStyle = TextBoxStyleBuilder::new()
+    .alignment(HorizontalAlignment::Center)
+    .vertical_alignment(VerticalAlignment::Middle)
+    .height_mode(HeightMode::Exact(VerticalOverdraw::Visible))
+    .build();
+
+pub const BOTTOM_CENTERED_TEXTBOX: TextBoxStyle = TextBoxStyleBuilder::new()
+    .alignment(HorizontalAlignment::Center)
+    .vertical_alignment(VerticalAlignment::Bottom)
+    .height_mode(HeightMode::Exact(VerticalOverdraw::FullRowsOnly))
+    .build();
+
+pub const NORMAL_TEXT: MonoTextStyle<'static, BinaryColor> =
+    MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
 
 #[derive(Clone, Copy, PartialEq)]
 pub struct BatteryInfo {

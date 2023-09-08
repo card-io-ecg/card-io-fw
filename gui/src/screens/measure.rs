@@ -3,20 +3,20 @@ use core::{cell::RefCell, num::NonZeroU8};
 use embedded_graphics::{
     geometry::AnchorPoint,
     image::{Image, ImageRaw},
-    mono_font::{ascii::FONT_6X10, MonoTextStyle, MonoTextStyleBuilder},
     pixelcolor::BinaryColor,
     prelude::{Dimensions, DrawTarget, Point},
     primitives::{Line, Primitive, PrimitiveStyle},
     text::{Baseline, Text},
     Drawable,
 };
-use embedded_layout::prelude::{horizontal, vertical, Align};
 use itertools::Itertools;
 use signal_processing::{
     lerp::{Interval, Lerp},
     sliding::SlidingWindow,
 };
 use ufmt::uwrite;
+
+use crate::screens::{message::MessageScreen, NORMAL_TEXT};
 
 struct CameraConfig {
     shrink_frames: usize,
@@ -162,18 +162,10 @@ impl Drawable for EcgScreen {
     #[inline]
     fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
         if !self.buffer.is_full() {
-            const TEXT_STYLE: MonoTextStyle<'_, BinaryColor> = MonoTextStyleBuilder::new()
-                .font(&FONT_6X10)
-                .text_color(BinaryColor::On)
-                .build();
-
-            Text::new("Collecting data...", Point::zero(), TEXT_STYLE)
-                .align_to(
-                    &display.bounding_box(),
-                    horizontal::Center,
-                    vertical::Center,
-                )
-                .draw(display)?;
+            MessageScreen {
+                message: "Collecting data...",
+            }
+            .draw(display)?;
 
             return Ok(());
         }
@@ -205,7 +197,7 @@ impl Drawable for EcgScreen {
             Text::with_baseline(
                 &hr_string,
                 image.bounding_box().anchor_point(AnchorPoint::TopRight) + Point::new(1, 0),
-                MonoTextStyle::new(&FONT_6X10, BinaryColor::On),
+                NORMAL_TEXT,
                 Baseline::Top,
             )
             .draw(display)?;

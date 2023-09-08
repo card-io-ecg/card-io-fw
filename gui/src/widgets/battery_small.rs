@@ -1,7 +1,6 @@
 use embedded_graphics::{
     geometry::AnchorPoint,
     image::{Image, ImageRaw},
-    mono_font::{ascii::FONT_6X10, MonoTextStyle, MonoTextStyleBuilder},
     pixelcolor::BinaryColor,
     prelude::{DrawTarget, DrawTargetExt, Point, Size},
     primitives::{Line, Primitive, PrimitiveStyle, Rectangle},
@@ -11,7 +10,7 @@ use embedded_graphics::{
 use embedded_layout::prelude::*;
 use ufmt::uwrite;
 
-use crate::screens::BatteryInfo;
+use crate::screens::{BatteryInfo, NORMAL_TEXT};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BatteryStyle {
@@ -22,23 +21,16 @@ pub enum BatteryStyle {
 }
 
 impl BatteryStyle {
-    fn text_style() -> MonoTextStyle<'static, BinaryColor> {
-        MonoTextStyleBuilder::new()
-            .font(&FONT_6X10)
-            .text_color(BinaryColor::On)
-            .build()
-    }
-
     fn size(&self) -> Size {
         match self {
             BatteryStyle::MilliVolts => {
-                Self::text_style()
+                NORMAL_TEXT
                     .measure_string("C0.000V", Point::zero(), Baseline::Top)
                     .bounding_box
                     .size
             }
             BatteryStyle::Percentage => {
-                Self::text_style()
+                NORMAL_TEXT
                     .measure_string("C000%", Point::zero(), Baseline::Top)
                     .bounding_box
                     .size
@@ -83,7 +75,7 @@ impl BatteryStyle {
         Text::with_text_style(
             string,
             Point::new(target.bounding_box().size.width as i32 - 1, 0),
-            Self::text_style(),
+            NORMAL_TEXT,
             TextStyleBuilder::new()
                 .baseline(Baseline::Top)
                 .alignment(Alignment::Right)
@@ -91,7 +83,7 @@ impl BatteryStyle {
         )
         .draw(target)?;
 
-        Ok(Self::text_style()
+        Ok(NORMAL_TEXT
             .measure_string(string, Point::zero(), Baseline::Top)
             .bounding_box
             .size

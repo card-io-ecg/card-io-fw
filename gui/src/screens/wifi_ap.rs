@@ -1,22 +1,16 @@
 use core::fmt::Write;
-use embedded_graphics::{
-    mono_font::{ascii::FONT_6X10, MonoTextStyle, MonoTextStyleBuilder},
-    pixelcolor::BinaryColor,
-    prelude::DrawTarget,
-    Drawable,
-};
+use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
 use embedded_menu::{
     interaction::single_touch::SingleTouch,
     selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
     Menu,
 };
-use embedded_text::{
-    alignment::{HorizontalAlignment, VerticalAlignment},
-    style::{HeightMode, TextBoxStyle, TextBoxStyleBuilder, VerticalOverdraw},
-    TextBox,
-};
+use embedded_text::TextBox;
 
-use crate::{screens::menu_style, widgets::wifi::WifiState};
+use crate::{
+    screens::{menu_style, BOTTOM_CENTERED_TEXTBOX, NORMAL_TEXT},
+    widgets::wifi::WifiState,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ApMenuEvents {
@@ -71,21 +65,11 @@ impl Drawable for WifiApScreen {
             }
         }
 
-        const TEXTBOX_STYLE: TextBoxStyle = TextBoxStyleBuilder::new()
-            .height_mode(HeightMode::Exact(VerticalOverdraw::FullRowsOnly))
-            .alignment(HorizontalAlignment::Center)
-            .vertical_alignment(VerticalAlignment::Bottom)
-            .build();
-        const CHARACTER_STYLE: MonoTextStyle<'_, BinaryColor> = MonoTextStyleBuilder::new()
-            .font(&FONT_6X10)
-            .text_color(BinaryColor::On) // On on normally-Off background
-            .build();
-
         TextBox::with_textbox_style(
             text.as_str(),
             display.bounding_box(),
-            CHARACTER_STYLE,
-            TEXTBOX_STYLE,
+            NORMAL_TEXT,
+            BOTTOM_CENTERED_TEXTBOX,
         )
         .draw(display)?;
 

@@ -1,30 +1,16 @@
 use embedded_graphics::{
     geometry::AnchorPoint,
-    mono_font::{ascii::FONT_6X10, MonoTextStyleBuilder},
     pixelcolor::BinaryColor,
     prelude::{DrawTarget, Point, Size},
     primitives::{Primitive, PrimitiveStyle, Rectangle},
     Drawable,
 };
-use embedded_text::{
-    alignment::{HorizontalAlignment, VerticalAlignment},
-    style::{HeightMode, TextBoxStyleBuilder, VerticalOverdraw},
-    TextBox,
+use embedded_text::TextBox;
+
+use crate::{
+    screens::{CENTERED_TEXTBOX, NORMAL_TEXT},
+    utils::BinaryColorDrawTargetExt,
 };
-
-use crate::utils::BinaryColorDrawTargetExt;
-
-const TEXTBOX_STYLE: embedded_text::style::TextBoxStyle = TextBoxStyleBuilder::new()
-    .height_mode(HeightMode::Exact(VerticalOverdraw::FullRowsOnly))
-    .alignment(HorizontalAlignment::Center)
-    .vertical_alignment(VerticalAlignment::Middle)
-    .build();
-
-const CHARACTER_STYLE: embedded_graphics::mono_font::MonoTextStyle<'_, BinaryColor> =
-    MonoTextStyleBuilder::new()
-        .font(&FONT_6X10)
-        .text_color(BinaryColor::On) // On on normally-Off background
-        .build();
 
 // TODO: this is currently aligned to the bottom of the screen
 pub struct ProgressBar<'a> {
@@ -68,7 +54,7 @@ impl Drawable for ProgressBar<'_> {
         let mut draw_area = display.invert_area(&progress_filler);
 
         // using embedded-text because I'm lazy to position the label vertically
-        TextBox::with_textbox_style(self.label, progress_bar, CHARACTER_STYLE, TEXTBOX_STYLE)
+        TextBox::with_textbox_style(self.label, progress_bar, NORMAL_TEXT, CENTERED_TEXTBOX)
             .set_vertical_offset(1) // Slight adjustment
             .draw(&mut draw_area)?;
 
