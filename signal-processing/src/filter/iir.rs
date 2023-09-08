@@ -11,7 +11,7 @@ pub mod precomputed {
     pub const HIGH_PASS_FOR_DISPLAY_WEAK: Iir<'static, HighPass, 2> = macros::designfilt!(
         "highpassiir",
         "FilterOrder", 2,
-        "HalfPowerFrequency", 0.5,
+        "HalfPowerFrequency", 0.75,
         "SampleRate", 1000
     );
 

@@ -20,7 +20,7 @@ use embassy_sync::{
     channel::{Channel, Sender},
     signal::Signal,
 };
-use embassy_time::{Duration, Instant, Ticker, Timer};
+use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
 use embedded_hal_bus::spi::DeviceError;
 use gui::{
@@ -189,17 +189,23 @@ async fn measure_impl(
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let shutdown_timer = Timeout::new_with_start(INIT_TIME, Instant::now() - MENU_THRESHOLD);
+    let mut drop_samples = 1500; // Slight delay for the input to settle
     loop {
         while let Ok(message) = queue.try_recv() {
             match message {
                 Message::Sample(sample) => {
                     samples += 1;
                     ecg_buffer.push(sample.raw());
-                    if let Some(filtered) = ecg.filter.update(sample.voltage()) {
-                        ecg.heart_rate_calculator.update(filtered);
-                        if let Some(downsampled) = ecg.downsampler.update(filtered) {
-                            screen.content.push(downsampled);
+
+                    if drop_samples == 0 {
+                        if let Some(filtered) = ecg.filter.update(sample.voltage()) {
+                            ecg.heart_rate_calculator.update(filtered);
+                            if let Some(downsampled) = ecg.downsampler.update(filtered) {
+                                screen.content.push(downsampled);
+                            }
                         }
+                    } else {
+                        drop_samples -= 1;
                     }
                 }
                 Message::End(frontend, result) => {
@@ -272,8 +278,6 @@ async fn reader_task(params: EcgTaskParams) {
         mut frontend,
     } = params;
 
-    Timer::after(Duration::from_millis(100)).await;
-
     let result = read_ecg(&sender, &mut frontend).await;
     sender.send(Message::End(frontend, result)).await;
 }
@@ -282,8 +286,6 @@ async fn read_ecg(
     queue: &MessageSender,
     frontend: &mut PoweredEcgFrontend,
 ) -> Result<(), Error<SpiError>> {
-    Timer::after(Duration::from_millis(500)).await;
-
     while !THREAD_CONTROL.signaled() {
         match frontend.read().await {
             Ok(sample) => {
