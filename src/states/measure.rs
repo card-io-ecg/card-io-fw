@@ -5,7 +5,10 @@ use crate::{
         PoweredEcgFrontend,
     },
     replace_with::replace_with_or_abort_and_return_async,
-    states::{to_progress, AppMenu, MIN_FRAME_TIME},
+    states::{
+        init::{INIT_TIME, MENU_THRESHOLD},
+        to_progress, AppMenu, MIN_FRAME_TIME,
+    },
     timeout::Timeout,
     AppError, AppState,
 };
@@ -183,9 +186,6 @@ async fn measure_impl(
 
     let mut samples = 0; // Counter and 1s timer to debug perf issues
     let mut debug_print_timer = Timeout::new(Duration::from_secs(1));
-
-    const INIT_TIME: Duration = Duration::from_secs(4);
-    const MENU_THRESHOLD: Duration = Duration::from_secs(2);
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let shutdown_timer = Timeout::new_with_start(INIT_TIME, Instant::now() - MENU_THRESHOLD);

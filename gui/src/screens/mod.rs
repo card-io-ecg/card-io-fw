@@ -21,8 +21,8 @@ pub const fn menu_style<R>(
         .with_selection_indicator(AnimatedTriangle::new(200))
         .with_input_adapter(SingleTouch {
             debounce_time: 1,
-            ignore_time: 15,
-            max_time: 100,
+            ignore_time: 10,
+            max_time: 75,
         })
         .with_title_font(&FONT_7X13_BOLD)
 }

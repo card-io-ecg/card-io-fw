@@ -11,10 +11,10 @@ use gui::{
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 
-pub async fn initialize(board: &mut Board) -> AppState {
-    const INIT_TIME: Duration = Duration::from_secs(4);
-    const MENU_THRESHOLD: Duration = Duration::from_secs(2);
+pub const INIT_TIME: Duration = Duration::from_millis(3000);
+pub const MENU_THRESHOLD: Duration = Duration::from_millis(1500);
 
+pub async fn initialize(board: &mut Board) -> AppState {
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let shutdown_timer = Timeout::new(MENU_THRESHOLD);
     while !shutdown_timer.is_elapsed() {
