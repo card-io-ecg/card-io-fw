@@ -36,7 +36,7 @@ use crate::{
     sleep::disable_gpio_wakeup,
 };
 
-#[cfg(feature = "hw_v2")]
+#[cfg(any(feature = "hw_v2", feature = "hw_v4"))]
 use crate::board::VbusDetect;
 
 #[cfg(feature = "battery_max17055")]
@@ -257,7 +257,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
     #[cfg(feature = "hw_v1")]
     let (_, mut charger_pin) = board.battery_monitor.stop().await;
 
-    #[cfg(feature = "hw_v2")]
+    #[cfg(any(feature = "hw_v2", feature = "hw_v4"))]
     let (mut charger_pin, _) = board.battery_monitor.stop().await;
 
     let (_, _, _, mut touch) = board.frontend.split();
@@ -299,7 +299,7 @@ fn setup_wakeup_pins<'a, const N: usize>(
     }
 }
 
-#[cfg(feature = "hw_v2")]
+#[cfg(any(feature = "hw_v2", feature = "hw_v4"))]
 fn setup_wakeup_pins<'a, const N: usize>(
     wakeup_pins: &mut heapless::Vec<(&'a mut dyn RTCPin, WakeupLevel), N>,
     touch: &'a mut TouchDetect,
