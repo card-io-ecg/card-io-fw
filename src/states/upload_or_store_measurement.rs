@@ -1,5 +1,5 @@
 use embassy_time::{Duration, Timer};
-use norfs::{writer::FileDataWriter, OnCollision, StorageError};
+use norfs::{medium::StorageMedium, writer::FileDataWriter, OnCollision, Storage, StorageError};
 use signal_processing::compressing_buffer::CompressingBuffer;
 use ufmt::uwrite;
 
@@ -97,6 +97,33 @@ async fn try_store_measurement<const SIZE: usize>(
 
     let timeout = Timer::after(Duration::from_secs(2));
 
+    let meas_idx = find_measurement_index(storage).await?;
+
+    let mut filename = heapless::String::<16>::new();
+    unwrap!(uwrite!(&mut filename, "meas.{}", meas_idx));
+
+    storage
+        .store_writer(
+            &filename,
+            &MeasurementWriter(measurement),
+            OnCollision::Fail,
+        )
+        .await?;
+
+    measurement.clear();
+
+    info!("Measurement saved to {}", filename);
+
+    timeout.await;
+
+    Ok(())
+}
+
+async fn find_measurement_index<M>(storage: &mut Storage<M>) -> Result<u32, StorageError>
+where
+    M: StorageMedium,
+    [(); M::BLOCK_COUNT]:,
+{
     let mut max_index = None;
     let mut dir = storage.read_dir().await?;
     let mut buffer = [0; 64];
@@ -128,33 +155,7 @@ async fn try_store_measurement<const SIZE: usize>(
         }
     }
 
-    let mut filename = heapless::String::<16>::new();
-    if uwrite!(
-        &mut filename,
-        "meas.{}",
-        max_index.map(|idx| idx + 1).unwrap_or(0)
-    )
-    .is_err()
-    {
-        warn!("Failed to create filename");
-        return Ok(());
-    }
-
-    storage
-        .store_writer(
-            &filename,
-            &MeasurementWriter(measurement),
-            OnCollision::Fail,
-        )
-        .await?;
-
-    measurement.clear();
-
-    info!("Measurement saved to {}", filename);
-
-    timeout.await;
-
-    Ok(())
+    Ok(max_index.map(|idx| idx + 1).unwrap_or(0))
 }
 
 struct MeasurementWriter<'a, const N: usize>(&'a CompressingBuffer<N>);
@@ -168,7 +169,7 @@ impl<const N: usize> FileDataWriter for MeasurementWriter<'_, N> {
     async fn write<M>(
         &self,
         writer: &mut norfs::writer::Writer<M>,
-        storage: &mut norfs::Storage<M>,
+        storage: &mut Storage<M>,
     ) -> Result<(), StorageError>
     where
         M: norfs::medium::StorageMedium,
