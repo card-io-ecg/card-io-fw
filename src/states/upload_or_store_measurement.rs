@@ -66,13 +66,15 @@ async fn try_to_upload<const SIZE: usize>(
         return StoreMeasurement::Store;
     };
 
-    // TODO: we need to wait for the wifi to connect, or for the stack to conclude that connection
-    // is not possible.
-    // TODO: display status on the screen.
-
     if sta.connection_state() != ConnectionState::Connected {
-        // If we do not have a network connection, save to file.
-        return StoreMeasurement::Store;
+        while sta.wait_for_state_change().await == ConnectionState::Connecting {
+            display_message(board, "Connecting...").await;
+        }
+
+        if sta.connection_state() != ConnectionState::Connected {
+            // If we do not have a network connection, save to file.
+            return StoreMeasurement::Store;
+        }
     }
 
     // If we found a network, attempt to upload.
