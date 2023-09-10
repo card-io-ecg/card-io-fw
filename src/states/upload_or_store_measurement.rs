@@ -89,21 +89,19 @@ async fn try_to_upload<const SIZE: usize>(
     struct Resources {
         //request_buffer: [u8; 2048],
         client_state: TcpClientState<1, 1024, 1024>,
+        rx_buffer: [u8; 1024],
     }
 
-    let resources = Box::new(Resources {
+    let mut resources = Box::new(Resources {
         //request_buffer: [0; 2048],
         client_state: TcpClientState::new(),
+        rx_buffer: [0; 1024],
     });
 
     let client = TcpClient::new(sta.stack(), &resources.client_state);
     let dns = DnsSocket::new(sta.stack());
 
-    let mut client: HttpClient<
-        '_,
-        TcpClient<'_, esp_wifi::wifi::WifiDevice<'_>, 1>,
-        DnsSocket<'_, esp_wifi::wifi::WifiDevice<'_>>,
-    > = HttpClient::new(&client, &dns);
+    let mut client = HttpClient::new(&client, &dns);
 
     let mut resource = match client.resource(&board.config.backend_url).await {
         Ok(res) => res,
@@ -117,7 +115,17 @@ async fn try_to_upload<const SIZE: usize>(
     unwrap!(uwrite!(&mut path, "/upload_data/{}", SerialNumber::new()));
 
     let samples = buffer.make_contiguous();
-    let _builder = resource.post("/data").body(&samples);
+    let response = resource
+        .post(&path)
+        .headers(&[("X-Timestamp", "0")]) // TODO
+        .body(samples)
+        .send(&mut resources.rx_buffer)
+        .await;
+
+    if let Err(e) = response {
+        warn!("HTTP error: {:?}", e);
+        return StoreMeasurement::Store;
+    }
 
     // Upload successful, do not store in file.
     StoreMeasurement::DontStore
