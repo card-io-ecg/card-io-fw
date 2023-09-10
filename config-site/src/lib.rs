@@ -45,21 +45,9 @@ where
             "/si",
             StaticHandler::new(&[], fw_version.as_bytes()),
         ))
-        .with_handler(RequestHandler::get(
-            "/kn",
-            ListKnownNetworks { context: &context },
-        ))
-        .with_handler(RequestHandler::post(
-            "/nn",
-            AddNewNetwork { context: &context },
-        ))
-        .with_handler(RequestHandler::post(
-            "/dn",
-            DeleteNetwork { context: &context },
-        ))
-        .with_handler(RequestHandler::get("/bu", BackendUrl { context: &context }))
-        .with_handler(RequestHandler::post(
-            "/cbu",
-            ChangeBackendUrl { context: &context },
-        ))
+        .with_handler(RequestHandler::get("/kn", ListKnownNetworks { context }))
+        .with_handler(RequestHandler::post("/nn", AddNewNetwork { context }))
+        .with_handler(RequestHandler::post("/dn", DeleteNetwork { context }))
+        .with_handler(RequestHandler::get("/bu", BackendUrl { context }))
+        .with_handler(RequestHandler::post("/cbu", ChangeBackendUrl { context }))
 }
