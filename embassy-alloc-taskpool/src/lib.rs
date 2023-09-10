@@ -23,6 +23,7 @@ pub struct AllocTaskPool<F: Future + 'static, const N: usize> {
 }
 
 impl<F: Future + 'static, const N: usize> AllocTaskPool<F, N> {
+    #[allow(clippy::declare_interior_mutable_const)]
     const NULL_PTR: AtomicPtr<TaskStorage<F>> = AtomicPtr::new(core::ptr::null_mut());
 
     /// Create a new AllocTaskPool, with all tasks in non-spawned state.

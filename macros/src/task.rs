@@ -12,7 +12,7 @@ struct Args {
 pub fn run(args: &[NestedMeta], f: syn::ItemFn) -> TokenStream {
     let args = match Args::from_list(args) {
         Ok(args) => args,
-        Err(e) => return e.write_errors().into(),
+        Err(e) => return e.write_errors(),
     };
 
     let pool_size = args.pool_size.unwrap_or(Expr::Lit(ExprLit {
@@ -27,15 +27,15 @@ pub fn run(args: &[NestedMeta], f: syn::ItemFn) -> TokenStream {
         return syn::Error::new_spanned(&f.sig, "task functions must not be generic")
             .to_compile_error();
     }
-    if !f.sig.generics.where_clause.is_none() {
+    if f.sig.generics.where_clause.is_some() {
         return syn::Error::new_spanned(&f.sig, "task functions must not have `where` clauses")
             .to_compile_error();
     }
-    if !f.sig.abi.is_none() {
+    if f.sig.abi.is_some() {
         return syn::Error::new_spanned(&f.sig, "task functions must not have an ABI qualifier")
             .to_compile_error();
     }
-    if !f.sig.variadic.is_none() {
+    if f.sig.variadic.is_some() {
         return syn::Error::new_spanned(&f.sig, "task functions must not be variadic")
             .to_compile_error();
     }

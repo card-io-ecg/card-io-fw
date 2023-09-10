@@ -7,9 +7,7 @@ use crate::{
     timeout::Timeout,
     AppState, SerialNumber,
 };
-use alloc::format;
-#[cfg(feature = "battery_max17055")]
-use alloc::string::String;
+use alloc::{format, string::String};
 use embassy_time::Ticker;
 use embedded_graphics::Drawable;
 use embedded_menu::{items::NavigationItem, Menu};
@@ -17,6 +15,7 @@ use gui::{
     screens::{menu_style, screen::Screen},
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
+use ufmt::uwrite;
 
 #[derive(Clone, Copy)]
 pub enum AboutMenuEvents {
@@ -35,28 +34,19 @@ pub async fn about_menu(board: &mut Board) -> AppState {
     };
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
 
-    let serial = SerialNumber::new();
-    let mac_address = serial.as_bytes();
-
     let list_item = |label| NavigationItem::new(label, AboutMenuEvents::None);
 
-    let mut items = heapless::Vec::<_, 5>::new();
+    let mut serial = heapless::String::<12>::new();
+    unwrap!(uwrite!(&mut serial, "{}", SerialNumber::new()));
 
+    let mut hw_version = heapless::String::<16>::new();
+    unwrap!(uwrite!(&mut hw_version, "ESP32-S3/{}", env!("HW_VERSION")));
+
+    let mut items = heapless::Vec::<_, 5>::new();
     items.extend([
         list_item(format!("FW: {:>16}", env!("FW_VERSION"))),
-        list_item(format!(
-            "HW: {:>16}",
-            format!("ESP32-S3/{}", env!("HW_VERSION"))
-        )),
-        list_item(format!(
-            "Serial: {:02X}{:02X}{:02X}{:02X}{:02X}{:02X}",
-            mac_address[0],
-            mac_address[1],
-            mac_address[2],
-            mac_address[3],
-            mac_address[4],
-            mac_address[5]
-        )),
+        list_item(format!("HW: {:>16}", hw_version)),
+        list_item(format!("Serial: {}", serial)),
         list_item(match board.frontend.device_id() {
             Some(id) => format!("ADC: {:>15}", format!("{id:?}")),
             None => format!("ADC:         Unknown"),

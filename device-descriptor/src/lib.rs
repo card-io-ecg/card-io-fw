@@ -87,6 +87,7 @@ where
 
     #[inline]
     pub const fn new(reg: P) -> Self {
+        #[allow(clippy::let_unit_value)]
         let _ = Self::_CONST_CHECK;
         Field {
             _marker: PhantomData,
