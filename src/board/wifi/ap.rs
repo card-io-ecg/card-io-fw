@@ -150,6 +150,13 @@ impl ApState {
     pub(super) fn is_running(&self) -> bool {
         !self.connection_task_control.has_exited() && !self.net_task_control.has_exited()
     }
+
+    pub(crate) fn handle(&self) -> Option<Ap> {
+        self.started.then_some(Ap {
+            stack: self.stack.clone(),
+            client_count: self.client_count.clone(),
+        })
+    }
 }
 
 #[cardio::task]

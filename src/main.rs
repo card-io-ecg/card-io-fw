@@ -2,6 +2,7 @@
 #![no_main]
 #![feature(async_fn_in_trait)]
 #![feature(type_alias_impl_trait)]
+#![feature(impl_trait_projections)]
 #![feature(let_chains)]
 #![feature(never_type)] // Wifi net_task
 #![feature(generic_const_exprs)] // norfs needs this
@@ -28,6 +29,7 @@ use norfs::{
     medium::{cache::ReadCache, StorageMedium},
     Storage, StorageError,
 };
+use signal_processing::compressing_buffer::CompressingBuffer;
 use static_cell::{make_static, StaticCell};
 
 #[cfg(feature = "hw_v1")]
@@ -61,7 +63,7 @@ use crate::{
     },
     states::{
         about_menu, adc_setup, app_error, charging, display_menu, initialize, main_menu, measure,
-        wifi_ap, wifi_sta, AppMenu,
+        upload_or_store_measurement, wifi_ap, wifi_sta, AppMenu, ECG_BUFFER_SIZE,
     },
 };
 
@@ -74,6 +76,34 @@ mod states;
 mod task_control;
 mod timeout;
 
+pub struct SerialNumber {
+    bytes: [u8; 6],
+}
+
+impl SerialNumber {
+    pub fn new() -> Self {
+        Self {
+            bytes: hal::efuse::Efuse::get_mac_address(),
+        }
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+impl ufmt::uDisplay for SerialNumber {
+    fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
+    where
+        W: ufmt::uWrite + ?Sized,
+    {
+        for byte in self.bytes {
+            ufmt::uwrite!(f, "{:X}", byte)?;
+        }
+        Ok(())
+    }
+}
+
 pub type Shared<T> = Rc<Mutex<NoopRawMutex, T>>;
 pub type SharedGuard<'a, T> = MutexGuard<'a, NoopRawMutex, T>;
 
@@ -83,8 +113,6 @@ pub enum AppError {
     Adc,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum AppState {
     AdcSetup,
     Initialize,
@@ -93,6 +121,38 @@ pub enum AppState {
     Menu(AppMenu),
     Error(AppError),
     Shutdown,
+    UploadOrStore(&'static mut CompressingBuffer<ECG_BUFFER_SIZE>),
+}
+
+impl core::fmt::Debug for AppState {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::AdcSetup => write!(f, "AdcSetup"),
+            Self::Initialize => write!(f, "Initialize"),
+            Self::Measure => write!(f, "Measure"),
+            Self::Charging => write!(f, "Charging"),
+            Self::Menu(arg0) => f.debug_tuple("Menu").field(arg0).finish(),
+            Self::Error(arg0) => f.debug_tuple("Error").field(arg0).finish(),
+            Self::Shutdown => write!(f, "Shutdown"),
+            Self::UploadOrStore(buf) => f.debug_tuple("UploadOrStore").field(&buf.len()).finish(),
+        }
+    }
+}
+
+#[cfg(feature = "defmt")]
+impl defmt::Format for AppState {
+    fn format(&self, f: defmt::Formatter) {
+        match self {
+            Self::AdcSetup => defmt::write!(f, "AdcSetup"),
+            Self::Initialize => defmt::write!(f, "Initialize"),
+            Self::Measure => defmt::write!(f, "Measure"),
+            Self::Charging => defmt::write!(f, "Charging"),
+            Self::Menu(arg0) => defmt::write!(f, "Menu({:?})", arg0),
+            Self::Error(arg0) => defmt::write!(f, "Error({:?})", arg0),
+            Self::Shutdown => defmt::write!(f, "Shutdown"),
+            Self::UploadOrStore(buf) => defmt::write!(f, "UploadOrStore (len={})", buf.len()),
+        }
+    }
 }
 
 static INT_EXECUTOR: InterruptExecutor<FromCpu1> = InterruptExecutor::new();
@@ -222,6 +282,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
             config,
             config_changed: false,
             storage,
+            sta_work_available: None,
         })
     })
     .await;
@@ -243,6 +304,9 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
             #[cfg(feature = "battery_max17055")]
             AppState::Menu(AppMenu::BatteryInfo) => battery_info_menu(&mut board).await,
             AppState::Error(error) => app_error(&mut board, error).await,
+            AppState::UploadOrStore(buffer) => {
+                upload_or_store_measurement(&mut board, buffer, AppState::Shutdown).await
+            }
             AppState::Shutdown => break,
         };
     }

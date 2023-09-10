@@ -19,6 +19,7 @@ use embassy_net::{Config, Stack, StackResources};
 use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
     mutex::{Mutex, MutexGuard},
+    signal::Signal,
 };
 use embassy_time::{Duration, Timer};
 use embedded_svc::wifi::{AccessPointInfo, ClientConfiguration, Configuration, Wifi as _};
@@ -31,6 +32,34 @@ use macros as cardio;
 
 const SCAN_RESULTS: usize = 20;
 
+struct State {
+    signal: Signal<NoopRawMutex, ()>,
+    value: AtomicInternalConnectionState,
+}
+
+impl State {
+    fn new(state: InternalConnectionState) -> State {
+        Self {
+            signal: Signal::new(),
+            value: AtomicInternalConnectionState::new(state),
+        }
+    }
+
+    async fn wait(&self) -> InternalConnectionState {
+        self.signal.wait().await;
+        self.read()
+    }
+
+    fn read(&self) -> InternalConnectionState {
+        self.value.load(Ordering::Acquire)
+    }
+
+    fn update(&self, value: InternalConnectionState) {
+        self.value.store(value, Ordering::Release);
+        self.signal.signal(());
+    }
+}
+
 #[derive(PartialEq, Clone, Copy)]
 pub enum NetworkPreference {
     Preferred,
@@ -40,7 +69,6 @@ pub enum NetworkPreference {
 /// A network SSID and password, with an object used to deprioritize unstable networks.
 type KnownNetwork = (WifiNetwork, NetworkPreference);
 
-#[atomic_enum::atomic_enum]
 #[derive(PartialEq)]
 pub enum ConnectionState {
     NotConnected,
@@ -58,17 +86,38 @@ impl From<ConnectionState> for WifiState {
     }
 }
 
+#[atomic_enum::atomic_enum]
+#[derive(PartialEq)]
+enum InternalConnectionState {
+    NotConnected,
+    Connecting,
+    Connected,
+    Disconnected,
+}
+
+impl From<InternalConnectionState> for ConnectionState {
+    fn from(value: InternalConnectionState) -> Self {
+        match value {
+            InternalConnectionState::NotConnected | InternalConnectionState::Disconnected => {
+                ConnectionState::NotConnected
+            }
+            InternalConnectionState::Connecting => ConnectionState::Connecting,
+            InternalConnectionState::Connected => ConnectionState::Connected,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Sta {
-    _stack: Rc<Stack<WifiDevice<'static>>>,
+    stack: Rc<Stack<WifiDevice<'static>>>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
-    state: Rc<AtomicConnectionState>,
+    state: Rc<State>,
 }
 
 impl Sta {
     pub fn connection_state(&self) -> ConnectionState {
-        self.state.load(Ordering::Acquire)
+        self.state.read().into()
     }
 
     pub async fn visible_networks(
@@ -87,6 +136,14 @@ impl Sta {
             }
         }
     }
+
+    pub async fn wait_for_state_change(&self) -> ConnectionState {
+        self.state.wait().await.into()
+    }
+
+    pub fn stack(&self) -> &Stack<WifiDevice<'static>> {
+        &self.stack
+    }
 }
 
 pub(super) struct StaState {
@@ -95,7 +152,7 @@ pub(super) struct StaState {
     stack: Rc<Stack<WifiDevice<'static>>>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
-    state: Rc<AtomicConnectionState>,
+    state: Rc<State>,
     connection_task_control: TaskController<()>,
     net_task_control: TaskController<!>,
     started: bool,
@@ -125,7 +182,7 @@ impl StaState {
             stack: Rc::new(Stack::new(wifi_interface, config, resources, random_seed)),
             networks: Rc::new(Mutex::new(heapless::Vec::new())),
             known_networks: Rc::new(Mutex::new(Vec::new())),
-            state: Rc::new(AtomicConnectionState::new(ConnectionState::NotConnected)),
+            state: Rc::new(State::new(InternalConnectionState::NotConnected)),
             connection_task_control: TaskController::new(),
             net_task_control: TaskController::new(),
             started: false,
@@ -175,20 +232,29 @@ impl StaState {
         }
 
         Sta {
-            _stack: self.stack.clone(),
+            stack: self.stack.clone(),
             networks: self.networks.clone(),
             known_networks: self.known_networks.clone(),
             state: self.state.clone(),
         }
     }
+
+    pub(crate) fn handle(&self) -> Option<Sta> {
+        self.started.then_some(Sta {
+            stack: self.stack.clone(),
+            networks: self.networks.clone(),
+            known_networks: self.known_networks.clone(),
+            state: self.state.clone(),
+        })
+    }
 }
 
 #[cardio::task]
-pub(super) async fn sta_task(
+async fn sta_task(
     controller: Shared<WifiController<'static>>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
-    state: Rc<AtomicConnectionState>,
+    state: Rc<State>,
     stack: Rc<Stack<WifiDevice<'static>>>,
     mut task_control: TaskControlToken<()>,
 ) {
@@ -199,7 +265,7 @@ pub(super) async fn sta_task(
     task_control
         .run_cancellable(async {
             'scan_and_connect: loop {
-                state.store(ConnectionState::NotConnected, Ordering::Release);
+                state.update(InternalConnectionState::NotConnected);
                 if !matches!(controller.lock().await.is_started(), Ok(true)) {
                     info!("Starting wifi");
                     unwrap!(controller.lock().await.start().await);
@@ -254,7 +320,7 @@ pub(super) async fn sta_task(
                 };
 
                 info!("Connecting to {}...", connect_to.ssid);
-                state.store(ConnectionState::Connecting, Ordering::Release);
+                state.update(InternalConnectionState::Connecting);
 
                 unwrap!(controller
                     .lock()
@@ -289,7 +355,7 @@ pub(super) async fn sta_task(
                             match select(wait_for_ip, wait_for_disconnect).await {
                                 Either::First(_) => {
                                     info!("Wifi connected!");
-                                    state.store(ConnectionState::Connected, Ordering::Release);
+                                    state.update(InternalConnectionState::Connected);
 
                                     // keep pending Disconnected event to avoid a race condition
                                     controller
@@ -301,18 +367,18 @@ pub(super) async fn sta_task(
                                     // TODO: figure out if we should deprioritize, retry or just loop back
                                     // to the beginning. Maybe we could use a timer?
                                     info!("Wifi disconnected!");
-                                    state.store(ConnectionState::NotConnected, Ordering::Release);
+                                    state.update(InternalConnectionState::Disconnected);
                                     continue 'scan_and_connect;
                                 }
                                 Either::Second(_) => {
                                     info!("Wifi disconnected!");
-                                    state.store(ConnectionState::NotConnected, Ordering::Release);
+                                    state.update(InternalConnectionState::Disconnected);
                                 }
                             }
                         }
                         Err(e) => {
                             warn!("Failed to connect to wifi: {:?}", e);
-                            state.store(ConnectionState::NotConnected, Ordering::Release);
+                            state.update(InternalConnectionState::NotConnected);
                             Timer::after(CONNECT_RETRY_PERIOD).await;
                         }
                     }

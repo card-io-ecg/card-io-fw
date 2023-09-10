@@ -45,6 +45,8 @@ pub fn interpolate(value: u32, x_min: u32, x_max: u32, y_min: u32, y_max: u32) -
 
 #[cfg(test)]
 mod test {
+    use crate::lerp::interpolate;
+
     #[test]
     fn interpolate_basic() {
         assert_eq!(interpolate(0, 0, 100, 0, 100), 0);
