@@ -86,6 +86,16 @@ async fn try_to_upload<const SIZE: usize>(
     // If we found a network, attempt to upload.
     // TODO: only try to upload if we are registered.
     debug!("Trying to upload measurement");
+
+    let mut uploading_msg = heapless::String::<48>::new();
+    unwrap!(uwrite!(
+        &mut uploading_msg,
+        "Uploading measurement: {} bytes",
+        buffer.byte_count()
+    ));
+
+    display_message(board, uploading_msg.as_str()).await;
+
     struct Resources {
         //request_buffer: [u8; 2048],
         client_state: TcpClientState<1, 1024, 1024>,
@@ -111,7 +121,7 @@ async fn try_to_upload<const SIZE: usize>(
         }
     };
 
-    let mut path = heapless::String::<64>::new();
+    let mut path = heapless::String::<32>::new();
     unwrap!(uwrite!(&mut path, "/upload_data/{}", SerialNumber::new()));
 
     let samples = buffer.make_contiguous();
@@ -137,7 +147,13 @@ async fn try_store_measurement<const SIZE: usize>(
 ) -> Result<(), StorageError> {
     debug!("Trying to store measurement");
 
-    display_message(board, "Saving measurement...").await;
+    let mut saving_msg = heapless::String::<48>::new();
+    unwrap!(uwrite!(
+        &mut saving_msg,
+        "Saving measurement: {} bytes",
+        measurement.byte_count()
+    ));
+    display_message(board, &saving_msg).await;
     let Some(storage) = board.storage.as_mut() else {
         return Ok(());
     };
