@@ -15,7 +15,7 @@ use crate::{
         wifi::sta::ConnectionState,
     },
     states::display_message,
-    AppState,
+    AppState, SerialNumber,
 };
 
 /// Whether to store the measurement or not. Used instead of a bool to reduce confusion.
@@ -99,7 +99,23 @@ async fn try_to_upload<const SIZE: usize>(
     let client = TcpClient::new(sta.stack(), &resources.client_state);
     let dns = DnsSocket::new(sta.stack());
 
-    let _client = HttpClient::new(&client, &dns);
+    let mut client: HttpClient<
+        '_,
+        TcpClient<'_, esp_wifi::wifi::WifiDevice<'_>, 1>,
+        DnsSocket<'_, esp_wifi::wifi::WifiDevice<'_>>,
+    > = HttpClient::new(&client, &dns);
+
+    let mut resource = match client.resource(&board.config.backend_url).await {
+        Ok(res) => res,
+        Err(e) => {
+            warn!("HTTP error: {}", e);
+            return StoreMeasurement::Store;
+        }
+    };
+
+    let mut path = heapless::String::<64>::new();
+    unwrap!(uwrite!(&mut path, "/upload_data/{}", SerialNumber::new()));
+    let _builder = resource.post("/data");
 
     // TODO
 

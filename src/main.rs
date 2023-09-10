@@ -76,6 +76,34 @@ mod states;
 mod task_control;
 mod timeout;
 
+pub struct SerialNumber {
+    bytes: [u8; 6],
+}
+
+impl SerialNumber {
+    pub fn new() -> Self {
+        Self {
+            bytes: hal::efuse::Efuse::get_mac_address(),
+        }
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+impl ufmt::uDisplay for SerialNumber {
+    fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
+    where
+        W: ufmt::uWrite + ?Sized,
+    {
+        for byte in self.bytes {
+            ufmt::uwrite!(f, "{:X}", byte)?;
+        }
+        Ok(())
+    }
+}
+
 pub type Shared<T> = Rc<Mutex<NoopRawMutex, T>>;
 pub type SharedGuard<'a, T> = MutexGuard<'a, NoopRawMutex, T>;
 

@@ -1,12 +1,11 @@
 use crate::{
     board::{
-        hal::efuse::Efuse,
         initialized::{Board, StaMode},
         wifi::sta::Sta,
     },
     states::{menu::AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
     timeout::Timeout,
-    AppState,
+    AppState, SerialNumber,
 };
 use alloc::format;
 #[cfg(feature = "battery_max17055")]
@@ -36,7 +35,8 @@ pub async fn about_menu(board: &mut Board) -> AppState {
     };
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
 
-    let mac_address = Efuse::get_mac_address();
+    let serial = SerialNumber::new();
+    let mac_address = serial.as_bytes();
 
     let list_item = |label| NavigationItem::new(label, AboutMenuEvents::None);
 
