@@ -244,6 +244,50 @@ where
     }
 }
 
+async fn saved_measurement_exists<M>(storage: &mut Storage<M>) -> bool
+where
+    M: StorageMedium,
+    [(); M::BLOCK_COUNT]:,
+{
+    let mut dir = match storage.read_dir().await {
+        Ok(dir) => dir,
+        Err(e) => {
+            warn!("Failed to open directory: {:?}", e);
+            return false;
+        }
+    };
+
+    let mut buffer = [0; 64];
+    loop {
+        match dir.next(storage).await {
+            Ok(file) => {
+                let Some(file) = file else {
+                    return false;
+                };
+
+                match file.name(storage, &mut buffer).await {
+                    Ok(name) => {
+                        if name.starts_with("meas.") {
+                            return true;
+                        }
+                    }
+                    Err(StorageError::InsufficientBuffer) => {
+                        // not a measurement file, ignore
+                    }
+                    Err(e) => {
+                        warn!("Failed to read file name: {:?}", e);
+                        return false;
+                    }
+                }
+            }
+            Err(e) => {
+                warn!("Failed to read directory: {:?}", e);
+                return false;
+            }
+        }
+    }
+}
+
 #[embassy_executor::task]
 async fn main_task(_spawner: Spawner, resources: StartupResources) {
     let battery_monitor = BatteryMonitor::start(

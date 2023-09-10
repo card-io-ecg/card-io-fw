@@ -1,12 +1,15 @@
-use crate::board::{
-    config::Config,
-    drivers::battery_monitor::BatteryMonitor,
-    hal::{clock::Clocks, system::PeripheralClockControl},
-    wifi::{
-        ap::{self, Ap},
-        sta, WifiDriver, WifiMode,
+use crate::{
+    board::{
+        config::Config,
+        drivers::battery_monitor::BatteryMonitor,
+        hal::{clock::Clocks, system::PeripheralClockControl},
+        wifi::{
+            ap::{self, Ap},
+            sta, WifiDriver, WifiMode,
+        },
+        ChargerStatus, EcgFrontend, PoweredDisplay, VbusDetect,
     },
-    ChargerStatus, EcgFrontend, PoweredDisplay, VbusDetect,
+    saved_measurement_exists,
 };
 use embassy_executor::SendSpawner;
 use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
@@ -146,12 +149,21 @@ impl Board {
             .unwrap_or(false)
     }
 
-    async fn sta_has_work(&self) -> bool {
+    async fn sta_has_work(&mut self) -> bool {
         // TODO: we can do a flag that is true on boot, so that entering the menu will always
         // connect and look for update, etc. We can also use a flag to see if we have ongoing
         // communication, so we can keep wifi on. Question is: when/how do we disable wifi if
         // it is in on-demand mode?
-        self.sta_work_available.unwrap_or(false) // TODO: scan FS for measurement files
+
+        if self.sta_work_available.is_none() {
+            if let Some(storage) = self.storage.as_mut() {
+                if saved_measurement_exists(storage).await {
+                    self.sta_work_available = Some(true);
+                }
+            }
+        }
+
+        self.sta_work_available.unwrap_or(false)
     }
 
     pub fn signal_sta_work_available(&mut self) {
