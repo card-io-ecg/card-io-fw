@@ -1,5 +1,11 @@
+use alloc::boxed::Box;
+use embassy_net::{
+    dns::DnsSocket,
+    tcp::client::{TcpClient, TcpClientState},
+};
 use embassy_time::{Duration, Timer};
 use norfs::{medium::StorageMedium, writer::FileDataWriter, OnCollision, Storage, StorageError};
+use reqwless::client::HttpClient;
 use signal_processing::compressing_buffer::CompressingBuffer;
 use ufmt::uwrite;
 
@@ -80,6 +86,21 @@ async fn try_to_upload<const SIZE: usize>(
     // If we found a network, attempt to upload.
     // TODO: only try to upload if we are registered.
     debug!("Trying to upload measurement");
+    struct Resources {
+        //request_buffer: [u8; 2048],
+        client_state: TcpClientState<1, 1024, 1024>,
+    }
+
+    let resources = Box::new(Resources {
+        //request_buffer: [0; 2048],
+        client_state: TcpClientState::new(),
+    });
+
+    let client = TcpClient::new(sta.stack(), &resources.client_state);
+    let dns = DnsSocket::new(sta.stack());
+
+    let _client = HttpClient::new(&client, &dns);
+
     // TODO
 
     // Upload successful, do not store in file.

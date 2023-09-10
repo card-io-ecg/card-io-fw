@@ -109,7 +109,7 @@ impl From<InternalConnectionState> for ConnectionState {
 
 #[derive(Clone)]
 pub struct Sta {
-    _stack: Rc<Stack<WifiDevice<'static>>>,
+    stack: Rc<Stack<WifiDevice<'static>>>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
     state: Rc<State>,
@@ -139,6 +139,10 @@ impl Sta {
 
     pub async fn wait_for_state_change(&self) -> ConnectionState {
         self.state.wait().await.into()
+    }
+
+    pub fn stack(&self) -> &Stack<WifiDevice<'static>> {
+        &self.stack
     }
 }
 
@@ -228,7 +232,7 @@ impl StaState {
         }
 
         Sta {
-            _stack: self.stack.clone(),
+            stack: self.stack.clone(),
             networks: self.networks.clone(),
             known_networks: self.known_networks.clone(),
             state: self.state.clone(),
@@ -237,7 +241,7 @@ impl StaState {
 
     pub(crate) fn handle(&self) -> Option<Sta> {
         self.started.then_some(Sta {
-            _stack: self.stack.clone(),
+            stack: self.stack.clone(),
             networks: self.networks.clone(),
             known_networks: self.known_networks.clone(),
             state: self.state.clone(),

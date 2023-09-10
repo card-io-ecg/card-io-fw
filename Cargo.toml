@@ -11,6 +11,7 @@ embedded-graphics = "0.8.0"
 embedded-hal = "1.0.0-rc.1"
 embedded-hal-async = "1.0.0-rc.1"
 embedded-hal-bus = { version = "0.1.0-rc.1", features = ["async"] }
+embedded-nal-async = "0.4.0"
 embedded-io = { version = "0.4", features = ["async"] }
 embedded-menu = "0.4.0"
 embedded-svc = { version = "0.25", default-features = false }
@@ -19,6 +20,8 @@ embassy-net = { version = "0.1.0", features = [
     "tcp",
     "udp",
     "dhcpv4",
+    "dns",
+    "unstable-traits",
     "medium-ethernet",
 ] }
 embassy-sync = { version = "0.2.0" }
@@ -103,11 +106,13 @@ replace_with = { version = "0.1", default-features = false, features = [
 ] }
 static_cell = { version = "1.2.0", features = ["nightly"] }
 bad-server = { path = "bad-server", features = ["embassy"] }
+reqwless = { version = "0.5.0" }
 
 embedded-graphics = { workspace = true }
 embedded-hal = { workspace = true }
 embedded-hal-async = { workspace = true }
 embedded-hal-bus = { workspace = true }
+embedded-nal-async = { workspace = true }
 embedded-io = { workspace = true }
 embedded-menu = { workspace = true }
 embedded-svc = { workspace = true }
@@ -182,6 +187,7 @@ defmt = [
     "bad-server/defmt",
     "gui/defmt",
     "signal-processing/defmt",
+    "reqwless/defmt"
 ]
 
 [package.metadata.espflash]
