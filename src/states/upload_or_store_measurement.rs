@@ -5,7 +5,7 @@ use embassy_net::{
 };
 use embassy_time::{Duration, Timer};
 use norfs::{medium::StorageMedium, writer::FileDataWriter, OnCollision, Storage, StorageError};
-use reqwless::client::HttpClient;
+use reqwless::{client::HttpClient, request::RequestBuilder};
 use signal_processing::compressing_buffer::CompressingBuffer;
 use ufmt::uwrite;
 
@@ -115,9 +115,9 @@ async fn try_to_upload<const SIZE: usize>(
 
     let mut path = heapless::String::<64>::new();
     unwrap!(uwrite!(&mut path, "/upload_data/{}", SerialNumber::new()));
-    let _builder = resource.post("/data");
 
-    // TODO
+    let samples = buffer.make_contiguous();
+    let _builder = resource.post("/data").body(&samples);
 
     // Upload successful, do not store in file.
     StoreMeasurement::DontStore

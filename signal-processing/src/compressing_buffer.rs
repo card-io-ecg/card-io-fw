@@ -125,6 +125,10 @@ impl<const N: usize> CompressingBuffer<N> {
     pub fn as_slices(&self) -> (&[u8], &[u8]) {
         self.buffer.as_slices()
     }
+
+    pub fn make_contiguous(&mut self) -> &[u8] {
+        self.buffer.make_contiguous()
+    }
 }
 
 #[cfg(test)]

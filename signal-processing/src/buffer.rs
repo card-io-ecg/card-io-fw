@@ -103,6 +103,83 @@ impl<T: Copy, const N: usize> Buffer<T, N> {
 
         start.iter().chain(end.iter()).copied()
     }
+
+    pub fn is_contiguous(&self) -> bool {
+        let (_head, tail) = self.slice_idxs();
+        tail.is_empty()
+    }
+
+    pub fn make_contiguous(&mut self) -> &[T]
+    where
+        T: core::fmt::Debug,
+    {
+        if !self.is_contiguous() {
+            let (head, tail) = self.slice_idxs();
+
+            let head_start = head.start;
+            let head_end = head.end;
+
+            let tail_start = tail.start;
+            let tail_end = tail.end;
+
+            let head_count = head_end - head_start;
+            let tail_count = tail_end - tail_start;
+            let buffer_count = self.len();
+            let free_count = self.capacity() - buffer_count;
+
+            // This algorithm is based on std::collections::VecDeque::make_contiguous
+            if free_count >= head_count {
+                // [B C . . A]
+                //  ^       ^ head
+                //  | tail
+                // Result: [A B C . .]
+
+                self.buffer.copy_within(tail_start..tail_end, head_count);
+                self.buffer.copy_within(head_start..head_end, 0);
+
+                self.write_idx = buffer_count;
+            } else if free_count >= tail_count {
+                // [D . A B C]
+                //  ^   ^ head
+                //  | tail
+                // Result: [. A B C D]
+
+                self.buffer.copy_within(head_start..head_end, tail_count);
+                self.buffer
+                    .copy_within(tail, head_end - head_start + tail_count);
+
+                self.write_idx = 0;
+            } else {
+                // move slices next to each other, then rotate
+
+                if head_count >= tail_count {
+                    // [D E . A B C]
+                    //  ^     ^ head
+                    //  | tail
+                    // After move:   [. D E A B C] tail < head -> rotate left
+                    // After rotate: [. A B C D E]
+                    self.buffer.copy_within(tail_start..tail_end, free_count);
+                    let buffer = &mut self.buffer[free_count..][..buffer_count];
+                    buffer.rotate_left(tail_count);
+
+                    self.write_idx = 0;
+                } else {
+                    // [C D E . A B]
+                    //  ^       ^ head
+                    //  | tail
+                    // After move:   [C D E A B .] tail < head -> rotate left
+                    // After rotate: [A B C D E .]
+                    self.buffer.copy_within(head_start..head_end, tail_count);
+                    let buffer = &mut self.buffer[..buffer_count];
+                    buffer.rotate_right(head_count);
+
+                    self.write_idx = buffer_count;
+                }
+            }
+        }
+
+        self.as_slices().0
+    }
 }
 
 #[cfg(test)]
@@ -197,5 +274,112 @@ mod test {
 
         let vector = buffer.iter().collect::<Vec<_>>();
         assert_eq!(vector, vec![4, 5]);
+    }
+
+    #[test]
+    fn make_contiguous_rearranges_internal_buffer_1() {
+        let mut buffer = super::Buffer::<u8, 5>::new();
+        buffer.push(1);
+        buffer.push(2);
+        buffer.push(3);
+        buffer.push(4);
+        buffer.push(5);
+        buffer.push(6);
+        buffer.push(7);
+
+        buffer.pop();
+        buffer.pop();
+
+        // Buffer layout:
+        // [6 7 . . 5]
+        //  ^       ^ head
+        //  | tail
+
+        assert!(!buffer.is_contiguous());
+
+        let contiguous = buffer.make_contiguous();
+        assert_eq!([5, 6, 7], contiguous);
+
+        assert!(buffer.is_contiguous());
+    }
+
+    #[test]
+    fn make_contiguous_rearranges_internal_buffer_2() {
+        let mut buffer = super::Buffer::<u8, 5>::new();
+        buffer.push(1);
+        buffer.push(2);
+        buffer.push(3);
+        buffer.push(4);
+        buffer.push(5);
+        buffer.push(6);
+
+        buffer.pop();
+
+        // Buffer layout:
+        // [6 . 3 4 5]
+        //  ^   ^ head
+        //  | tail
+
+        assert!(!buffer.is_contiguous());
+
+        let contiguous = buffer.make_contiguous();
+        assert_eq!([3, 4, 5, 6], contiguous);
+
+        assert!(buffer.is_contiguous());
+    }
+
+    #[test]
+    fn make_contiguous_rearranges_internal_buffer_3() {
+        let mut buffer = super::Buffer::<u8, 6>::new();
+        buffer.push(1);
+        buffer.push(2);
+        buffer.push(3);
+        buffer.push(4);
+        buffer.push(5);
+        buffer.push(6);
+        buffer.push(7);
+        buffer.push(8);
+
+        buffer.pop();
+
+        // Buffer layout:
+        // [7 8 . 4 5 6]
+        //  ^     ^ head
+        //  | tail
+
+        assert!(!buffer.is_contiguous());
+
+        let contiguous = buffer.make_contiguous();
+        assert_eq!([4, 5, 6, 7, 8], contiguous);
+
+        assert!(buffer.is_contiguous());
+    }
+
+    #[test]
+    fn make_contiguous_rearranges_internal_buffer_4() {
+        let mut buffer = super::Buffer::<u8, 6>::new();
+        buffer.push(1);
+        buffer.push(2);
+        buffer.push(3);
+        buffer.push(4);
+        buffer.push(5);
+        buffer.push(6);
+        buffer.push(7);
+        buffer.push(8);
+        buffer.push(9);
+
+        buffer.pop();
+
+        // Buffer layout:
+        // [7 8 9 . 5 6]
+        //  ^     ^ head
+        //  | tail
+
+        assert!(!buffer.is_contiguous());
+
+        let contiguous = buffer.make_contiguous();
+        assert_eq!([5, 6, 7, 8, 9], contiguous);
+
+        assert!(buffer.is_contiguous());
     }
 }
