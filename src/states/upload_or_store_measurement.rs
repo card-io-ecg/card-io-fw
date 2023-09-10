@@ -46,6 +46,11 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     } else {
         // Drop to free up 90kB of memory.
         mem::drop(buffer);
+
+        // Right now we're just assuming stored file is at most 90kB.
+        let mut buffer = Box::new([0u8; SIZE]);
+
+        upload_stored(board, &mut buffer).await;
     }
 
     next_state
@@ -133,6 +138,99 @@ async fn try_to_upload<const SIZE: usize>(
             StoreMeasurement::DontStore
         }
         Err(_) => StoreMeasurement::Store,
+    }
+}
+
+async fn upload_stored<const SIZE: usize>(board: &mut Board, buffer: &mut [u8; SIZE]) {
+    board.signal_sta_work_available();
+    let sta = if !board.config.known_networks.is_empty() {
+        // This call should handle the case where there are no files stored.
+        board.enable_wifi_sta(StaMode::OnDemand).await
+    } else {
+        board.disable_wifi().await;
+        None
+    };
+
+    let Some(sta) = sta else {
+        return;
+    };
+
+    if sta.connection_state() != ConnectionState::Connected {
+        while sta.wait_for_state_change().await == ConnectionState::Connecting {
+            display_message(board, "Connecting...").await;
+        }
+
+        if sta.connection_state() != ConnectionState::Connected {
+            // If we do not have a network connection, save to file.
+            return;
+        }
+    }
+
+    display_message(board, "Uploading stored measurements...").await;
+
+    let Some(storage) = board.storage.as_mut() else {
+        return;
+    };
+
+    let Ok(mut dir) = storage.read_dir().await else {
+        return;
+    };
+
+    let mut fn_buffer = [0; 64];
+
+    let mut resources = Box::new(Resources {
+        client_state: TcpClientState::new(),
+        rx_buffer: [0; 1024],
+    });
+
+    let client = TcpClient::new(sta.stack(), &resources.client_state);
+    let dns = DnsSocket::new(sta.stack());
+
+    let mut client = HttpClient::new(&client, &dns);
+
+    loop {
+        match dir.next(storage).await {
+            Ok(file) => {
+                let Some(file) = file else {
+                    return;
+                };
+
+                match file.name(storage, &mut fn_buffer).await {
+                    Ok(name) => {
+                        if name.starts_with("meas.") {
+                            let mut reader = file.open().await;
+
+                            let len = reader.read(storage, &mut buffer[..]).await.unwrap_or(0);
+                            let buffer = &buffer[..len];
+
+                            if let Err(e) = upload_measurement(
+                                &board.config.backend_url,
+                                &mut client,
+                                0,
+                                buffer,
+                                &mut resources.rx_buffer,
+                            )
+                            .await
+                            {
+                                warn!("Failed to upload {}: {:?}", name, e);
+                                return;
+                            }
+                        }
+                    }
+                    Err(StorageError::InsufficientBuffer) => {
+                        // not a measurement file, ignore
+                    }
+                    Err(e) => {
+                        warn!("Failed to read file name: {:?}", e);
+                        return;
+                    }
+                }
+            }
+            Err(e) => {
+                warn!("Failed to read directory: {:?}", e);
+                return;
+            }
+        }
     }
 }
 
