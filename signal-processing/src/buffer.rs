@@ -1,4 +1,4 @@
-use core::mem::MaybeUninit;
+use core::{mem::MaybeUninit, ops::Range};
 
 pub struct Buffer<T: Copy, const N: usize> {
     write_idx: usize,
@@ -72,16 +72,23 @@ impl<T: Copy, const N: usize> Buffer<T, N> {
         }
     }
 
-    pub fn as_slices(&self) -> (&[T], &[T]) {
+    fn slice_idxs(&self) -> (Range<usize>, Range<usize>) {
         let read_index = self.read_index();
 
-        let (start, end) = if read_index < self.write_idx {
-            (&self.buffer[read_index..self.write_idx], &[][..])
+        if read_index < self.write_idx {
+            (read_index..self.write_idx, 0..0)
         } else if !self.is_empty() {
-            (&self.buffer[read_index..], &self.buffer[0..self.write_idx])
+            (read_index..N, 0..self.write_idx)
         } else {
-            (&[][..], &[][..])
-        };
+            (0..0, 0..0)
+        }
+    }
+
+    pub fn as_slices(&self) -> (&[T], &[T]) {
+        let (start_range, end_range) = self.slice_idxs();
+
+        let start = &self.buffer[start_range];
+        let end = &self.buffer[end_range];
 
         unsafe {
             (
