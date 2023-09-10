@@ -1,9 +1,12 @@
+use core::mem;
+
 use alloc::boxed::Box;
 use embassy_net::{
     dns::DnsSocket,
     tcp::client::{TcpClient, TcpClientState},
 };
 use embassy_time::{Duration, Timer};
+use embedded_nal_async::{Dns, TcpConnect};
 use norfs::{medium::StorageMedium, writer::FileDataWriter, OnCollision, Storage, StorageError};
 use reqwless::{client::HttpClient, request::RequestBuilder};
 use signal_processing::compressing_buffer::CompressingBuffer;
@@ -27,21 +30,31 @@ enum StoreMeasurement {
 
 pub async fn upload_or_store_measurement<const SIZE: usize>(
     board: &mut Board,
-    buffer: &mut CompressingBuffer<SIZE>,
+    mut buffer: Box<CompressingBuffer<SIZE>>,
     next_state: AppState,
 ) -> AppState {
-    if try_to_upload(board, buffer).await == StoreMeasurement::Store {
-        if let Err(e) = try_store_measurement(board, buffer).await {
+    if try_to_upload(board, &mut buffer).await == StoreMeasurement::Store {
+        let store_result = try_store_measurement(board, &mut buffer).await;
+        buffer.clear();
+
+        if let Err(e) = store_result {
             display_message(board, "Could not store measurement").await;
             error!("Failed to store measurement: {:?}", e);
 
             Timer::after(Duration::from_secs(2)).await;
         }
+    } else {
+        // Drop to free up 90kB of memory.
+        mem::drop(buffer);
     }
 
-    buffer.clear();
-
     next_state
+}
+
+struct Resources {
+    //request_buffer: [u8; 2048],
+    client_state: TcpClientState<1, 1024, 1024>,
+    rx_buffer: [u8; 1024],
 }
 
 async fn try_to_upload<const SIZE: usize>(
@@ -95,15 +108,9 @@ async fn try_to_upload<const SIZE: usize>(
     ));
 
     display_message(board, uploading_msg.as_str()).await;
-
-    struct Resources {
-        //request_buffer: [u8; 2048],
-        client_state: TcpClientState<1, 1024, 1024>,
-        rx_buffer: [u8; 1024],
-    }
+    let samples = buffer.make_contiguous();
 
     let mut resources = Box::new(Resources {
-        //request_buffer: [0; 2048],
         client_state: TcpClientState::new(),
         rx_buffer: [0; 1024],
     });
@@ -112,33 +119,61 @@ async fn try_to_upload<const SIZE: usize>(
     let dns = DnsSocket::new(sta.stack());
 
     let mut client = HttpClient::new(&client, &dns);
+    match upload_measurement(
+        &board.config.backend_url,
+        &mut client,
+        0,
+        samples,
+        &mut resources.rx_buffer,
+    )
+    .await
+    {
+        Ok(_) => {
+            // Upload successful, do not store in file.
+            StoreMeasurement::DontStore
+        }
+        Err(_) => StoreMeasurement::Store,
+    }
+}
 
-    let mut resource = match client.resource(&board.config.backend_url).await {
+async fn upload_measurement<T, DNS>(
+    url: &str,
+    client: &mut HttpClient<'_, T, DNS>,
+    meas_timestamp: u64,
+    samples: &[u8],
+    rx_buffer: &mut [u8],
+) -> Result<(), ()>
+where
+    T: TcpConnect,
+    DNS: Dns,
+{
+    let mut resource = match client.resource(url).await {
         Ok(res) => res,
         Err(e) => {
             warn!("HTTP error: {}", e);
-            return StoreMeasurement::Store;
+            return Err(());
         }
     };
 
     let mut path = heapless::String::<32>::new();
     unwrap!(uwrite!(&mut path, "/upload_data/{}", SerialNumber::new()));
 
-    let samples = buffer.make_contiguous();
+    let mut timestamp = heapless::String::<32>::new();
+    unwrap!(uwrite!(&mut timestamp, "{}", meas_timestamp));
+
     let response = resource
         .post(&path)
-        .headers(&[("X-Timestamp", "0")]) // TODO
+        .headers(&[("X-Timestamp", timestamp.as_str())]) // TODO
         .body(samples)
-        .send(&mut resources.rx_buffer)
+        .send(rx_buffer)
         .await;
 
     if let Err(e) = response {
         warn!("HTTP error: {:?}", e);
-        return StoreMeasurement::Store;
+        return Err(());
     }
 
-    // Upload successful, do not store in file.
-    StoreMeasurement::DontStore
+    Ok(())
 }
 
 async fn try_store_measurement<const SIZE: usize>(

@@ -105,18 +105,14 @@ impl EcgObjects {
     }
 }
 
-static mut ECG_BUFFER: CompressingBuffer<ECG_BUFFER_SIZE> = CompressingBuffer::EMPTY;
-
 pub async fn measure(board: &mut Board) -> AppState {
     let filter = match board.config.filter_strength() {
         FilterStrength::None => HIGH_PASS_FOR_DISPLAY_NONE,
         FilterStrength::Weak => HIGH_PASS_FOR_DISPLAY_WEAK,
         FilterStrength::Strong => HIGH_PASS_FOR_DISPLAY_STRONG,
     };
+    let ecg_buffer = Box::new(CompressingBuffer::EMPTY);
     let mut ecg = Box::new(EcgObjects::new(filter));
-    let ecg_buffer = unsafe { &mut ECG_BUFFER };
-
-    ecg_buffer.clear();
 
     replace_with_or_abort_and_return_async(board, |board| async {
         measure_impl(board, &mut ecg, ecg_buffer).await
@@ -127,7 +123,7 @@ pub async fn measure(board: &mut Board) -> AppState {
 async fn measure_impl(
     mut board: Board,
     ecg: &mut EcgObjects,
-    ecg_buffer: &'static mut CompressingBuffer<ECG_BUFFER_SIZE>,
+    mut ecg_buffer: Box<CompressingBuffer<ECG_BUFFER_SIZE>>,
 ) -> (AppState, Board) {
     let mut frontend = match board.frontend.enable_async().await {
         Ok(frontend) => Box::new(frontend),

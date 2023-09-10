@@ -121,7 +121,7 @@ pub enum AppState {
     Menu(AppMenu),
     Error(AppError),
     Shutdown,
-    UploadOrStore(&'static mut CompressingBuffer<ECG_BUFFER_SIZE>),
+    UploadOrStore(Box<CompressingBuffer<ECG_BUFFER_SIZE>>),
 }
 
 impl core::fmt::Debug for AppState {
