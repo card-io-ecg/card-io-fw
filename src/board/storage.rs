@@ -12,8 +12,8 @@ impl InternalPartition for ConfigPartition {
     const SIZE: usize = 4032 * 1024;
 }
 
-static mut READ_CACHE: ReadCache<InternalDriver<ConfigPartition>, 256, 2> =
-    ReadCache::new(InternalDriver::new(ConfigPartition));
+type Cache = ReadCache<InternalDriver<ConfigPartition>, 256, 2>;
+static mut READ_CACHE: Cache = Cache::new(InternalDriver::new(ConfigPartition));
 
 mod token {
     use core::sync::atomic::{AtomicBool, Ordering};
@@ -27,12 +27,15 @@ mod token {
             let used = FS_USED.fetch_or(true, Ordering::Relaxed);
             assert!(!used);
 
+            debug!("Filesystem token taken");
+
             Self(())
         }
     }
 
     impl Drop for Token {
         fn drop(&mut self) {
+            debug!("Filesystem token dropped");
             FS_USED.store(false, Ordering::Relaxed);
         }
     }
@@ -41,7 +44,7 @@ mod token {
 use token::Token;
 
 pub struct FileSystem {
-    storage: Storage<&'static mut ReadCache<InternalDriver<ConfigPartition>, 256, 2>>,
+    storage: Storage<&'static mut Cache>,
     _token: Token,
 }
 
@@ -83,7 +86,7 @@ impl FileSystem {
 }
 
 impl Deref for FileSystem {
-    type Target = Storage<&'static mut ReadCache<InternalDriver<ConfigPartition>, 256, 2>>;
+    type Target = Storage<&'static mut Cache>;
 
     fn deref(&self) -> &Self::Target {
         &self.storage
