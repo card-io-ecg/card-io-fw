@@ -1,9 +1,10 @@
 use crate::{
     board::{
         initialized::{Board, StaMode},
+        storage::FileSystem,
         wifi::sta::Sta,
     },
-    states::{AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
+    states::{display_message, AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
     timeout::Timeout,
     AppState,
 };
@@ -52,6 +53,12 @@ pub async fn storage_menu(board: &mut Board) -> AppState {
         if let Some(event) = menu_screen.content.interact(is_touched) {
             match event {
                 StorageMenuEvents::Format => {
+                    info!("Format requested");
+                    display_message(board, "Formatting storage...").await;
+                    core::mem::drop(board.storage.take());
+                    FileSystem::format().await;
+                    board.storage = FileSystem::mount().await;
+
                     return AppState::Menu(AppMenu::Main);
                 }
                 StorageMenuEvents::Back => {

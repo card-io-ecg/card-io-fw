@@ -1,7 +1,4 @@
-use core::{
-    ops::{Deref, DerefMut},
-    sync::atomic::{AtomicBool, Ordering},
-};
+use core::ops::{Deref, DerefMut};
 
 use norfs::{
     drivers::internal::{InternalDriver, InternalPartition},
@@ -18,23 +15,30 @@ impl InternalPartition for ConfigPartition {
 static mut READ_CACHE: ReadCache<InternalDriver<ConfigPartition>, 256, 2> =
     ReadCache::new(InternalDriver::new(ConfigPartition));
 
-static FS_USED: AtomicBool = AtomicBool::new(false);
+mod token {
+    use core::sync::atomic::{AtomicBool, Ordering};
 
-struct Token;
-impl Token {
-    fn take() -> Self {
-        let used = FS_USED.fetch_or(true, Ordering::Relaxed);
-        assert!(!used);
+    static FS_USED: AtomicBool = AtomicBool::new(false);
 
-        Self
+    pub struct Token(());
+
+    impl Token {
+        pub fn take() -> Self {
+            let used = FS_USED.fetch_or(true, Ordering::Relaxed);
+            assert!(!used);
+
+            Self(())
+        }
+    }
+
+    impl Drop for Token {
+        fn drop(&mut self) {
+            FS_USED.store(false, Ordering::Relaxed);
+        }
     }
 }
 
-impl Drop for Token {
-    fn drop(&mut self) {
-        FS_USED.store(false, Ordering::Relaxed);
-    }
-}
+use token::Token;
 
 pub struct FileSystem {
     storage: Storage<&'static mut ReadCache<InternalDriver<ConfigPartition>, 256, 2>>,
@@ -65,6 +69,15 @@ impl FileSystem {
                 error!("Failed to mount storage: {:?}", e);
                 None
             }
+        }
+    }
+
+    pub async fn format() {
+        let _ = Token::take();
+
+        info!("Formatting storage");
+        if let Err(e) = Storage::format(&mut InternalDriver::new(ConfigPartition)).await {
+            error!("Failed to format storage: {:?}", e);
         }
     }
 }
