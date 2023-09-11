@@ -61,7 +61,7 @@ pub async fn storage_menu(board: &mut Board) -> AppState {
 
                     return AppState::Menu(AppMenu::Main);
                 }
-                StorageMenuEvents::Upload => {}
+                StorageMenuEvents::Upload => return AppState::UploadStored(AppMenu::Storage),
                 StorageMenuEvents::Back => {
                     board.save_config().await;
                     return AppState::Menu(AppMenu::Main);

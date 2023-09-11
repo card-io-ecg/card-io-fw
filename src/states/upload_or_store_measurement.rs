@@ -31,6 +31,11 @@ enum StoreMeasurement {
     DontStore,
 }
 
+pub async fn upload_stored_measurements(board: &mut Board, next_state: AppState) -> AppState {
+    upload_stored(board).await;
+    next_state
+}
+
 pub async fn upload_or_store_measurement<const SIZE: usize>(
     board: &mut Board,
     mut buffer: Box<CompressingBuffer<SIZE>>,
@@ -47,14 +52,14 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
 
             Timer::after(Duration::from_secs(2)).await;
         }
+
+        next_state
     } else {
         // Drop to free up 90kB of memory.
         mem::drop(buffer);
 
-        upload_stored(board).await;
+        upload_stored_measurements(board, next_state).await
     }
-
-    next_state
 }
 
 struct Resources {

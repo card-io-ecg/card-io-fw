@@ -26,7 +26,7 @@ pub use menu::{
     about::about_menu, display::display_menu, main::main_menu, storage::storage_menu,
     wifi_ap::wifi_ap, wifi_sta::wifi_sta, AppMenu,
 };
-pub use upload_or_store_measurement::upload_or_store_measurement;
+pub use upload_or_store_measurement::{upload_or_store_measurement, upload_stored_measurements};
 
 const TARGET_FPS: u32 = 100;
 const MIN_FRAME_TIME: Duration = Duration::from_hz(TARGET_FPS as u64);
