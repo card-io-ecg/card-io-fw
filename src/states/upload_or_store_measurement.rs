@@ -1,6 +1,6 @@
-use core::mem;
+use core::mem::{self, MaybeUninit};
 
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec::Vec};
 use embassy_net::{
     dns::DnsSocket,
     tcp::client::{TcpClient, TcpClientState},
@@ -47,10 +47,7 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
         // Drop to free up 90kB of memory.
         mem::drop(buffer);
 
-        // Right now we're just assuming stored file is at most 90kB.
-        let mut buffer = Box::new([0u8; SIZE]);
-
-        upload_stored(board, &mut buffer).await;
+        upload_stored(board).await;
     }
 
     next_state
@@ -141,7 +138,7 @@ async fn try_to_upload<const SIZE: usize>(
     }
 }
 
-async fn upload_stored<const SIZE: usize>(board: &mut Board, buffer: &mut [u8; SIZE]) {
+async fn upload_stored(board: &mut Board) {
     board.signal_sta_work_available();
     let sta = if !board.config.known_networks.is_empty() {
         // This call should handle the case where there are no files stored.
@@ -198,16 +195,27 @@ async fn upload_stored<const SIZE: usize>(board: &mut Board, buffer: &mut [u8; S
                 match file.name(storage, &mut fn_buffer).await {
                     Ok(name) => {
                         if name.starts_with("meas.") {
-                            let mut reader = file.open().await;
+                            let Ok(size) = file.size(storage).await else {
+                                warn!("Failed to read size of {}", name);
+                                continue;
+                            };
 
-                            let len = reader.read(storage, &mut buffer[..]).await.unwrap_or(0);
-                            let buffer = &buffer[..len];
+                            let Ok(mut buffer) = buffer_with_capacity(size, 0) else {
+                                warn!("Failed to allocate {} bytes for {}", size, name);
+                                continue;
+                            };
+
+                            let mut reader = file.open().await;
+                            if let Err(e) = reader.read_all(storage, buffer.as_mut()).await {
+                                warn!("Failed to read {}: {:?}", name, e);
+                                continue;
+                            };
 
                             if let Err(e) = upload_measurement(
                                 &board.config.backend_url,
                                 &mut client,
                                 0,
-                                buffer,
+                                buffer.as_ref(),
                                 &mut resources.rx_buffer,
                             )
                             .await
@@ -232,6 +240,23 @@ async fn upload_stored<const SIZE: usize>(board: &mut Board, buffer: &mut [u8; S
             }
         }
     }
+}
+
+fn buffer_with_capacity<T: Copy>(size: usize, init_val: T) -> Result<Box<[T]>, ()> {
+    let mut buffer = Vec::new();
+
+    if buffer.try_reserve_exact(size).is_err() {
+        return Err(());
+    }
+
+    unsafe {
+        let uninit = buffer.spare_capacity_mut();
+        uninit.fill(MaybeUninit::new(init_val));
+        let len = uninit.len();
+        buffer.set_len(len);
+    }
+
+    Ok(buffer.into_boxed_slice())
 }
 
 async fn upload_measurement<T, DNS>(

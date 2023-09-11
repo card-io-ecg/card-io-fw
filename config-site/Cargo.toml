@@ -13,7 +13,7 @@ embedded-io = { workspace = true, optional = true }
 heapless = { workspace = true }
 logger = { workspace = true }
 log = { workspace = true, optional = true }
-norfs = { git = "https://github.com/card-io-ecg/norfs.git", optional = true }
+norfs = { workspace = true, optional = true }
 smol = { version = "1.3", optional = true }
 
 [build-dependencies]
