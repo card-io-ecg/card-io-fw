@@ -1,19 +1,21 @@
 pub mod current;
 pub mod v1;
 pub mod v2;
+pub mod v3;
 
 pub use current::Config;
 
 use embedded_io::asynch::Read;
 use norfs::storable::{LoadError, Loadable};
 
-const CURRENT_VERSION: u8 = 2;
+const CURRENT_VERSION: u8 = 3;
 
 #[derive(Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum ConfigFile {
     V1(v1::Config),
     V2(v2::Config),
+    V3(v3::Config),
     Current(Config),
 }
 
@@ -34,6 +36,9 @@ impl ConfigFile {
             self = Self::V2(v2::Config::from(config));
         }
         if let Self::V2(config) = self {
+            self = Self::V3(v3::Config::from(config));
+        }
+        if let Self::V3(config) = self {
             self = Self::Current(Config::from(config));
         }
 

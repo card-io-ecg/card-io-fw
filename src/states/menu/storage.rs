@@ -24,7 +24,7 @@ pub async fn storage_menu(board: &mut Board) -> AppState {
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
 
     let mut menu_values = StorageMenu {
-        store_measurement: false,
+        store_measurement: board.config.store_measurement,
     };
 
     let mut menu_screen = Screen {
@@ -79,8 +79,8 @@ pub async fn storage_menu(board: &mut Board) -> AppState {
             debug!("Settings changed");
             let new = *menu_screen.content.data();
             if menu_values.store_measurement != new.store_measurement {
-                // board.config_changed = true;
-                // board.config.store_measurement = new.store_measurement;
+                board.config_changed = true;
+                board.config.store_measurement = new.store_measurement;
             }
 
             menu_values = new;
