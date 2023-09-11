@@ -3,6 +3,7 @@ use crate::{
         config::Config,
         drivers::battery_monitor::BatteryMonitor,
         hal::{clock::Clocks, system::PeripheralClockControl},
+        storage::ConfigPartition,
         wifi::{ap::Ap, WifiDriver},
         ChargerStatus, EcgFrontend, PoweredDisplay, VbusDetect,
     },
@@ -10,19 +11,9 @@ use crate::{
 };
 use embassy_executor::SendSpawner;
 use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
-use norfs::{
-    drivers::internal::{InternalDriver, InternalPartition},
-    medium::cache::ReadCache,
-    OnCollision, Storage,
-};
+use norfs::{drivers::internal::InternalDriver, medium::cache::ReadCache, OnCollision, Storage};
 
 use super::wifi::sta::Sta;
-
-pub struct ConfigPartition;
-impl InternalPartition for ConfigPartition {
-    const OFFSET: usize = 0x410000;
-    const SIZE: usize = 4032 * 1024;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum StaMode {

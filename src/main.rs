@@ -24,11 +24,7 @@ use embassy_sync::{
     mutex::{Mutex, MutexGuard},
 };
 use embassy_time::{Duration, Timer};
-use norfs::{
-    drivers::internal::InternalDriver,
-    medium::{cache::ReadCache, StorageMedium},
-    Storage, StorageError,
-};
+use norfs::{medium::StorageMedium, Storage, StorageError};
 use signal_processing::compressing_buffer::CompressingBuffer;
 use static_cell::{make_static, StaticCell};
 
@@ -57,8 +53,9 @@ use crate::{
             rtc_cntl::sleep::{RtcioWakeupSource, WakeupLevel},
             Delay,
         },
-        initialized::{Board, ConfigPartition},
+        initialized::Board,
         startup::StartupResources,
+        storage::setup_storage,
         TouchDetect,
     },
     states::{
@@ -178,29 +175,6 @@ fn main() -> ! {
     executor.run(move |spawner| {
         spawner.spawn(main_task(spawner, resources)).ok();
     })
-}
-
-async fn setup_storage(
-) -> Option<&'static mut Storage<&'static mut ReadCache<InternalDriver<ConfigPartition>, 256, 2>>> {
-    static mut READ_CACHE: ReadCache<InternalDriver<ConfigPartition>, 256, 2> =
-        ReadCache::new(InternalDriver::new(ConfigPartition));
-
-    let storage = match Storage::mount(unsafe { &mut READ_CACHE }).await {
-        Ok(storage) => Ok(storage),
-        Err(StorageError::NotFormatted) => {
-            info!("Formatting storage");
-            Storage::format_and_mount(unsafe { &mut READ_CACHE }).await
-        }
-        e => e,
-    };
-
-    match storage {
-        Ok(storage) => Some(make_static!(storage)),
-        Err(e) => {
-            error!("Failed to mount storage: {:?}", e);
-            None
-        }
-    }
 }
 
 async fn load_config<M: StorageMedium>(storage: Option<&mut Storage<M>>) -> &'static mut Config
