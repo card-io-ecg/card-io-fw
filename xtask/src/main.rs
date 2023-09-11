@@ -135,6 +135,7 @@ fn build(hw: HardwareVersion, opt: Option<BuildVariant>) -> AnyResult<()> {
         "--chip",
         "esp32s3",
         "--target=xtensa-esp32s3-none-elf",
+        "-s4mb",
         &format!("--features={}", hw.feature()),
         "-Zbuild-std=core,alloc",
         "target/card_io_fw.bin",
