@@ -3,17 +3,15 @@ use crate::{
         config::Config,
         drivers::battery_monitor::BatteryMonitor,
         hal::{clock::Clocks, system::PeripheralClockControl},
-        storage::ConfigPartition,
-        wifi::{ap::Ap, WifiDriver},
+        storage::FileSystem,
+        wifi::{ap::Ap, sta::Sta, WifiDriver},
         ChargerStatus, EcgFrontend, PoweredDisplay, VbusDetect,
     },
     saved_measurement_exists,
 };
 use embassy_executor::SendSpawner;
 use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
-use norfs::{drivers::internal::InternalDriver, medium::cache::ReadCache, OnCollision, Storage};
-
-use super::wifi::sta::Sta;
+use norfs::OnCollision;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum StaMode {
@@ -31,9 +29,7 @@ pub struct Board {
     pub wifi: &'static mut WifiDriver,
     pub config: &'static mut Config,
     pub config_changed: bool,
-    pub storage: Option<
-        &'static mut Storage<&'static mut ReadCache<InternalDriver<ConfigPartition>, 256, 2>>,
-    >,
+    pub storage: Option<FileSystem>,
     pub sta_work_available: Option<bool>,
 }
 

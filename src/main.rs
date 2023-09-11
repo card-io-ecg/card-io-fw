@@ -55,7 +55,7 @@ use crate::{
         },
         initialized::Board,
         startup::StartupResources,
-        storage::setup_storage,
+        storage::FileSystem,
         TouchDetect,
     },
     states::{
@@ -270,7 +270,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
         hal::interrupt::Priority::Priority3,
     ));
 
-    let mut storage = setup_storage().await;
+    let mut storage = FileSystem::mount().await;
     let config = load_config(storage.as_deref_mut()).await;
     let mut display = unwrap!(resources.display.enable().await.ok());
 
