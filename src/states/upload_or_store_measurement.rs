@@ -37,9 +37,9 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     next_state: AppState,
 ) -> AppState {
     let samples = buffer.make_contiguous();
-    if try_to_upload(board, samples).await == StoreMeasurement::Store {
+    let upload_result = try_to_upload(board, samples).await;
+    if upload_result == StoreMeasurement::Store && board.config.store_measurement {
         let store_result = try_store_measurement(board, samples).await;
-        buffer.clear();
 
         if let Err(e) = store_result {
             display_message(board, "Could not store measurement").await;
