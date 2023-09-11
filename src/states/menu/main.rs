@@ -16,6 +16,7 @@ pub enum MainMenuEvents {
     About,
     WifiSetup,
     WifiListVisible,
+    Storage,
     Shutdown,
 }
 
@@ -25,13 +26,16 @@ pub async fn main_menu(board: &mut Board) -> AppState {
 
     let builder = Menu::with_style("Main menu", menu_style());
 
-    let mut items = heapless::Vec::<_, 4>::new();
+    let mut items = heapless::Vec::<_, 5>::new();
 
     unwrap!(items
         .push(NavigationItem::new(
             "Display settings",
             MainMenuEvents::Display,
         ))
+        .ok());
+    unwrap!(items
+        .push(NavigationItem::new("Storage", MainMenuEvents::Storage))
         .ok());
     unwrap!(items
         .push(NavigationItem::new("Device info", MainMenuEvents::About))
@@ -74,6 +78,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
                 MainMenuEvents::About => return AppState::Menu(AppMenu::DeviceInfo),
                 MainMenuEvents::WifiSetup => return AppState::Menu(AppMenu::WifiAP),
                 MainMenuEvents::WifiListVisible => return AppState::Menu(AppMenu::WifiListVisible),
+                MainMenuEvents::Storage => return AppState::Menu(AppMenu::Storage),
                 MainMenuEvents::Shutdown => return AppState::Shutdown,
             };
         }

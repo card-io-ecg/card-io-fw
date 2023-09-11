@@ -333,6 +333,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
             AppState::Measure => measure(&mut board).await,
             AppState::Menu(AppMenu::Main) => main_menu(&mut board).await,
             AppState::Menu(AppMenu::Display) => display_menu(&mut board).await,
+            AppState::Menu(AppMenu::Storage) => todo!(),
             AppState::Menu(AppMenu::DeviceInfo) => about_menu(&mut board).await,
             AppState::Menu(AppMenu::WifiAP) => wifi_ap(&mut board).await,
             AppState::Menu(AppMenu::WifiListVisible) => wifi_sta(&mut board).await,

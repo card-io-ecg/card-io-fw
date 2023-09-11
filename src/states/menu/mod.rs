@@ -11,6 +11,7 @@ pub mod wifi_sta;
 pub enum AppMenu {
     Main,
     Display,
+    Storage,
     DeviceInfo,
     #[cfg(feature = "battery_max17055")]
     BatteryInfo,
