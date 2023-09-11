@@ -63,7 +63,7 @@ use crate::{
     },
     states::{
         about_menu, adc_setup, charging, display_menu, initialize, main_menu, measure,
-        upload_or_store_measurement, wifi_ap, wifi_sta, AppMenu, ECG_BUFFER_SIZE,
+        storage_menu, upload_or_store_measurement, wifi_ap, wifi_sta, AppMenu, ECG_BUFFER_SIZE,
     },
 };
 
@@ -333,7 +333,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
             AppState::Measure => measure(&mut board).await,
             AppState::Menu(AppMenu::Main) => main_menu(&mut board).await,
             AppState::Menu(AppMenu::Display) => display_menu(&mut board).await,
-            AppState::Menu(AppMenu::Storage) => todo!(),
+            AppState::Menu(AppMenu::Storage) => storage_menu(&mut board).await,
             AppState::Menu(AppMenu::DeviceInfo) => about_menu(&mut board).await,
             AppState::Menu(AppMenu::WifiAP) => wifi_ap(&mut board).await,
             AppState::Menu(AppMenu::WifiListVisible) => wifi_sta(&mut board).await,

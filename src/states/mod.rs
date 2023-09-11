@@ -23,8 +23,8 @@ pub use measure::{measure, ECG_BUFFER_SIZE};
 #[cfg(feature = "battery_max17055")]
 pub use menu::battery_info::battery_info_menu;
 pub use menu::{
-    about::about_menu, display::display_menu, main::main_menu, wifi_ap::wifi_ap,
-    wifi_sta::wifi_sta, AppMenu,
+    about::about_menu, display::display_menu, main::main_menu, storage::storage_menu,
+    wifi_ap::wifi_ap, wifi_sta::wifi_sta, AppMenu,
 };
 pub use upload_or_store_measurement::upload_or_store_measurement;
 
