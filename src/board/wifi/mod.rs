@@ -32,6 +32,14 @@ pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
 pub mod ap;
 pub mod sta;
 
+#[derive(Default, PartialEq)]
+pub enum GenericConnectionState {
+    Sta(sta::ConnectionState),
+    Ap(ap::ApConnectionState),
+    #[default]
+    Disabled,
+}
+
 pub struct WifiDriver {
     wifi: Wifi,
     rng: Rng,
@@ -42,6 +50,20 @@ struct WifiInitResources {
     timer: Timer<Timer0<TIMG1>>,
     rng: Rng,
     rcc: RadioClockControl,
+}
+
+pub enum WifiHandle {
+    Ap(Ap),
+    Sta(Sta),
+}
+
+impl WifiHandle {
+    fn connection_state(&self) -> GenericConnectionState {
+        match self {
+            WifiHandle::Ap(ap) => GenericConnectionState::Ap(ap.connection_state()),
+            WifiHandle::Sta(sta) => GenericConnectionState::Sta(sta.connection_state()),
+        }
+    }
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -128,19 +150,15 @@ impl WifiDriverState {
         }
     }
 
-    fn as_ap(&self) -> Option<Ap> {
-        if let WifiDriverState::Ap(ap, _) = self {
-            unsafe { ap.assume_init_read().handle() }
-        } else {
-            None
-        }
-    }
-
-    fn as_sta(&self) -> Option<Sta> {
-        if let WifiDriverState::Sta(sta, _) = self {
-            unsafe { sta.assume_init_read().handle() }
-        } else {
-            None
+    fn handle(&self) -> Option<WifiHandle> {
+        match self {
+            WifiDriverState::Sta(sta, _) => unsafe {
+                sta.assume_init_ref().handle().map(WifiHandle::Sta)
+            },
+            WifiDriverState::Ap(ap, _) => unsafe {
+                ap.assume_init_ref().handle().map(WifiHandle::Ap)
+            },
+            _ => None,
         }
     }
 }
@@ -271,12 +289,14 @@ impl WifiDriver {
         }
     }
 
-    pub fn as_ap(&self) -> Option<Ap> {
-        self.state.as_ap()
+    pub fn handle(&self) -> Option<WifiHandle> {
+        self.state.handle()
     }
 
-    pub fn as_sta(&self) -> Option<Sta> {
-        self.state.as_sta()
+    pub fn connection_state(&self) -> GenericConnectionState {
+        self.handle()
+            .map(|handle| handle.connection_state())
+            .unwrap_or_default()
     }
 }
 

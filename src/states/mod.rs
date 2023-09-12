@@ -14,7 +14,11 @@ pub use charging::charging;
 pub use error::app_error;
 use gui::{
     screens::{message::MessageScreen, screen::Screen},
-    widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
+    widgets::{
+        battery_small::Battery,
+        status_bar::StatusBar,
+        wifi::{WifiState, WifiStateView},
+    },
 };
 pub use init::initialize;
 pub use measure::{measure, ECG_BUFFER_SIZE};
@@ -36,7 +40,7 @@ const WEBSERVER_TASKS: usize = 2;
 
 use signal_processing::lerp::interpolate;
 
-use crate::board::{initialized::Board, EcgFrontend};
+use crate::board::{initialized::Board, wifi::GenericConnectionState, EcgFrontend};
 
 /// Simple utility to process touch events in an interactive menu.
 pub struct TouchInputShaper<'a> {
@@ -91,4 +95,14 @@ async fn display_message(board: &mut Board, message: &str) {
             .draw(display)
         })
         .await;
+}
+
+impl From<GenericConnectionState> for WifiState {
+    fn from(state: GenericConnectionState) -> Self {
+        match state {
+            GenericConnectionState::Sta(state) => state.into(),
+            GenericConnectionState::Ap(state) => state.into(),
+            GenericConnectionState::Disabled => WifiState::NotConnected,
+        }
+    }
 }
