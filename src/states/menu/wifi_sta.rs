@@ -58,13 +58,9 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
             exit_timer.reset();
         }
 
-        let battery_data = board.battery_monitor.battery_data();
-
         #[cfg(feature = "battery_max17055")]
-        if let Some(battery) = battery_data {
-            if battery.is_low {
-                return AppState::Shutdown;
-            }
+        if board.battery_monitor.is_low() {
+            return AppState::Shutdown;
         }
 
         let mut menu_screen = Screen {

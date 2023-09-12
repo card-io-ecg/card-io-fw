@@ -47,10 +47,8 @@ pub async fn display_menu(board: &mut Board) -> AppState {
         }
 
         #[cfg(feature = "battery_max17055")]
-        if let Some(battery) = board.battery_monitor.battery_data() {
-            if battery.is_low {
-                return AppState::Shutdown;
-            }
+        if board.battery_monitor.is_low() {
+            return AppState::Shutdown;
         }
 
         menu_screen.status_bar = board.status_bar();

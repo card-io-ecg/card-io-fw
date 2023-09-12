@@ -69,7 +69,10 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
 
     pub fn battery_data(&mut self) -> Option<BatteryInfo> {
         self.load_battery_data();
+        self.last_battery_data()
+    }
 
+    fn last_battery_data(&self) -> Option<BatteryInfo> {
         self.last_battery_state
             .data
             .map(|data| self.convert_battery_data(data))
@@ -81,6 +84,12 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
 
     pub fn is_charging(&self) -> bool {
         unwrap!(self.charger_status.is_low().ok())
+    }
+
+    pub fn is_low(&self) -> bool {
+        self.last_battery_data()
+            .map(|data| data.is_low)
+            .unwrap_or(false)
     }
 
     #[allow(unused)]

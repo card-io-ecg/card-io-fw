@@ -87,10 +87,8 @@ pub async fn battery_info_menu(board: &mut Board) -> AppState {
             };
         }
 
-        if let Some(battery) = board.battery_monitor.battery_data() {
-            if battery.is_low {
-                return AppState::Shutdown;
-            }
+        if board.battery_monitor.is_low() {
+            return AppState::Shutdown;
         }
 
         board

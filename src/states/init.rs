@@ -22,10 +22,8 @@ pub async fn initialize(board: &mut Board) -> AppState {
             return AppState::Shutdown;
         }
 
-        if let Some(battery) = board.battery_monitor.battery_data() {
-            if battery.is_low {
-                return AppState::Shutdown;
-            }
+        if board.battery_monitor.is_low() {
+            return AppState::Shutdown;
         }
 
         let init_screen = Screen {

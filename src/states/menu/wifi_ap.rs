@@ -56,15 +56,11 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         input.update(&mut board.frontend);
         let is_touched = input.is_touched();
 
-        let battery_data = board.battery_monitor.battery_data();
-
         #[cfg(feature = "battery_max17055")]
         // We only enable this check for fuel gauges because enabling wifi modifies ADC readings
         // and the board would shut down immediately.
-        if let Some(battery) = battery_data {
-            if battery.is_low {
-                break;
-            }
+        if board.battery_monitor.is_low() {
+            break;
         }
 
         screen.status_bar = board.status_bar();
