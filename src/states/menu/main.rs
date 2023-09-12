@@ -26,14 +26,9 @@ pub enum MainMenuEvents {
 }
 
 pub async fn main_menu(board: &mut Board) -> AppState {
-    let sta = if !board.config.known_networks.is_empty() {
-        // Enable wifi STA. This enabled wifi for the whole menu and re-enables when the user exits
-        // the wifi AP config menu.
-        board.enable_wifi_sta(StaMode::OnDemand).await
-    } else {
-        board.disable_wifi().await;
-        None
-    };
+    // Enable wifi STA. This enabled wifi for the whole menu and re-enables when the user exits
+    // the wifi AP config menu.
+    let sta = board.enable_wifi_sta(StaMode::OnDemand).await;
 
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     info!("Free heap: {} bytes", ALLOCATOR.free());

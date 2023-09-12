@@ -23,12 +23,8 @@ pub enum BatteryEvents {
 }
 
 pub async fn battery_info_menu(board: &mut Board) -> AppState {
-    let sta = if !board.config.known_networks.is_empty() {
-        board.enable_wifi_sta(StaMode::OnDemand).await
-    } else {
-        board.wifi.stop_if().await;
-        None
-    };
+    let sta = board.enable_wifi_sta(StaMode::OnDemand).await;
+
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     let mut menu_state = Default::default();
 

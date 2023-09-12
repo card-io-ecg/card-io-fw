@@ -90,6 +90,7 @@ impl Board {
 
     pub async fn enable_wifi_sta(&mut self, mode: StaMode) -> Option<Sta> {
         let can_enable = self.can_enable_wifi()
+            && !self.config.known_networks.is_empty()
             && match mode {
                 StaMode::Enable => true,
                 StaMode::OnDemand => self.sta_has_work().await,
