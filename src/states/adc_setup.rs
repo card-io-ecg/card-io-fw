@@ -1,6 +1,6 @@
 use crate::{
-    board::initialized::Board, replace_with::replace_with_or_abort_and_return_async, AppError,
-    AppState,
+    board::initialized::Board, replace_with::replace_with_or_abort_and_return_async,
+    states::display_message_while_touched, AppState,
 };
 
 /// Ensures that the ADC does not keep the touch detector circuit disabled.
@@ -19,7 +19,9 @@ pub async fn adc_setup(board: &mut Board) -> AppState {
             }
             Err((fe, _err)) => {
                 board.frontend = fe;
-                (AppState::Error(AppError::Adc), board)
+
+                display_message_while_touched(&mut board, "ADC error").await;
+                (AppState::Shutdown, board)
             }
         }
     })

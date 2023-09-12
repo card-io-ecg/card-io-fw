@@ -6,11 +6,12 @@ use crate::{
     },
     replace_with::replace_with_or_abort_and_return_async,
     states::{
+        display_message_while_touched,
         init::{INIT_TIME, MENU_THRESHOLD},
         to_progress, AppMenu, MIN_FRAME_TIME,
     },
     timeout::Timeout,
-    AppError, AppState,
+    AppState,
 };
 use ads129x::{descriptors::PinState, Error, Sample};
 use alloc::boxed::Box;
@@ -129,7 +130,10 @@ async fn measure_impl(
         Ok(frontend) => Box::new(frontend),
         Err((fe, _err)) => {
             board.frontend = fe;
-            return (AppState::Error(AppError::Adc), board);
+
+            display_message_while_touched(&mut board, "ADC error").await;
+
+            return (AppState::Shutdown, board);
         }
     };
 
@@ -154,7 +158,9 @@ async fn measure_impl(
 
     if ret.is_err() {
         board.frontend = frontend.shut_down().await;
-        return (AppState::Error(AppError::Adc), board);
+        display_message_while_touched(&mut board, "ADC error").await;
+
+        return (AppState::Shutdown, board);
     }
 
     let queue = CHANNEL.init(MessageQueue::new());

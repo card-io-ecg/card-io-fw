@@ -1,6 +1,5 @@
 mod adc_setup;
 mod charging;
-mod error;
 mod init;
 mod measure;
 mod menu;
@@ -11,7 +10,6 @@ use embedded_graphics::Drawable;
 
 pub use adc_setup::adc_setup;
 pub use charging::charging;
-pub use error::app_error;
 use gui::{
     screens::{message::MessageScreen, screen::Screen},
     widgets::{
