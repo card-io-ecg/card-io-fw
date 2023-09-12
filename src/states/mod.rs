@@ -86,12 +86,19 @@ async fn display_message(board: &mut Board, message: &str) {
         .frame(|display| {
             Screen {
                 content: MessageScreen { message },
-
                 status_bar,
             }
             .draw(display)
         })
         .await;
+}
+
+async fn display_message_while_touched(board: &mut Board, message: &str) {
+    let mut ticker = embassy_time::Ticker::every(MIN_FRAME_TIME);
+    while board.frontend.is_touched() && !board.battery_monitor.is_low() {
+        display_message(board, message).await;
+        ticker.next().await;
+    }
 }
 
 impl Board {
