@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+#![feature(allocator_api)] // Box::try_new
 #![feature(async_fn_in_trait)]
 #![feature(type_alias_impl_trait)]
 #![feature(impl_trait_projections)]
