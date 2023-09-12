@@ -13,7 +13,7 @@ use crate::{
     timeout::Timeout,
     AppState,
 };
-use ads129x::{descriptors::PinState, Error, Sample};
+use ads129x::{Error, Sample};
 use alloc::boxed::Box;
 use embassy_executor::_export::StaticCell;
 use embassy_sync::{
@@ -137,30 +137,22 @@ async fn measure_impl(
         }
     };
 
-    let ret = match frontend.read_clksel().await {
-        Ok(PinState::Low) => {
-            info!("CLKSEL low, enabling faster clock speeds");
-            let result = frontend.enable_fast_clock().await;
-
-            if result.is_ok() {
-                frontend
-                    .spi_mut()
-                    .bus_mut()
-                    .change_bus_frequency(4u32.MHz(), &board.clocks);
-            }
-
-            result
+    match frontend.set_clock_source().await {
+        Ok(true) => {
+            frontend
+                .spi_mut()
+                .bus_mut()
+                .change_bus_frequency(4u32.MHz(), &board.clocks);
         }
 
-        Ok(PinState::High) => Ok(()),
-        Err(e) => Err(e),
-    };
+        Err(_e) => {
+            board.frontend = frontend.shut_down().await;
+            display_message_while_touched(&mut board, "ADC error").await;
 
-    if ret.is_err() {
-        board.frontend = frontend.shut_down().await;
-        display_message_while_touched(&mut board, "ADC error").await;
+            return (AppState::Shutdown, board);
+        }
 
-        return (AppState::Shutdown, board);
+        _ => {}
     }
 
     let queue = CHANNEL.init(MessageQueue::new());

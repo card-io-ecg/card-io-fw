@@ -204,6 +204,22 @@ where
         Ok(())
     }
 
+    pub async fn set_clock_source(&mut self) -> Result<bool, Error<S::Error>> {
+        match self.read_clksel().await {
+            Ok(PinState::Low) => {
+                info!("CLKSEL low, enabling faster clock speeds");
+                self.enable_fast_clock().await?;
+                Ok(true)
+            }
+
+            Ok(PinState::High) => Ok(false),
+            Err(e) => {
+                warn!("Failed to read CLKSEL");
+                Err(e)
+            }
+        }
+    }
+
     #[allow(unused)]
     pub async fn enable_rdatac(&mut self) -> Result<(), Error<S::Error>> {
         self.frontend
