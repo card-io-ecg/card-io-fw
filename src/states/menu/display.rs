@@ -1,26 +1,18 @@
 use crate::{
-    board::{
-        initialized::{Board, StaMode},
-        wifi::sta::Sta,
-    },
+    board::initialized::Board,
     states::{AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
     timeout::Timeout,
     AppState,
 };
 use embassy_time::Ticker;
 use embedded_graphics::prelude::*;
-use gui::{
-    screens::{
-        display_menu::{DisplayMenu, DisplayMenuEvents},
-        menu_style,
-        screen::Screen,
-    },
-    widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
+use gui::screens::{
+    display_menu::{DisplayMenu, DisplayMenuEvents},
+    menu_style,
+    screen::Screen,
 };
 
 pub async fn display_menu(board: &mut Board) -> AppState {
-    let sta = board.enable_wifi_sta(StaMode::OnDemand).await;
-
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
 
     let mut menu_values = DisplayMenu {
@@ -32,13 +24,7 @@ pub async fn display_menu(board: &mut Board) -> AppState {
     let mut menu_screen = Screen {
         content: menu_values.create_menu_with_style(menu_style()),
 
-        status_bar: StatusBar {
-            battery: Battery::with_style(
-                board.battery_monitor.battery_data(),
-                board.config.battery_style(),
-            ),
-            wifi: WifiStateView::new(sta.as_ref().map(Sta::connection_state)),
-        },
+        status_bar: board.status_bar(),
     };
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
@@ -60,19 +46,14 @@ pub async fn display_menu(board: &mut Board) -> AppState {
             };
         }
 
-        let battery_data = board.battery_monitor.battery_data();
-
         #[cfg(feature = "battery_max17055")]
-        if let Some(battery) = battery_data {
+        if let Some(battery) = board.battery_monitor.battery_data() {
             if battery.is_low {
                 return AppState::Shutdown;
             }
         }
 
-        menu_screen.status_bar.update_battery_data(battery_data);
-        if let Some(ref sta) = sta {
-            menu_screen.status_bar.wifi.update(sta.connection_state());
-        }
+        menu_screen.status_bar = board.status_bar();
 
         if &menu_values != menu_screen.content.data() {
             debug!("Settings changed");

@@ -6,10 +6,7 @@ use crate::{
 };
 use embassy_time::{Duration, Ticker};
 use embedded_graphics::Drawable;
-use gui::{
-    screens::{init::StartupScreen, screen::Screen},
-    widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
-};
+use gui::screens::{init::StartupScreen, screen::Screen};
 
 pub const INIT_TIME: Duration = Duration::from_millis(3000);
 pub const MENU_THRESHOLD: Duration = Duration::from_millis(1500);
@@ -17,6 +14,7 @@ pub const MENU_THRESHOLD: Duration = Duration::from_millis(1500);
 pub async fn initialize(board: &mut Board) -> AppState {
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let shutdown_timer = Timeout::new(MENU_THRESHOLD);
+
     while !shutdown_timer.is_elapsed() {
         let elapsed = shutdown_timer.elapsed();
 
@@ -24,9 +22,7 @@ pub async fn initialize(board: &mut Board) -> AppState {
             return AppState::Shutdown;
         }
 
-        let battery_data = board.battery_monitor.battery_data();
-
-        if let Some(battery) = battery_data {
+        if let Some(battery) = board.battery_monitor.battery_data() {
             if battery.is_low {
                 return AppState::Shutdown;
             }
@@ -38,10 +34,7 @@ pub async fn initialize(board: &mut Board) -> AppState {
                 progress: to_progress(elapsed, INIT_TIME),
             },
 
-            status_bar: StatusBar {
-                battery: Battery::with_style(battery_data, board.config.battery_style()),
-                wifi: WifiStateView::disabled(),
-            },
+            status_bar: board.status_bar(),
         };
 
         board

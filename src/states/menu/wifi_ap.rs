@@ -12,11 +12,7 @@ use gui::{
         screen::Screen,
         wifi_ap::{ApMenuEvents, WifiApScreen},
     },
-    widgets::{
-        battery_small::Battery,
-        status_bar::StatusBar,
-        wifi::{WifiState, WifiStateView},
-    },
+    widgets::wifi::WifiState,
 };
 use macros as cardio;
 
@@ -49,13 +45,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     let mut screen = Screen {
         content: WifiApScreen::new(),
 
-        status_bar: StatusBar {
-            battery: Battery::with_style(
-                board.battery_monitor.battery_data(),
-                board.config.battery_style(),
-            ),
-            wifi: WifiStateView::enabled(ap.connection_state()),
-        },
+        status_bar: board.status_bar(),
     };
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
@@ -77,7 +67,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
             }
         }
 
-        screen.status_bar.update_battery_data(battery_data);
+        screen.status_bar = board.status_bar();
 
         let connection_state: WifiState = ap.connection_state().into();
         if connection_state != WifiState::Connected {
@@ -95,7 +85,6 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         }
 
         screen.content.state = connection_state;
-        screen.status_bar.wifi = WifiStateView::enabled(connection_state);
 
         #[allow(irrefutable_let_patterns)]
         if let Some(ApMenuEvents::Exit) = screen.content.menu.interact(is_touched) {

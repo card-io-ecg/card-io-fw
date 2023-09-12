@@ -80,31 +80,32 @@ fn to_progress(elapsed: Duration, max_duration: Duration) -> u32 {
 }
 
 async fn display_message(board: &mut Board, message: &str) {
-    let connection_state = board.connection_state();
-    let battery_data = board.battery_monitor.battery_data();
-
+    let status_bar = board.status_bar();
     board
         .display
         .frame(|display| {
             Screen {
                 content: MessageScreen { message },
 
-                status_bar: StatusBar {
-                    battery: Battery::with_style(battery_data, board.config.battery_style()),
-                    wifi: WifiStateView::enabled(connection_state),
-                },
+                status_bar,
             }
             .draw(display)
         })
         .await;
 }
 
-impl From<GenericConnectionState> for WifiState {
-    fn from(state: GenericConnectionState) -> Self {
-        match state {
-            GenericConnectionState::Sta(state) => state.into(),
-            GenericConnectionState::Ap(state) => state.into(),
-            GenericConnectionState::Disabled => WifiState::NotConnected,
+impl Board {
+    pub fn status_bar(&mut self) -> StatusBar {
+        let battery_data = self.battery_monitor.battery_data();
+        let connection_state = match self.wifi.connection_state() {
+            GenericConnectionState::Sta(state) => Some(WifiState::from(state)),
+            GenericConnectionState::Ap(state) => Some(WifiState::from(state)),
+            GenericConnectionState::Disabled => None,
+        };
+
+        StatusBar {
+            battery: Battery::with_style(battery_data, self.config.battery_style()),
+            wifi: WifiStateView::new(connection_state),
         }
     }
 }

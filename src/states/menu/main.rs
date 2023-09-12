@@ -1,8 +1,5 @@
 use crate::{
-    board::{
-        initialized::{Board, StaMode},
-        wifi::sta::Sta,
-    },
+    board::initialized::Board,
     heap::ALLOCATOR,
     states::{AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
     timeout::Timeout,
@@ -11,10 +8,7 @@ use crate::{
 use embassy_time::Ticker;
 use embedded_graphics::prelude::*;
 use embedded_menu::{items::NavigationItem, Menu};
-use gui::{
-    screens::{menu_style, screen::Screen},
-    widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
-};
+use gui::screens::{menu_style, screen::Screen};
 
 #[derive(Clone, Copy)]
 pub enum MainMenuEvents {
@@ -26,10 +20,6 @@ pub enum MainMenuEvents {
 }
 
 pub async fn main_menu(board: &mut Board) -> AppState {
-    // Enable wifi STA. This enabled wifi for the whole menu and re-enables when the user exits
-    // the wifi AP config menu.
-    let sta = board.enable_wifi_sta(StaMode::OnDemand).await;
-
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     info!("Free heap: {} bytes", ALLOCATOR.free());
 
@@ -65,13 +55,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
             .add_item(NavigationItem::new("Shutdown", MainMenuEvents::Shutdown))
             .build(),
 
-        status_bar: StatusBar {
-            battery: Battery::with_style(
-                board.battery_monitor.battery_data(),
-                board.config.battery_style(),
-            ),
-            wifi: WifiStateView::new(sta.as_ref().map(Sta::connection_state)),
-        },
+        status_bar: board.status_bar(),
     };
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
@@ -103,10 +87,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
             }
         }
 
-        menu_screen.status_bar.update_battery_data(battery_data);
-        if let Some(ref sta) = sta {
-            menu_screen.status_bar.wifi.update(sta.connection_state());
-        }
+        menu_screen.status_bar = board.status_bar();
 
         board
             .display

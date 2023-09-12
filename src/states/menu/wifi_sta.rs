@@ -2,10 +2,7 @@ use alloc::{string::String, vec::Vec};
 use embassy_time::{Duration, Ticker};
 use embedded_graphics::Drawable;
 use embedded_menu::{items::NavigationItem, Menu};
-use gui::{
-    screens::{menu_style, screen::Screen},
-    widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
-};
+use gui::screens::{menu_style, screen::Screen};
 
 use crate::{
     board::initialized::{Board, StaMode},
@@ -76,10 +73,7 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
                 .add_item(NavigationItem::new("Back", WifiStaMenuEvents::Back))
                 .build_with_state(menu_state),
 
-            status_bar: StatusBar {
-                battery: Battery::with_style(battery_data, board.config.battery_style()),
-                wifi: WifiStateView::enabled(sta.connection_state()),
-            },
+            status_bar: board.status_bar(),
         };
 
         if let Some(WifiStaMenuEvents::Back) = menu_screen.content.interact(is_touched) {

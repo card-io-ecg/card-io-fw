@@ -233,12 +233,16 @@ async fn measure_impl(
         }
 
         let battery_data = board.battery_monitor.battery_data();
-
         if let Some(battery) = battery_data {
             if battery.is_low {
                 THREAD_CONTROL.signal(());
             }
         }
+
+        let status_bar = StatusBar {
+            battery: Battery::with_style(battery_data, board.config.battery_style()),
+            wifi: WifiStateView::disabled(),
+        };
 
         if !shutdown_timer.is_elapsed() {
             let init_screen = Screen {
@@ -247,10 +251,7 @@ async fn measure_impl(
                     progress: to_progress(shutdown_timer.elapsed(), INIT_TIME),
                 },
 
-                status_bar: StatusBar {
-                    battery: Battery::with_style(battery_data, board.config.battery_style()),
-                    wifi: WifiStateView::disabled(),
-                },
+                status_bar,
             };
 
             board
@@ -258,7 +259,7 @@ async fn measure_impl(
                 .frame(|display| init_screen.draw(display))
                 .await;
         } else {
-            screen.status_bar.update_battery_data(battery_data);
+            screen.status_bar = status_bar;
 
             board.display.frame(|display| screen.draw(display)).await;
         }

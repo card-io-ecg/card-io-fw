@@ -3,7 +3,7 @@ use crate::{
         config::Config,
         drivers::battery_monitor::BatteryMonitor,
         hal::{clock::Clocks, system::PeripheralClockControl},
-        wifi::{ap::Ap, GenericConnectionState, WifiDriver},
+        wifi::{ap::Ap, WifiDriver},
         ChargerStatus, EcgFrontend, PoweredDisplay, VbusDetect,
     },
     saved_measurement_exists,
@@ -148,9 +148,5 @@ impl Board {
 
     pub fn signal_sta_work_available(&mut self) {
         self.sta_work_available = Some(true);
-    }
-
-    pub fn connection_state(&self) -> GenericConnectionState {
-        self.wifi.connection_state()
     }
 }
