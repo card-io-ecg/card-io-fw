@@ -230,13 +230,11 @@ async fn measure_impl(
             debug_print_timer.reset();
         }
 
-        let battery_data = board.battery_monitor.battery_data();
-        if let Some(battery) = battery_data {
-            if battery.is_low {
-                THREAD_CONTROL.signal(());
-            }
+        if board.battery_monitor.is_low() {
+            THREAD_CONTROL.signal(());
         }
 
+        let battery_data = board.battery_monitor.battery_data();
         let status_bar = StatusBar {
             battery: Battery::with_style(battery_data, board.config.battery_style()),
             wifi: WifiStateView::disabled(),
