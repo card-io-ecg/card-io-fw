@@ -41,8 +41,9 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     let mut scan_idle_timer = Timeout::new(Duration::from_millis(0));
 
-    let mut input = TouchInputShaper::new(&mut board.frontend);
+    let mut input = TouchInputShaper::new();
     while !exit_timer.is_elapsed() {
+        input.update(&mut board.frontend);
         let is_touched = input.is_touched();
 
         if scan_idle_timer.is_elapsed() {

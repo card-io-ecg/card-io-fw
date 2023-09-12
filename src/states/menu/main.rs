@@ -75,9 +75,10 @@ pub async fn main_menu(board: &mut Board) -> AppState {
     };
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    let mut input = TouchInputShaper::new(&mut board.frontend);
+    let mut input = TouchInputShaper::new();
 
     while !exit_timer.is_elapsed() {
+        input.update(&mut board.frontend);
         let is_touched = input.is_touched();
         if is_touched {
             exit_timer.reset();

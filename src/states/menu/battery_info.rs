@@ -33,11 +33,12 @@ pub async fn battery_info_menu(board: &mut Board) -> AppState {
     let mut items = heapless::Vec::<_, 5>::new();
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    let mut input = TouchInputShaper::new(&mut board.frontend);
+    let mut input = TouchInputShaper::new();
 
     let mut load_sensor_data = Timeout::new(Duration::from_secs(1));
     let mut first = true;
     while !exit_timer.is_elapsed() {
+        input.update(&mut board.frontend);
         let is_touched = input.is_touched();
         if is_touched {
             exit_timer.reset();

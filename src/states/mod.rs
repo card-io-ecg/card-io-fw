@@ -43,27 +43,29 @@ use signal_processing::lerp::interpolate;
 use crate::board::{initialized::Board, wifi::GenericConnectionState, EcgFrontend};
 
 /// Simple utility to process touch events in an interactive menu.
-pub struct TouchInputShaper<'a> {
-    frontend: &'a mut EcgFrontend,
+pub struct TouchInputShaper {
     released: bool,
+    touched: bool,
 }
 
-impl<'a> TouchInputShaper<'a> {
-    pub fn new(frontend: &'a mut EcgFrontend) -> Self {
+impl TouchInputShaper {
+    pub fn new() -> Self {
         Self {
-            frontend,
             released: false,
+            touched: false,
+        }
+    }
+
+    pub fn update(&mut self, frontend: &mut EcgFrontend) {
+        self.touched = frontend.is_touched();
+
+        if !self.touched {
+            self.released = true;
         }
     }
 
     pub fn is_touched(&mut self) -> bool {
-        let is_touched = self.frontend.is_touched();
-
-        if !is_touched {
-            self.released = true;
-        }
-
-        self.released && is_touched
+        self.released && self.touched
     }
 }
 

@@ -60,9 +60,10 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
-    let mut input = TouchInputShaper::new(&mut board.frontend);
+    let mut input = TouchInputShaper::new();
 
     while board.wifi.ap_running() {
+        input.update(&mut board.frontend);
         let is_touched = input.is_touched();
 
         let battery_data = board.battery_monitor.battery_data();
