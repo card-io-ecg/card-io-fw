@@ -18,7 +18,7 @@ pub enum WifiStaMenuEvents {
 }
 
 pub async fn wifi_sta(board: &mut Board) -> AppState {
-    let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await else {
+    let Some(sta) = board.enable_wifi_sta_for_scan().await else {
         // FIXME: Show error screen
         return AppState::Menu(AppMenu::Main);
     };

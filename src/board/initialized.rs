@@ -54,15 +54,9 @@ impl Board {
         }
     }
 
-    pub async fn enable_wifi_sta(&mut self, mode: StaMode) -> Option<Sta> {
-        let can_enable = self.can_enable_wifi()
-            && !self.config.known_networks.is_empty()
-            && match mode {
-                StaMode::Enable => true,
-                StaMode::OnDemand => self.sta_has_work().await,
-            };
-
+    async fn enable_sta(&mut self, can_enable: bool) -> Option<Sta> {
         if !can_enable {
+            warn!("Not enabling STA");
             self.wifi.stop_if().await;
             return None;
         }
@@ -82,6 +76,25 @@ impl Board {
         sta.update_known_networks(&self.config.known_networks).await;
 
         Some(sta)
+    }
+
+    pub async fn enable_wifi_sta(&mut self, mode: StaMode) -> Option<Sta> {
+        debug!("Enabling STA");
+        let can_enable = self.can_enable_wifi()
+            && !self.config.known_networks.is_empty()
+            && match mode {
+                StaMode::Enable => true,
+                StaMode::OnDemand => self.sta_has_work().await,
+            };
+
+        self.enable_sta(can_enable).await
+    }
+
+    pub async fn enable_wifi_sta_for_scan(&mut self) -> Option<Sta> {
+        debug!("Enabling STA for scan");
+        let can_enable = self.can_enable_wifi();
+
+        self.enable_sta(can_enable).await
     }
 
     pub async fn enable_wifi_ap(&mut self) -> Option<Ap> {
