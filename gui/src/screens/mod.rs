@@ -21,7 +21,6 @@ pub mod init;
 pub mod measure;
 pub mod message;
 pub mod screen;
-pub mod storage_menu;
 pub mod wifi_ap;
 
 pub const fn menu_style<R>(

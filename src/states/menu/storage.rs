@@ -6,21 +6,57 @@ use crate::{
 };
 use embassy_time::Ticker;
 use embedded_graphics::prelude::*;
-use gui::screens::{
-    menu_style,
-    screen::Screen,
-    storage_menu::{StorageMenu, StorageMenuEvents},
+use embedded_menu::{
+    items::{NavigationItem, Select},
+    Menu,
 };
+use gui::screens::{menu_style, screen::Screen};
+
+#[derive(Clone, Copy)]
+pub enum StorageMenuEvents {
+    StoreMeasurement(bool),
+    Format,
+    Upload,
+    Back,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct StorageMenu {
+    pub store_measurement: bool,
+}
 
 pub async fn storage_menu(board: &mut Board) -> AppState {
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
 
-    let mut menu_values = StorageMenu {
-        store_measurement: board.config.store_measurement,
-    };
+    let mut items = heapless::Vec::<_, 2>::new();
+    unwrap!(items
+        .push(NavigationItem::new(
+            "Format storage",
+            StorageMenuEvents::Format,
+        ))
+        .ok());
+
+    if board.can_enable_wifi()
+        && !board.config.known_networks.is_empty()
+        && !board.config.backend_url.is_empty()
+    {
+        unwrap!(items
+            .push(NavigationItem::new(
+                "Upload data",
+                StorageMenuEvents::Upload
+            ))
+            .ok());
+    }
 
     let mut menu_screen = Screen {
-        content: menu_values.create_menu_with_style(menu_style()),
+        content: Menu::with_style("Storage", menu_style())
+            .add_item(
+                Select::new("Store EKG", board.config.store_measurement)
+                    .with_value_converter(StorageMenuEvents::StoreMeasurement),
+            )
+            .add_items(&mut items[..])
+            .add_item(NavigationItem::new("Back", StorageMenuEvents::Back))
+            .build(),
 
         status_bar: board.status_bar(),
     };
@@ -51,6 +87,12 @@ pub async fn storage_menu(board: &mut Board) -> AppState {
                     board.save_config().await;
                     return AppState::Menu(AppMenu::Main);
                 }
+                StorageMenuEvents::StoreMeasurement(store) => {
+                    debug!("Settings changed");
+
+                    board.config_changed = true;
+                    board.config.store_measurement = store;
+                }
             };
         }
 
@@ -60,17 +102,6 @@ pub async fn storage_menu(board: &mut Board) -> AppState {
         }
 
         menu_screen.status_bar = board.status_bar();
-
-        if &menu_values != menu_screen.content.data() {
-            debug!("Settings changed");
-            let new = *menu_screen.content.data();
-            if menu_values.store_measurement != new.store_measurement {
-                board.config_changed = true;
-                board.config.store_measurement = new.store_measurement;
-            }
-
-            menu_values = new;
-        }
 
         board
             .display
