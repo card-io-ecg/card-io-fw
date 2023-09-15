@@ -11,12 +11,14 @@ use embedded_menu::{
     Menu,
 };
 use gui::screens::{menu_style, screen::Screen};
+use ufmt::{uDisplay, uwrite};
 
 #[derive(Clone, Copy)]
 pub enum StorageMenuEvents {
     StoreMeasurement(bool),
     Format,
     Upload,
+    Nothing,
     Back,
 }
 
@@ -25,10 +27,54 @@ pub struct StorageMenu {
     pub store_measurement: bool,
 }
 
+struct BinarySize(usize);
+
+impl uDisplay for BinarySize {
+    fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
+    where
+        W: ufmt::uWrite + ?Sized,
+    {
+        const SUFFIXES: &[&str] = &["kB", "MB", "GB"];
+        const SIZES: &[usize] = &[1024, 1024 * 1024, 1024 * 1024 * 1024];
+
+        for (size, suffix) in SIZES.iter().cloned().zip(SUFFIXES.iter().cloned()).rev() {
+            if self.0 >= size {
+                let int = self.0 / size;
+                let frac = (self.0 % size) / (size / 10);
+                uwrite!(f, "{}.{}{}", int, frac, suffix)?;
+                return Ok(());
+            }
+        }
+
+        uwrite!(f, "{}B", self.0)
+    }
+}
+
 pub async fn storage_menu(board: &mut Board) -> AppState {
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
 
-    let mut items = heapless::Vec::<_, 2>::new();
+    let mut used_str = heapless::String::<32>::new();
+
+    let mut items = heapless::Vec::<_, 3>::new();
+
+    if let Some(storage) = board.storage.as_mut() {
+        if let Ok(used) = storage.used_bytes().await {
+            unwrap!(uwrite!(
+                &mut used_str,
+                "{}/{}",
+                BinarySize(used),
+                BinarySize(storage.capacity())
+            )
+            .ok());
+            unwrap!(items
+                .push(
+                    NavigationItem::new("Used", StorageMenuEvents::Nothing)
+                        .with_marker(used_str.as_str())
+                )
+                .ok());
+        }
+    }
+
     unwrap!(items
         .push(NavigationItem::new(
             "Format storage",
@@ -87,6 +133,7 @@ pub async fn storage_menu(board: &mut Board) -> AppState {
                     board.save_config().await;
                     return AppState::Menu(AppMenu::Main);
                 }
+                StorageMenuEvents::Nothing => {}
                 StorageMenuEvents::StoreMeasurement(store) => {
                     debug!("Settings changed");
 
