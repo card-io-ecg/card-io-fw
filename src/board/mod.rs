@@ -12,6 +12,7 @@ pub mod config;
 pub mod drivers;
 pub mod initialized;
 pub mod startup;
+pub mod storage;
 pub mod utils;
 pub mod wifi;
 

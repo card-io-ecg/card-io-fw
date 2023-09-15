@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+#![feature(allocator_api)] // Box::try_new
 #![feature(async_fn_in_trait)]
 #![feature(type_alias_impl_trait)]
 #![feature(impl_trait_projections)]
@@ -24,11 +25,7 @@ use embassy_sync::{
     mutex::{Mutex, MutexGuard},
 };
 use embassy_time::{Duration, Timer};
-use norfs::{
-    drivers::internal::InternalDriver,
-    medium::{cache::ReadCache, StorageMedium},
-    Storage, StorageError,
-};
+use norfs::{medium::StorageMedium, Storage, StorageError};
 use signal_processing::compressing_buffer::CompressingBuffer;
 use static_cell::{make_static, StaticCell};
 
@@ -57,13 +54,15 @@ use crate::{
             rtc_cntl::sleep::{RtcioWakeupSource, WakeupLevel},
             Delay,
         },
-        initialized::{Board, ConfigPartition},
+        initialized::Board,
         startup::StartupResources,
+        storage::FileSystem,
         TouchDetect,
     },
     states::{
         about_menu, adc_setup, charging, display_menu, initialize, main_menu, measure,
-        upload_or_store_measurement, wifi_ap, wifi_sta, AppMenu, ECG_BUFFER_SIZE,
+        storage_menu, upload_or_store_measurement, upload_stored_measurements, wifi_ap, wifi_sta,
+        AppMenu, ECG_BUFFER_SIZE,
     },
 };
 
@@ -114,6 +113,7 @@ pub enum AppState {
     Charging,
     Menu(AppMenu),
     Shutdown,
+    UploadStored(AppMenu),
     UploadOrStore(Box<CompressingBuffer<ECG_BUFFER_SIZE>>),
 }
 
@@ -126,6 +126,7 @@ impl core::fmt::Debug for AppState {
             Self::Charging => write!(f, "Charging"),
             Self::Menu(arg0) => f.debug_tuple("Menu").field(arg0).finish(),
             Self::Shutdown => write!(f, "Shutdown"),
+            Self::UploadStored(arg0) => f.debug_tuple("UploadStored").field(arg0).finish(),
             Self::UploadOrStore(buf) => f.debug_tuple("UploadOrStore").field(&buf.len()).finish(),
         }
     }
@@ -141,6 +142,7 @@ impl defmt::Format for AppState {
             Self::Charging => defmt::write!(f, "Charging"),
             Self::Menu(arg0) => defmt::write!(f, "Menu({:?})", arg0),
             Self::Shutdown => defmt::write!(f, "Shutdown"),
+            Self::UploadStored(arg0) => defmt::write!(f, "UploadStored({:?})", arg0),
             Self::UploadOrStore(buf) => defmt::write!(f, "UploadOrStore (len={})", buf.len()),
         }
     }
@@ -178,29 +180,6 @@ fn main() -> ! {
     executor.run(move |spawner| {
         spawner.spawn(main_task(spawner, resources)).ok();
     })
-}
-
-async fn setup_storage(
-) -> Option<&'static mut Storage<&'static mut ReadCache<InternalDriver<ConfigPartition>, 256, 2>>> {
-    static mut READ_CACHE: ReadCache<InternalDriver<ConfigPartition>, 256, 2> =
-        ReadCache::new(InternalDriver::new(ConfigPartition));
-
-    let storage = match Storage::mount(unsafe { &mut READ_CACHE }).await {
-        Ok(storage) => Ok(storage),
-        Err(StorageError::NotFormatted) => {
-            info!("Formatting storage");
-            Storage::format_and_mount(unsafe { &mut READ_CACHE }).await
-        }
-        e => e,
-    };
-
-    match storage {
-        Ok(storage) => Some(make_static!(storage)),
-        Err(e) => {
-            error!("Failed to mount storage: {:?}", e);
-            None
-        }
-    }
 }
 
 async fn load_config<M: StorageMedium>(storage: Option<&mut Storage<M>>) -> &'static mut Config
@@ -296,7 +275,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
         hal::interrupt::Priority::Priority3,
     ));
 
-    let mut storage = setup_storage().await;
+    let mut storage = FileSystem::mount().await;
     let config = load_config(storage.as_deref_mut()).await;
     let mut display = unwrap!(resources.display.enable().await.ok());
 
@@ -333,11 +312,15 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
             AppState::Measure => measure(&mut board).await,
             AppState::Menu(AppMenu::Main) => main_menu(&mut board).await,
             AppState::Menu(AppMenu::Display) => display_menu(&mut board).await,
+            AppState::Menu(AppMenu::Storage) => storage_menu(&mut board).await,
             AppState::Menu(AppMenu::DeviceInfo) => about_menu(&mut board).await,
             AppState::Menu(AppMenu::WifiAP) => wifi_ap(&mut board).await,
             AppState::Menu(AppMenu::WifiListVisible) => wifi_sta(&mut board).await,
             #[cfg(feature = "battery_max17055")]
             AppState::Menu(AppMenu::BatteryInfo) => battery_info_menu(&mut board).await,
+            AppState::UploadStored(next_state) => {
+                upload_stored_measurements(&mut board, AppState::Menu(next_state)).await
+            }
             AppState::UploadOrStore(buffer) => {
                 upload_or_store_measurement(&mut board, buffer, AppState::Shutdown).await
             }

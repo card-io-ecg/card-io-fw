@@ -23,10 +23,10 @@ pub use measure::{measure, ECG_BUFFER_SIZE};
 #[cfg(feature = "battery_max17055")]
 pub use menu::battery_info::battery_info_menu;
 pub use menu::{
-    about::about_menu, display::display_menu, main::main_menu, wifi_ap::wifi_ap,
-    wifi_sta::wifi_sta, AppMenu,
+    about::about_menu, display::display_menu, main::main_menu, storage::storage_menu,
+    wifi_ap::wifi_ap, wifi_sta::wifi_sta, AppMenu,
 };
-pub use upload_or_store_measurement::upload_or_store_measurement;
+pub use upload_or_store_measurement::{upload_or_store_measurement, upload_stored_measurements};
 
 const TARGET_FPS: u32 = 100;
 const MIN_FRAME_TIME: Duration = Duration::from_hz(TARGET_FPS as u64);
@@ -78,6 +78,7 @@ fn to_progress(elapsed: Duration, max_duration: Duration) -> u32 {
 }
 
 async fn display_message(board: &mut Board, message: &str) {
+    info!("Displaying message: {}", message);
     let status_bar = board.status_bar();
     board
         .display

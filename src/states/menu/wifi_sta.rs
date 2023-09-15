@@ -5,7 +5,7 @@ use embedded_menu::{items::NavigationItem, Menu};
 use gui::screens::{menu_style, screen::Screen};
 
 use crate::{
-    board::initialized::{Board, StaMode},
+    board::initialized::Board,
     states::{TouchInputShaper, MIN_FRAME_TIME},
     timeout::Timeout,
     AppMenu, AppState,
@@ -18,7 +18,7 @@ pub enum WifiStaMenuEvents {
 }
 
 pub async fn wifi_sta(board: &mut Board) -> AppState {
-    let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await else {
+    let Some(sta) = board.enable_wifi_sta_for_scan().await else {
         // FIXME: Show error screen
         return AppState::Menu(AppMenu::Main);
     };

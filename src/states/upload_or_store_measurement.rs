@@ -31,15 +31,23 @@ enum StoreMeasurement {
     DontStore,
 }
 
+pub async fn upload_stored_measurements(board: &mut Board, next_state: AppState) -> AppState {
+    if upload_stored(board).await {
+        Timer::after(Duration::from_secs(2)).await;
+    }
+
+    next_state
+}
+
 pub async fn upload_or_store_measurement<const SIZE: usize>(
     board: &mut Board,
     mut buffer: Box<CompressingBuffer<SIZE>>,
     next_state: AppState,
 ) -> AppState {
     let samples = buffer.make_contiguous();
-    if try_to_upload(board, samples).await == StoreMeasurement::Store {
+    let upload_result = try_to_upload(board, samples).await;
+    if upload_result == StoreMeasurement::Store && board.config.store_measurement {
         let store_result = try_store_measurement(board, samples).await;
-        buffer.clear();
 
         if let Err(e) = store_result {
             display_message(board, "Could not store measurement").await;
@@ -47,14 +55,14 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
 
             Timer::after(Duration::from_secs(2)).await;
         }
+
+        next_state
     } else {
         // Drop to free up 90kB of memory.
         mem::drop(buffer);
 
-        upload_stored(board).await;
+        upload_stored_measurements(board, next_state).await
     }
-
-    next_state
 }
 
 struct Resources {
@@ -75,7 +83,7 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
         return StoreMeasurement::Store;
     }
 
-    let Some(sta) = enable_sta(board).await else {
+    let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await else {
         return StoreMeasurement::Store;
     };
 
@@ -122,23 +130,28 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
     }
 }
 
-async fn upload_stored(board: &mut Board) {
-    let Some(sta) = enable_sta(board).await else {
-        return;
+async fn upload_stored(board: &mut Board) -> bool {
+    let Some(sta) = board.enable_wifi_sta(StaMode::OnDemand).await else {
+        return false;
     };
 
+    display_message(board, "Connecting to WiFi").await;
+
     if !wait_for_connection(&sta, board).await {
-        return;
+        display_message(board, "Failed to connect to WiFi").await;
+        return true;
     }
 
     display_message(board, "Uploading stored measurements...").await;
 
     let Some(storage) = board.storage.as_mut() else {
-        return;
+        display_message(board, "Storage not available").await;
+        return true;
     };
 
     let Ok(mut dir) = storage.read_dir().await else {
-        return;
+        display_message(board, "Could not read storage").await;
+        return true;
     };
 
     let mut fn_buffer = [0; 64];
@@ -153,11 +166,13 @@ async fn upload_stored(board: &mut Board) {
 
     let mut client = HttpClient::new(&client, &dns);
 
+    let mut success = true;
     loop {
         match dir.next(storage).await {
             Ok(file) => {
                 let Some(file) = file else {
-                    return;
+                    success = false;
+                    break;
                 };
 
                 match file.name(storage, &mut fn_buffer).await {
@@ -177,7 +192,8 @@ async fn upload_stored(board: &mut Board) {
                         .await
                         {
                             warn!("Failed to upload {}: {:?}", name, e);
-                            return;
+                            success = false;
+                            break;
                         }
                     }
                     Ok(_) | Err(StorageError::InsufficientBuffer) => {
@@ -185,26 +201,24 @@ async fn upload_stored(board: &mut Board) {
                     }
                     Err(e) => {
                         warn!("Failed to read file name: {:?}", e);
-                        return;
+                        success = false;
+                        break;
                     }
                 }
             }
             Err(e) => {
                 warn!("Failed to read directory: {:?}", e);
-                return;
+                success = false;
+                break;
             }
         }
     }
-}
 
-async fn enable_sta(board: &mut Board) -> Option<Sta> {
-    board.signal_sta_work_available();
-    if !board.config.known_networks.is_empty() {
-        // This call should handle the case where there are no files stored.
-        board.enable_wifi_sta(StaMode::OnDemand).await
+    if !success {
+        display_message(board, "Failed to upload measurements").await;
+        false
     } else {
-        board.disable_wifi().await;
-        None
+        true
     }
 }
 
@@ -335,6 +349,7 @@ async fn try_store_measurement(board: &mut Board, measurement: &[u8]) -> Result<
 
     info!("Measurement saved to {}", filename);
 
+    board.signal_sta_work_available();
     timeout.await;
 
     Ok(())

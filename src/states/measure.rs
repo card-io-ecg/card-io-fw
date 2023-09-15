@@ -112,8 +112,12 @@ pub async fn measure(board: &mut Board) -> AppState {
         FilterStrength::Weak => HIGH_PASS_FOR_DISPLAY_WEAK,
         FilterStrength::Strong => HIGH_PASS_FOR_DISPLAY_STRONG,
     };
-    let ecg_buffer = Box::new(CompressingBuffer::EMPTY);
     let mut ecg = Box::new(EcgObjects::new(filter));
+    let ecg_buffer = Box::try_new(CompressingBuffer::EMPTY).ok();
+
+    if ecg_buffer.is_none() {
+        warn!("Failed to allocate ECG buffer");
+    }
 
     replace_with_or_abort_and_return_async(board, |board| async {
         measure_impl(board, &mut ecg, ecg_buffer).await
@@ -124,7 +128,7 @@ pub async fn measure(board: &mut Board) -> AppState {
 async fn measure_impl(
     mut board: Board,
     ecg: &mut EcgObjects,
-    mut ecg_buffer: Box<CompressingBuffer<ECG_BUFFER_SIZE>>,
+    mut ecg_buffer: Option<Box<CompressingBuffer<ECG_BUFFER_SIZE>>>,
 ) -> (AppState, Board) {
     let mut frontend = match board.frontend.enable_async().await {
         Ok(frontend) => Box::new(frontend),
@@ -189,7 +193,10 @@ async fn measure_impl(
             match message {
                 Message::Sample(sample) => {
                     samples += 1;
-                    ecg_buffer.push(sample.raw());
+
+                    if let Some(ecg_buffer) = ecg_buffer.as_deref_mut() {
+                        ecg_buffer.push(sample.raw());
+                    }
 
                     if drop_samples == 0 {
                         if let Some(filtered) = ecg.filter.update(sample.voltage()) {
@@ -207,8 +214,10 @@ async fn measure_impl(
 
                     return if result.is_ok() && !shutdown_timer.is_elapsed() {
                         (AppState::Menu(AppMenu::Main), board)
-                    } else {
+                    } else if let Some(ecg_buffer) = ecg_buffer {
                         (AppState::UploadOrStore(ecg_buffer), board)
+                    } else {
+                        (AppState::Shutdown, board)
                     };
                 }
             }
@@ -230,13 +239,11 @@ async fn measure_impl(
             debug_print_timer.reset();
         }
 
-        let battery_data = board.battery_monitor.battery_data();
-        if let Some(battery) = battery_data {
-            if battery.is_low {
-                THREAD_CONTROL.signal(());
-            }
+        if board.battery_monitor.is_low() {
+            THREAD_CONTROL.signal(());
         }
 
+        let battery_data = board.battery_monitor.battery_data();
         let status_bar = StatusBar {
             battery: Battery::with_style(battery_data, board.config.battery_style()),
             wifi: WifiStateView::disabled(),

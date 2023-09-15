@@ -3,6 +3,7 @@ pub mod about;
 pub mod battery_info;
 pub mod display;
 pub mod main;
+pub mod storage;
 pub mod wifi_ap;
 pub mod wifi_sta;
 
@@ -11,6 +12,7 @@ pub mod wifi_sta;
 pub enum AppMenu {
     Main,
     Display,
+    Storage,
     DeviceInfo,
     #[cfg(feature = "battery_max17055")]
     BatteryInfo,
