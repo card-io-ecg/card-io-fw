@@ -5,7 +5,7 @@ use embedded_menu::{items::NavigationItem, Menu};
 use gui::screens::{menu_style, screen::Screen};
 
 use crate::{
-    board::initialized::{Board, StaMode},
+    board::initialized::Board,
     states::{TouchInputShaper, MIN_FRAME_TIME},
     timeout::Timeout,
     AppMenu, AppState,

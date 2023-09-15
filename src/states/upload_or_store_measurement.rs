@@ -32,7 +32,10 @@ enum StoreMeasurement {
 }
 
 pub async fn upload_stored_measurements(board: &mut Board, next_state: AppState) -> AppState {
+    let timer = Timer::after(Duration::from_secs(2));
     upload_stored(board).await;
+    timer.await;
+
     next_state
 }
 
@@ -80,7 +83,7 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
         return StoreMeasurement::Store;
     }
 
-    let Some(sta) = enable_sta(board).await else {
+    let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await else {
         return StoreMeasurement::Store;
     };
 
@@ -128,21 +131,26 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
 }
 
 async fn upload_stored(board: &mut Board) {
-    let Some(sta) = enable_sta(board).await else {
+    let Some(sta) = board.enable_wifi_sta(StaMode::OnDemand).await else {
         return;
     };
 
+    display_message(board, "Connecting to WiFi").await;
+
     if !wait_for_connection(&sta, board).await {
+        display_message(board, "Failed to connect to WiFi").await;
         return;
     }
 
     display_message(board, "Uploading stored measurements...").await;
 
     let Some(storage) = board.storage.as_mut() else {
+        display_message(board, "Storage not available").await;
         return;
     };
 
     let Ok(mut dir) = storage.read_dir().await else {
+        display_message(board, "Could not read storage").await;
         return;
     };
 
@@ -199,17 +207,6 @@ async fn upload_stored(board: &mut Board) {
                 return;
             }
         }
-    }
-}
-
-async fn enable_sta(board: &mut Board) -> Option<Sta> {
-    board.signal_sta_work_available();
-    if !board.config.known_networks.is_empty() {
-        // This call should handle the case where there are no files stored.
-        board.enable_wifi_sta(StaMode::OnDemand).await
-    } else {
-        board.disable_wifi().await;
-        None
     }
 }
 
@@ -340,6 +337,7 @@ async fn try_store_measurement(board: &mut Board, measurement: &[u8]) -> Result<
 
     info!("Measurement saved to {}", filename);
 
+    board.signal_sta_work_available();
     timeout.await;
 
     Ok(())

@@ -78,6 +78,7 @@ fn to_progress(elapsed: Duration, max_duration: Duration) -> u32 {
 }
 
 async fn display_message(board: &mut Board, message: &str) {
+    info!("Displaying message: {}", message);
     let status_bar = board.status_bar();
     board
         .display
