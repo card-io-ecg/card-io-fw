@@ -27,29 +27,13 @@ pub async fn main_menu(board: &mut Board) -> AppState {
 
     let builder = Menu::with_style("Main menu", menu_style());
 
-    let mut items = heapless::Vec::<_, 6>::new();
-
-    unwrap!(items
-        .push(NavigationItem::new("Measure", MainMenuEvents::Measure))
-        .ok());
-    unwrap!(items
-        .push(NavigationItem::new(
-            "Display settings",
-            MainMenuEvents::Display,
-        ))
-        .ok());
-    unwrap!(items
-        .push(NavigationItem::new("Storage", MainMenuEvents::Storage))
-        .ok());
-    unwrap!(items
-        .push(NavigationItem::new("Device info", MainMenuEvents::About))
-        .ok());
+    let mut optional_items = heapless::Vec::<_, 2>::new();
 
     if board.can_enable_wifi() {
-        unwrap!(items
+        unwrap!(optional_items
             .push(NavigationItem::new("Wifi setup", MainMenuEvents::WifiSetup))
             .ok());
-        unwrap!(items
+        unwrap!(optional_items
             .push(NavigationItem::new(
                 "Wifi networks",
                 MainMenuEvents::WifiListVisible,
@@ -59,7 +43,17 @@ pub async fn main_menu(board: &mut Board) -> AppState {
 
     let mut menu_screen = Screen {
         content: builder
-            .add_items(&mut items[..])
+            .add_item(NavigationItem::new("Measure", MainMenuEvents::Measure))
+            .add_item(NavigationItem::new(
+                "Display settings",
+                MainMenuEvents::Display,
+            ))
+            .add_item(NavigationItem::new(
+                "Storage settings",
+                MainMenuEvents::Storage,
+            ))
+            .add_item(NavigationItem::new("Device info", MainMenuEvents::About))
+            .add_items(&mut optional_items[..])
             .add_item(NavigationItem::new("Shutdown", MainMenuEvents::Shutdown))
             .build(),
 
