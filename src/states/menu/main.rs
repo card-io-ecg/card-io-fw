@@ -12,6 +12,7 @@ use gui::screens::{menu_style, screen::Screen};
 
 #[derive(Clone, Copy)]
 pub enum MainMenuEvents {
+    Measure,
     Display,
     About,
     WifiSetup,
@@ -26,8 +27,11 @@ pub async fn main_menu(board: &mut Board) -> AppState {
 
     let builder = Menu::with_style("Main menu", menu_style());
 
-    let mut items = heapless::Vec::<_, 5>::new();
+    let mut items = heapless::Vec::<_, 6>::new();
 
+    unwrap!(items
+        .push(NavigationItem::new("Measure", MainMenuEvents::Measure))
+        .ok());
     unwrap!(items
         .push(NavigationItem::new(
             "Display settings",
@@ -74,6 +78,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
 
         if let Some(event) = menu_screen.content.interact(is_touched) {
             match event {
+                MainMenuEvents::Measure => return AppState::Initialize,
                 MainMenuEvents::Display => return AppState::Menu(AppMenu::Display),
                 MainMenuEvents::About => return AppState::Menu(AppMenu::DeviceInfo),
                 MainMenuEvents::WifiSetup => return AppState::Menu(AppMenu::WifiAP),
