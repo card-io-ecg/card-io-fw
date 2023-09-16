@@ -47,27 +47,27 @@ pub async fn battery_info_menu(board: &mut Board) -> AppState {
 
             let voltage = unwrap!(sensor.fg.read_vcell().await.ok());
             unwrap!(items
-                .push(list_item(format!("Voltage: {:>9}mV", voltage / 1000)))
+                .push(list_item(format!("Voltage {:>10}mV", voltage / 1000)))
                 .ok());
 
             let current = unwrap!(sensor.fg.read_current().await.ok());
             unwrap!(items
-                .push(list_item(format!("Current: {:>9}mA", current / 1000)))
+                .push(list_item(format!("Current {:>10}mA", current / 1000)))
                 .ok());
 
             let capacity = unwrap!(sensor.fg.read_design_capacity().await.ok());
             unwrap!(items
-                .push(list_item(format!("Nominal: {:>8}mAh", capacity / 1000)))
+                .push(list_item(format!("Nominal {:>9}mAh", capacity / 1000)))
                 .ok());
 
             let capacity = unwrap!(sensor.fg.read_reported_capacity().await.ok());
             unwrap!(items
-                .push(list_item(format!("Capacity: {:>7}mAh", capacity / 1000)))
+                .push(list_item(format!("Capacity {:>8}mAh", capacity / 1000)))
                 .ok());
 
             let charge_cycles = unwrap!(sensor.fg.read_charge_cycles().await.ok());
             unwrap!(items
-                .push(list_item(format!("Chg Cycles: {:>8}", charge_cycles)))
+                .push(list_item(format!("Chg Cycles {:>9}", charge_cycles)))
                 .ok());
         }
 

@@ -32,22 +32,22 @@ pub async fn about_menu(board: &mut Board) -> AppState {
 
     let mut items = heapless::Vec::<_, 5>::new();
     items.extend([
-        list_item(format!("FW: {:>16}", env!("FW_VERSION"))),
-        list_item(format!("HW: {:>16}", hw_version)),
-        list_item(format!("Serial: {}", serial)),
+        list_item(format!("FW {:>17}", env!("FW_VERSION"))),
+        list_item(format!("HW {:>17}", hw_version)),
+        list_item(format!("Serial  {}", serial)),
         list_item(match board.frontend.device_id() {
-            Some(id) => format!("ADC: {:>15}", format!("{id:?}")),
-            None => format!("ADC:         Unknown"),
+            Some(id) => format!("ADC {:>16}", format!("{id:?}")),
+            None => format!("ADC          Unknown"),
         }),
     ]);
 
     #[cfg(feature = "battery_max17055")]
     {
         unwrap!(items
-            .push(NavigationItem::new(
-                String::from("Fuel gauge: MAX17055"),
-                AboutMenuEvents::ToBatteryInfo,
-            ))
+            .push(
+                NavigationItem::new(String::from("Fuel gauge"), AboutMenuEvents::ToBatteryInfo)
+                    .with_marker("MAX17055")
+            )
             .ok());
     }
 
