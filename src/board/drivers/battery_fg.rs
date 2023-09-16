@@ -4,7 +4,8 @@ use embedded_hal_async::{delay::DelayUs, i2c::I2c};
 use max17055::Max17055;
 
 use crate::{
-    board::drivers::battery_monitor::SharedBatteryState, task_control::TaskControlToken, Shared,
+    board::drivers::battery_monitor::SharedBatteryState, hal::gpio::RTCPinWithResistors,
+    task_control::TaskControlToken, Shared,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -21,7 +22,7 @@ pub struct BatteryFg<I2C, EN> {
 
 impl<I2C, EN> BatteryFg<I2C, EN>
 where
-    EN: OutputPin,
+    EN: OutputPin + RTCPinWithResistors,
     I2C: I2c,
 {
     pub fn new(fg: Max17055<I2C>, enable: EN) -> Self {
@@ -45,7 +46,9 @@ where
     }
 
     pub fn disable(&mut self) {
-        unwrap!(self.enable.set_low().ok());
+        // We want to keep the fuel gauge out of shutdown mode
+        self.enable.rtcio_pad_hold(true);
+        self.enable.rtcio_pullup(true);
     }
 }
 

@@ -171,7 +171,6 @@ async fn upload_stored(board: &mut Board) -> bool {
         match dir.next(storage).await {
             Ok(file) => {
                 let Some(file) = file else {
-                    success = false;
                     break;
                 };
 
