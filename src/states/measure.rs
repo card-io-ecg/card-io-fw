@@ -107,8 +107,8 @@ pub async fn measure(board: &mut Board) -> AppState {
         FilterStrength::Weak => HIGH_PASS_FOR_DISPLAY_WEAK,
         FilterStrength::Strong => HIGH_PASS_FOR_DISPLAY_STRONG,
     };
-    let mut ecg = Box::new(EcgObjects::new(filter));
     let ecg_buffer = Box::try_new(CompressingBuffer::EMPTY).ok();
+    let mut ecg = Box::new(EcgObjects::new(filter));
 
     if ecg_buffer.is_none() {
         warn!("Failed to allocate ECG buffer");
