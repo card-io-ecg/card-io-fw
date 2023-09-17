@@ -15,6 +15,7 @@ use crate::{
 };
 use ads129x::{Error, Sample};
 use alloc::{boxed::Box, sync::Arc};
+use embassy_futures::select::{select, Either};
 use embassy_sync::{
     blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel, signal::Signal,
 };
@@ -275,7 +276,18 @@ async fn reader_task(params: EcgTaskParams) {
         mut frontend,
     } = params;
 
-    let result = read_ecg(sender.as_ref(), &mut frontend).await;
+    let result = select(
+        read_ecg(sender.as_ref(), &mut frontend),
+        THREAD_CONTROL.wait(),
+    )
+    .await;
+
+    let result = match result {
+        Either::First(result) => result,
+        Either::Second(_) => Ok(()),
+    };
+
+    info!("Stopping measurement task");
     sender.send(Message::End(frontend, result)).await;
 }
 
@@ -283,7 +295,7 @@ async fn read_ecg(
     queue: &MessageQueue,
     frontend: &mut PoweredEcgFrontend,
 ) -> Result<(), Error<SpiError>> {
-    while !THREAD_CONTROL.signaled() {
+    loop {
         match frontend.read().await {
             Ok(sample) => {
                 if !frontend.is_touched() {
@@ -309,7 +321,4 @@ async fn read_ecg(
             }
         }
     }
-
-    info!("Stop requested, stopping");
-    Ok(())
 }
