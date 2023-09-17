@@ -1,8 +1,10 @@
+use core::ops::{Deref, DerefMut};
+
 use crate::{
     board::{
         hal::{prelude::*, spi::Error as SpiError},
         initialized::Board,
-        PoweredEcgFrontend,
+        EcgFrontend, PoweredEcgFrontend,
     },
     replace_with::replace_with_or_abort_and_return_async,
     states::{
@@ -52,19 +54,39 @@ type MessageQueue = Channel<CriticalSectionRawMutex, Message, 32>;
 
 static THREAD_CONTROL: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 
+struct SharedFrontend(Box<PoweredEcgFrontend>);
+unsafe impl Send for SharedFrontend {} // SAFETY: yolo
+impl SharedFrontend {
+    pub fn new(frontend: PoweredEcgFrontend) -> Self {
+        Self(Box::new(frontend))
+    }
+
+    pub async fn shut_down(self) -> EcgFrontend {
+        self.0.shut_down().await
+    }
+}
+impl Deref for SharedFrontend {
+    type Target = PoweredEcgFrontend;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl DerefMut for SharedFrontend {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 enum Message {
     Sample(Sample),
-    End(Box<PoweredEcgFrontend>, Result<(), Error<SpiError>>),
+    End(SharedFrontend, Result<(), Error<SpiError>>),
 }
-
-unsafe impl Send for Message {} // SAFETY: yolo
 
 struct EcgTaskParams {
-    frontend: Box<PoweredEcgFrontend>,
+    frontend: SharedFrontend,
     sender: Arc<MessageQueue>,
 }
-
-unsafe impl Send for EcgTaskParams {} // SAFETY: yolo
 
 // PLI filtering algo is probably overkill for displaying, but it's fancy
 // this is a huge amount of data to block adaptation, but exact summation gives
@@ -127,7 +149,7 @@ async fn measure_impl(
     mut ecg_buffer: Option<Box<CompressingBuffer<ECG_BUFFER_SIZE>>>,
 ) -> (AppState, Board) {
     let mut frontend = match board.frontend.enable_async().await {
-        Ok(frontend) => Box::new(frontend),
+        Ok(frontend) => SharedFrontend::new(frontend),
         Err((fe, _err)) => {
             board.frontend = fe;
 
