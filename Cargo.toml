@@ -129,6 +129,9 @@ logger = { workspace = true }
 log = { workspace = true, optional = true }
 defmt = { workspace = true, optional = true }
 
+[patch.crates-io]
+esp32s3-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "lock" }
+
 [features]
 default = ["esp32s3", "defmt"]
 

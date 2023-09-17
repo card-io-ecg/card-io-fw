@@ -14,12 +14,9 @@ use crate::{
     AppState,
 };
 use ads129x::{Error, Sample};
-use alloc::boxed::Box;
-use embassy_executor::_export::StaticCell;
+use alloc::{boxed::Box, sync::Arc};
 use embassy_sync::{
-    blocking_mutex::raw::CriticalSectionRawMutex,
-    channel::{Channel, Sender},
-    signal::Signal,
+    blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel, signal::Signal,
 };
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
@@ -51,9 +48,7 @@ use signal_processing::{
 };
 
 type MessageQueue = Channel<CriticalSectionRawMutex, Message, 32>;
-type MessageSender = Sender<'static, CriticalSectionRawMutex, Message, 32>;
 
-static CHANNEL: StaticCell<MessageQueue> = StaticCell::new();
 static THREAD_CONTROL: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 
 enum Message {
@@ -65,7 +60,7 @@ unsafe impl Send for Message {} // SAFETY: yolo
 
 struct EcgTaskParams {
     frontend: Box<PoweredEcgFrontend>,
-    sender: MessageSender,
+    sender: Arc<MessageQueue>,
 }
 
 unsafe impl Send for EcgTaskParams {} // SAFETY: yolo
@@ -159,12 +154,12 @@ async fn measure_impl(
         _ => {}
     }
 
-    let queue = CHANNEL.init(MessageQueue::new());
+    let queue = Arc::new(MessageQueue::new());
 
     board
         .high_prio_spawner
         .must_spawn(reader_task(EcgTaskParams {
-            sender: queue.sender(),
+            sender: queue.clone(),
             frontend,
         }));
 
@@ -280,12 +275,12 @@ async fn reader_task(params: EcgTaskParams) {
         mut frontend,
     } = params;
 
-    let result = read_ecg(&sender, &mut frontend).await;
+    let result = read_ecg(sender.as_ref(), &mut frontend).await;
     sender.send(Message::End(frontend, result)).await;
 }
 
 async fn read_ecg(
-    queue: &MessageSender,
+    queue: &MessageQueue,
     frontend: &mut PoweredEcgFrontend,
 ) -> Result<(), Error<SpiError>> {
     while !THREAD_CONTROL.signaled() {
