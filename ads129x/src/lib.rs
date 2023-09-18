@@ -388,10 +388,12 @@ pub struct Sample {
 impl Sample {
     pub const VOLTS_PER_LSB: f32 = 2.42 / (1 << 23) as f32;
 
+    #[inline]
     pub fn voltage(self) -> f32 {
         (self.sample as f32) * Self::VOLTS_PER_LSB
     }
 
+    #[inline]
     pub fn raw(self) -> i32 {
         self.sample
     }
@@ -416,6 +418,7 @@ impl AdsData {
         }
     }
 
+    #[inline]
     pub fn new(buffer: [u8; 9]) -> Self {
         Self {
             status: Self::read_status(unwrap!(buffer[0..3].try_into())),
@@ -424,6 +427,7 @@ impl AdsData {
         }
     }
 
+    #[inline]
     pub fn new_single_channel(buffer: [u8; 6]) -> Self {
         Self {
             status: Self::read_status(unwrap!(buffer[0..3].try_into())),
@@ -432,34 +436,42 @@ impl AdsData {
         }
     }
 
+    #[inline]
     pub fn ch1_positive_lead_connected(&self) -> bool {
         self.status.in1p().read() == Some(LeadStatus::Connected)
     }
 
+    #[inline]
     pub fn ch1_negative_lead_connected(&self) -> bool {
         self.status.in1n().read() == Some(LeadStatus::Connected)
     }
 
+    #[inline]
     pub fn ch1_leads_connected(&self) -> bool {
         self.ch1_negative_lead_connected() && self.ch1_positive_lead_connected()
     }
 
+    #[inline]
     pub fn ch2_positive_lead_connected(&self) -> bool {
         self.status.in2p().read() == Some(LeadStatus::Connected)
     }
 
+    #[inline]
     pub fn ch2_negative_lead_connected(&self) -> bool {
         self.status.in2n().read() == Some(LeadStatus::Connected)
     }
 
+    #[inline]
     pub fn ch2_leads_connected(&self) -> bool {
         self.ch2_negative_lead_connected() && self.ch2_positive_lead_connected()
     }
 
+    #[inline]
     pub fn ch1_sample(&self) -> Sample {
         self.ch1
     }
 
+    #[inline]
     pub fn ch2_sample(&self) -> Sample {
         self.ch2
     }
