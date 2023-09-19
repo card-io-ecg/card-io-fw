@@ -129,6 +129,10 @@ logger = { workspace = true }
 log = { workspace = true, optional = true }
 defmt = { workspace = true, optional = true }
 
+smoltcp = { version = "0.10.0", default-features = false, features = [
+  "dns-max-server-count-2",
+] }
+
 [patch.crates-io]
 esp32s3-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "lock" }
 

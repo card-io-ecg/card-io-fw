@@ -288,6 +288,8 @@ where
     T: TcpConnect,
     DNS: Dns,
 {
+    debug!("Uploading measurement to {}", url);
+
     let mut resource = match client.resource(url).await {
         Ok(res) => res,
         Err(e) => {
@@ -298,6 +300,8 @@ where
 
     let mut path = heapless::String::<32>::new();
     unwrap!(uwrite!(&mut path, "/upload_data/{}", SerialNumber::new()));
+
+    debug!("Uploading to {}", path);
 
     let mut timestamp = heapless::String::<32>::new();
     unwrap!(uwrite!(&mut timestamp, "{}", meas_timestamp));
