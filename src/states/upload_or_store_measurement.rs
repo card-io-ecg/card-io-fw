@@ -1,6 +1,7 @@
 use core::mem::{self, MaybeUninit};
 
 use alloc::{boxed::Box, vec::Vec};
+use embassy_futures::select::{select, Either};
 use embassy_net::{
     dns::DnsSocket,
     tcp::client::{TcpClient, TcpClientState},
@@ -314,22 +315,43 @@ where
 
     let headers = [("X-Timestamp", timestamp.as_str())];
 
-    let mut request = match client.request(Method::POST, &upload_url).await {
-        Ok(request) => request
+    let connect = select(
+        client.request(Method::POST, &upload_url),
+        Timer::after(Duration::from_secs(30)),
+    )
+    .await;
+
+    let mut request = match connect {
+        Either::First(Ok(request)) => request
             .headers(&headers) // TODO
             .body(samples),
-        Err(e) => {
-            warn!("HTTP error: {}", e);
+        Either::First(Err(e)) => {
+            warn!("HTTP connect error: {}", e);
+            return Err(());
+        }
+        Either::Second(_) => {
+            warn!("Timeout");
             return Err(());
         }
     };
 
-    if let Err(e) = request.send(rx_buffer).await {
-        warn!("HTTP error: {:?}", e);
-        return Err(());
-    }
+    let upload = select(
+        request.send(rx_buffer),
+        Timer::after(Duration::from_secs(30)),
+    )
+    .await;
 
-    Ok(())
+    match upload {
+        Either::First(Ok(_)) => Ok(()),
+        Either::First(Err(e)) => {
+            warn!("HTTP upload error: {}", e);
+            return Err(());
+        }
+        Either::Second(_) => {
+            warn!("Timeout");
+            return Err(());
+        }
+    }
 }
 
 async fn try_store_measurement(board: &mut Board, measurement: &[u8]) -> Result<(), StorageError> {
