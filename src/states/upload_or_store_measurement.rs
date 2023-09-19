@@ -300,6 +300,9 @@ where
     T: TcpConnect,
     DNS: Dns,
 {
+    const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+    const UPLOAD_TIMEOUT: Duration = Duration::from_secs(30);
+
     let mut upload_url = heapless::String::<128>::new();
     unwrap!(uwrite!(
         &mut upload_url,
@@ -317,7 +320,7 @@ where
 
     let connect = select(
         client.request(Method::POST, &upload_url),
-        Timer::after(Duration::from_secs(30)),
+        Timer::after(CONNECT_TIMEOUT),
     )
     .await;
 
@@ -335,11 +338,7 @@ where
         }
     };
 
-    let upload = select(
-        request.send(rx_buffer),
-        Timer::after(Duration::from_secs(30)),
-    )
-    .await;
+    let upload = select(request.send(rx_buffer), Timer::after(UPLOAD_TIMEOUT)).await;
 
     match upload {
         Either::First(Ok(_)) => Ok(()),
