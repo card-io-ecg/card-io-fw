@@ -26,6 +26,7 @@ use crate::{
 
 /// Whether to store the measurement or not. Used instead of a bool to reduce confusion.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 enum StoreMeasurement {
     Store,
     DontStore,
@@ -46,6 +47,7 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
 ) -> AppState {
     let samples = buffer.make_contiguous();
     let upload_result = try_to_upload(board, samples).await;
+    debug!("Upload result: {:?}", upload_result);
     if upload_result == StoreMeasurement::Store && board.config.store_measurement {
         let store_result = try_store_measurement(board, samples).await;
 
