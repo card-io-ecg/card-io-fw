@@ -11,7 +11,10 @@ use norfs::{
     medium::StorageMedium, read_dir::DirEntry, writer::FileDataWriter, OnCollision, Storage,
     StorageError,
 };
-use reqwless::{client::HttpClient, request::RequestBuilder};
+use reqwless::{
+    client::HttpClient,
+    request::{Method, RequestBuilder},
+};
 use signal_processing::compressing_buffer::CompressingBuffer;
 use ufmt::uwrite;
 
@@ -45,8 +48,9 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     mut buffer: Box<CompressingBuffer<SIZE>>,
     next_state: AppState,
 ) -> AppState {
+    let sample_count = buffer.len();
     let samples = buffer.make_contiguous();
-    let upload_result = try_to_upload(board, samples).await;
+    let upload_result = try_to_upload(board, sample_count, samples).await;
     debug!("Upload result: {:?}", upload_result);
     if upload_result == StoreMeasurement::Store && board.config.store_measurement {
         let store_result = try_store_measurement(board, samples).await;
@@ -72,9 +76,12 @@ struct Resources {
     rx_buffer: [u8; 1024],
 }
 
-async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
+async fn try_to_upload(board: &mut Board, sample_count: usize, buffer: &[u8]) -> StoreMeasurement {
     const SAMPLE_RATE: usize = 1000; // samples/sec
-    if buffer.len() < 20 * SAMPLE_RATE {
+
+    debug!("Handling {} samples", sample_count);
+
+    if sample_count < 20 * SAMPLE_RATE {
         debug!("Buffer is too short to upload or store.");
         // We don't want to store too-short measurements.
         return StoreMeasurement::DontStore;
@@ -90,6 +97,7 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
     };
 
     if !wait_for_connection(&sta, board).await {
+        // If we do not have a network connection, save to file.
         return StoreMeasurement::Store;
     }
 
@@ -224,13 +232,14 @@ async fn upload_stored(board: &mut Board) -> bool {
 }
 
 async fn wait_for_connection(sta: &Sta, board: &mut Board) -> bool {
+    debug!("Waiting for network connection");
     if sta.connection_state() != ConnectionState::Connected {
         while sta.wait_for_state_change().await == ConnectionState::Connecting {
             display_message(board, "Connecting...").await;
         }
 
         if sta.connection_state() != ConnectionState::Connected {
-            // If we do not have a network connection, save to file.
+            debug!("No network connection");
             return false;
         }
     }
@@ -290,32 +299,32 @@ where
     T: TcpConnect,
     DNS: Dns,
 {
-    debug!("Uploading measurement to {}", url);
+    let mut upload_url = heapless::String::<128>::new();
+    unwrap!(uwrite!(
+        &mut upload_url,
+        "{}/upload_data/{}",
+        url,
+        SerialNumber::new()
+    ));
 
-    let mut resource = match client.resource(url).await {
-        Ok(res) => res,
+    let mut timestamp = heapless::String::<32>::new();
+    unwrap!(uwrite!(&mut timestamp, "{}", meas_timestamp));
+
+    debug!("Uploading measurement to {}", upload_url);
+
+    let headers = [("X-Timestamp", timestamp.as_str())];
+
+    let mut request = match client.request(Method::POST, &upload_url).await {
+        Ok(request) => request
+            .headers(&headers) // TODO
+            .body(samples),
         Err(e) => {
             warn!("HTTP error: {}", e);
             return Err(());
         }
     };
 
-    let mut path = heapless::String::<32>::new();
-    unwrap!(uwrite!(&mut path, "/upload_data/{}", SerialNumber::new()));
-
-    debug!("Uploading to {}", path);
-
-    let mut timestamp = heapless::String::<32>::new();
-    unwrap!(uwrite!(&mut timestamp, "{}", meas_timestamp));
-
-    let response = resource
-        .post(&path)
-        .headers(&[("X-Timestamp", timestamp.as_str())]) // TODO
-        .body(samples)
-        .send(rx_buffer)
-        .await;
-
-    if let Err(e) = response {
+    if let Err(e) = request.send(rx_buffer).await {
         warn!("HTTP error: {:?}", e);
         return Err(());
     }

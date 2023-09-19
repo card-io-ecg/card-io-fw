@@ -47,6 +47,7 @@ impl State {
 
     async fn wait(&self) -> InternalConnectionState {
         self.signal.wait().await;
+        self.signal.reset();
         self.read()
     }
 
@@ -57,6 +58,12 @@ impl State {
     fn update(&self, value: InternalConnectionState) {
         self.value.store(value, Ordering::Release);
         self.signal.signal(());
+    }
+
+    fn reset(&self) {
+        self.value
+            .store(InternalConnectionState::NotConnected, Ordering::Release);
+        self.signal.reset();
     }
 }
 
@@ -216,6 +223,8 @@ impl StaState {
             info!("Starting STA");
             let spawner = Spawner::for_current_executor().await;
 
+            self.state.reset();
+
             info!("Starting STA task");
             spawner.must_spawn(sta_task(
                 self.controller.clone(),
@@ -265,7 +274,6 @@ async fn sta_task(
     task_control
         .run_cancellable(async {
             'scan_and_connect: loop {
-                state.update(InternalConnectionState::NotConnected);
                 if !matches!(controller.lock().await.is_started(), Ok(true)) {
                     info!("Starting wifi");
                     unwrap!(controller.lock().await.start().await);
