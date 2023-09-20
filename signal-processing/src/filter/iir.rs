@@ -48,11 +48,16 @@ pub struct LowPass;
 pub trait FilterType {
     const NEW: Self;
 
+    fn clear(&mut self) {}
     fn precondition(&mut self, sample: f32) -> f32;
 }
 
 impl FilterType for HighPass {
     const NEW: Self = Self { first_sample: None };
+
+    fn clear(&mut self) {
+        self.first_sample = None;
+    }
 
     fn precondition(&mut self, sample: f32) -> f32 {
         let first_sample = self.first_sample.get_or_insert(sample);
@@ -147,6 +152,7 @@ where
     fn clear(&mut self) {
         self.previous_inputs.clear();
         self.previous_outputs.clear();
+        self.filter_kind.clear();
     }
 }
 
