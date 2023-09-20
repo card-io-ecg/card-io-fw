@@ -14,7 +14,7 @@ use norfs::{
 };
 use reqwless::{
     client::HttpClient,
-    request::{Method, RequestBuilder},
+    request::{Method, RequestBody, RequestBuilder},
 };
 use signal_processing::compressing_buffer::CompressingBuffer;
 use ufmt::uwrite;
@@ -128,7 +128,7 @@ async fn try_to_upload(board: &mut Board, sample_count: usize, buffer: &[u8]) ->
         &board.config.backend_url,
         &mut client,
         0,
-        buffer,
+        MeasurementRef { version: 0, buffer },
         &mut resources.rx_buffer,
     )
     .await
@@ -248,7 +248,39 @@ async fn wait_for_connection(sta: &Sta, board: &mut Board) -> bool {
     true
 }
 
-async fn load_measurement<M>(file: DirEntry<M>, storage: &mut Storage<M>) -> Result<Box<[u8]>, ()>
+struct Measurement {
+    version: u32,
+    buffer: Box<[u8]>,
+}
+
+impl Measurement {
+    fn as_ref(&self) -> MeasurementRef<'_> {
+        MeasurementRef {
+            version: self.version,
+            buffer: &self.buffer,
+        }
+    }
+}
+
+struct MeasurementRef<'a> {
+    version: u32,
+    buffer: &'a [u8],
+}
+
+impl RequestBody for MeasurementRef<'_> {
+    fn len(&self) -> Option<usize> {
+        Some(self.buffer.len() + 4)
+    }
+
+    async fn write<W: embedded_io::asynch::Write>(&self, writer: &mut W) -> Result<(), W::Error> {
+        writer.write_all(&self.version.to_le_bytes()).await?;
+        writer.write_all(self.buffer).await?;
+
+        Ok(())
+    }
+}
+
+async fn load_measurement<M>(file: DirEntry<M>, storage: &mut Storage<M>) -> Result<Measurement, ()>
 where
     M: StorageMedium,
     [(); M::BLOCK_COUNT]:,
@@ -264,12 +296,21 @@ where
     };
 
     let mut reader = file.open().await;
+    let version = reader.read_loadable::<[u8; 4]>(storage).await;
+    let version = match version {
+        Ok(version) => u32::from_le_bytes(version),
+        Err(e) => {
+            warn!("Failed to read data: {:?}", e);
+            return Err(());
+        }
+    };
+
     if let Err(e) = reader.read_all(storage, buffer.as_mut()).await {
         warn!("Failed to read data: {:?}", e);
         return Err(());
     };
 
-    Ok(buffer)
+    Ok(Measurement { version, buffer })
 }
 
 fn buffer_with_capacity<T: Copy>(size: usize, init_val: T) -> Result<Box<[T]>, ()> {
@@ -293,7 +334,7 @@ async fn upload_measurement<T, DNS>(
     url: &str,
     client: &mut HttpClient<'_, T, DNS>,
     meas_timestamp: u64,
-    samples: &[u8],
+    samples: MeasurementRef<'_>,
     rx_buffer: &mut [u8],
 ) -> Result<(), ()>
 where
