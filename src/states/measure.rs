@@ -93,7 +93,7 @@ struct EcgTaskParams {
 // better result than estimation (TODO: revisit later, as estimated sum had a bug)
 pub type EcgFilter = chain! {
     Iir<'static, HighPass, 2>,
-    PowerLineFilter<AdaptationBlocking<Sum<1200>, 50, 20>, 1>
+    PowerLineFilter<AdaptationBlocking<Sum<1200>, 4, 19>, 1>
 };
 
 // Downsample by 8 to display around 1 second

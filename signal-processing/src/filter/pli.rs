@@ -156,7 +156,7 @@ pub mod adaptation_blocking {
         V: MovingSum + Default,
     {
         fn update(&mut self, sample: f32) -> Option<(f32, bool)> {
-            let delayed_sample = self.delay.push(sample)?;
+            let delayed_sample = self.delay.push(sample);
             let comb_filtered = self.comb_filter.update(sample)?;
             let variance = self.variance.update(comb_filtered)?;
 
@@ -166,7 +166,7 @@ pub mod adaptation_blocking {
                 self.delay_cnt.saturating_sub(1)
             };
 
-            Some((delayed_sample, self.delay_cnt > 0))
+            delayed_sample.map(|delayed_sample| (delayed_sample, self.delay_cnt > 0))
         }
 
         fn clear(&mut self) {
