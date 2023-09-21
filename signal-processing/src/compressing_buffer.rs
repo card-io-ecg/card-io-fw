@@ -4,14 +4,82 @@
 //! difference from the last. This is useful for storing a sequence of values that are
 //! close to each other, such as a sequence of samples from a sensor.
 
+use core::slice;
+
+use embedded_io::blocking::{Read, ReadExactError, Write};
+
 use crate::buffer::Buffer;
 
-pub struct CompressingBuffer<const N: usize> {
-    /// Oldest element
-    first_element: i32,
+#[derive(Clone, Copy, Default)]
+pub struct EkgFormat {
+    previous: i32,
+}
 
-    /// Newest element
-    last_element: i32,
+impl EkgFormat {
+    pub const VERSION: u8 = 0;
+
+    pub const fn new() -> Self {
+        Self { previous: 0 }
+    }
+
+    pub fn write<W: Write>(&mut self, sample: i32, writer: &mut W) -> Result<usize, W::Error> {
+        let diff = sample - self.previous;
+        self.previous = sample;
+
+        const fn zigzag_encode(val: i32) -> u32 {
+            ((val << 1) ^ (val >> 31)) as u32
+        }
+
+        let mut diff = zigzag_encode(diff);
+
+        let mut buffer = [0; 8];
+        let mut idx = 0;
+        while diff >= 0x80 {
+            buffer[idx] = (diff as u8) | 0x80;
+            diff >>= 7;
+            idx += 1;
+        }
+        buffer[idx] = diff as u8;
+        idx += 1;
+
+        writer.write_all(&buffer[..idx])?;
+
+        Ok(idx)
+    }
+
+    pub fn read<R: Read>(&mut self, reader: &mut R) -> Result<Option<i32>, R::Error> {
+        const fn zigzag_decode(val: u32) -> i32 {
+            (val >> 1) as i32 ^ -((val & 1) as i32)
+        }
+
+        let mut diff = 0;
+        let mut idx = 0;
+        let mut byte = 0;
+        loop {
+            if let Err(e) = reader.read_exact(slice::from_mut(&mut byte)) {
+                match e {
+                    ReadExactError::UnexpectedEof => return Ok(None),
+                    ReadExactError::Other(e) => return Err(e),
+                }
+            }
+            diff |= ((byte & 0x7F) as u32) << (idx * 7);
+            idx += 1;
+            if byte & 0x80 == 0 {
+                break;
+            }
+        }
+        let diff = zigzag_decode(diff);
+
+        let value = self.previous + diff;
+        self.previous = value;
+
+        Ok(Some(value))
+    }
+}
+
+pub struct CompressingBuffer<const N: usize> {
+    reader: EkgFormat,
+    writer: EkgFormat,
     element_count: usize,
 
     buffer: Buffer<u8, N>,
@@ -22,77 +90,38 @@ impl<const N: usize> CompressingBuffer<N> {
 
     pub const fn new() -> Self {
         Self {
-            first_element: 0,
-            last_element: 0,
+            reader: EkgFormat::new(),
+            writer: EkgFormat::new(),
             element_count: 0,
             buffer: Buffer::EMPTY,
         }
     }
 
-    fn encode<'a>(&mut self, value: i32, buffer: &'a mut [u8]) -> &'a [u8] {
-        const fn zigzag_encode(val: i32) -> u32 {
-            ((val << 1) ^ (val >> 31)) as u32
-        }
-        let mut value = zigzag_encode(value);
-        let mut idx = 0;
-        while value >= 0x80 {
-            buffer[idx] = (value as u8) | 0x80;
-            value >>= 7;
-            idx += 1;
-        }
-        buffer[idx] = value as u8;
-        &buffer[..=idx]
-    }
-
     pub fn push(&mut self, item: i32) {
-        if self.is_empty() {
-            self.first_element = item;
-            self.last_element = item;
-        } else {
-            let diff = item - self.first_element;
-            let mut buffer = [0; 8];
-            let encoded = self.encode(diff, &mut buffer);
+        let mut buffer = [0u8; 8];
+        let bytes = unwrap!(self.writer.write(item, &mut &mut buffer[..]));
 
-            self.first_element = item;
-
-            while self.space() < encoded.len() {
-                if self.pop().is_none() {
-                    return;
-                }
-            }
-
-            for byte in encoded {
-                self.buffer.push(*byte);
+        while self.space() < bytes {
+            if self.pop().is_none() {
+                return;
             }
         }
+
+        for byte in buffer.iter().take(bytes).copied() {
+            self.buffer.push(byte);
+        }
+
         self.element_count += 1;
     }
 
     pub fn pop(&mut self) -> Option<i32> {
-        const fn zigzag_decode(val: u32) -> i32 {
-            (val >> 1) as i32 ^ -((val & 1) as i32)
-        }
+        let sample = unwrap!(self.reader.read(&mut self.buffer));
 
-        if self.is_empty() {
-            None
-        } else {
-            let mut diff = 0;
-            let mut idx = 0;
-            while let Some(byte) = self.buffer.pop() {
-                diff |= ((byte & 0x7F) as u32) << (idx * 7);
-                idx += 1;
-                if byte & 0x80 == 0 {
-                    break;
-                }
-            }
-            let diff = zigzag_decode(diff);
+        if sample.is_some() {
             self.element_count -= 1;
-
-            let last = self.last_element;
-            self.last_element += diff;
-
-            Some(last)
         }
+
+        sample
     }
 
     pub fn capacity(&self) -> usize {
@@ -117,8 +146,8 @@ impl<const N: usize> CompressingBuffer<N> {
 
     pub fn clear(&mut self) {
         self.element_count = 0;
-        self.first_element = 0;
-        self.last_element = 0;
+        self.reader.previous = 0;
+        self.writer.previous = 0;
         self.buffer.clear();
     }
 
@@ -151,10 +180,10 @@ mod test {
     }
 
     #[test]
-    fn first_element_is_not_stored() {
+    fn first_element_is_stored() {
         let mut buffer = CompressingBuffer::<100>::new();
         buffer.push(1);
-        assert_eq!(buffer.byte_count(), 0);
+        assert_eq!(buffer.byte_count(), 1);
     }
 
     #[test]
@@ -166,6 +195,7 @@ mod test {
     #[test]
     fn popping_returns_last_inserted_element() {
         let mut buffer = CompressingBuffer::<100>::new();
+
         buffer.push(1);
 
         assert_eq!(buffer.pop(), Some(1));
@@ -176,6 +206,9 @@ mod test {
         let mut buffer = CompressingBuffer::<100>::new();
         buffer.push(1);
         buffer.push(2);
+
+        assert_eq!(buffer.len(), 2);
+
         buffer.pop();
 
         assert_eq!(buffer.len(), 1);

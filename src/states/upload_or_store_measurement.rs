@@ -16,7 +16,7 @@ use reqwless::{
     client::HttpClient,
     request::{Method, RequestBody, RequestBuilder},
 };
-use signal_processing::compressing_buffer::CompressingBuffer;
+use signal_processing::compressing_buffer::{CompressingBuffer, EkgFormat};
 use ufmt::uwrite;
 
 use crate::{
@@ -477,7 +477,7 @@ struct MeasurementWriter<'a>(&'a [u8]);
 
 impl<'a> MeasurementWriter<'a> {
     // We're good with a straight u8 until 127 samples, then we can consider switching to varint.
-    const FORMAT_VERSION: u8 = 0;
+    const FORMAT_VERSION: u8 = EkgFormat::VERSION;
 }
 
 impl FileDataWriter for MeasurementWriter<'_> {

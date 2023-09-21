@@ -1,4 +1,6 @@
-use core::{mem::MaybeUninit, ops::Range};
+use core::{convert::Infallible, mem::MaybeUninit, ops::Range};
+
+use embedded_io::{blocking::Read, Io};
 
 pub struct Buffer<T: Copy, const N: usize> {
     write_idx: usize,
@@ -179,6 +181,26 @@ impl<T: Copy, const N: usize> Buffer<T, N> {
         }
 
         self.as_slices().0
+    }
+}
+
+impl<T: Copy, const N: usize> Io for Buffer<T, N> {
+    type Error = Infallible;
+}
+
+impl<const N: usize> Read for Buffer<u8, N> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        let mut written = 0;
+        while written < buf.len() {
+            if let Some(sample) = self.pop() {
+                buf[written] = sample;
+                written += 1;
+            } else {
+                break;
+            }
+        }
+
+        Ok(written)
     }
 }
 
