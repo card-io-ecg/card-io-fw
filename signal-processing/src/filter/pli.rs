@@ -42,7 +42,7 @@ struct FilterCore {
 impl FilterCore {
     #[inline(always)]
     fn new(fs: f32, frequency: f32) -> Self {
-        let frequency = frequency / fs;
+        let frequency = 2.0 * core::f32::consts::PI * frequency / fs;
 
         Self {
             frequency,
