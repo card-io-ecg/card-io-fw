@@ -12,6 +12,8 @@ pub mod lerp;
 pub mod moving;
 pub mod sliding;
 
+pub use macros::designfilt;
+
 #[cfg(feature = "nostd")]
 use micromath::F32Ext;
 use num_complex::Complex;
