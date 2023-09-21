@@ -89,11 +89,9 @@ struct EcgTaskParams {
 }
 
 // PLI filtering algo is probably overkill for displaying, but it's fancy
-// this is a huge amount of data to block adaptation, but exact summation gives
-// better result than estimation (TODO: revisit later, as estimated sum had a bug)
 pub type EcgFilter = chain! {
-    Iir<'static, HighPass, 2>,
-    PowerLineFilter<AdaptationBlocking<EstimatedSum<1200>, 4, 19>, 1>
+    PowerLineFilter<AdaptationBlocking<EstimatedSum<1200>, 4, 19>, 1>,
+    Iir<'static, HighPass, 2>
 };
 
 // Downsample by 8 to display around 1 second
@@ -105,6 +103,9 @@ pub type EcgDownsampler = chain! {
 
 pub const ECG_BUFFER_SIZE: usize = 90_000;
 
+// Two filter chains:
+// - PLI -> IIR HPF -> FIR Downsample -> display
+// - PLI -> IIR HPF -> FIR LPF in HR calculator -> HR calculator
 struct EcgObjects {
     pub filter: EcgFilter,
     pub downsampler: EcgDownsampler,
@@ -113,9 +114,9 @@ struct EcgObjects {
 
 impl EcgObjects {
     #[inline(always)]
-    fn new(filter: Iir<'static, HighPass, 2>) -> Self {
+    fn new(hpf: Iir<'static, HighPass, 2>) -> Self {
         Self {
-            filter: Chain::new(filter).append(PowerLineFilter::new(1000.0, [50.0])),
+            filter: Chain::new(PowerLineFilter::new(1000.0, [50.0])).append(hpf),
             downsampler: Chain::new(DownSampler::new())
                 .append(DownSampler::new())
                 .append(DownSampler::new()),
@@ -219,6 +220,7 @@ async fn measure_impl(
                     if drop_samples == 0 {
                         if let Some(filtered) = ecg.filter.update(sample.voltage()) {
                             ecg.heart_rate_calculator.update(filtered);
+
                             if let Some(downsampled) = ecg.downsampler.update(filtered) {
                                 screen.content.push(downsampled);
                             }
