@@ -47,7 +47,7 @@ use signal_processing::{
         Filter,
     },
     heart_rate::HeartRateCalculator,
-    moving::sum::Sum,
+    moving::sum::EstimatedSum,
 };
 
 type MessageQueue = Channel<CriticalSectionRawMutex, Message, 32>;
@@ -93,7 +93,7 @@ struct EcgTaskParams {
 // better result than estimation (TODO: revisit later, as estimated sum had a bug)
 pub type EcgFilter = chain! {
     Iir<'static, HighPass, 2>,
-    PowerLineFilter<AdaptationBlocking<Sum<1200>, 4, 19>, 1>
+    PowerLineFilter<AdaptationBlocking<EstimatedSum<1200>, 4, 19>, 1>
 };
 
 // Downsample by 8 to display around 1 second
