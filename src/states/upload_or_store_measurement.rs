@@ -296,9 +296,9 @@ where
     };
 
     let mut reader = file.open().await;
-    let version = reader.read_loadable::<[u8; 4]>(storage).await;
+    let version = reader.read_loadable::<u8>(storage).await;
     let version = match version {
-        Ok(version) => u32::from_le_bytes(version),
+        Ok(version) => version,
         Err(e) => {
             warn!("Failed to read data: {:?}", e);
             return Err(());
@@ -310,7 +310,10 @@ where
         return Err(());
     };
 
-    Ok(Measurement { version, buffer })
+    Ok(Measurement {
+        version: version as u32,
+        buffer,
+    })
 }
 
 fn buffer_with_capacity<T: Copy>(size: usize, init_val: T) -> Result<Box<[T]>, ()> {
