@@ -160,11 +160,12 @@ impl HeartRateCalculator {
         self.noise_filter.clear();
     }
 
-    pub fn update(&mut self, sample: f32) {
+    pub fn update(&mut self, sample: f32) -> Option<u32> {
         let Some(sample) = self.noise_filter.update(sample) else {
-            return;
+            return None;
         };
 
+        let mut detection = None;
         self.state = match self.state {
             State::Ignore(0) => State::Init(self.max_init),
             State::Ignore(n) => State::Ignore(n - 1),
@@ -175,6 +176,7 @@ impl HeartRateCalculator {
             }
             State::Init(n) => {
                 if let Some(idx) = self.qrs_detector.update(sample) {
+                    detection = Some(idx);
                     State::Measure(idx, self.max_age)
                 } else {
                     State::Init(n - 1)
@@ -188,6 +190,7 @@ impl HeartRateCalculator {
 
                     self.current_hr = Some(hr as u8);
 
+                    detection = Some(idx);
                     State::Measure(idx, self.max_age)
                 } else if age > 0 {
                     State::Measure(prev_idx, age - 1)
@@ -201,6 +204,8 @@ impl HeartRateCalculator {
                 }
             }
         };
+
+        detection
     }
 
     #[inline]
