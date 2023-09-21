@@ -4,16 +4,16 @@
 //!
 //! Implementation loosely based on matlab code found in <https://github.com/s-gv/rnicu/blob/master/ecg/adaptive_filter/pll_martens_errorfilt_supp.m>
 
-use crate::{
-    filter::{
-        iir::{
-            precomputed::{HIGH_PASS_50HZ as SIGNATURE_FILTER, HIGH_PASS_50HZ as ERROR_FILTER},
-            HighPass, Iir,
-        },
-        Filter,
+use crate::filter::{
+    iir::{
+        precomputed::{HIGH_PASS_50HZ as SIGNATURE_FILTER, HIGH_PASS_50HZ as ERROR_FILTER},
+        HighPass, Iir,
     },
-    ComplExt,
+    Filter,
 };
+
+#[cfg(feature = "nostd")]
+use crate::ComplExt;
 
 #[cfg(feature = "nostd")]
 use micromath::F32Ext;
