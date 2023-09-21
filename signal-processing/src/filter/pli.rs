@@ -133,6 +133,7 @@ pub mod adaptation_blocking {
     #[derive(Default)]
     pub struct NoAdaptationBlocking;
 
+    #[derive(Default)]
     pub struct AdaptationBlocking<V, const L: usize, const C: usize>
     where
         V: MovingSum,
@@ -150,23 +151,9 @@ pub mod adaptation_blocking {
         fn clear(&mut self) {}
     }
 
-    impl<V, const L: usize, const C: usize> Default for AdaptationBlocking<V, L, C>
-    where
-        V: MovingSum,
-    {
-        fn default() -> Self {
-            Self {
-                delay: SlidingWindow::new(),
-                comb_filter: CombFilter::new(),
-                variance: MovingVarianceOfErgodic::new(),
-                delay_cnt: 0,
-            }
-        }
-    }
-
     impl<V, const L: usize, const C: usize> AdaptationBlockingTrait for AdaptationBlocking<V, L, C>
     where
-        V: MovingSum,
+        V: MovingSum + Default,
     {
         fn update(&mut self, sample: f32) -> Option<(f32, bool)> {
             let delayed_sample = self.delay.push(sample)?;
