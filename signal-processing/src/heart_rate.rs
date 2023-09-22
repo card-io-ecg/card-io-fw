@@ -2,9 +2,9 @@ use crate::{
     filter::{fir::Fir, median::MedianFilter, Filter},
     sliding::SlidingWindow,
 };
-use qrs_detector::{
+pub use qrs_detector::{
     sampling::{SamplingFrequency, SamplingFrequencyExt},
-    QrsDetector,
+    QrsDetector, Thresholds,
 };
 
 #[allow(clippy::excessive_precision)]
@@ -137,6 +137,7 @@ pub struct HeartRateCalculator {
     max_age: usize,
     max_init: usize,
     fs: SamplingFrequency,
+    is_beat: bool,
 
     current_hr: Option<u8>,
     noise_filter: Fir<'static, 113>,
@@ -158,6 +159,7 @@ impl HeartRateCalculator {
             max_age,
             max_init,
             current_hr: None,
+            is_beat: false,
             noise_filter: Fir::from_coeffs(&LP_COEFFS),
             fs,
         }
@@ -170,9 +172,10 @@ impl HeartRateCalculator {
         self.state = State::Init(self.max_init);
         self.current_hr = None;
         self.noise_filter.clear();
+        self.is_beat = false;
     }
 
-    pub fn update(&mut self, sample: f32) -> Option<usize> {
+    pub fn update(&mut self, sample: f32) -> Option<f32> {
         let Some(sample) = self.noise_filter.update(sample) else {
             return None;
         };
@@ -183,16 +186,16 @@ impl HeartRateCalculator {
 
         let complex_lead = sample - old_sample;
 
-        let mut detection = None;
+        self.is_beat = false;
         self.state = match self.state {
             State::Init(0) => {
                 self.clear();
-                return None;
+                return Some(complex_lead);
             }
             State::Init(n) => {
                 if let Some(idx) = self.qrs_detector.update(complex_lead) {
                     let idx = idx as usize;
-                    detection = Some(idx);
+                    self.is_beat = true;
                     State::Measure(idx as usize, self.max_age)
                 } else {
                     State::Init(n - 1)
@@ -206,23 +209,32 @@ impl HeartRateCalculator {
                     let hr = self.median.update(raw).unwrap_or(raw);
 
                     self.current_hr = Some(hr as u8);
-
-                    detection = Some(idx);
+                    self.is_beat = true;
                     State::Measure(idx, self.max_age)
                 } else if age > 0 {
                     State::Measure(prev_idx, age - 1)
                 } else {
                     self.clear();
-                    return None;
+                    return Some(complex_lead);
                 }
             }
         };
 
-        detection
+        Some(complex_lead)
+    }
+
+    #[inline]
+    pub fn thresholds(&self) -> Thresholds {
+        self.qrs_detector.thresholds()
     }
 
     #[inline]
     pub fn current_hr(&self) -> Option<u8> {
         self.current_hr
+    }
+
+    #[inline]
+    pub fn is_beat(&self) -> bool {
+        self.is_beat
     }
 }
