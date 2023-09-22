@@ -60,9 +60,9 @@ use crate::{
         TouchDetect,
     },
     states::{
-        about_menu, adc_setup, charging, display_menu, initialize, main_menu, measure,
-        storage_menu, upload_or_store_measurement, upload_stored_measurements, wifi_ap, wifi_sta,
-        AppMenu, ECG_BUFFER_SIZE,
+        about_menu, adc_setup, charging, display_menu, display_serial, initialize, main_menu,
+        measure, storage_menu, upload_or_store_measurement, upload_stored_measurements, wifi_ap,
+        wifi_sta, AppMenu, ECG_BUFFER_SIZE,
     },
 };
 
@@ -112,6 +112,7 @@ pub enum AppState {
     Measure,
     Charging,
     Menu(AppMenu),
+    DisplaySerial,
     Shutdown,
     UploadStored(AppMenu),
     UploadOrStore(Box<CompressingBuffer<ECG_BUFFER_SIZE>>),
@@ -125,6 +126,7 @@ impl core::fmt::Debug for AppState {
             Self::Measure => write!(f, "Measure"),
             Self::Charging => write!(f, "Charging"),
             Self::Menu(arg0) => f.debug_tuple("Menu").field(arg0).finish(),
+            Self::DisplaySerial => write!(f, "DisplaySerial"),
             Self::Shutdown => write!(f, "Shutdown"),
             Self::UploadStored(arg0) => f.debug_tuple("UploadStored").field(arg0).finish(),
             Self::UploadOrStore(buf) => f.debug_tuple("UploadOrStore").field(&buf.len()).finish(),
@@ -141,6 +143,7 @@ impl defmt::Format for AppState {
             Self::Measure => defmt::write!(f, "Measure"),
             Self::Charging => defmt::write!(f, "Charging"),
             Self::Menu(arg0) => defmt::write!(f, "Menu({:?})", arg0),
+            Self::DisplaySerial => defmt::write!(f, "DisplaySerial"),
             Self::Shutdown => defmt::write!(f, "Shutdown"),
             Self::UploadStored(arg0) => defmt::write!(f, "UploadStored({:?})", arg0),
             Self::UploadOrStore(buf) => defmt::write!(f, "UploadOrStore (len={})", buf.len()),
@@ -318,6 +321,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
             AppState::Menu(AppMenu::WifiListVisible) => wifi_sta(&mut board).await,
             #[cfg(feature = "battery_max17055")]
             AppState::Menu(AppMenu::BatteryInfo) => battery_info_menu(&mut board).await,
+            AppState::DisplaySerial => display_serial(&mut board).await,
             AppState::UploadStored(next_state) => {
                 upload_stored_measurements(&mut board, AppState::Menu(next_state)).await
             }

@@ -16,6 +16,7 @@ pub enum AboutMenuEvents {
     None,
     #[cfg(feature = "battery_max17055")]
     ToBatteryInfo,
+    ToSerial,
     Back,
 }
 
@@ -34,7 +35,7 @@ pub async fn about_menu(board: &mut Board) -> AppState {
     items.extend([
         list_item(format!("FW {:>17}", env!("FW_VERSION"))),
         list_item(format!("HW {:>17}", hw_version)),
-        list_item(format!("Serial  {}", serial)),
+        NavigationItem::new(format!("Serial  {}", serial), AboutMenuEvents::ToSerial),
         list_item(match board.frontend.device_id() {
             Some(id) => format!("ADC {:>16}", format!("{id:?}")),
             None => format!("ADC          Unknown"),
@@ -74,6 +75,7 @@ pub async fn about_menu(board: &mut Board) -> AppState {
                 AboutMenuEvents::None => {}
                 #[cfg(feature = "battery_max17055")]
                 AboutMenuEvents::ToBatteryInfo => return AppState::Menu(AppMenu::BatteryInfo),
+                AboutMenuEvents::ToSerial => return AppState::DisplaySerial,
                 AboutMenuEvents::Back => return AppState::Menu(AppMenu::Main),
             };
         }

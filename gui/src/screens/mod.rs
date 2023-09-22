@@ -20,6 +20,7 @@ pub mod display_menu;
 pub mod init;
 pub mod measure;
 pub mod message;
+pub mod qr;
 pub mod screen;
 pub mod wifi_ap;
 

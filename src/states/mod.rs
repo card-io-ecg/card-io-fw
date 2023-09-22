@@ -1,5 +1,6 @@
 mod adc_setup;
 mod charging;
+mod display_serial;
 mod init;
 mod measure;
 mod menu;
@@ -8,8 +9,6 @@ mod upload_or_store_measurement;
 use embassy_time::Duration;
 use embedded_graphics::Drawable;
 
-pub use adc_setup::adc_setup;
-pub use charging::charging;
 use gui::{
     screens::{message::MessageScreen, screen::Screen},
     widgets::{
@@ -18,6 +17,10 @@ use gui::{
         wifi::{WifiState, WifiStateView},
     },
 };
+
+pub use adc_setup::adc_setup;
+pub use charging::charging;
+pub use display_serial::display_serial;
 pub use init::initialize;
 pub use measure::{measure, ECG_BUFFER_SIZE};
 #[cfg(feature = "battery_max17055")]
