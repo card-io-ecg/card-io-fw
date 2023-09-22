@@ -10,19 +10,20 @@ embedded-graphics = { workspace = true }
 embedded-menu = { workspace = true }
 norfs = { workspace = true }
 embedded-io = { workspace = true }
-heapless = { workspace = true }
+heapless = { workspace = true, features = ["ufmt-impl"] }
 embedded-text = "0.6"
 embedded-layout = "0.3"
 tinybmp = "0.5"
 ufmt = { workspace = true }
 
-signal-processing = { workspace = true }
+signal-processing = { workspace = true, features = ["nostd"] }
 logger = { workspace = true }
 
 defmt = { workspace = true, optional = true }
 log = { workspace = true, optional = true }
 
 itertools = { version = "0.11.0", default-features = false }
+qrcodegen-no-heap = "1.8.1"
 
 [dev-dependencies]
 embedded-graphics-simulator = "0.5.0"
