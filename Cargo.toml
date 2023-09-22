@@ -105,7 +105,7 @@ replace_with = { version = "0.1", default-features = false, features = [
 static_cell = { version = "1.2.0", features = ["nightly"] }
 bad-server = { path = "bad-server", features = ["embassy"] }
 embedded-tls = { version = "0.15.0", default-features = false, features = ["async"] }
-reqwless = { git = "https://github.com/drogue-iot/reqwless" }
+reqwless = "0.6.0"
 
 embedded-graphics = { workspace = true }
 embedded-hal = { workspace = true }
