@@ -1,5 +1,8 @@
 use crate::filter::{fir::Fir, median::MedianFilter, Filter};
-use qrs_detector::{sampling::SamplingFrequency, QrsDetector};
+use qrs_detector::{
+    sampling::{SamplingFrequency, SamplingFrequencyExt},
+    QrsDetector,
+};
 
 #[allow(clippy::excessive_precision)]
 const LP_COEFFS: [f32; 113] = [
@@ -119,18 +122,18 @@ const LP_COEFFS: [f32; 113] = [
 ];
 
 pub enum State {
-    Ignore(u32),
-    Init(u32),
-    Measure(u32, u32),
+    Ignore(usize),
+    Init(usize),
+    Measure(usize, usize),
 }
 
 pub struct HeartRateCalculator {
     median: MedianFilter<3>,
     qrs_detector: QrsDetector<300, 50>,
     state: State,
-    max_age: u32,
-    max_init: u32,
-    fs: f32,
+    max_age: usize,
+    max_init: usize,
+    fs: SamplingFrequency,
 
     current_hr: Option<u8>,
     noise_filter: Fir<'static, 113>,
@@ -139,12 +142,13 @@ pub struct HeartRateCalculator {
 impl HeartRateCalculator {
     #[inline]
     pub fn new(fs: f32) -> Self {
-        let max_init = (fs * 5.0) as u32;
+        let fs = fs.sps();
+        let max_init = fs.s_to_samples(5.0);
         Self {
             median: MedianFilter::new(),
-            qrs_detector: QrsDetector::new(SamplingFrequency(fs)),
-            state: State::Ignore((0.5 * fs) as u32),
-            max_age: (fs * 3.0) as u32,
+            qrs_detector: QrsDetector::new(fs),
+            state: State::Ignore(fs.s_to_samples(0.5)),
+            max_age: fs.s_to_samples(3.0),
             max_init,
             current_hr: None,
             noise_filter: Fir::from_coeffs(&LP_COEFFS),
@@ -155,12 +159,12 @@ impl HeartRateCalculator {
     pub fn clear(&mut self) {
         self.median.clear();
         self.qrs_detector.clear();
-        self.state = State::Ignore((0.5 * self.fs) as u32);
+        self.state = State::Ignore(self.fs.s_to_samples(0.5));
         self.current_hr = None;
         self.noise_filter.clear();
     }
 
-    pub fn update(&mut self, sample: f32) -> Option<u32> {
+    pub fn update(&mut self, sample: f32) -> Option<usize> {
         let Some(sample) = self.noise_filter.update(sample) else {
             return None;
         };
@@ -176,8 +180,9 @@ impl HeartRateCalculator {
             }
             State::Init(n) => {
                 if let Some(idx) = self.qrs_detector.update(sample) {
+                    let idx = idx as usize;
                     detection = Some(idx);
-                    State::Measure(idx, self.max_age)
+                    State::Measure(idx as usize, self.max_age)
                 } else {
                     State::Init(n - 1)
                 }
@@ -185,7 +190,8 @@ impl HeartRateCalculator {
 
             State::Measure(prev_idx, age) => {
                 if let Some(idx) = self.qrs_detector.update(sample) {
-                    let raw = 60_000.0 / (idx - prev_idx) as f32;
+                    let idx = idx as usize;
+                    let raw = self.fs.s_to_samples(60.0) as f32 / (idx - prev_idx) as f32;
                     let hr = self.median.update(raw).unwrap_or(raw);
 
                     self.current_hr = Some(hr as u8);
