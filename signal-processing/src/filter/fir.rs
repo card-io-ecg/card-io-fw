@@ -2,6 +2,7 @@ use crate::sliding::SlidingWindow;
 
 use super::Filter;
 
+#[derive(Clone)]
 pub struct Fir<'a, const N: usize> {
     coeffs: &'a [f32; N],
     buffer: SlidingWindow<N>,

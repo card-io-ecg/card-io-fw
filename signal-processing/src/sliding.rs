@@ -2,6 +2,7 @@
 
 use crate::buffer::Buffer;
 
+#[derive(Clone)]
 pub struct SlidingWindow<const N: usize> {
     buffer: Buffer<f32, N>,
 }

@@ -43,9 +43,12 @@ pub mod precomputed {
     );
 }
 
+#[derive(Clone)]
 pub struct HighPass {
     first_sample: Option<f32>,
 }
+
+#[derive(Clone)]
 pub struct LowPass;
 
 pub trait FilterType {
@@ -76,6 +79,7 @@ impl FilterType for LowPass {
     }
 }
 
+#[derive(Clone)]
 pub struct Iir<'a, T, const N: usize>
 where
     T: FilterType,

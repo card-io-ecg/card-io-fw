@@ -2,7 +2,7 @@ use crate::sliding::SlidingWindow;
 
 use super::Filter;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct MedianFilter<const N: usize> {
     buffer: SlidingWindow<N>,
 }

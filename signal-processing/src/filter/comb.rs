@@ -1,6 +1,6 @@
 use crate::{filter::Filter, sliding::SlidingWindow};
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct CombFilter<const N: usize> {
     window: SlidingWindow<N>,
 }

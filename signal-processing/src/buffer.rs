@@ -14,6 +14,16 @@ impl<T: Copy, const N: usize> Default for Buffer<T, N> {
     }
 }
 
+impl<T: Copy, const N: usize> Clone for Buffer<T, N> {
+    fn clone(&self) -> Self {
+        Self {
+            write_idx: self.write_idx,
+            count: self.count,
+            buffer: self.buffer.clone(),
+        }
+    }
+}
+
 impl<T: Copy, const N: usize> Buffer<T, N> {
     pub const EMPTY: Self = Self::new();
 

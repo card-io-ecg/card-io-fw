@@ -1,6 +1,6 @@
 use crate::moving::sum::MovingSum;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct MovingAverage<S: MovingSum> {
     sum: S,
 }

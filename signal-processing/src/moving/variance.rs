@@ -8,7 +8,7 @@ pub trait MovingVariance {
     fn update(&mut self, sample: f32) -> Option<f32>;
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct MovingVarianceOfErgodic<S: MovingSum> {
     sum: S,
 }

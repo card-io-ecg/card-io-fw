@@ -1,6 +1,6 @@
 use crate::sliding::SlidingWindow;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Sum<const N: usize> {
     window: SlidingWindow<N>,
     current: f32,
@@ -40,7 +40,7 @@ impl<const N: usize> MovingSum for Sum<N> {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct EstimatedSum<const N: usize> {
     current: f32,
     samples: usize,

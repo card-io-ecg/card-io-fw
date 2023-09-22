@@ -18,6 +18,7 @@ use crate::ComplExt;
 #[cfg(feature = "nostd")]
 use micromath::F32Ext;
 
+#[derive(Clone)]
 struct FilterCore {
     // constants
     frequency: f32,
@@ -130,10 +131,10 @@ pub mod adaptation_blocking {
         fn clear(&mut self);
     }
 
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     pub struct NoAdaptationBlocking;
 
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     pub struct AdaptationBlocking<V, const L: usize, const C: usize>
     where
         V: MovingSum,
@@ -178,6 +179,7 @@ pub mod adaptation_blocking {
     }
 }
 
+#[derive(Clone)]
 pub struct Constants {
     k_a: f32,
     theta_dw_update_threshold: f32,
@@ -197,6 +199,7 @@ impl Constants {
     }
 }
 
+#[derive(Clone)]
 pub struct PowerLineFilter<ADB, const N_FS: usize>
 where
     ADB: adaptation_blocking::AdaptationBlockingTrait,
