@@ -1,4 +1,7 @@
-use crate::filter::{fir::Fir, median::MedianFilter, Filter};
+use crate::{
+    filter::{fir::Fir, median::MedianFilter, Filter},
+    sliding::SlidingWindow,
+};
 use qrs_detector::{
     sampling::{SamplingFrequency, SamplingFrequencyExt},
     QrsDetector,
@@ -129,6 +132,7 @@ pub enum State {
 pub struct HeartRateCalculator {
     median: MedianFilter<3>,
     qrs_detector: QrsDetector<300, 50>,
+    differentiator: SlidingWindow<2>,
     state: State,
     max_age: usize,
     max_init: usize,
@@ -149,6 +153,7 @@ impl HeartRateCalculator {
         Self {
             median: MedianFilter::new(),
             qrs_detector: QrsDetector::new(fs),
+            differentiator: SlidingWindow::new(),
             state: State::Init(max_init),
             max_age,
             max_init,
@@ -161,6 +166,7 @@ impl HeartRateCalculator {
     pub fn clear(&mut self) {
         self.median.clear();
         self.qrs_detector.clear();
+        self.differentiator.clear();
         self.state = State::Init(self.max_init);
         self.current_hr = None;
         self.noise_filter.clear();
@@ -171,6 +177,12 @@ impl HeartRateCalculator {
             return None;
         };
 
+        let Some(old_sample) = self.differentiator.push(sample) else {
+            return None;
+        };
+
+        let complex_lead = sample - old_sample;
+
         let mut detection = None;
         self.state = match self.state {
             State::Init(0) => {
@@ -178,7 +190,7 @@ impl HeartRateCalculator {
                 return None;
             }
             State::Init(n) => {
-                if let Some(idx) = self.qrs_detector.update(sample) {
+                if let Some(idx) = self.qrs_detector.update(complex_lead) {
                     let idx = idx as usize;
                     detection = Some(idx);
                     State::Measure(idx as usize, self.max_age)
@@ -188,7 +200,7 @@ impl HeartRateCalculator {
             }
 
             State::Measure(prev_idx, age) => {
-                if let Some(idx) = self.qrs_detector.update(sample) {
+                if let Some(idx) = self.qrs_detector.update(complex_lead) {
                     let idx = idx as usize;
                     let raw = self.fs.s_to_samples(60.0) as f32 / (idx - prev_idx) as f32;
                     let hr = self.median.update(raw).unwrap_or(raw);
