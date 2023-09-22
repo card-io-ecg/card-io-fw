@@ -122,7 +122,6 @@ const LP_COEFFS: [f32; 113] = [
 ];
 
 pub enum State {
-    Ignore(usize),
     Init(usize),
     Measure(usize, usize),
 }
@@ -143,12 +142,15 @@ impl HeartRateCalculator {
     #[inline]
     pub fn new(fs: f32) -> Self {
         let fs = fs.sps();
+
         let max_init = fs.s_to_samples(5.0);
+        let max_age = fs.s_to_samples(3.0);
+
         Self {
             median: MedianFilter::new(),
             qrs_detector: QrsDetector::new(fs),
-            state: State::Ignore(fs.s_to_samples(0.5)),
-            max_age: fs.s_to_samples(3.0),
+            state: State::Init(max_init),
+            max_age,
             max_init,
             current_hr: None,
             noise_filter: Fir::from_coeffs(&LP_COEFFS),
@@ -159,7 +161,7 @@ impl HeartRateCalculator {
     pub fn clear(&mut self) {
         self.median.clear();
         self.qrs_detector.clear();
-        self.state = State::Ignore(self.fs.s_to_samples(0.5));
+        self.state = State::Init(self.max_init);
         self.current_hr = None;
         self.noise_filter.clear();
     }
@@ -171,12 +173,9 @@ impl HeartRateCalculator {
 
         let mut detection = None;
         self.state = match self.state {
-            State::Ignore(0) => State::Init(self.max_init),
-            State::Ignore(n) => State::Ignore(n - 1),
-
             State::Init(0) => {
-                self.qrs_detector.clear();
-                State::Init(self.max_init)
+                self.clear();
+                return None;
             }
             State::Init(n) => {
                 if let Some(idx) = self.qrs_detector.update(sample) {
@@ -201,12 +200,8 @@ impl HeartRateCalculator {
                 } else if age > 0 {
                     State::Measure(prev_idx, age - 1)
                 } else {
-                    self.median.clear();
-                    self.qrs_detector.clear();
-                    self.noise_filter.clear();
-                    self.current_hr = None;
-
-                    State::Init(self.max_init)
+                    self.clear();
+                    return None;
                 }
             }
         };
