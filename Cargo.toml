@@ -134,7 +134,7 @@ smoltcp = { version = "0.10.0", default-features = false, features = [
 ] }
 
 [patch.crates-io]
-esp32s3-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "lock" }
+esp32s3-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "24edf7bdc4788469a592e2fe6cf2580443101971" }
 
 [features]
 default = ["esp32s3", "defmt"]
