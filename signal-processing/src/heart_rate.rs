@@ -7,6 +7,9 @@ pub use qrs_detector::{
     QrsDetector, Thresholds,
 };
 
+#[cfg(feature = "nostd")]
+use micromath::F32Ext;
+
 #[allow(clippy::excessive_precision)]
 const LP_COEFFS: [f32; 113] = [
     0.000676934074286376,
@@ -184,7 +187,7 @@ impl HeartRateCalculator {
             return None;
         };
 
-        let complex_lead = sample - old_sample;
+        let complex_lead = (sample - old_sample).abs();
 
         self.is_beat = false;
         self.state = match self.state {
