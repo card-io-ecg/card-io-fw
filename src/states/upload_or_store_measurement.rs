@@ -348,12 +348,17 @@ where
     const UPLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
     let mut upload_url = heapless::String::<128>::new();
-    unwrap!(uwrite!(
+    if uwrite!(
         &mut upload_url,
         "{}/upload_data/{}",
         url,
         SerialNumber::new()
-    ));
+    )
+    .is_err()
+    {
+        warn!("URL too long");
+        return Err(());
+    }
 
     let mut timestamp = heapless::String::<32>::new();
     unwrap!(uwrite!(&mut timestamp, "{}", meas_timestamp));
