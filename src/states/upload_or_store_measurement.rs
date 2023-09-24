@@ -15,6 +15,7 @@ use norfs::{
 use reqwless::{
     client::HttpClient,
     request::{Method, RequestBody, RequestBuilder},
+    response::Status,
 };
 use signal_processing::compressing_buffer::{CompressingBuffer, EkgFormat};
 use ufmt::uwrite;
@@ -131,6 +132,7 @@ async fn try_to_upload(board: &mut Board, sample_count: usize, buffer: &[u8]) ->
     {
         Ok(_) => {
             // Upload successful, do not store in file.
+            display_message(board, "Upload successful").await;
             StoreMeasurement::DontStore
         }
         Err(_) => {
@@ -390,14 +392,21 @@ where
     let upload = select(request.send(rx_buffer), Timer::after(UPLOAD_TIMEOUT)).await;
 
     match upload {
-        Either::First(Ok(_)) => Ok(()),
+        Either::First(Ok(response)) => {
+            if response.status == Status::Ok {
+                Ok(())
+            } else {
+                warn!("HTTP upload failed: {}", response.status);
+                Err(())
+            }
+        }
         Either::First(Err(e)) => {
             warn!("HTTP upload error: {}", e);
-            return Err(());
+            Err(())
         }
         Either::Second(_) => {
             warn!("Timeout");
-            return Err(());
+            Err(())
         }
     }
 }
