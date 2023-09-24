@@ -346,7 +346,7 @@ where
     T: TcpConnect,
     DNS: Dns,
 {
-    const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+    const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
     const UPLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
     let mut upload_url = heapless::String::<128>::new();
@@ -384,7 +384,7 @@ where
             return Err(());
         }
         Either::Second(_) => {
-            warn!("Timeout");
+            warn!("Conect timeout");
             return Err(());
         }
     };
@@ -397,6 +397,13 @@ where
                 Ok(())
             } else {
                 warn!("HTTP upload failed: {}", response.status);
+                for header in response.headers() {
+                    debug!(
+                        "Header {}: {}",
+                        header.0,
+                        core::str::from_utf8(header.1).unwrap_or("not a string")
+                    );
+                }
                 Err(())
             }
         }
