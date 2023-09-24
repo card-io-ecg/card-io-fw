@@ -300,6 +300,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
             config_changed: false,
             storage,
             sta_work_available: None,
+            message_display_timer: Timer::after(Duration::from_secs(0)),
         })
     })
     .await;
@@ -331,6 +332,8 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
             AppState::Shutdown => break,
         };
     }
+
+    board.message_display_timer.await;
 
     let _ = board.display.shut_down();
 

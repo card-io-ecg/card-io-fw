@@ -37,9 +37,7 @@ enum StoreMeasurement {
 }
 
 pub async fn upload_stored_measurements(board: &mut Board, next_state: AppState) -> AppState {
-    if upload_stored(board).await {
-        Timer::after(Duration::from_secs(2)).await;
-    }
+    upload_stored(board).await;
 
     next_state
 }
@@ -59,8 +57,6 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
         if let Err(e) = store_result {
             display_message(board, "Could not store measurement").await;
             error!("Failed to store measurement: {:?}", e);
-
-            Timer::after(Duration::from_secs(2)).await;
         }
 
         next_state
@@ -137,7 +133,11 @@ async fn try_to_upload(board: &mut Board, sample_count: usize, buffer: &[u8]) ->
             // Upload successful, do not store in file.
             StoreMeasurement::DontStore
         }
-        Err(_) => StoreMeasurement::Store,
+        Err(_) => {
+            warn!("Failed to upload measurement");
+            display_message(board, "Upload failed").await;
+            StoreMeasurement::Store
+        }
     }
 }
 
@@ -416,8 +416,6 @@ async fn try_store_measurement(board: &mut Board, measurement: &[u8]) -> Result<
         return Ok(());
     };
 
-    let timeout = Timer::after(Duration::from_secs(2));
-
     let meas_idx = find_measurement_index(storage).await?;
 
     let mut filename = heapless::String::<16>::new();
@@ -434,7 +432,6 @@ async fn try_store_measurement(board: &mut Board, measurement: &[u8]) -> Result<
     info!("Measurement saved to {}", filename);
 
     board.signal_sta_work_available();
-    timeout.await;
 
     Ok(())
 }

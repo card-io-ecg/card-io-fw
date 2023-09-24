@@ -11,6 +11,7 @@ use crate::{
 };
 use embassy_executor::SendSpawner;
 use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
+use embassy_time::Timer;
 use norfs::OnCollision;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -31,6 +32,7 @@ pub struct Board {
     pub config_changed: bool,
     pub storage: Option<FileSystem>,
     pub sta_work_available: Option<bool>,
+    pub message_display_timer: Timer,
 }
 
 impl Board {
