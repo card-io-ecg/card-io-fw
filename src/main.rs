@@ -300,7 +300,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
             config_changed: false,
             storage,
             sta_work_available: None,
-            message_display_timer: Timer::after(Duration::from_secs(0)),
+            message_displayed_at: None,
         })
     })
     .await;
@@ -333,7 +333,9 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
         };
     }
 
-    board.message_display_timer.await;
+    if let Some(message_at) = board.message_displayed_at.take() {
+        Timer::at(message_at + Duration::from_secs(2)).await;
+    }
 
     let _ = board.display.shut_down();
 

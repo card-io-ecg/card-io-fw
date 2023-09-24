@@ -6,7 +6,7 @@ mod measure;
 mod menu;
 mod upload_or_store_measurement;
 
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::Drawable;
 
 use gui::{
@@ -82,7 +82,12 @@ fn to_progress(elapsed: Duration, max_duration: Duration) -> u32 {
 
 async fn display_message(board: &mut Board, message: &str) {
     info!("Displaying message: {}", message);
-    board.message_display_timer = Timer::after(Duration::from_secs(2));
+
+    if let Some(previous) = board.message_displayed_at.take() {
+        Timer::at(previous + Duration::from_millis(300)).await;
+    }
+
+    board.message_displayed_at = Some(Instant::now());
 
     let status_bar = board.status_bar();
     board
