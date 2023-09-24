@@ -1,21 +1,65 @@
 use crate::{
     board::{initialized::Board, storage::FileSystem},
-    states::{display_message, AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
+    states::{
+        display_message, menu::AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME,
+    },
     timeout::Timeout,
     AppState,
 };
 use embassy_time::Ticker;
 use embedded_graphics::prelude::*;
+use embedded_io::asynch::{Read, Write};
 use embedded_menu::{
     items::{NavigationItem, Select},
-    Menu,
+    Menu, SelectValue,
 };
 use gui::screens::{menu_style, screen::Screen};
+use norfs::storable::{LoadError, Loadable, Storable};
 use ufmt::{uDisplay, uwrite};
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue)]
+pub enum MeasurementAction {
+    Ask = 0,
+    Auto = 1,
+    Store = 2,
+    Upload = 3,
+    Discard = 4,
+}
+
+impl MeasurementAction {
+    pub fn should_upload(self) -> bool {
+        matches!(self, Self::Upload | Self::Auto)
+    }
+
+    pub fn should_store(self) -> bool {
+        matches!(self, Self::Store | Self::Auto)
+    }
+}
+
+impl Loadable for MeasurementAction {
+    async fn load<R: Read>(reader: &mut R) -> Result<Self, LoadError<R::Error>> {
+        let data = match u8::load(reader).await? {
+            0 => Self::Ask,
+            1 => Self::Auto,
+            2 => Self::Store,
+            3 => Self::Upload,
+            4 => Self::Discard,
+            _ => return Err(LoadError::InvalidValue),
+        };
+
+        Ok(data)
+    }
+}
+
+impl Storable for MeasurementAction {
+    async fn store<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
+        writer.write_all(&[*self as u8]).await
+    }
+}
 
 #[derive(Clone, Copy)]
 pub enum StorageMenuEvents {
-    StoreMeasurement(bool),
+    MeasurementAction(MeasurementAction),
     Format,
     Upload,
     Nothing,
@@ -97,8 +141,9 @@ pub async fn storage_menu(board: &mut Board) -> AppState {
     let mut menu_screen = Screen {
         content: Menu::with_style("Storage", menu_style())
             .add_item(
-                Select::new("Store EKG", board.config.store_measurement)
-                    .with_value_converter(StorageMenuEvents::StoreMeasurement),
+                Select::new("New EKG", board.config.measurement_action)
+                    .with_value_converter(StorageMenuEvents::MeasurementAction)
+                    .with_detail_text("What to do with new measurements"),
             )
             .add_items(&mut items[..])
             .add_item(NavigationItem::new("Back", StorageMenuEvents::Back))
@@ -134,11 +179,11 @@ pub async fn storage_menu(board: &mut Board) -> AppState {
                     return AppState::Menu(AppMenu::Main);
                 }
                 StorageMenuEvents::Nothing => {}
-                StorageMenuEvents::StoreMeasurement(store) => {
+                StorageMenuEvents::MeasurementAction(action) => {
                     debug!("Settings changed");
 
                     board.config_changed = true;
-                    board.config.store_measurement = store;
+                    board.config.measurement_action = action;
                 }
             };
         }

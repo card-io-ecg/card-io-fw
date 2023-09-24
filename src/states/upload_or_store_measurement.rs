@@ -52,7 +52,7 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     let samples = buffer.make_contiguous();
     let upload_result = try_to_upload(board, sample_count, samples).await;
     debug!("Upload result: {:?}", upload_result);
-    if upload_result == StoreMeasurement::Store && board.config.store_measurement {
+    if upload_result == StoreMeasurement::Store && board.config.measurement_action.should_store() {
         let store_result = try_store_measurement(board, samples).await;
 
         if let Err(e) = store_result {

@@ -1,6 +1,6 @@
 use crate::{
     board::initialized::Board,
-    states::{AppMenu, MIN_FRAME_TIME},
+    states::{menu::AppMenu, MIN_FRAME_TIME},
     timeout::Timeout,
     AppState, SerialNumber,
 };

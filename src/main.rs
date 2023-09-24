@@ -39,7 +39,8 @@ use crate::{
 use crate::board::VbusDetect;
 
 #[cfg(feature = "battery_max17055")]
-use crate::states::battery_info_menu;
+pub use crate::states::menu::battery_info::battery_info_menu;
+
 use crate::{
     board::{
         config::{Config, ConfigFile},
@@ -60,9 +61,16 @@ use crate::{
         TouchDetect,
     },
     states::{
-        about_menu, adc_setup, charging, display_menu, display_serial, initialize, main_menu,
-        measure, storage_menu, upload_or_store_measurement, upload_stored_measurements, wifi_ap,
-        wifi_sta, AppMenu, ECG_BUFFER_SIZE,
+        adc_setup::adc_setup,
+        charging::charging,
+        display_serial::display_serial,
+        init::initialize,
+        measure::{measure, ECG_BUFFER_SIZE},
+        menu::{
+            about::about_menu, display::display_menu, main::main_menu, storage::storage_menu,
+            wifi_ap::wifi_ap, wifi_sta::wifi_sta, AppMenu,
+        },
+        upload_or_store_measurement::{upload_or_store_measurement, upload_stored_measurements},
     },
 };
 

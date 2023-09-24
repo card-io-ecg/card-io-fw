@@ -1,7 +1,7 @@
 use crate::{
     board::initialized::Board,
     heap::ALLOCATOR,
-    states::{AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
+    states::{menu::AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
     timeout::Timeout,
     AppState,
 };
