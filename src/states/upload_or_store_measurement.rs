@@ -393,11 +393,14 @@ where
 
     match upload {
         Either::First(Ok(response)) => {
-            if response.status == Status::Ok {
+            if [Status::Ok, Status::Created].contains(&response.status) {
                 Ok(())
             } else {
                 warn!("HTTP upload failed: {}", response.status);
                 for header in response.headers() {
+                    if header.0.is_empty() {
+                        continue;
+                    }
                     debug!(
                         "Header {}: {}",
                         header.0,
