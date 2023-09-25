@@ -52,6 +52,20 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     mut buffer: Box<CompressingBuffer<SIZE>>,
     next_state: AppState,
 ) -> AppState {
+    let sample_count = buffer.len();
+    let samples = buffer.make_contiguous();
+
+    const SAMPLE_RATE: usize = 1000; // samples/sec
+
+    debug!("Measurement length: {} samples", sample_count);
+
+    if sample_count < 20 * SAMPLE_RATE {
+        // We don't want to store too-short measurements.
+        debug!("Measurement is too short to upload or store.");
+        display_message(board, "Measurement too short, discarding").await;
+        return next_state;
+    }
+
     let (can_upload, can_store) = match board.config.measurement_action {
         MeasurementAction::Ask => ask_for_measurement_action(board).await,
         MeasurementAction::Auto => (true, true),
@@ -60,11 +74,8 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
         MeasurementAction::Discard => (false, false),
     };
 
-    let sample_count = buffer.len();
-    let samples = buffer.make_contiguous();
-
     let store_after_upload = if can_upload {
-        let upload_result = try_to_upload(board, sample_count, samples).await;
+        let upload_result = try_to_upload(board, samples).await;
         debug!("Upload result: {:?}", upload_result);
         upload_result == StoreMeasurement::Store
     } else {
@@ -107,17 +118,7 @@ struct Resources {
     rx_buffer: [u8; 1024],
 }
 
-async fn try_to_upload(board: &mut Board, sample_count: usize, buffer: &[u8]) -> StoreMeasurement {
-    const SAMPLE_RATE: usize = 1000; // samples/sec
-
-    debug!("Handling {} samples", sample_count);
-
-    if sample_count < 20 * SAMPLE_RATE {
-        debug!("Buffer is too short to upload or store.");
-        // We don't want to store too-short measurements.
-        return StoreMeasurement::DontStore;
-    }
-
+async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
     if board.config.backend_url.is_empty() {
         debug!("No backend URL configured, not uploading.");
         return StoreMeasurement::Store;
