@@ -7,8 +7,8 @@ use crate::{
 use alloc::{format, string::String};
 use embassy_time::Ticker;
 use embedded_graphics::Drawable;
-use embedded_menu::{items::NavigationItem, Menu};
-use gui::screens::{menu_style, screen::Screen};
+use embedded_menu::items::NavigationItem;
+use gui::screens::{create_menu, screen::Screen};
 use ufmt::uwrite;
 
 #[derive(Clone, Copy)]
@@ -53,7 +53,7 @@ pub async fn about_menu(board: &mut Board) -> AppState {
     }
 
     let mut menu_screen = Screen {
-        content: Menu::with_style("Device info", menu_style())
+        content: create_menu("Device info")
             .add_items(&mut items[..])
             .add_item(NavigationItem::new("Back", AboutMenuEvents::Back))
             .build(),
