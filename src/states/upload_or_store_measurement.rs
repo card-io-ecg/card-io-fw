@@ -1,4 +1,7 @@
-use core::mem::{self, MaybeUninit};
+use core::{
+    marker::PhantomData,
+    mem::{self, MaybeUninit},
+};
 
 use alloc::{boxed::Box, vec::Vec};
 use embassy_futures::select::{select, Either};
@@ -28,7 +31,8 @@ use crate::{
         wifi::sta::{ConnectionState, Sta},
     },
     states::{
-        display_menu_screen, display_message, menu::storage::MeasurementAction, MENU_IDLE_DURATION,
+        display_menu_screen, display_message, menu::storage::MeasurementAction, MenuEventHandler,
+        MENU_IDLE_DURATION,
     },
     AppState, SerialNumber,
 };
@@ -100,6 +104,22 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     next_state
 }
 
+#[derive(Default)]
+struct ReturnEvent<R>(PhantomData<R>);
+
+impl<R> MenuEventHandler for ReturnEvent<R> {
+    type Input = R;
+    type Result = R;
+
+    async fn handle_event(
+        &mut self,
+        event: Self::Input,
+        _board: &mut Board,
+    ) -> Option<Self::Result> {
+        Some(event)
+    }
+}
+
 async fn ask_for_measurement_action(board: &mut Board) -> (bool, bool) {
     let menu = create_menu("EKG action")
         .add_item(NavigationItem::new("Upload or store", (true, true)))
@@ -108,7 +128,7 @@ async fn ask_for_measurement_action(board: &mut Board) -> (bool, bool) {
         .add_item(NavigationItem::new("Discard", (false, false)))
         .build();
 
-    display_menu_screen(menu, board, MENU_IDLE_DURATION, |evt, _board| Some(evt))
+    display_menu_screen(menu, board, MENU_IDLE_DURATION, ReturnEvent::default())
         .await
         .unwrap_or((false, false))
 }

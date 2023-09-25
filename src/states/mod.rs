@@ -123,12 +123,20 @@ impl Board {
     }
 }
 
-async fn display_menu_screen<T, VG, R, P, S>(
+pub trait MenuEventHandler {
+    type Result;
+    type Input;
+
+    async fn handle_event(&mut self, event: Self::Input, board: &mut Board)
+        -> Option<Self::Result>;
+}
+
+async fn display_menu_screen<T, VG, R, P, S, RV>(
     menu: Menu<T, SingleTouch, VG, R, BinaryColor, P, S>,
     board: &mut Board,
     idle_timeout: Duration,
-    mut handle_event: impl FnMut(R, &mut Board) -> Option<R>,
-) -> Option<R>
+    mut handler: impl MenuEventHandler<Input = R, Result = RV>,
+) -> Option<RV>
 where
     T: AsRef<str>,
     VG: ViewGroup + MenuItemCollection<R>,
@@ -152,7 +160,7 @@ where
         }
 
         if let Some(event) = screen.content.interact(is_touched) {
-            if let Some(result) = handle_event(event, board) {
+            if let Some(result) = handler.handle_event(event, board).await {
                 return Some(result);
             }
         }

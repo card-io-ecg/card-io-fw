@@ -1,19 +1,16 @@
 use crate::{
     board::{initialized::Board, storage::FileSystem},
     states::{
-        display_message, menu::AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME,
+        display_menu_screen, display_message, menu::AppMenu, MenuEventHandler, MENU_IDLE_DURATION,
     },
-    timeout::Timeout,
     AppState,
 };
-use embassy_time::Ticker;
-use embedded_graphics::prelude::*;
 use embedded_io::asynch::{Read, Write};
 use embedded_menu::{
     items::{NavigationItem, Select},
-    Menu, SelectValue,
+    SelectValue,
 };
-use gui::screens::{menu_style, screen::Screen};
+use gui::screens::create_menu;
 use norfs::storable::{LoadError, Loadable, Storable};
 use ufmt::{uDisplay, uwrite};
 
@@ -84,9 +81,47 @@ impl uDisplay for BinarySize {
     }
 }
 
-pub async fn storage_menu(board: &mut Board) -> AppState {
-    let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
+struct StorageEventHandler;
 
+impl MenuEventHandler for StorageEventHandler {
+    type Input = StorageMenuEvents;
+    type Result = AppState;
+
+    async fn handle_event(
+        &mut self,
+        event: Self::Input,
+        board: &mut Board,
+    ) -> Option<Self::Result> {
+        match event {
+            StorageMenuEvents::Format => {
+                info!("Format requested");
+                display_message(board, "Formatting storage...").await;
+                core::mem::drop(board.storage.take());
+                FileSystem::format().await;
+                board.storage = FileSystem::mount().await;
+
+                // Prevent saving config changes
+                board.config_changed = false;
+                // TODO: this doesn't reset config
+
+                return Some(AppState::Menu(AppMenu::Main));
+            }
+            StorageMenuEvents::Upload => return Some(AppState::UploadStored(AppMenu::Storage)),
+            StorageMenuEvents::Back => return Some(AppState::Menu(AppMenu::Main)),
+            StorageMenuEvents::MeasurementAction(action) => {
+                debug!("Settings changed");
+
+                board.config_changed = true;
+                board.config.measurement_action = action;
+            }
+            StorageMenuEvents::Nothing => {}
+        }
+
+        None
+    }
+}
+
+pub async fn storage_menu(board: &mut Board) -> AppState {
     let mut used_str = heapless::String::<32>::new();
 
     let mut items = heapless::Vec::<_, 3>::new();
@@ -128,75 +163,20 @@ pub async fn storage_menu(board: &mut Board) -> AppState {
             .ok());
     }
 
-    let mut menu_screen = Screen {
-        content: Menu::with_style("Storage", menu_style())
-            .add_item(
-                Select::new("New EKG", board.config.measurement_action)
-                    .with_value_converter(StorageMenuEvents::MeasurementAction)
-                    .with_detail_text("What to do with new measurements"),
-            )
-            .add_items(&mut items[..])
-            .add_item(NavigationItem::new("Back", StorageMenuEvents::Back))
-            .build(),
+    let menu = create_menu("Storage")
+        .add_item(
+            Select::new("New EKG", board.config.measurement_action)
+                .with_value_converter(StorageMenuEvents::MeasurementAction)
+                .with_detail_text("What to do with new measurements"),
+        )
+        .add_items(&mut items[..])
+        .add_item(NavigationItem::new("Back", StorageMenuEvents::Back))
+        .build();
 
-        status_bar: board.status_bar(),
-    };
+    let menu_result =
+        display_menu_screen(menu, board, MENU_IDLE_DURATION, StorageEventHandler).await;
 
-    let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    let mut input = TouchInputShaper::new();
-
-    while !exit_timer.is_elapsed() {
-        input.update(&mut board.frontend);
-        let is_touched = input.is_touched();
-        if is_touched {
-            exit_timer.reset();
-        }
-
-        if let Some(event) = menu_screen.content.interact(is_touched) {
-            match event {
-                StorageMenuEvents::Format => {
-                    info!("Format requested");
-                    display_message(board, "Formatting storage...").await;
-                    core::mem::drop(board.storage.take());
-                    FileSystem::format().await;
-                    board.storage = FileSystem::mount().await;
-
-                    return AppState::Menu(AppMenu::Main);
-                }
-                StorageMenuEvents::Upload => return AppState::UploadStored(AppMenu::Storage),
-                StorageMenuEvents::Back => {
-                    board.save_config().await;
-                    return AppState::Menu(AppMenu::Main);
-                }
-                StorageMenuEvents::Nothing => {}
-                StorageMenuEvents::MeasurementAction(action) => {
-                    debug!("Settings changed");
-
-                    board.config_changed = true;
-                    board.config.measurement_action = action;
-                }
-            };
-        }
-
-        #[cfg(feature = "battery_max17055")]
-        if board.battery_monitor.is_low() {
-            return AppState::Shutdown;
-        }
-
-        menu_screen.status_bar = board.status_bar();
-
-        board
-            .display
-            .frame(|display| {
-                menu_screen.content.update(display);
-                menu_screen.draw(display)
-            })
-            .await;
-
-        ticker.next().await;
-    }
-
-    info!("Menu timeout");
     board.save_config().await;
-    AppState::Shutdown
+
+    menu_result.unwrap_or(AppState::Shutdown)
 }
