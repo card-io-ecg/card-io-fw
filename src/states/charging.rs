@@ -1,6 +1,6 @@
 use crate::{
     board::initialized::Board,
-    states::{AppMenu, MIN_FRAME_TIME, TARGET_FPS},
+    states::{menu::AppMenu, MIN_FRAME_TIME, TARGET_FPS},
     timeout::Timeout,
     AppState,
 };

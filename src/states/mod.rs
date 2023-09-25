@@ -1,15 +1,22 @@
-mod adc_setup;
-mod charging;
-mod display_serial;
-mod init;
-mod measure;
-mod menu;
-mod upload_or_store_measurement;
+pub mod adc_setup;
+pub mod charging;
+pub mod display_serial;
+pub mod init;
+pub mod measure;
+pub mod menu;
+pub mod upload_or_store_measurement;
 
-use embassy_time::{Duration, Instant, Timer};
-use embedded_graphics::Drawable;
+use embassy_time::{Duration, Instant, Ticker, Timer};
+use embedded_graphics::{pixelcolor::BinaryColor, Drawable};
 
+use embedded_menu::{
+    collection::MenuItemCollection,
+    interaction::single_touch::SingleTouch,
+    selection_indicator::{style::IndicatorStyle, SelectionIndicatorController},
+    Menu,
+};
 use gui::{
+    embedded_layout::view_group::ViewGroup,
     screens::{message::MessageScreen, screen::Screen},
     widgets::{
         battery_small::Battery,
@@ -17,19 +24,6 @@ use gui::{
         wifi::{WifiState, WifiStateView},
     },
 };
-
-pub use adc_setup::adc_setup;
-pub use charging::charging;
-pub use display_serial::display_serial;
-pub use init::initialize;
-pub use measure::{measure, ECG_BUFFER_SIZE};
-#[cfg(feature = "battery_max17055")]
-pub use menu::battery_info::battery_info_menu;
-pub use menu::{
-    about::about_menu, display::display_menu, main::main_menu, storage::storage_menu,
-    wifi_ap::wifi_ap, wifi_sta::wifi_sta, AppMenu,
-};
-pub use upload_or_store_measurement::{upload_or_store_measurement, upload_stored_measurements};
 
 const TARGET_FPS: u32 = 100;
 const MIN_FRAME_TIME: Duration = Duration::from_hz(TARGET_FPS as u64);
@@ -41,7 +35,10 @@ const WEBSERVER_TASKS: usize = 2;
 
 use signal_processing::lerp::interpolate;
 
-use crate::board::{initialized::Board, wifi::GenericConnectionState, EcgFrontend};
+use crate::{
+    board::{initialized::Board, wifi::GenericConnectionState, EcgFrontend},
+    timeout::Timeout,
+};
 
 /// Simple utility to process touch events in an interactive menu.
 pub struct TouchInputShaper {
@@ -124,4 +121,66 @@ impl Board {
             wifi: WifiStateView::new(connection_state),
         }
     }
+}
+
+pub trait MenuEventHandler {
+    type Input;
+    type Result;
+
+    async fn handle_event(&mut self, event: Self::Input, board: &mut Board)
+        -> Option<Self::Result>;
+}
+
+async fn display_menu_screen<T, VG, R, P, S, RV>(
+    menu: Menu<T, SingleTouch, VG, R, BinaryColor, P, S>,
+    board: &mut Board,
+    idle_timeout: Duration,
+    mut handler: impl MenuEventHandler<Input = R, Result = RV>,
+) -> Option<RV>
+where
+    T: AsRef<str>,
+    VG: ViewGroup + MenuItemCollection<R>,
+    P: SelectionIndicatorController,
+    S: IndicatorStyle,
+{
+    let mut screen = Screen {
+        content: menu,
+        status_bar: board.status_bar(),
+    };
+
+    let mut exit_timer = Timeout::new(idle_timeout);
+    let mut ticker = Ticker::every(MIN_FRAME_TIME);
+    let mut input = TouchInputShaper::new();
+
+    while !exit_timer.is_elapsed() {
+        input.update(&mut board.frontend);
+        let is_touched = input.is_touched();
+        if is_touched {
+            exit_timer.reset();
+        }
+
+        if let Some(event) = screen.content.interact(is_touched) {
+            if let Some(result) = handler.handle_event(event, board).await {
+                return Some(result);
+            }
+        }
+
+        if board.battery_monitor.is_low() {
+            return None;
+        }
+
+        screen.status_bar = board.status_bar();
+
+        board
+            .display
+            .frame(|display| {
+                screen.content.update(display);
+                screen.draw(display)
+            })
+            .await;
+
+        ticker.next().await;
+    }
+
+    return None;
 }

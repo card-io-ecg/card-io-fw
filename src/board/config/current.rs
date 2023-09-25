@@ -7,6 +7,8 @@ use gui::{
 use norfs::storable::{LoadError, Loadable, Storable};
 use ssd1306::prelude::Brightness;
 
+use crate::states::menu::storage::MeasurementAction;
+
 use super::CURRENT_VERSION;
 
 #[derive(Clone)]
@@ -16,15 +18,22 @@ pub struct Config {
     pub known_networks: heapless::Vec<WifiNetwork, 8>,
     pub filter_strength: FilterStrength,
     pub backend_url: heapless::String<64>,
-    pub store_measurement: bool,
+    pub measurement_action: MeasurementAction,
 }
 
-impl From<super::v3::Config> for Config {
-    fn from(value: super::v3::Config) -> Self {
+impl From<super::v4::Config> for Config {
+    fn from(value: super::v4::Config) -> Self {
         Self {
             battery_display_style: value.battery_display_style,
             display_brightness: value.display_brightness,
             known_networks: value.known_networks,
+            filter_strength: value.filter_strength,
+            backend_url: value.backend_url,
+            measurement_action: if value.store_measurement {
+                MeasurementAction::Store
+            } else {
+                MeasurementAction::Auto
+            },
             ..Default::default()
         }
     }
@@ -38,7 +47,7 @@ impl Default for Config {
             known_networks: heapless::Vec::new(),
             filter_strength: FilterStrength::Weak,
             backend_url: heapless::String::new(),
-            store_measurement: true,
+            measurement_action: MeasurementAction::Auto,
         }
     }
 }
@@ -71,7 +80,7 @@ impl Loadable for Config {
             known_networks: heapless::Vec::load(reader).await?,
             filter_strength: FilterStrength::load(reader).await?,
             backend_url: heapless::String::load(reader).await?,
-            store_measurement: bool::load(reader).await?,
+            measurement_action: MeasurementAction::load(reader).await?,
         };
 
         Ok(data)
@@ -87,7 +96,7 @@ impl Storable for Config {
         self.known_networks.store(writer).await?;
         self.filter_strength.store(writer).await?;
         self.backend_url.store(writer).await?;
-        self.store_measurement.store(writer).await?;
+        self.measurement_action.store(writer).await?;
 
         Ok(())
     }

@@ -7,8 +7,8 @@ use crate::{
 use alloc::format;
 use embassy_time::{Duration, Ticker};
 use embedded_graphics::Drawable;
-use embedded_menu::{items::NavigationItem, Menu};
-use gui::screens::{menu_style, screen::Screen};
+use embedded_menu::items::NavigationItem;
+use gui::screens::{create_menu, screen::Screen};
 
 #[derive(Clone, Copy)]
 pub enum BatteryEvents {
@@ -72,7 +72,7 @@ pub async fn battery_info_menu(board: &mut Board) -> AppState {
         }
 
         let mut menu_screen = Screen {
-            content: Menu::with_style("Battery info", menu_style())
+            content: create_menu("Battery info")
                 .add_items(&mut items[..])
                 .add_item(NavigationItem::new("Back", BatteryEvents::Back))
                 .build_with_state(menu_state),

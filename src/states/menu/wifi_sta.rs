@@ -1,8 +1,8 @@
 use alloc::{string::String, vec::Vec};
 use embassy_time::{Duration, Ticker};
 use embedded_graphics::Drawable;
-use embedded_menu::{items::NavigationItem, Menu};
-use gui::screens::{menu_style, screen::Screen};
+use embedded_menu::items::NavigationItem;
+use gui::screens::{create_menu, screen::Screen};
 
 use crate::{
     board::initialized::Board,
@@ -64,7 +64,7 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
         }
 
         let mut menu_screen = Screen {
-            content: Menu::with_style("Access points", menu_style())
+            content: create_menu("Access points")
                 .add_items(&mut ssids)
                 .add_item(NavigationItem::new("Back", WifiStaMenuEvents::Back))
                 .build_with_state(menu_state),

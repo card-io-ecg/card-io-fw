@@ -10,7 +10,8 @@ use crate::{
     states::{
         display_message_while_touched,
         init::{INIT_TIME, MENU_THRESHOLD},
-        to_progress, AppMenu, MIN_FRAME_TIME,
+        menu::AppMenu,
+        to_progress, MIN_FRAME_TIME,
     },
     timeout::Timeout,
     AppState,

@@ -18,7 +18,9 @@ use macros as cardio;
 
 use crate::{
     board::{initialized::Board, wifi::ap::Ap},
-    states::{AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME, WEBSERVER_TASKS},
+    states::{
+        menu::AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME, WEBSERVER_TASKS,
+    },
     task_control::{TaskControlToken, TaskController},
     timeout::Timeout,
     AppState,

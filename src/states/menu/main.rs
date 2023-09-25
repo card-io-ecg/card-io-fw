@@ -1,14 +1,14 @@
 use crate::{
     board::initialized::Board,
     heap::ALLOCATOR,
-    states::{AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
+    states::{menu::AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
     timeout::Timeout,
     AppState,
 };
 use embassy_time::Ticker;
 use embedded_graphics::prelude::*;
-use embedded_menu::{items::NavigationItem, Menu};
-use gui::screens::{menu_style, screen::Screen};
+use embedded_menu::items::NavigationItem;
+use gui::screens::{create_menu, screen::Screen};
 
 #[derive(Clone, Copy)]
 pub enum MainMenuEvents {
@@ -25,7 +25,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     info!("Free heap: {} bytes", ALLOCATOR.free());
 
-    let builder = Menu::with_style("Main menu", menu_style());
+    let builder = create_menu("Main menu");
 
     let mut optional_items = heapless::Vec::<_, 2>::new();
 

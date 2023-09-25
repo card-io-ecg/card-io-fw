@@ -8,6 +8,8 @@ extern crate logger;
 
 extern crate alloc;
 
+pub use embedded_layout;
+
 pub mod screens;
 pub mod utils;
 pub mod widgets;

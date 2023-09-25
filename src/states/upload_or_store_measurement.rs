@@ -1,4 +1,7 @@
-use core::mem::{self, MaybeUninit};
+use core::{
+    marker::PhantomData,
+    mem::{self, MaybeUninit},
+};
 
 use alloc::{boxed::Box, vec::Vec};
 use embassy_futures::select::{select, Either};
@@ -7,7 +10,9 @@ use embassy_net::{
     tcp::client::{TcpClient, TcpClientState},
 };
 use embassy_time::{Duration, Timer};
+use embedded_menu::items::NavigationItem;
 use embedded_nal_async::{Dns, TcpConnect};
+use gui::screens::create_menu;
 use norfs::{
     medium::StorageMedium, read_dir::DirEntry, writer::FileDataWriter, OnCollision, Storage,
     StorageError,
@@ -25,7 +30,10 @@ use crate::{
         initialized::{Board, StaMode},
         wifi::sta::{ConnectionState, Sta},
     },
-    states::display_message,
+    states::{
+        display_menu_screen, display_message, menu::storage::MeasurementAction, MenuEventHandler,
+        MENU_IDLE_DURATION,
+    },
     AppState, SerialNumber,
 };
 
@@ -50,23 +58,79 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
 ) -> AppState {
     let sample_count = buffer.len();
     let samples = buffer.make_contiguous();
-    let upload_result = try_to_upload(board, sample_count, samples).await;
-    debug!("Upload result: {:?}", upload_result);
-    if upload_result == StoreMeasurement::Store && board.config.store_measurement {
+
+    const SAMPLE_RATE: usize = 1000; // samples/sec
+
+    debug!("Measurement length: {} samples", sample_count);
+
+    if sample_count < 20 * SAMPLE_RATE {
+        // We don't want to store too-short measurements.
+        debug!("Measurement is too short to upload or store.");
+        display_message(board, "Measurement too short, discarding").await;
+        return next_state;
+    }
+
+    let (can_upload, can_store) = match board.config.measurement_action {
+        MeasurementAction::Ask => ask_for_measurement_action(board).await,
+        MeasurementAction::Auto => (true, true),
+        MeasurementAction::Store => (false, true),
+        MeasurementAction::Upload => (true, false),
+        MeasurementAction::Discard => (false, false),
+    };
+
+    let store_after_upload = if can_upload {
+        let upload_result = try_to_upload(board, samples).await;
+        debug!("Upload result: {:?}", upload_result);
+        upload_result == StoreMeasurement::Store
+    } else {
+        true
+    };
+
+    if can_store && store_after_upload {
         let store_result = try_store_measurement(board, samples).await;
 
         if let Err(e) = store_result {
             display_message(board, "Could not store measurement").await;
             error!("Failed to store measurement: {:?}", e);
         }
+    }
 
-        next_state
-    } else {
+    if can_upload {
         // Drop to free up 90kB of memory.
         mem::drop(buffer);
-
-        upload_stored_measurements(board, next_state).await
+        upload_stored(board).await;
     }
+
+    next_state
+}
+
+#[derive(Default)]
+struct ReturnEvent<R>(PhantomData<R>);
+
+impl<R> MenuEventHandler for ReturnEvent<R> {
+    type Input = R;
+    type Result = R;
+
+    async fn handle_event(
+        &mut self,
+        event: Self::Input,
+        _board: &mut Board,
+    ) -> Option<Self::Result> {
+        Some(event)
+    }
+}
+
+async fn ask_for_measurement_action(board: &mut Board) -> (bool, bool) {
+    let menu = create_menu("EKG action")
+        .add_item(NavigationItem::new("Upload or store", (true, true)))
+        .add_item(NavigationItem::new("Upload", (true, false)))
+        .add_item(NavigationItem::new("Store", (false, true)))
+        .add_item(NavigationItem::new("Discard", (false, false)))
+        .build();
+
+    display_menu_screen(menu, board, MENU_IDLE_DURATION, ReturnEvent::default())
+        .await
+        .unwrap_or((false, false))
 }
 
 struct Resources {
@@ -74,17 +138,7 @@ struct Resources {
     rx_buffer: [u8; 1024],
 }
 
-async fn try_to_upload(board: &mut Board, sample_count: usize, buffer: &[u8]) -> StoreMeasurement {
-    const SAMPLE_RATE: usize = 1000; // samples/sec
-
-    debug!("Handling {} samples", sample_count);
-
-    if sample_count < 20 * SAMPLE_RATE {
-        debug!("Buffer is too short to upload or store.");
-        // We don't want to store too-short measurements.
-        return StoreMeasurement::DontStore;
-    }
-
+async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
     if board.config.backend_url.is_empty() {
         debug!("No backend URL configured, not uploading.");
         return StoreMeasurement::Store;
