@@ -31,4 +31,5 @@ pub struct MiscPins {
     pub chg_status: ChargerStatus,
 }
 
+pub const DEFAULT_BACKEND_URL: &str = "http://stingray-prime-monkey.ngrok-free.app/";
 pub const LOW_BATTERY_PERCENTAGE: u8 = 5;
