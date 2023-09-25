@@ -1,14 +1,11 @@
 use crate::{
     board::initialized::Board,
-    states::{menu::AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
-    timeout::Timeout,
+    states::{display_menu_screen, menu::AppMenu, MenuEventHandler, MENU_IDLE_DURATION},
     AppState, SerialNumber,
 };
 use alloc::{format, string::String};
-use embassy_time::Ticker;
-use embedded_graphics::Drawable;
 use embedded_menu::items::NavigationItem;
-use gui::screens::{create_menu, screen::Screen};
+use gui::screens::create_menu;
 use ufmt::uwrite;
 
 #[derive(Clone, Copy)]
@@ -21,8 +18,6 @@ pub enum AboutMenuEvents {
 }
 
 pub async fn about_menu(board: &mut Board) -> AppState {
-    let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
-
     let list_item = |label| NavigationItem::new(label, AboutMenuEvents::None);
 
     let mut serial = heapless::String::<12>::new();
@@ -52,50 +47,33 @@ pub async fn about_menu(board: &mut Board) -> AppState {
             .ok());
     }
 
-    let mut menu_screen = Screen {
-        content: create_menu("Device info")
-            .add_items(&mut items[..])
-            .add_item(NavigationItem::new("Back", AboutMenuEvents::Back))
-            .build(),
-        status_bar: board.status_bar(),
-    };
+    let menu = create_menu("Device info")
+        .add_items(&mut items[..])
+        .add_item(NavigationItem::new("Back", AboutMenuEvents::Back))
+        .build();
 
-    let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    let mut input = TouchInputShaper::new();
+    display_menu_screen(menu, board, MENU_IDLE_DURATION, AboutMenuHandler)
+        .await
+        .unwrap_or(AppState::Menu(AppMenu::Main))
+}
 
-    while !exit_timer.is_elapsed() {
-        input.update(&mut board.frontend);
-        let is_touched = input.is_touched();
-        if is_touched {
-            exit_timer.reset();
+struct AboutMenuHandler;
+
+impl MenuEventHandler for AboutMenuHandler {
+    type Input = AboutMenuEvents;
+    type Result = AppState;
+
+    async fn handle_event(
+        &mut self,
+        event: Self::Input,
+        _board: &mut Board,
+    ) -> Option<Self::Result> {
+        match event {
+            AboutMenuEvents::None => None,
+            #[cfg(feature = "battery_max17055")]
+            AboutMenuEvents::ToBatteryInfo => Some(AppState::Menu(AppMenu::BatteryInfo)),
+            AboutMenuEvents::ToSerial => Some(AppState::DisplaySerial),
+            AboutMenuEvents::Back => Some(AppState::Menu(AppMenu::Main)),
         }
-
-        if let Some(event) = menu_screen.content.interact(is_touched) {
-            match event {
-                AboutMenuEvents::None => {}
-                #[cfg(feature = "battery_max17055")]
-                AboutMenuEvents::ToBatteryInfo => return AppState::Menu(AppMenu::BatteryInfo),
-                AboutMenuEvents::ToSerial => return AppState::DisplaySerial,
-                AboutMenuEvents::Back => return AppState::Menu(AppMenu::Main),
-            };
-        }
-
-        if board.battery_monitor.is_low() {
-            return AppState::Shutdown;
-        }
-
-        menu_screen.status_bar = board.status_bar();
-
-        board
-            .display
-            .frame(|display| {
-                menu_screen.content.update(display);
-                menu_screen.draw(display)
-            })
-            .await;
-
-        ticker.next().await;
     }
-
-    AppState::Menu(AppMenu::Main)
 }

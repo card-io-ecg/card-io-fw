@@ -124,8 +124,8 @@ impl Board {
 }
 
 pub trait MenuEventHandler {
-    type Result;
     type Input;
+    type Result;
 
     async fn handle_event(&mut self, event: Self::Input, board: &mut Board)
         -> Option<Self::Result>;
