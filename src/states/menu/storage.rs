@@ -26,16 +26,6 @@ pub enum MeasurementAction {
     Discard = 4,
 }
 
-impl MeasurementAction {
-    pub fn should_upload(self) -> bool {
-        matches!(self, Self::Upload | Self::Auto)
-    }
-
-    pub fn should_store(self) -> bool {
-        matches!(self, Self::Store | Self::Auto)
-    }
-}
-
 impl Loadable for MeasurementAction {
     async fn load<R: Read>(reader: &mut R) -> Result<Self, LoadError<R::Error>> {
         let data = match u8::load(reader).await? {

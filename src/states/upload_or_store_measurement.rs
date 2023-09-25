@@ -25,7 +25,7 @@ use crate::{
         initialized::{Board, StaMode},
         wifi::sta::{ConnectionState, Sta},
     },
-    states::display_message,
+    states::{display_message, menu::storage::MeasurementAction},
     AppState, SerialNumber,
 };
 
@@ -48,25 +48,41 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     mut buffer: Box<CompressingBuffer<SIZE>>,
     next_state: AppState,
 ) -> AppState {
+    let (can_upload, can_store) = match board.config.measurement_action {
+        MeasurementAction::Ask => (true, true), // TODO
+        MeasurementAction::Auto => (true, true),
+        MeasurementAction::Store => (false, true),
+        MeasurementAction::Upload => (true, false),
+        MeasurementAction::Discard => (false, false),
+    };
+
     let sample_count = buffer.len();
     let samples = buffer.make_contiguous();
-    let upload_result = try_to_upload(board, sample_count, samples).await;
-    debug!("Upload result: {:?}", upload_result);
-    if upload_result == StoreMeasurement::Store && board.config.measurement_action.should_store() {
+
+    let store_after_upload = if can_upload {
+        let upload_result = try_to_upload(board, sample_count, samples).await;
+        debug!("Upload result: {:?}", upload_result);
+        upload_result == StoreMeasurement::Store
+    } else {
+        true
+    };
+
+    if can_store && store_after_upload {
         let store_result = try_store_measurement(board, samples).await;
 
         if let Err(e) = store_result {
             display_message(board, "Could not store measurement").await;
             error!("Failed to store measurement: {:?}", e);
         }
+    }
 
-        next_state
-    } else {
+    if can_upload {
         // Drop to free up 90kB of memory.
         mem::drop(buffer);
-
-        upload_stored_measurements(board, next_state).await
+        upload_stored(board).await;
     }
+
+    next_state
 }
 
 struct Resources {
