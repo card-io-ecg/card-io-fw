@@ -6,9 +6,10 @@ use embedded_graphics::{
     pixelcolor::BinaryColor,
 };
 use embedded_menu::{
+    builder::MenuBuilder,
     interaction::single_touch::SingleTouch,
     selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
-    MenuStyle,
+    Menu, MenuStyle, NoItems,
 };
 use embedded_text::{
     alignment::{HorizontalAlignment, VerticalAlignment},
@@ -36,6 +37,12 @@ pub const fn menu_style<R>(
             max_time: 75,
         })
         .with_title_font(&FONT_7X13_BOLD)
+}
+
+pub fn create_menu<T: AsRef<str>, R>(
+    title: T,
+) -> MenuBuilder<T, SingleTouch, NoItems, R, BinaryColor, AnimatedPosition, AnimatedTriangle> {
+    Menu::with_style(title, menu_style())
 }
 
 pub const CENTERED_TEXTBOX: TextBoxStyle = TextBoxStyleBuilder::new()

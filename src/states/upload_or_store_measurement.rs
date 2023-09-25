@@ -7,7 +7,9 @@ use embassy_net::{
     tcp::client::{TcpClient, TcpClientState},
 };
 use embassy_time::{Duration, Timer};
+use embedded_menu::items::NavigationItem;
 use embedded_nal_async::{Dns, TcpConnect};
+use gui::screens::create_menu;
 use norfs::{
     medium::StorageMedium, read_dir::DirEntry, writer::FileDataWriter, OnCollision, Storage,
     StorageError,
@@ -25,7 +27,9 @@ use crate::{
         initialized::{Board, StaMode},
         wifi::sta::{ConnectionState, Sta},
     },
-    states::{display_message, menu::storage::MeasurementAction},
+    states::{
+        display_menu_screen, display_message, menu::storage::MeasurementAction, MENU_IDLE_DURATION,
+    },
     AppState, SerialNumber,
 };
 
@@ -49,7 +53,7 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     next_state: AppState,
 ) -> AppState {
     let (can_upload, can_store) = match board.config.measurement_action {
-        MeasurementAction::Ask => (true, true), // TODO
+        MeasurementAction::Ask => ask_for_measurement_action(board).await,
         MeasurementAction::Auto => (true, true),
         MeasurementAction::Store => (false, true),
         MeasurementAction::Upload => (true, false),
@@ -83,6 +87,19 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     }
 
     next_state
+}
+
+async fn ask_for_measurement_action(board: &mut Board) -> (bool, bool) {
+    let menu = create_menu("EKG action")
+        .add_item(NavigationItem::new("Upload or store", (true, true)))
+        .add_item(NavigationItem::new("Upload", (true, false)))
+        .add_item(NavigationItem::new("Store", (false, true)))
+        .add_item(NavigationItem::new("Discard", (false, false)))
+        .build();
+
+    display_menu_screen(menu, board, MENU_IDLE_DURATION, |evt, _board| Some(evt))
+        .await
+        .unwrap_or((false, false))
 }
 
 struct Resources {
