@@ -206,18 +206,18 @@ async fn measure_impl(
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let exit_timer = Timeout::new_with_start(INIT_TIME, Instant::now() - INIT_MENU_THRESHOLD);
     let mut drop_samples = 1500; // Slight delay for the input to settle
-    let entered = Instant::now();
+    let mut entered = Instant::now();
     loop {
+        let display_full = screen.content.buffer_full();
         while let Ok(message) = queue.try_recv() {
             match message {
                 Message::Sample(sample) => {
                     samples += 1;
 
-                    if let Some(ecg_buffer) = ecg_buffer.as_deref_mut() {
-                        ecg_buffer.push(sample.raw());
-                    }
-
                     if drop_samples == 0 {
+                        if let Some(ecg_buffer) = ecg_buffer.as_deref_mut() {
+                            ecg_buffer.push(sample.raw());
+                        }
                         if let Some(filtered) = ecg.filter.update(sample.voltage()) {
                             ecg.heart_rate_calculator.update(filtered);
 
@@ -240,6 +240,15 @@ async fn measure_impl(
                         (AppState::Shutdown, board)
                     };
                 }
+            }
+        }
+
+        if !display_full {
+            if screen.content.buffer_full() {
+                entered = Instant::now();
+            }
+            if let Some(ecg_buffer) = ecg_buffer.as_deref_mut() {
+                ecg_buffer.clear();
             }
         }
 

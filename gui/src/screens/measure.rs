@@ -125,6 +125,10 @@ impl EcgScreen {
         self.buffer.push(sample);
     }
 
+    pub fn buffer_full(&self) -> bool {
+        self.buffer.is_full()
+    }
+
     fn limits(&self) -> (f32, f32) {
         let mut samples = self.buffer.iter();
 
