@@ -25,10 +25,12 @@ use gui::{
     },
 };
 
-const TARGET_FPS: u32 = 100;
-const MIN_FRAME_TIME: Duration = Duration::from_hz(TARGET_FPS as u64);
+pub const TARGET_FPS: u32 = 100;
+pub const MIN_FRAME_TIME: Duration = Duration::from_hz(TARGET_FPS as u64);
 
-const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
+pub const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
+pub const MESSAGE_MIN_DURATION: Duration = Duration::from_millis(300);
+pub const MESSAGE_DURATION: Duration = Duration::from_millis(1500);
 
 // The max number of webserver tasks.
 const WEBSERVER_TASKS: usize = 2;
@@ -81,7 +83,7 @@ async fn display_message(board: &mut Board, message: &str) {
     info!("Displaying message: {}", message);
 
     if let Some(previous) = board.message_displayed_at.take() {
-        Timer::at(previous + Duration::from_millis(300)).await;
+        Timer::at(previous + MESSAGE_MIN_DURATION).await;
     }
 
     board.message_displayed_at = Some(Instant::now());

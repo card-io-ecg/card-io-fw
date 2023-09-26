@@ -71,6 +71,7 @@ use crate::{
             wifi_ap::wifi_ap, wifi_sta::wifi_sta, AppMenu,
         },
         upload_or_store_measurement::{upload_or_store_measurement, upload_stored_measurements},
+        MESSAGE_DURATION,
     },
 };
 
@@ -342,7 +343,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
     }
 
     if let Some(message_at) = board.message_displayed_at.take() {
-        Timer::at(message_at + Duration::from_secs(2)).await;
+        Timer::at(message_at + MESSAGE_DURATION).await;
     }
 
     let _ = board.display.shut_down();
