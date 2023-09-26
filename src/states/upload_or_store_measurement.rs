@@ -32,7 +32,6 @@ use crate::{
     },
     states::{
         display_menu_screen, display_message, menu::storage::MeasurementAction, MenuEventHandler,
-        MENU_IDLE_DURATION,
     },
     AppState, SerialNumber,
 };
@@ -151,7 +150,7 @@ async fn ask_for_measurement_action(board: &mut Board) -> (bool, bool) {
         .add_item(NavigationItem::new("Discard", (false, false)))
         .build();
 
-    display_menu_screen(menu, board, MENU_IDLE_DURATION, ReturnEvent::default())
+    display_menu_screen(menu, board, ReturnEvent::default())
         .await
         .unwrap_or((false, false))
 }

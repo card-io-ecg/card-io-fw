@@ -1,8 +1,6 @@
 use crate::{
     board::{initialized::Board, storage::FileSystem},
-    states::{
-        display_menu_screen, display_message, menu::AppMenu, MenuEventHandler, MENU_IDLE_DURATION,
-    },
+    states::{display_menu_screen, display_message, menu::AppMenu, MenuEventHandler},
     AppState,
 };
 use embedded_io::asynch::{Read, Write};
@@ -173,8 +171,7 @@ pub async fn storage_menu(board: &mut Board) -> AppState {
         .add_item(NavigationItem::new("Back", StorageMenuEvents::Back))
         .build();
 
-    let menu_result =
-        display_menu_screen(menu, board, MENU_IDLE_DURATION, StorageEventHandler).await;
+    let menu_result = display_menu_screen(menu, board, StorageEventHandler).await;
 
     board.save_config().await;
 

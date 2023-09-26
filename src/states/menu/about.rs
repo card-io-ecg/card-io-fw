@@ -1,6 +1,6 @@
 use crate::{
     board::initialized::Board,
-    states::{display_menu_screen, menu::AppMenu, MenuEventHandler, MENU_IDLE_DURATION},
+    states::{display_menu_screen, menu::AppMenu, MenuEventHandler},
     AppState, SerialNumber,
 };
 use alloc::{format, string::String};
@@ -52,7 +52,7 @@ pub async fn about_menu(board: &mut Board) -> AppState {
         .add_item(NavigationItem::new("Back", AboutMenuEvents::Back))
         .build();
 
-    display_menu_screen(menu, board, MENU_IDLE_DURATION, AboutMenuHandler)
+    display_menu_screen(menu, board, AboutMenuHandler)
         .await
         .unwrap_or(AppState::Menu(AppMenu::Main))
 }

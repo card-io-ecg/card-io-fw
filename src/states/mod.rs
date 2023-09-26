@@ -134,7 +134,6 @@ pub trait MenuEventHandler {
 async fn display_menu_screen<T, VG, R, P, S, RV>(
     menu: Menu<T, SingleTouch, VG, R, BinaryColor, P, S>,
     board: &mut Board,
-    idle_timeout: Duration,
     mut handler: impl MenuEventHandler<Input = R, Result = RV>,
 ) -> Option<RV>
 where
@@ -148,7 +147,7 @@ where
         status_bar: board.status_bar(),
     };
 
-    let mut exit_timer = Timeout::new(idle_timeout);
+    let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let mut input = TouchInputShaper::new();
 
