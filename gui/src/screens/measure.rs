@@ -1,10 +1,9 @@
 use core::{cell::RefCell, num::NonZeroU8};
 
 use embedded_graphics::{
-    geometry::AnchorPoint,
     image::{Image, ImageRaw},
     pixelcolor::BinaryColor,
-    prelude::{Dimensions, DrawTarget, Point},
+    prelude::{DrawTarget, Point},
     primitives::{Line, Primitive, PrimitiveStyle},
     text::{Baseline, Text},
     Drawable,
@@ -101,6 +100,7 @@ impl Camera {
 pub struct EcgScreen {
     buffer: SlidingWindow<128>,
     pub heart_rate: Option<NonZeroU8>,
+    pub elapsed_secs: usize,
     camera: RefCell<Camera>,
 }
 
@@ -109,6 +109,7 @@ impl EcgScreen {
         Self {
             buffer: SlidingWindow::new(),
             heart_rate: None,
+            elapsed_secs: 0,
             camera: RefCell::new(Camera {
                 min_limit: Limit::new(LimitKind::Min),
                 max_limit: Limit::new(LimitKind::Max),
@@ -170,6 +171,13 @@ impl Drawable for EcgScreen {
             return Ok(());
         }
 
+        let mut status_loc = display.bounding_box().top_left;
+
+        let mut buffer_str = heapless::String::<16>::new();
+        unwrap!(uwrite!(&mut buffer_str, "{}s", self.elapsed_secs));
+        status_loc = Text::with_baseline(&buffer_str, status_loc, NORMAL_TEXT, Baseline::Top)
+            .draw(display)?;
+
         if let Some(hr) = self.heart_rate {
             #[rustfmt::skip]
             const HEART: &[u8] = &[
@@ -183,24 +191,19 @@ impl Drawable for EcgScreen {
                 0b00010000,
             ];
             const IMAGE_WIDTH: u32 = 8;
+            const RAW_IMAGE: ImageRaw<'_, BinaryColor> =
+                ImageRaw::<BinaryColor>::new(HEART, IMAGE_WIDTH);
 
-            let top_left = display.bounding_box().top_left;
-
-            let raw_image = ImageRaw::<BinaryColor>::new(HEART, IMAGE_WIDTH);
-            let image = Image::new(&raw_image, top_left);
+            let image = Image::new(&RAW_IMAGE, status_loc);
 
             image.draw(display)?;
+            status_loc += Point::new(IMAGE_WIDTH as i32 + 1, 0);
 
             let mut hr_string = heapless::String::<3>::new();
             unwrap!(uwrite!(&mut hr_string, "{}", hr));
 
-            Text::with_baseline(
-                &hr_string,
-                image.bounding_box().anchor_point(AnchorPoint::TopRight) + Point::new(1, 0),
-                NORMAL_TEXT,
-                Baseline::Top,
-            )
-            .draw(display)?;
+            Text::with_baseline(&hr_string, status_loc, NORMAL_TEXT, Baseline::Top)
+                .draw(display)?;
         }
 
         let (min, max) = self.limits();

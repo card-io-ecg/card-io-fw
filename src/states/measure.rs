@@ -208,6 +208,7 @@ async fn measure_impl(
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let shutdown_timer = Timeout::new_with_start(INIT_TIME, Instant::now() - MENU_THRESHOLD);
     let mut drop_samples = 1500; // Slight delay for the input to settle
+    let entered = Instant::now();
     loop {
         while let Ok(message) = queue.try_recv() {
             match message {
@@ -249,6 +250,7 @@ async fn measure_impl(
         } else {
             screen.content.clear_heart_rate();
         }
+        screen.content.elapsed_secs = entered.elapsed().as_secs() as usize;
 
         if debug_print_timer.is_elapsed() {
             debug!(
