@@ -312,7 +312,6 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
             display,
             frontend: resources.frontend,
             clocks: resources.clocks,
-            peripheral_clock_control: resources.peripheral_clock_control,
             high_prio_spawner: INT_EXECUTOR.start(Priority::Priority3),
             battery_monitor,
             wifi: resources.wifi,

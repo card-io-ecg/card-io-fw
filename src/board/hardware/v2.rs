@@ -97,14 +97,14 @@ impl super::startup::StartupResources {
 
         let peripherals = Peripherals::take();
 
-        let mut system = peripherals.SYSTEM.split();
+        let system = peripherals.SYSTEM.split();
         let clocks = ClockControl::configure(system.clock_control, CpuClock::Clock240MHz).freeze();
 
         embassy::init(&clocks, SystemTimer::new(peripherals.SYSTIMER));
 
         let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
 
-        let dma = Gdma::new(peripherals.DMA, &mut system.peripheral_clock_control);
+        let dma = Gdma::new(peripherals.DMA);
 
         let display = Self::create_display_driver(
             dma.channel0,
@@ -116,7 +116,6 @@ impl super::startup::StartupResources {
             io.pins.gpio11,
             io.pins.gpio14,
             io.pins.gpio21,
-            &mut system.peripheral_clock_control,
             &clocks,
         );
 
@@ -133,7 +132,6 @@ impl super::startup::StartupResources {
             io.pins.gpio38,
             io.pins.gpio1,
             io.pins.gpio18,
-            &mut system.peripheral_clock_control,
             &clocks,
         );
 
@@ -152,7 +150,6 @@ impl super::startup::StartupResources {
                 io.pins.gpio35,
                 io.pins.gpio36,
                 100u32.kHz(),
-                &mut system.peripheral_clock_control,
                 &clocks,
             );
 
@@ -200,11 +197,9 @@ impl super::startup::StartupResources {
                     peripherals.RNG,
                     system.radio_clock_control,
                     &clocks,
-                    &mut system.peripheral_clock_control,
                 )
             }),
             clocks,
-            peripheral_clock_control: system.peripheral_clock_control,
             rtc: Rtc::new(peripherals.RTC_CNTL),
 
             misc_pins: MiscPins {

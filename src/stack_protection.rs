@@ -3,7 +3,7 @@ use core::ops::Range;
 use crate::board::hal::{
     assist_debug::DebugAssist,
     get_core, interrupt,
-    peripherals::{self, ASSIST_DEBUG, SYSTEM},
+    peripherals::{self, ASSIST_DEBUG},
     prelude::*,
     Cpu,
 };
@@ -13,10 +13,8 @@ pub struct StackMonitor {
 }
 
 fn conjure() -> DebugAssist<'static> {
-    let mut system = unsafe { SYSTEM::steal() }.split();
-
     let peripheral = unsafe { ASSIST_DEBUG::steal() };
-    DebugAssist::new(peripheral, &mut system.peripheral_clock_control)
+    DebugAssist::new(peripheral)
 }
 
 impl StackMonitor {
