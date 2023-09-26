@@ -1,0 +1,49 @@
+name: Build firmware
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  CARGO_TERM_COLOR: always
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+concurrency:
+  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+
+jobs:
+  build-fw:
+    strategy:
+      matrix:
+        version: ["v4"]
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: esp-rs/xtensa-toolchain@v1.5
+        with:
+          default: true
+          buildtargets: esp32s3
+          ldproxy: false
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: cargo-bins/cargo-binstall@main
+      - name: setup espflash
+        run: cargo binstall --no-confirm --force cargo-espflash
+
+      - name: format check
+        run:
+          cargo fmt --check
+
+      - name: build
+        run: |
+          cargo xbuild ${{ matrix.version }}
+
+      - name: archive
+        uses: actions/upload-artifact@v3
+        with:
+          name: card_io_fw_${{ matrix.version }}.bin
+          path: target/card_io_fw.bin
