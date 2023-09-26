@@ -121,10 +121,33 @@ impl<R> MenuEventHandler for ReturnEvent<R> {
 }
 
 async fn ask_for_measurement_action(board: &mut Board) -> (bool, bool) {
+    let network_configured =
+        !board.config.backend_url.is_empty() && !board.config.known_networks.is_empty();
+    let can_store = board.storage.is_some();
+
+    if !network_configured && !can_store {
+        return (false, false);
+    }
+
+    let mut items = heapless::Vec::<_, 3>::new();
+
+    let mut add_item = |label, value| {
+        unwrap!(items.push(NavigationItem::new(label, value)).ok());
+    };
+
+    if network_configured {
+        if can_store {
+            add_item("Upload or store", (true, true));
+        }
+        add_item("Upload", (true, false));
+    }
+
+    if can_store {
+        add_item("Store", (false, true));
+    }
+
     let menu = create_menu("EKG action")
-        .add_item(NavigationItem::new("Upload or store", (true, true)))
-        .add_item(NavigationItem::new("Upload", (true, false)))
-        .add_item(NavigationItem::new("Store", (false, true)))
+        .add_items(items)
         .add_item(NavigationItem::new("Discard", (false, false)))
         .build();
 
