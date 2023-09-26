@@ -82,11 +82,11 @@ impl Drawable for QrCodeScreen<'_> {
         }
 
         if let Some(countdown) = self.countdown {
-            let mut status_loc = display.bounding_box().top_left;
+            let status_loc = display.bounding_box().top_left;
 
             let mut str_buffer = heapless::String::<16>::new();
             unwrap!(uwrite!(&mut str_buffer, "{}s", countdown));
-            status_loc = Text::with_baseline(&str_buffer, status_loc, NORMAL_TEXT, Baseline::Top)
+            Text::with_baseline(&str_buffer, status_loc, NORMAL_TEXT, Baseline::Top)
                 .draw(display)?;
         }
 
