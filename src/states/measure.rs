@@ -8,10 +8,8 @@ use crate::{
     },
     replace_with::replace_with_or_abort_and_return_async,
     states::{
-        display_message_while_touched,
-        init::{INIT_TIME, MENU_THRESHOLD},
-        menu::AppMenu,
-        to_progress, MIN_FRAME_TIME,
+        display_message_while_touched, menu::AppMenu, to_progress, INIT_MENU_THRESHOLD, INIT_TIME,
+        MIN_FRAME_TIME,
     },
     timeout::Timeout,
     AppState,
@@ -206,7 +204,7 @@ async fn measure_impl(
     let mut debug_print_timer = Timeout::new(Duration::from_secs(1));
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    let shutdown_timer = Timeout::new_with_start(INIT_TIME, Instant::now() - MENU_THRESHOLD);
+    let exit_timer = Timeout::new_with_start(INIT_TIME, Instant::now() - INIT_MENU_THRESHOLD);
     let mut drop_samples = 1500; // Slight delay for the input to settle
     let entered = Instant::now();
     loop {
@@ -234,7 +232,7 @@ async fn measure_impl(
                 Message::End(frontend, result) => {
                     board.frontend = frontend.shut_down().await;
 
-                    return if result.is_ok() && !shutdown_timer.is_elapsed() {
+                    return if result.is_ok() && !exit_timer.is_elapsed() {
                         (AppState::Menu(AppMenu::Main), board)
                     } else if let Some(ecg_buffer) = ecg_buffer {
                         (AppState::UploadOrStore(ecg_buffer), board)
@@ -272,11 +270,11 @@ async fn measure_impl(
             wifi: WifiStateView::disabled(),
         };
 
-        if !shutdown_timer.is_elapsed() {
+        if !exit_timer.is_elapsed() {
             let init_screen = Screen {
                 content: StartupScreen {
                     label: "Release to menu",
-                    progress: to_progress(shutdown_timer.elapsed(), INIT_TIME),
+                    progress: to_progress(exit_timer.elapsed(), INIT_TIME),
                 },
 
                 status_bar,

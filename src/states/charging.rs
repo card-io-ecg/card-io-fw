@@ -1,6 +1,6 @@
 use crate::{
     board::initialized::Board,
-    states::{menu::AppMenu, MIN_FRAME_TIME, TARGET_FPS},
+    states::{menu::AppMenu, TouchInputShaper, MIN_FRAME_TIME, TARGET_FPS},
     timeout::Timeout,
     AppState,
 };
@@ -11,7 +11,8 @@ use gui::screens::charging::ChargingScreen;
 pub async fn charging(board: &mut Board) -> AppState {
     const DISPLAY_TIME: Duration = Duration::from_secs(10);
 
-    let mut shutdown_timer = Timeout::new(DISPLAY_TIME);
+    let mut ticker = Ticker::every(MIN_FRAME_TIME);
+    let mut exit_timer = Timeout::new(DISPLAY_TIME);
 
     let mut charging_screen = ChargingScreen {
         battery_data: board.battery_monitor.battery_data(),
@@ -21,10 +22,13 @@ pub async fn charging(board: &mut Board) -> AppState {
         progress: 0,
     };
 
-    let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    while board.battery_monitor.is_plugged() && !shutdown_timer.is_elapsed() {
-        if board.frontend.is_touched() {
-            shutdown_timer.reset();
+    let mut input = TouchInputShaper::new();
+    while board.battery_monitor.is_plugged() && !exit_timer.is_elapsed() {
+        input.update(&mut board.frontend);
+
+        let is_touched = input.is_touched();
+        if is_touched {
+            exit_timer.reset();
         }
 
         if charging_screen.update_touched(board.frontend.is_touched()) {

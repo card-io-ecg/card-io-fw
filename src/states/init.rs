@@ -1,24 +1,23 @@
 use crate::{
     board::initialized::Board,
-    states::{to_progress, MIN_FRAME_TIME},
+    states::{to_progress, TouchInputShaper, INIT_MENU_THRESHOLD, INIT_TIME, MIN_FRAME_TIME},
     timeout::Timeout,
     AppState,
 };
-use embassy_time::{Duration, Ticker};
+use embassy_time::Ticker;
 use embedded_graphics::Drawable;
 use gui::screens::{init::StartupScreen, screen::Screen};
 
-pub const INIT_TIME: Duration = Duration::from_millis(3000);
-pub const MENU_THRESHOLD: Duration = Duration::from_millis(1500);
-
 pub async fn initialize(board: &mut Board) -> AppState {
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    let shutdown_timer = Timeout::new(MENU_THRESHOLD);
+    let exit_timer = Timeout::new(INIT_MENU_THRESHOLD);
 
-    while !shutdown_timer.is_elapsed() {
-        let elapsed = shutdown_timer.elapsed();
+    let mut input = TouchInputShaper::new();
+    while !exit_timer.is_elapsed() {
+        input.update(&mut board.frontend);
 
-        if !board.frontend.is_touched() {
+        let is_touched = input.is_touched();
+        if is_touched {
             return AppState::Shutdown;
         }
 
@@ -26,6 +25,7 @@ pub async fn initialize(board: &mut Board) -> AppState {
             return AppState::Shutdown;
         }
 
+        let elapsed = exit_timer.elapsed();
         let init_screen = Screen {
             content: StartupScreen {
                 label: "Release to shutdown",

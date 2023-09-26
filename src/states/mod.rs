@@ -28,6 +28,9 @@ use gui::{
 pub const TARGET_FPS: u32 = 100;
 pub const MIN_FRAME_TIME: Duration = Duration::from_hz(TARGET_FPS as u64);
 
+pub const INIT_TIME: Duration = Duration::from_millis(3000);
+pub const INIT_MENU_THRESHOLD: Duration = Duration::from_millis(1500);
+
 pub const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
 pub const MESSAGE_MIN_DURATION: Duration = Duration::from_millis(300);
 pub const MESSAGE_DURATION: Duration = Duration::from_millis(1500);
@@ -46,6 +49,7 @@ use crate::{
 pub struct TouchInputShaper {
     released: bool,
     touched: bool,
+    released_delay: usize,
 }
 
 impl TouchInputShaper {
@@ -53,11 +57,23 @@ impl TouchInputShaper {
         Self {
             released: false,
             touched: false,
+            released_delay: 0,
         }
     }
 
     pub fn update(&mut self, frontend: &mut EcgFrontend) {
-        self.touched = frontend.is_touched();
+        let touched = frontend.is_touched();
+
+        if touched {
+            self.released_delay = 5;
+            self.touched = true;
+        } else {
+            if self.released_delay > 0 {
+                self.released_delay -= 1;
+            } else {
+                self.touched = false;
+            }
+        }
 
         if !self.touched {
             self.released = true;
