@@ -2,19 +2,25 @@ use embedded_graphics::{
     pixelcolor::BinaryColor,
     prelude::{DrawTarget, Point, Size},
     primitives::{Primitive, PrimitiveStyle, Rectangle},
+    text::{Baseline, Text},
     Drawable,
 };
 use qrcodegen_no_heap::{QrCode, QrCodeEcc, Version};
+use ufmt::uwrite;
 
-use crate::screens::message::MessageScreen;
+use crate::screens::{message::MessageScreen, NORMAL_TEXT};
 
 pub struct QrCodeScreen<'a> {
     pub message: &'a str,
+    pub countdown: Option<usize>,
 }
 
 impl<'a> QrCodeScreen<'a> {
     pub const fn new(message: &'a str) -> Self {
-        Self { message }
+        Self {
+            message,
+            countdown: None,
+        }
     }
 }
 
@@ -73,6 +79,15 @@ impl Drawable for QrCodeScreen<'_> {
                 message: "Failed to render QR code",
             }
             .draw(display)?,
+        }
+
+        if let Some(countdown) = self.countdown {
+            let mut status_loc = display.bounding_box().top_left;
+
+            let mut str_buffer = heapless::String::<16>::new();
+            unwrap!(uwrite!(&mut str_buffer, "{}s", countdown));
+            status_loc = Text::with_baseline(&str_buffer, status_loc, NORMAL_TEXT, Baseline::Top)
+                .draw(display)?;
         }
 
         Ok(())

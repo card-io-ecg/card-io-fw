@@ -28,6 +28,7 @@ pub async fn display_serial(board: &mut Board) -> AppState {
         let init_screen = Screen {
             content: QrCodeScreen {
                 message: serial.as_str(),
+                countdown: Some(shutdown_timer.remaining().as_secs() as usize),
             },
 
             status_bar: board.status_bar(),
