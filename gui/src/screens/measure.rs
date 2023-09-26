@@ -173,9 +173,9 @@ impl Drawable for EcgScreen {
 
         let mut status_loc = display.bounding_box().top_left;
 
-        let mut buffer_str = heapless::String::<16>::new();
-        unwrap!(uwrite!(&mut buffer_str, "{}s", self.elapsed_secs));
-        status_loc = Text::with_baseline(&buffer_str, status_loc, NORMAL_TEXT, Baseline::Top)
+        let mut str_buffer = heapless::String::<16>::new();
+        unwrap!(uwrite!(&mut str_buffer, "{}s", self.elapsed_secs));
+        status_loc = Text::with_baseline(&str_buffer, status_loc, NORMAL_TEXT, Baseline::Top)
             .draw(display)?;
 
         if let Some(hr) = self.heart_rate {
@@ -199,10 +199,10 @@ impl Drawable for EcgScreen {
             image.draw(display)?;
             status_loc += Point::new(IMAGE_WIDTH as i32 + 1, 0);
 
-            let mut hr_string = heapless::String::<3>::new();
-            unwrap!(uwrite!(&mut hr_string, "{}", hr));
+            str_buffer.clear();
+            unwrap!(uwrite!(&mut str_buffer, "{}", hr));
 
-            Text::with_baseline(&hr_string, status_loc, NORMAL_TEXT, Baseline::Top)
+            Text::with_baseline(&str_buffer, status_loc, NORMAL_TEXT, Baseline::Top)
                 .draw(display)?;
         }
 
