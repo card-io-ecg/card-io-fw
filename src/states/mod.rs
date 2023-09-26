@@ -153,8 +153,9 @@ where
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let mut input = TouchInputShaper::new();
 
-    while !exit_timer.is_elapsed() {
+    while !exit_timer.is_elapsed() && !board.battery_monitor.is_low() {
         input.update(&mut board.frontend);
+
         let is_touched = input.is_touched();
         if is_touched {
             exit_timer.reset();
@@ -164,10 +165,6 @@ where
             if let Some(result) = handler.handle_event(event, board).await {
                 return Some(result);
             }
-        }
-
-        if board.battery_monitor.is_low() {
-            return None;
         }
 
         screen.status_bar = board.status_bar();
@@ -183,5 +180,5 @@ where
         ticker.next().await;
     }
 
-    return None;
+    None
 }
