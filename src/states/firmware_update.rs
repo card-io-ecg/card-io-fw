@@ -15,24 +15,72 @@ use crate::{
     AppState, SerialNumber,
 };
 
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+const READ_TIMEOUT: Duration = Duration::from_secs(10);
+
+#[derive(Clone, Copy, PartialEq)]
+enum UpdateError {
+    WifiNotEnabled,
+    WifiNotConnected,
+    InternalError,
+    HttpConnectionFailed,
+    HttpConnectionTimeout,
+    HttpRequestTimeout,
+    HttpRequestFailed,
+    WriteError,
+    DownloadFailed,
+    DownloadTimeout,
+    EraseFailed,
+    ActivateFailed,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum UpdateResult {
+    Success,
+    AlreadyUpToDate,
+    Failed(UpdateError),
+}
+
 pub async fn firmware_update(board: &mut Board) -> AppState {
-    if !do_update(board).await {
-        AppState::Menu(AppMenu::Main)
-    } else {
+    let update_result = do_update(board).await;
+
+    let message = match update_result {
+        UpdateResult::Success => "Update complete",
+        UpdateResult::AlreadyUpToDate => "Already up to date",
+        UpdateResult::Failed(e) => match e {
+            UpdateError::WifiNotEnabled => "WiFi not enabled",
+            UpdateError::WifiNotConnected => "Could not connect to WiFi",
+            UpdateError::InternalError => "Update failed: internal error",
+            UpdateError::HttpConnectionFailed => "Failed to connect to update server",
+            UpdateError::HttpConnectionTimeout => "Connection to update server timed out",
+            UpdateError::HttpRequestTimeout => "Update request timed out",
+            UpdateError::HttpRequestFailed => "Failed to check for update",
+            UpdateError::EraseFailed => "Failed to erase update partition",
+            UpdateError::WriteError => "Failed to write update",
+            UpdateError::DownloadFailed => "Failed to download update",
+            UpdateError::DownloadTimeout => "Download timed out",
+            UpdateError::ActivateFailed => "Failed to finalize update",
+        },
+    };
+
+    display_message(board, message).await;
+
+    if let UpdateResult::Success = update_result {
         AppState::Shutdown
+    } else {
+        AppState::Menu(AppMenu::Main)
     }
 }
 
-async fn do_update(board: &mut Board) -> bool {
+async fn do_update(board: &mut Board) -> UpdateResult {
     display_message(board, "Connecting to WiFi").await;
 
     let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await else {
-        display_message(board, "Could not enable WiFi").await;
-        return false;
+        return UpdateResult::Failed(UpdateError::WifiNotEnabled);
     };
 
     if !wait_for_connection(&sta, board).await {
-        return false;
+        return UpdateResult::Failed(UpdateError::WifiNotConnected);
     }
 
     display_message(board, "Looking for updates").await;
@@ -43,9 +91,6 @@ async fn do_update(board: &mut Board) -> bool {
     let dns = DnsSocket::new(sta.stack());
 
     let mut client = HttpClient::new(&client, &dns);
-
-    const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
-    const READ_TIMEOUT: Duration = Duration::from_secs(10);
 
     let mut url = heapless::String::<128>::new();
     if uwrite!(
@@ -59,7 +104,7 @@ async fn do_update(board: &mut Board) -> bool {
     .is_err()
     {
         error!("URL too long");
-        return false;
+        return UpdateResult::Failed(UpdateError::InternalError);
     }
 
     debug!("Looking for update at {}", url.as_str());
@@ -73,44 +118,34 @@ async fn do_update(board: &mut Board) -> bool {
     let mut request = match connect {
         Either::First(Ok(request)) => request,
         Either::First(Err(e)) => {
-            display_message(board, "Connection failed").await;
             warn!("HTTP connect error: {}", e);
-            return false;
+            return UpdateResult::Failed(UpdateError::HttpConnectionFailed);
         }
-        Either::Second(_) => {
-            display_message(board, "Connection timeout").await;
-            warn!("Conect timeout");
-            return false;
-        }
+        Either::Second(_) => return UpdateResult::Failed(UpdateError::HttpConnectionTimeout),
     };
 
-    let Either::First(result) = select(
+    let result = match select(
         request.send(&mut resources.rx_buffer),
         Timer::after(READ_TIMEOUT),
     )
     .await
-    else {
-        display_message(board, "Update request timed out").await;
-        return false;
+    {
+        Either::First(result) => result,
+        _ => return UpdateResult::Failed(UpdateError::HttpRequestTimeout),
     };
 
     let response = match result {
         Ok(response) => match response.status {
             Status::Ok => response,
-            Status::NoContent => {
-                display_message(board, "Already up to date").await;
-                return false;
-            }
+            Status::NoContent => return UpdateResult::AlreadyUpToDate,
             _ => {
-                display_message(board, "Failed to download update").await;
                 warn!("HTTP response error: {}", response.status);
-                return false;
+                return UpdateResult::Failed(UpdateError::HttpRequestFailed);
             }
         },
         Err(e) => {
-            display_message(board, "Failed to download update").await;
             warn!("HTTP response error: {}", e);
-            return false;
+            return UpdateResult::Failed(UpdateError::HttpRequestFailed);
         }
     };
 
@@ -118,9 +153,8 @@ async fn do_update(board: &mut Board) -> bool {
     {
         Ok(ota) => ota,
         Err(e) => {
-            display_message(board, "Failed to initialize OTA client").await;
             warn!("Failed to initialize OTA: {}", e);
-            return false;
+            return UpdateResult::Failed(UpdateError::InternalError);
         }
     };
 
@@ -131,9 +165,8 @@ async fn do_update(board: &mut Board) -> bool {
     print_progress(board, &mut buffer, current, size).await;
 
     if let Err(e) = ota.erase().await {
-        display_message(board, "Failed to erase update partition").await;
         warn!("Failed to erase OTA: {}", e);
-        return false;
+        return UpdateResult::Failed(UpdateError::EraseFailed);
     };
 
     let mut reader = response.body().reader();
@@ -141,33 +174,26 @@ async fn do_update(board: &mut Board) -> bool {
     let mut started = Instant::now();
     let mut received_1s = 0;
     loop {
-        let read = if let Either::First(result) =
-            select(reader.read(&mut buffer), Timer::after(READ_TIMEOUT)).await
-        {
-            match result {
-                Ok(0) => break,
-                Ok(read) => {
-                    if let Err(e) = ota.write(&buffer[..read]).await {
-                        display_message(board, "Failed to write update").await;
-                        warn!("Failed to write OTA: {}", e);
-                        return false;
+        let received_buffer =
+            match select(reader.read(&mut buffer), Timer::after(READ_TIMEOUT)).await {
+                Either::First(result) => match result {
+                    Ok(0) => break,
+                    Ok(read) => &buffer[..read],
+                    Err(e) => {
+                        warn!("HTTP read error: {}", e);
+                        return UpdateResult::Failed(UpdateError::DownloadFailed);
                     }
-                    read
-                }
-                Err(e) => {
-                    display_message(board, "Failed to download update").await;
-                    warn!("HTTP read error: {}", e);
-                    return false;
-                }
-            }
-        } else {
-            display_message(board, "Downloading update timed out").await;
-            warn!("HTTP read timeout");
-            return false;
-        };
+                },
+                _ => return UpdateResult::Failed(UpdateError::DownloadTimeout),
+            };
 
-        current += read;
-        received_1s += read;
+        if let Err(e) = ota.write(received_buffer).await {
+            warn!("Failed to write OTA: {}", e);
+            return UpdateResult::Failed(UpdateError::WriteError);
+        }
+
+        current += received_buffer.len();
+        received_1s += received_buffer.len();
 
         let elapsed_ms = started.elapsed().as_millis();
         if elapsed_ms > 500 {
@@ -185,13 +211,11 @@ async fn do_update(board: &mut Board) -> bool {
     }
 
     if let Err(e) = ota.activate().await {
-        display_message(board, "Failed to activate update").await;
         warn!("Failed to activate OTA: {}", e);
-        return false;
+        return UpdateResult::Failed(UpdateError::ActivateFailed);
     }
 
-    display_message(board, "Update complete").await;
-    true
+    UpdateResult::Success
 }
 
 async fn print_progress(
