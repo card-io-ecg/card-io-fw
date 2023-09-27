@@ -115,16 +115,17 @@ async fn do_update(board: &mut Board) -> bool {
         }
     };
 
+    let size = response.content_length;
+    let mut current = 0;
+
+    let mut message_buffer = heapless::String::<128>::new();
+    print_progress(board, &mut message_buffer, current, size).await;
+
     if let Err(e) = ota.erase().await {
         display_message(board, "Failed to erase update partition").await;
         warn!("Failed to erase OTA: {}", e);
         return false;
     };
-
-    let size = response.content_length;
-    let mut current = 0;
-
-    let mut message = heapless::String::<128>::new();
 
     let mut reader = response.body().reader();
 
@@ -157,21 +158,7 @@ async fn do_update(board: &mut Board) -> bool {
             started = Instant::now();
             received_1s = 0;
 
-            message.clear();
-            if let Some(size) = size {
-                unwrap!(uwrite!(
-                    &mut message,
-                    "Downloading update: {}%",
-                    current * 100 / size
-                ));
-            } else {
-                unwrap!(uwrite!(
-                    &mut message,
-                    "Downloading update: {} bytes",
-                    current
-                ));
-            }
-            display_message(board, message.as_str()).await;
+            print_progress(board, &mut message_buffer, current, size).await;
         }
 
         if let Err(e) = ota.write(&buffer[..read]).await {
@@ -189,4 +176,20 @@ async fn do_update(board: &mut Board) -> bool {
 
     display_message(board, "Update complete").await;
     true
+}
+
+async fn print_progress(
+    board: &mut Board,
+    message: &mut heapless::String<128>,
+    current: usize,
+    size: Option<usize>,
+) {
+    message.clear();
+    if let Some(size) = size {
+        let progress = current * 100 / size;
+        unwrap!(uwrite!(message, "Downloading update: {}%", progress));
+    } else {
+        unwrap!(uwrite!(message, "Downloading update: {} bytes", current));
+    }
+    display_message(board, message.as_str()).await;
 }
