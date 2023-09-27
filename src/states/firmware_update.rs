@@ -8,6 +8,7 @@ use ufmt::uwrite;
 use crate::{
     board::{
         initialized::{Board, StaMode},
+        ota::{Ota0Partition, Ota1Partition, OtaClient, OtaDataPartition},
         wait_for_connection, HttpClientResources,
     },
     states::{display_message, menu::AppMenu},
@@ -106,6 +107,21 @@ async fn do_update(board: &mut Board) {
     let size = response.content_length;
 
     // TODO: look up update partition, erase
+    let mut ota = match OtaClient::initialize(OtaDataPartition, Ota0Partition, Ota1Partition).await
+    {
+        Ok(ota) => ota,
+        Err(e) => {
+            display_message(board, "Failed to initialize OTA client").await;
+            warn!("Failed to initialize OTA: {}", e);
+            return;
+        }
+    };
+
+    if let Err(e) = ota.erase().await {
+        display_message(board, "Failed to erase update partition").await;
+        warn!("Failed to erase OTA: {}", e);
+        return;
+    };
 
     let mut current = 0;
     let mut message = heapless::String::<128>::new();
@@ -158,7 +174,17 @@ async fn do_update(board: &mut Board) {
             display_message(board, message.as_str()).await;
         }
 
-        // TODO write update
+        if let Err(e) = ota.write(&buffer[..read]).await {
+            display_message(board, "Failed to write update").await;
+            warn!("Failed to write OTA: {}", e);
+            return;
+        }
+    }
+
+    if let Err(e) = ota.activate().await {
+        display_message(board, "Failed to activate update").await;
+        warn!("Failed to activate OTA: {}", e);
+        return;
     }
 
     display_message(board, "Update complete").await;
