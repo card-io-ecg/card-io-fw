@@ -126,9 +126,9 @@ async fn do_update(board: &mut Board) -> bool {
 
     let size = response.content_length;
     let mut current = 0;
+    let mut buffer = [0; 1024];
 
-    let mut message_buffer = heapless::String::<128>::new();
-    print_progress(board, &mut message_buffer, current, size).await;
+    print_progress(board, &mut buffer, current, size).await;
 
     if let Err(e) = ota.erase().await {
         display_message(board, "Failed to erase update partition").await;
@@ -138,27 +138,32 @@ async fn do_update(board: &mut Board) -> bool {
 
     let mut reader = response.body().reader();
 
-    let mut buffer = [0; 1024];
-
     let mut started = Instant::now();
     let mut received_1s = 0;
     loop {
-        let Either::First(result) =
+        let read = if let Either::First(result) =
             select(reader.read(&mut buffer), Timer::after(READ_TIMEOUT)).await
-        else {
+        {
+            match result {
+                Ok(0) => break,
+                Ok(read) => {
+                    if let Err(e) = ota.write(&buffer[..read]).await {
+                        display_message(board, "Failed to write update").await;
+                        warn!("Failed to write OTA: {}", e);
+                        return false;
+                    }
+                    read
+                }
+                Err(e) => {
+                    display_message(board, "Failed to download update").await;
+                    warn!("HTTP read error: {}", e);
+                    return false;
+                }
+            }
+        } else {
             display_message(board, "Downloading update timed out").await;
             warn!("HTTP read timeout");
             return false;
-        };
-
-        let read = match result {
-            Ok(0) => break,
-            Ok(read) => read,
-            Err(e) => {
-                display_message(board, "Failed to download update").await;
-                warn!("HTTP read error: {}", e);
-                return false;
-            }
         };
 
         current += read;
@@ -175,13 +180,7 @@ async fn do_update(board: &mut Board) -> bool {
             started = Instant::now();
             received_1s = 0;
 
-            print_progress(board, &mut message_buffer, current, size).await;
-        }
-
-        if let Err(e) = ota.write(&buffer[..read]).await {
-            display_message(board, "Failed to write update").await;
-            warn!("Failed to write OTA: {}", e);
-            return false;
+            print_progress(board, &mut buffer, current, size).await;
         }
     }
 
@@ -197,11 +196,11 @@ async fn do_update(board: &mut Board) -> bool {
 
 async fn print_progress(
     board: &mut Board,
-    message: &mut heapless::String<128>,
+    message: &mut [u8],
     current: usize,
     size: Option<usize>,
 ) {
-    message.clear();
+    let mut message = slice_string::SliceString::new(message);
     if let Some(size) = size {
         let progress = current * 100 / size;
         unwrap!(uwrite!(message, "Downloading update: {}%", progress));
