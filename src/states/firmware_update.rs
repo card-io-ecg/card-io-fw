@@ -45,6 +45,7 @@ async fn do_update(board: &mut Board) -> bool {
     let mut client = HttpClient::new(&client, &dns);
 
     const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+    const READ_TIMEOUT: Duration = Duration::from_secs(10);
 
     let mut url = heapless::String::<128>::new();
     if uwrite!(
@@ -83,7 +84,15 @@ async fn do_update(board: &mut Board) -> bool {
         }
     };
 
-    let result = request.send(&mut resources.rx_buffer).await;
+    let Either::First(result) = select(
+        request.send(&mut resources.rx_buffer),
+        Timer::after(READ_TIMEOUT),
+    )
+    .await
+    else {
+        display_message(board, "Update request timed out").await;
+        return false;
+    };
 
     let response = match result {
         Ok(response) => match response.status {
@@ -134,7 +143,15 @@ async fn do_update(board: &mut Board) -> bool {
     let mut started = Instant::now();
     let mut received_1s = 0;
     loop {
-        let read = match reader.read(&mut buffer).await {
+        let Either::First(result) =
+            select(reader.read(&mut buffer), Timer::after(READ_TIMEOUT)).await
+        else {
+            display_message(board, "Downloading update timed out").await;
+            warn!("HTTP read timeout");
+            return false;
+        };
+
+        let read = match result {
             Ok(0) => break,
             Ok(read) => read,
             Err(e) => {
