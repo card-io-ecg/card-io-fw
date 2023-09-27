@@ -11,11 +11,14 @@ pub mod hardware;
 pub mod config;
 pub mod drivers;
 pub mod initialized;
+pub mod ota;
 pub mod startup;
 pub mod storage;
 pub mod utils;
 pub mod wifi;
 
+use alloc::boxed::Box;
+use embassy_net::tcp::client::TcpClientState;
 use esp_backtrace as _;
 
 #[cfg(feature = "esp32s2")]
@@ -26,9 +29,47 @@ pub use esp32s3_hal as hal;
 
 pub use hardware::*;
 
+use crate::{
+    board::{
+        initialized::Board,
+        wifi::sta::{ConnectionState, Sta},
+    },
+    states::display_message,
+};
+
 pub struct MiscPins {
     pub vbus_detect: VbusDetect,
     pub chg_status: ChargerStatus,
+}
+
+pub struct HttpClientResources {
+    pub client_state: TcpClientState<1, 1024, 1024>,
+    pub rx_buffer: [u8; 1024],
+}
+
+impl HttpClientResources {
+    pub fn new_boxed() -> Box<Self> {
+        Box::new(Self {
+            client_state: TcpClientState::new(),
+            rx_buffer: [0; 1024],
+        })
+    }
+}
+
+pub async fn wait_for_connection(sta: &Sta, board: &mut Board) -> bool {
+    debug!("Waiting for network connection");
+    if sta.connection_state() != ConnectionState::Connected {
+        while sta.wait_for_state_change().await == ConnectionState::Connecting {
+            display_message(board, "Connecting...").await;
+        }
+
+        if sta.connection_state() != ConnectionState::Connected {
+            debug!("No network connection");
+            return false;
+        }
+    }
+
+    true
 }
 
 pub const DEFAULT_BACKEND_URL: &str = "http://stingray-prime-monkey.ngrok-free.app/";

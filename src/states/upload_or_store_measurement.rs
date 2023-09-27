@@ -28,7 +28,7 @@ use ufmt::uwrite;
 use crate::{
     board::{
         initialized::{Board, StaMode},
-        wifi::sta::{ConnectionState, Sta},
+        wait_for_connection, HttpClientResources,
     },
     states::{
         display_menu_screen, display_message, menu::storage::MeasurementAction, MenuEventHandler,
@@ -155,11 +155,6 @@ async fn ask_for_measurement_action(board: &mut Board) -> (bool, bool) {
         .unwrap_or((false, false))
 }
 
-struct Resources {
-    client_state: TcpClientState<1, 1024, 1024>,
-    rx_buffer: [u8; 1024],
-}
-
 async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
     if board.config.backend_url.is_empty() {
         debug!("No backend URL configured, not uploading.");
@@ -188,10 +183,7 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
 
     display_message(board, uploading_msg.as_str()).await;
 
-    let mut resources = Box::new(Resources {
-        client_state: TcpClientState::new(),
-        rx_buffer: [0; 1024],
-    });
+    let mut resources = HttpClientResources::new_boxed();
 
     let client = TcpClient::new(sta.stack(), &resources.client_state);
     let dns = DnsSocket::new(sta.stack());
@@ -245,7 +237,7 @@ async fn upload_stored(board: &mut Board) -> bool {
 
     let mut fn_buffer = [0; 64];
 
-    let mut resources = Box::new(Resources {
+    let mut resources = Box::new(HttpClientResources {
         client_state: TcpClientState::new(),
         rx_buffer: [0; 1024],
     });
@@ -308,22 +300,6 @@ async fn upload_stored(board: &mut Board) -> bool {
     } else {
         true
     }
-}
-
-async fn wait_for_connection(sta: &Sta, board: &mut Board) -> bool {
-    debug!("Waiting for network connection");
-    if sta.connection_state() != ConnectionState::Connected {
-        while sta.wait_for_state_change().await == ConnectionState::Connecting {
-            display_message(board, "Connecting...").await;
-        }
-
-        if sta.connection_state() != ConnectionState::Connected {
-            debug!("No network connection");
-            return false;
-        }
-    }
-
-    true
 }
 
 struct Measurement {

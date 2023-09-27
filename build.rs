@@ -18,6 +18,7 @@ fn main() {
         .expect("Not a valid utf8 string")
         .trim();
 
+    println!("cargo:rustc-env=COMMIT_HASH={git_hash_str}");
     println!("cargo:rustc-env=FW_VERSION={pkg_version}-{git_hash_str}");
 
     #[allow(unused_mut)]

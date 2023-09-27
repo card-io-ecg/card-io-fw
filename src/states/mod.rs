@@ -1,6 +1,7 @@
 pub mod adc_setup;
 pub mod charging;
 pub mod display_serial;
+pub mod firmware_update;
 pub mod init;
 pub mod measure;
 pub mod menu;
@@ -103,7 +104,7 @@ fn to_progress(elapsed: Duration, max_duration: Duration) -> u32 {
     )
 }
 
-async fn display_message(board: &mut Board, message: &str) {
+pub async fn display_message(board: &mut Board, message: &str) {
     info!("Displaying message: {}", message);
 
     if let Some(previous) = board.message_displayed_at.take() {
