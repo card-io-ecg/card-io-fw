@@ -4,7 +4,7 @@ use crc::{Algorithm, Crc};
 use macros::partition;
 use norfs::medium::StorageMedium;
 use norfs_driver::medium::MediumError;
-use norfs_esp32s3::{InternalDriver, InternalPartition};
+use norfs_esp32s3::{InternalDriver, InternalPartition, SmallInternalDriver};
 
 #[partition("otadata")]
 pub struct OtaDataPartition;
@@ -62,10 +62,13 @@ struct OtaHeader {
 }
 
 impl OtaHeader {
-    async fn read<P>(partition: &mut InternalDriver<P>, slot: Slot) -> Result<Self, MediumError>
+    async fn read<P>(
+        partition: &mut SmallInternalDriver<P>,
+        slot: Slot,
+    ) -> Result<Self, MediumError>
     where
         P: InternalPartition,
-        InternalDriver<P>: StorageMedium,
+        SmallInternalDriver<P>: StorageMedium,
     {
         let mut buffer: [u8; 32] = [0; 32];
         partition.read(slot.block(), 0, &mut buffer[..]).await?;
@@ -137,15 +140,15 @@ where
 {
     slot0: OtaHeader,
     slot1: OtaHeader,
-    partition: InternalDriver<P>,
+    partition: SmallInternalDriver<P>,
 }
 
 impl<P> OtaData<P>
 where
     P: InternalPartition,
-    InternalDriver<P>: StorageMedium,
+    SmallInternalDriver<P>: StorageMedium,
 {
-    async fn read(mut partition: InternalDriver<P>) -> Result<Self, MediumError> {
+    async fn read(mut partition: SmallInternalDriver<P>) -> Result<Self, MediumError> {
         Ok(Self {
             slot0: OtaHeader::read(&mut partition, Slot::Ota0).await?,
             slot1: OtaHeader::read(&mut partition, Slot::Ota1).await?,
@@ -211,12 +214,12 @@ where
     D: InternalPartition,
     P0: InternalPartition,
     P1: InternalPartition,
-    InternalDriver<D>: StorageMedium,
+    SmallInternalDriver<D>: StorageMedium,
     InternalDriver<P0>: StorageMedium,
     InternalDriver<P1>: StorageMedium,
 {
     pub async fn initialize(data: D, ota0: P0, ota1: P1) -> Result<Self, OtaError> {
-        let data = InternalDriver::new(data);
+        let data = SmallInternalDriver::new(data);
         let ota_data = OtaData::read(data).await?;
 
         Ok(Self {
