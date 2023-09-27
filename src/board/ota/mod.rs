@@ -241,7 +241,7 @@ where
         };
 
         for block in 0..count {
-            debug!("Erasing block {}/{}", block, count);
+            debug!("Erasing block {}/{}", block + 1, count);
             match self.update_slot {
                 Slot::Ota0 => self.ota0.erase(block).await?,
                 Slot::Ota1 => self.ota1.erase(block).await?,
