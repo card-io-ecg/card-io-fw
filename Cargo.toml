@@ -120,6 +120,7 @@ embassy-sync = { workspace = true }
 
 norfs = { workspace = true, features = [
     "esp32s3",
+    "critical-section",
 ] }
 heapless = { workspace = true }
 object-chain = { workspace = true }
