@@ -1,6 +1,7 @@
 pub mod adc_setup;
 pub mod charging;
 pub mod display_serial;
+pub mod firmware_update;
 pub mod init;
 pub mod measure;
 pub mod menu;

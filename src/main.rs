@@ -64,6 +64,7 @@ use crate::{
         adc_setup::adc_setup,
         charging::charging,
         display_serial::display_serial,
+        firmware_update::firmware_update,
         init::initialize,
         measure::{measure, ECG_BUFFER_SIZE},
         menu::{
@@ -122,6 +123,7 @@ pub enum AppState {
     Charging,
     Menu(AppMenu),
     DisplaySerial,
+    FirmwareUpdate,
     Shutdown,
     UploadStored(AppMenu),
     UploadOrStore(Box<CompressingBuffer<ECG_BUFFER_SIZE>>),
@@ -136,6 +138,7 @@ impl core::fmt::Debug for AppState {
             Self::Charging => write!(f, "Charging"),
             Self::Menu(arg0) => f.debug_tuple("Menu").field(arg0).finish(),
             Self::DisplaySerial => write!(f, "DisplaySerial"),
+            Self::FirmwareUpdate => write!(f, "FirmwareUpdate"),
             Self::Shutdown => write!(f, "Shutdown"),
             Self::UploadStored(arg0) => f.debug_tuple("UploadStored").field(arg0).finish(),
             Self::UploadOrStore(buf) => f.debug_tuple("UploadOrStore").field(&buf.len()).finish(),
@@ -153,6 +156,7 @@ impl defmt::Format for AppState {
             Self::Charging => defmt::write!(f, "Charging"),
             Self::Menu(arg0) => defmt::write!(f, "Menu({:?})", arg0),
             Self::DisplaySerial => defmt::write!(f, "DisplaySerial"),
+            Self::FirmwareUpdate => defmt::write!(f, "FirmwareUpdate"),
             Self::Shutdown => defmt::write!(f, "Shutdown"),
             Self::UploadStored(arg0) => defmt::write!(f, "UploadStored({:?})", arg0),
             Self::UploadOrStore(buf) => defmt::write!(f, "UploadOrStore (len={})", buf.len()),
@@ -332,6 +336,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
             #[cfg(feature = "battery_max17055")]
             AppState::Menu(AppMenu::BatteryInfo) => battery_info_menu(&mut board).await,
             AppState::DisplaySerial => display_serial(&mut board).await,
+            AppState::FirmwareUpdate => firmware_update(&mut board).await,
             AppState::UploadStored(next_state) => {
                 upload_stored_measurements(&mut board, AppState::Menu(next_state)).await
             }
