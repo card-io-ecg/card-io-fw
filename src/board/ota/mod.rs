@@ -234,18 +234,20 @@ where
 
     pub async fn erase(&mut self) -> Result<(), OtaError> {
         self.update_offset = 0;
-        match self.update_slot {
-            Slot::Ota0 => {
-                for block in 0..InternalDriver::<P0>::BLOCK_COUNT {
-                    self.ota0.erase(block).await?;
-                }
-            }
-            Slot::Ota1 => {
-                for block in 0..InternalDriver::<P1>::BLOCK_COUNT {
-                    self.ota1.erase(block).await?;
-                }
+
+        let count = match self.update_slot {
+            Slot::Ota0 => InternalDriver::<P0>::BLOCK_COUNT,
+            Slot::Ota1 => InternalDriver::<P1>::BLOCK_COUNT,
+        };
+
+        for block in 0..count {
+            debug!("Erasing block {}/{}", block, count);
+            match self.update_slot {
+                Slot::Ota0 => self.ota0.erase(block).await?,
+                Slot::Ota1 => self.ota1.erase(block).await?,
             }
         }
+
         Ok(())
     }
 
@@ -270,6 +272,8 @@ where
             check: 0,
             residue: 0,
         };
+
+        debug!("Activating {}", self.update_slot);
 
         self.ota_data.erase(self.update_slot).await?;
 
