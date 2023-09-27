@@ -1,10 +1,7 @@
 use core::ops::{Deref, DerefMut};
 
-use norfs::{
-    drivers::internal::{InternalDriver, InternalPartition},
-    medium::cache::ReadCache,
-    Storage, StorageError,
-};
+use norfs::{medium::cache::ReadCache, Storage, StorageError};
+use norfs_esp32s3::{InternalDriver, InternalPartition};
 
 pub struct ConfigPartition;
 impl InternalPartition for ConfigPartition {

@@ -37,7 +37,8 @@ log = { version = "0.4.18", default-features = false, features = [
 ] }
 logger = { path = "logger" }
 signal-processing = { path = "signal-processing" }
-norfs = { git = "https://github.com/card-io-ecg/norfs.git", rev = "d6ba27b" }
+norfs = { git = "https://github.com/card-io-ecg/norfs.git", rev = "03efc10" }
+norfs-esp32s3 = { git = "https://github.com/card-io-ecg/norfs.git", rev = "03efc10" }
 object-chain = "0.1.3"
 bad-server = { path = "bad-server" }
 defmt = { version = "=0.3.5" }
@@ -118,8 +119,8 @@ embedded-svc = { workspace = true }
 embassy-net = { workspace = true }
 embassy-sync = { workspace = true }
 
-norfs = { workspace = true, features = [
-    "esp32s3",
+norfs = { workspace = true }
+norfs-esp32s3 = { workspace = true, optional = true, features = [
     "critical-section",
 ] }
 heapless = { workspace = true }
@@ -151,6 +152,7 @@ hw_v4 = ["battery_max17055"]
 # esp32s2 = ["dep:esp32s2", "dep:esp32s2-hal", "esp-backtrace/esp32s2", "esp-println/esp32s2", "rtt"]
 esp32s3 = [
     "dep:esp32s3-hal",
+    "dep:norfs-esp32s3",
     "esp-backtrace/esp32s3",
     "esp-println/esp32s3",
     "uart",                  # print via uart, serial_jtag seems to lose bytes
