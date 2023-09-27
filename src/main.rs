@@ -345,10 +345,10 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
             }
             AppState::Shutdown => break,
         };
-    }
 
-    if let Some(message_at) = board.message_displayed_at.take() {
-        Timer::at(message_at + MESSAGE_DURATION).await;
+        if let Some(message_at) = board.message_displayed_at.take() {
+            Timer::at(message_at + MESSAGE_DURATION).await;
+        }
     }
 
     let _ = board.display.shut_down();
