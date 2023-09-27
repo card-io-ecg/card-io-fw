@@ -16,22 +16,23 @@ use crate::{
 };
 
 pub async fn firmware_update(board: &mut Board) -> AppState {
-    do_update(board).await;
-
-    AppState::Menu(AppMenu::Main)
+    if !do_update(board).await {
+        AppState::Menu(AppMenu::Main)
+    } else {
+        AppState::Shutdown
+    }
 }
 
-async fn do_update(board: &mut Board) {
+async fn do_update(board: &mut Board) -> bool {
     display_message(board, "Connecting to WiFi").await;
 
     let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await else {
         display_message(board, "Could not enable WiFi").await;
-        return;
+        return false;
     };
 
     if !wait_for_connection(&sta, board).await {
-        // If we do not have a network connection, save to file.
-        return;
+        return false;
     }
 
     display_message(board, "Looking for updates").await;
@@ -57,7 +58,7 @@ async fn do_update(board: &mut Board) {
     .is_err()
     {
         error!("URL too long");
-        return;
+        return false;
     }
 
     debug!("Looking for update at {}", url.as_str());
@@ -73,12 +74,12 @@ async fn do_update(board: &mut Board) {
         Either::First(Err(e)) => {
             display_message(board, "Connection failed").await;
             warn!("HTTP connect error: {}", e);
-            return;
+            return false;
         }
         Either::Second(_) => {
             display_message(board, "Connection timeout").await;
             warn!("Conect timeout");
-            return;
+            return false;
         }
     };
 
@@ -89,38 +90,37 @@ async fn do_update(board: &mut Board) {
             Status::Ok => response,
             Status::NoContent => {
                 display_message(board, "Already up to date").await;
-                return;
+                return false;
             }
             _ => {
                 display_message(board, "Failed to download update").await;
                 warn!("HTTP response error: {}", response.status);
-                return;
+                return false;
             }
         },
         Err(e) => {
             display_message(board, "Failed to download update").await;
             warn!("HTTP response error: {}", e);
-            return;
+            return false;
         }
     };
 
     let size = response.content_length;
 
-    // TODO: look up update partition, erase
     let mut ota = match OtaClient::initialize(OtaDataPartition, Ota0Partition, Ota1Partition).await
     {
         Ok(ota) => ota,
         Err(e) => {
             display_message(board, "Failed to initialize OTA client").await;
             warn!("Failed to initialize OTA: {}", e);
-            return;
+            return false;
         }
     };
 
     if let Err(e) = ota.erase().await {
         display_message(board, "Failed to erase update partition").await;
         warn!("Failed to erase OTA: {}", e);
-        return;
+        return false;
     };
 
     let mut current = 0;
@@ -139,7 +139,7 @@ async fn do_update(board: &mut Board) {
             Err(e) => {
                 display_message(board, "Failed to download update").await;
                 warn!("HTTP read error: {}", e);
-                return;
+                return false;
             }
         };
 
@@ -177,15 +177,16 @@ async fn do_update(board: &mut Board) {
         if let Err(e) = ota.write(&buffer[..read]).await {
             display_message(board, "Failed to write update").await;
             warn!("Failed to write OTA: {}", e);
-            return;
+            return false;
         }
     }
 
     if let Err(e) = ota.activate().await {
         display_message(board, "Failed to activate update").await;
         warn!("Failed to activate OTA: {}", e);
-        return;
+        return false;
     }
 
     display_message(board, "Update complete").await;
+    true
 }
