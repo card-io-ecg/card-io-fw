@@ -150,6 +150,7 @@ fn run(hw: HardwareVersion) -> AnyResult<()> {
         "espflash",
         "flash",
         "-M",
+        "--erase-parts=otadata",
         "--release",
         "--target=xtensa-esp32s3-none-elf",
         "-Zbuild-std=core,alloc",
