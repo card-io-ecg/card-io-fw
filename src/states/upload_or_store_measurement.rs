@@ -398,7 +398,7 @@ where
     T: TcpConnect,
     DNS: Dns,
 {
-    const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+    const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
     const UPLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
     let mut upload_url = heapless::String::<128>::new();

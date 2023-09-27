@@ -44,7 +44,7 @@ async fn do_update(board: &mut Board) -> bool {
 
     let mut client = HttpClient::new(&client, &dns);
 
-    const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+    const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
     const READ_TIMEOUT: Duration = Duration::from_secs(10);
 
     let mut url = heapless::String::<128>::new();
