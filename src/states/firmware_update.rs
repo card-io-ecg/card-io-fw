@@ -1,6 +1,6 @@
 use embassy_futures::select::{select, Either};
 use embassy_net::{dns::DnsSocket, tcp::client::TcpClient};
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Instant, Timer};
 use embedded_io::asynch::Read;
 use reqwless::{client::HttpClient, request::Method, response::Status};
 use ufmt::uwrite;
@@ -114,6 +114,8 @@ async fn do_update(board: &mut Board) {
 
     let mut buffer = [0; 1024];
 
+    let mut started = Instant::now();
+    let mut received_1s = 0;
     loop {
         let read = match reader.read(&mut buffer).await {
             Ok(0) => break,
@@ -125,25 +127,38 @@ async fn do_update(board: &mut Board) {
             }
         };
 
-        // TODO write update
-
         current += read;
+        received_1s += read;
 
-        message.clear();
-        if let Some(size) = size {
-            unwrap!(uwrite!(
-                &mut message,
-                "Downloading update: {}%",
-                current * 100 / size
-            ));
-        } else {
-            unwrap!(uwrite!(
-                &mut message,
-                "Downloading update: {} bytes",
-                current
-            ));
+        let elapsed_ms = started.elapsed().as_millis();
+        if elapsed_ms > 500 {
+            let kib_per_sec = received_1s as f32 / elapsed_ms as f32;
+
+            debug!(
+                "got {}B in {}ms {} KB/s",
+                received_1s, elapsed_ms, kib_per_sec
+            );
+            started = Instant::now();
+            received_1s = 0;
+
+            message.clear();
+            if let Some(size) = size {
+                unwrap!(uwrite!(
+                    &mut message,
+                    "Downloading update: {}%",
+                    current * 100 / size
+                ));
+            } else {
+                unwrap!(uwrite!(
+                    &mut message,
+                    "Downloading update: {} bytes",
+                    current
+                ));
+            }
+            display_message(board, message.as_str()).await;
         }
-        display_message(board, message.as_str()).await;
+
+        // TODO write update
     }
 
     display_message(board, "Update complete").await;
