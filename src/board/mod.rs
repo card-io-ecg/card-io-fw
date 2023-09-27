@@ -11,6 +11,7 @@ pub mod hardware;
 pub mod config;
 pub mod drivers;
 pub mod initialized;
+pub mod ota;
 pub mod startup;
 pub mod storage;
 pub mod utils;

@@ -1,16 +1,34 @@
-use darling::{export::NestedMeta, FromMeta};
+use darling::{ast::NestedMeta, FromMeta};
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
-use syn::{parse_quote, Expr, ExprLit, ItemFn, Lit, LitInt, ReturnType, Type};
+use syn::{
+    parse::{Parse, ParseBuffer},
+    parse_quote,
+    punctuated::Punctuated,
+    Expr, ExprLit, ItemFn, Lit, LitInt, ReturnType, Token, Type,
+};
+
+pub struct Args {
+    meta: Vec<NestedMeta>,
+}
+
+impl Parse for Args {
+    fn parse(input: &ParseBuffer) -> syn::Result<Self> {
+        let meta = Punctuated::<NestedMeta, Token![,]>::parse_terminated(input)?;
+        Ok(Args {
+            meta: meta.into_iter().collect(),
+        })
+    }
+}
 
 #[derive(Debug, FromMeta)]
-struct Args {
+struct ProcessedArgs {
     #[darling(default)]
     pool_size: Option<syn::Expr>,
 }
 
-pub fn run(args: &[NestedMeta], f: syn::ItemFn) -> TokenStream {
-    let args = match Args::from_list(args) {
+pub fn run(args: Args, f: syn::ItemFn) -> TokenStream {
+    let args = match ProcessedArgs::from_list(&args.meta) {
         Ok(args) => args,
         Err(e) => return e.write_errors(),
     };

@@ -1,29 +1,10 @@
 extern crate proc_macro;
 
-use darling::ast::NestedMeta;
 use proc_macro::TokenStream;
 
-use syn::{
-    parse::{Parse, ParseBuffer},
-    punctuated::Punctuated,
-    Token,
-};
-
 mod filter;
+mod norfs_partition;
 mod task;
-
-struct Args {
-    meta: Vec<NestedMeta>,
-}
-
-impl Parse for Args {
-    fn parse(input: &ParseBuffer) -> syn::Result<Self> {
-        let meta = Punctuated::<NestedMeta, Token![,]>::parse_terminated(input)?;
-        Ok(Args {
-            meta: meta.into_iter().collect(),
-        })
-    }
-}
 
 /// Declares an async task that can be run by `embassy-executor`. The optional `pool_size` parameter can be used to specify how
 /// many concurrent tasks can be spawned (default is 1) for the function.
@@ -57,14 +38,24 @@ impl Parse for Args {
 /// ```
 #[proc_macro_attribute]
 pub fn task(args: TokenStream, item: TokenStream) -> TokenStream {
-    let args = syn::parse_macro_input!(args as Args);
+    let args = syn::parse_macro_input!(args as task::Args);
     let f = syn::parse_macro_input!(item as syn::ItemFn);
 
-    task::run(&args.meta, f).into()
+    task::run(args, f).into()
 }
 
 #[proc_macro]
 pub fn designfilt(item: TokenStream) -> TokenStream {
     let spec = syn::parse_macro_input!(item as filter::FilterSpec);
     filter::run(spec).into()
+}
+
+#[proc_macro_attribute]
+pub fn partition(args: TokenStream, item: TokenStream) -> TokenStream {
+    let tokens = item.clone();
+
+    let args = syn::parse_macro_input!(args as norfs_partition::Args);
+    let s = syn::parse_macro_input!(tokens as syn::ItemStruct);
+
+    norfs_partition::implement(args, s, item.into()).into()
 }
