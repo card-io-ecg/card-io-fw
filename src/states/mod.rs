@@ -61,6 +61,14 @@ impl TouchInputShaper {
         }
     }
 
+    pub fn new_released() -> Self {
+        Self {
+            released: true,
+            touched: false,
+            released_delay: 0,
+        }
+    }
+
     pub fn update(&mut self, frontend: &mut EcgFrontend) {
         let touched = frontend.is_touched();
 
