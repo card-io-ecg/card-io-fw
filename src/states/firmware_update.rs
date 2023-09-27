@@ -105,8 +105,6 @@ async fn do_update(board: &mut Board) -> bool {
         }
     };
 
-    let size = response.content_length;
-
     let mut ota = match OtaClient::initialize(OtaDataPartition, Ota0Partition, Ota1Partition).await
     {
         Ok(ota) => ota,
@@ -123,7 +121,9 @@ async fn do_update(board: &mut Board) -> bool {
         return false;
     };
 
+    let size = response.content_length;
     let mut current = 0;
+
     let mut message = heapless::String::<128>::new();
 
     let mut reader = response.body().reader();
