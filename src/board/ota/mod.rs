@@ -1,7 +1,6 @@
 use core::marker::PhantomData;
 
 use crc::{Algorithm, Crc};
-use embassy_futures::yield_now;
 use macros::partition;
 use norfs::medium::StorageMedium;
 use norfs_driver::medium::MediumError;
@@ -247,7 +246,6 @@ where
                 Slot::Ota0 => self.ota0.erase(block).await?,
                 Slot::Ota1 => self.ota1.erase(block).await?,
             }
-            yield_now().await;
         }
 
         Ok(())
