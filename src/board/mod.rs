@@ -18,7 +18,6 @@ pub mod utils;
 pub mod wifi;
 
 use alloc::boxed::Box;
-use embassy_net::tcp::client::TcpClientState;
 use esp_backtrace as _;
 
 #[cfg(feature = "esp32s2")]
@@ -34,6 +33,7 @@ use crate::{
         initialized::Board,
         wifi::sta::{ConnectionState, Sta},
     },
+    buffered_tcp_client::BufferedTcpClientState,
     states::display_message,
 };
 
@@ -43,14 +43,14 @@ pub struct MiscPins {
 }
 
 pub struct HttpClientResources {
-    pub client_state: TcpClientState<1, 4096, 4096>,
+    pub client_state: BufferedTcpClientState<1, 4096, 4096, 1024>,
     pub rx_buffer: [u8; 512],
 }
 
 impl HttpClientResources {
     pub fn new_boxed() -> Box<Self> {
         Box::new(Self {
-            client_state: TcpClientState::new(),
+            client_state: BufferedTcpClientState::new(),
             rx_buffer: [0; 512],
         })
     }

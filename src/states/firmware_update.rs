@@ -1,5 +1,5 @@
 use embassy_futures::select::{select, Either};
-use embassy_net::{dns::DnsSocket, tcp::client::TcpClient};
+use embassy_net::dns::DnsSocket;
 use embassy_time::{Duration, Instant, Timer};
 use embedded_io::asynch::Read;
 use reqwless::{client::HttpClient, request::Method, response::Status};
@@ -11,6 +11,7 @@ use crate::{
         ota::{Ota0Partition, Ota1Partition, OtaClient, OtaDataPartition},
         wait_for_connection, HttpClientResources,
     },
+    buffered_tcp_client::BufferedTcpClient,
     states::{display_message, menu::AppMenu},
     AppState, SerialNumber,
 };
@@ -87,7 +88,7 @@ async fn do_update(board: &mut Board) -> UpdateResult {
 
     let mut resources = HttpClientResources::new_boxed();
 
-    let client = TcpClient::new(sta.stack(), &resources.client_state);
+    let client = BufferedTcpClient::new(sta.stack(), &resources.client_state);
     let dns = DnsSocket::new(sta.stack());
 
     let mut client = HttpClient::new(&client, &dns);

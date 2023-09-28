@@ -5,10 +5,7 @@ use core::{
 
 use alloc::{boxed::Box, vec::Vec};
 use embassy_futures::select::{select, Either};
-use embassy_net::{
-    dns::DnsSocket,
-    tcp::client::{TcpClient, TcpClientState},
-};
+use embassy_net::dns::DnsSocket;
 use embassy_time::{Duration, Timer};
 use embedded_menu::items::NavigationItem;
 use embedded_nal_async::{Dns, TcpConnect};
@@ -30,6 +27,7 @@ use crate::{
         initialized::{Board, StaMode},
         wait_for_connection, HttpClientResources,
     },
+    buffered_tcp_client::BufferedTcpClient,
     states::{
         display_menu_screen, display_message, menu::storage::MeasurementAction, MenuEventHandler,
     },
@@ -185,7 +183,7 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
 
     let mut resources = HttpClientResources::new_boxed();
 
-    let client = TcpClient::new(sta.stack(), &resources.client_state);
+    let client = BufferedTcpClient::new(sta.stack(), &resources.client_state);
     let dns = DnsSocket::new(sta.stack());
 
     let mut client = HttpClient::new(&client, &dns);
@@ -239,7 +237,7 @@ async fn upload_stored(board: &mut Board) -> bool {
 
     let mut resources = HttpClientResources::new_boxed();
 
-    let client = TcpClient::new(sta.stack(), &resources.client_state);
+    let client = BufferedTcpClient::new(sta.stack(), &resources.client_state);
     let dns = DnsSocket::new(sta.stack());
 
     let mut client = HttpClient::new(&client, &dns);
