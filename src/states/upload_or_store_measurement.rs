@@ -237,10 +237,7 @@ async fn upload_stored(board: &mut Board) -> bool {
 
     let mut fn_buffer = [0; 64];
 
-    let mut resources = Box::new(HttpClientResources {
-        client_state: TcpClientState::new(),
-        rx_buffer: [0; 1024],
-    });
+    let mut resources = HttpClientResources::new_boxed();
 
     let client = TcpClient::new(sta.stack(), &resources.client_state);
     let dns = DnsSocket::new(sta.stack());

@@ -43,15 +43,15 @@ pub struct MiscPins {
 }
 
 pub struct HttpClientResources {
-    pub client_state: TcpClientState<1, 1024, 1024>,
-    pub rx_buffer: [u8; 1024],
+    pub client_state: TcpClientState<1, 4096, 4096>,
+    pub rx_buffer: [u8; 512],
 }
 
 impl HttpClientResources {
     pub fn new_boxed() -> Box<Self> {
         Box::new(Self {
             client_state: TcpClientState::new(),
-            rx_buffer: [0; 1024],
+            rx_buffer: [0; 512],
         })
     }
 }

@@ -160,7 +160,7 @@ async fn do_update(board: &mut Board) -> UpdateResult {
 
     let size = response.content_length;
     let mut current = 0;
-    let mut buffer = [0; 1024];
+    let mut buffer = [0; 512];
 
     print_progress(board, &mut buffer, current, size).await;
 
