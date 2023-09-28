@@ -40,7 +40,7 @@ use signal_processing::{
                 HIGH_PASS_FOR_DISPLAY_NONE, HIGH_PASS_FOR_DISPLAY_STRONG,
                 HIGH_PASS_FOR_DISPLAY_WEAK,
             },
-            HighPass, Iir,
+            HighPass, Iir, LowPass,
         },
         pli::{adaptation_blocking::AdaptationBlocking, PowerLineFilter},
         Filter,
@@ -109,6 +109,7 @@ struct EcgObjects {
     pub filter: EcgFilter,
     pub downsampler: EcgDownsampler,
     pub heart_rate_calculator: HeartRateCalculator<[f32; 300], [f32; 50]>,
+    pub hr_noise_filter: Iir<'static, LowPass, 2>,
 }
 
 impl EcgObjects {
@@ -120,6 +121,14 @@ impl EcgObjects {
                 .append(DownSampler::new())
                 .append(DownSampler::new()),
             heart_rate_calculator: HeartRateCalculator::new(1000.0),
+
+            #[rustfmt::skip]
+            hr_noise_filter: macros::designfilt!(
+                "lowpassiir",
+                "FilterOrder", 2,
+                "HalfPowerFrequency", 20,
+                "SampleRate", 1000
+            ),
         }
     }
 }
@@ -219,7 +228,9 @@ async fn measure_impl(
                             ecg_buffer.push(sample.raw());
                         }
                         if let Some(filtered) = ecg.filter.update(sample.voltage()) {
-                            ecg.heart_rate_calculator.update(filtered);
+                            if let Some(filtered) = ecg.hr_noise_filter.update(filtered) {
+                                ecg.heart_rate_calculator.update(filtered);
+                            }
 
                             if let Some(downsampled) = ecg.downsampler.update(filtered) {
                                 screen.content.push(downsampled);
