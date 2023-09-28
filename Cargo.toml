@@ -37,9 +37,9 @@ log = { version = "0.4.18", default-features = false, features = [
 ] }
 logger = { path = "logger" }
 signal-processing = { path = "signal-processing" }
-norfs = { git = "https://github.com/card-io-ecg/norfs.git", rev = "6f18987" }
-norfs-driver = { git = "https://github.com/card-io-ecg/norfs.git", rev = "6f18987" }
-norfs-esp32s3 = { git = "https://github.com/card-io-ecg/norfs.git", rev = "6f18987" }
+norfs = { git = "https://github.com/card-io-ecg/norfs.git", rev = "e74397c" }
+norfs-driver = { git = "https://github.com/card-io-ecg/norfs.git", rev = "e74397c" }
+norfs-esp32s3 = { git = "https://github.com/card-io-ecg/norfs.git", rev = "e74397c" }
 object-chain = "0.1.3"
 bad-server = { path = "bad-server" }
 defmt = { version = "=0.3.5" }

@@ -254,7 +254,7 @@ async fn upload_stored(board: &mut Board) -> bool {
 
                 match file.name(storage, &mut fn_buffer).await {
                     Ok(name) if name.starts_with("meas.") => {
-                        let Ok(buffer) = load_measurement(file, storage).await else {
+                        let Ok((file, buffer)) = load_measurement(file, storage).await else {
                             warn!("Failed to load {}", name);
                             continue;
                         };
@@ -274,6 +274,9 @@ async fn upload_stored(board: &mut Board) -> bool {
                         }
 
                         info!("Uploaded {}", name);
+                        if let Err(e) = file.delete(storage).await {
+                            warn!("Failed to delete file: {}", e);
+                        }
                     }
                     Ok(_) | Err(StorageError::InsufficientBuffer) => {
                         // not a measurement file, ignore
@@ -335,7 +338,10 @@ impl RequestBody for MeasurementRef<'_> {
     }
 }
 
-async fn load_measurement<M>(file: DirEntry<M>, storage: &mut Storage<M>) -> Result<Measurement, ()>
+async fn load_measurement<M>(
+    file: DirEntry<M>,
+    storage: &mut Storage<M>,
+) -> Result<(DirEntry<M>, Measurement), ()>
 where
     M: StorageMedium,
     [(); M::BLOCK_COUNT]:,
@@ -350,7 +356,7 @@ where
         return Err(());
     };
 
-    let mut reader = file.open().await;
+    let mut reader = file.open();
     let version = reader.read_loadable::<u8>(storage).await;
     let version = match version {
         Ok(version) => version,
@@ -365,10 +371,13 @@ where
         return Err(());
     };
 
-    Ok(Measurement {
-        version: version as u32,
-        buffer,
-    })
+    Ok((
+        DirEntry::from_reader(reader),
+        Measurement {
+            version: version as u32,
+            buffer,
+        },
+    ))
 }
 
 fn buffer_with_capacity<T: Copy>(size: usize, init_val: T) -> Result<Box<[T]>, ()> {
