@@ -138,7 +138,7 @@ async fn do_update(board: &mut Board) -> UpdateResult {
     let response = match result {
         Ok(response) => match response.status {
             Status::Ok => response,
-            Status::NoContent => return UpdateResult::AlreadyUpToDate,
+            Status::NotModified => return UpdateResult::AlreadyUpToDate,
             _ => {
                 warn!("HTTP response error: {}", response.status);
                 return UpdateResult::Failed(UpdateError::HttpRequestFailed);
