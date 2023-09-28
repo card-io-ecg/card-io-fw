@@ -248,6 +248,7 @@ async fn upload_stored(board: &mut Board) -> bool {
         match dir.next(storage).await {
             Ok(file) => {
                 let Some(file) = file else {
+                    debug!("File is None");
                     break;
                 };
 
@@ -271,6 +272,8 @@ async fn upload_stored(board: &mut Board) -> bool {
                             success = false;
                             break;
                         }
+
+                        info!("Uploaded {}", name);
                     }
                     Ok(_) | Err(StorageError::InsufficientBuffer) => {
                         // not a measurement file, ignore
@@ -290,12 +293,14 @@ async fn upload_stored(board: &mut Board) -> bool {
         }
     }
 
-    if !success {
-        display_message(board, "Failed to upload measurements").await;
-        false
+    let message = if success {
+        "Upload successful"
     } else {
-        true
-    }
+        "Failed to upload measurements"
+    };
+    display_message(board, message).await;
+
+    success
 }
 
 struct Measurement {
