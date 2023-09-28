@@ -1,4 +1,7 @@
-#![cfg_attr(feature = "nostd", no_std)]
+#![cfg_attr(not(test), no_std)]
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
 
 #[macro_use]
 extern crate logger;
@@ -14,21 +17,26 @@ pub mod sliding;
 
 pub use macros::designfilt;
 
-#[cfg(feature = "nostd")]
-use micromath::F32Ext;
-use num_complex::Complex;
+mod compat {
+    pub use micromath::F32Ext;
 
-pub trait ComplExt {
-    fn from_polar(mag: f32, phase: f32) -> Complex<f32>;
-    fn norm(&self) -> f32;
-}
+    #[cfg(not(feature = "std"))]
+    use num_complex::Complex;
 
-impl ComplExt for Complex<f32> {
-    fn from_polar(mag: f32, phase: f32) -> Complex<f32> {
-        mag * Complex::new(phase.cos(), phase.sin())
+    #[cfg(not(feature = "std"))]
+    pub trait ComplExt {
+        fn from_polar(mag: f32, phase: f32) -> Complex<f32>;
+        fn norm(&self) -> f32;
     }
 
-    fn norm(&self) -> f32 {
-        self.norm_sqr().sqrt()
+    #[cfg(not(feature = "std"))]
+    impl ComplExt for Complex<f32> {
+        fn from_polar(mag: f32, phase: f32) -> Complex<f32> {
+            mag * Complex::new(phase.cos(), phase.sin())
+        }
+
+        fn norm(&self) -> f32 {
+            self.norm_sqr().sqrt()
+        }
     }
 }

@@ -102,7 +102,7 @@ macros = { path = "macros" }
 embassy-alloc-taskpool = { path = "embassy-alloc-taskpool" }
 ads129x = { path = "ads129x" }
 max17055 = { path = "max17055", optional = true }
-signal-processing = { workspace = true, features = ["nostd"] }
+signal-processing = { workspace = true }
 replace_with = { version = "0.1", default-features = false, features = [
     "nightly",
 ] }

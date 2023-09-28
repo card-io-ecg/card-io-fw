@@ -108,7 +108,7 @@ pub const ECG_BUFFER_SIZE: usize = 90_000;
 struct EcgObjects {
     pub filter: EcgFilter,
     pub downsampler: EcgDownsampler,
-    pub heart_rate_calculator: HeartRateCalculator,
+    pub heart_rate_calculator: HeartRateCalculator<[f32; 300], [f32; 50]>,
 }
 
 impl EcgObjects {

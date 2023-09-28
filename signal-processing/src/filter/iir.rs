@@ -2,8 +2,8 @@ use num_complex::Complex;
 
 use crate::{filter::Filter, sliding::SlidingWindow};
 
-#[cfg(feature = "nostd")]
-use crate::ComplExt;
+#[allow(unused_imports)]
+use crate::compat::*;
 
 pub mod precomputed {
     use super::{HighPass, Iir};

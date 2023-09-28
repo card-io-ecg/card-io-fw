@@ -12,11 +12,8 @@ use crate::filter::{
     Filter,
 };
 
-#[cfg(feature = "nostd")]
-use crate::ComplExt;
-
-#[cfg(feature = "nostd")]
-use micromath::F32Ext;
+#[allow(unused_imports)]
+use crate::compat::*;
 
 #[derive(Clone)]
 struct FilterCore {
@@ -123,8 +120,8 @@ pub mod adaptation_blocking {
         sliding::SlidingWindow,
     };
 
-    #[cfg(feature = "nostd")]
-    use micromath::F32Ext;
+    #[allow(unused_imports)]
+    use crate::compat::*;
 
     pub trait AdaptationBlockingTrait: Default {
         fn update(&mut self, sample: f32) -> Option<(f32, bool)>;

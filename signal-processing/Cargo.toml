@@ -5,9 +5,9 @@ edition = "2021"
 
 [dependencies]
 object-chain = { workspace = true }
-micromath = { version = "2.0.0", optional = true }
+micromath = { version = "2.0.0" }
 num-complex = { version = "0.4.3", default-features = false }
-qrs_detector = { git = "https://github.com/bugadani/QrsDetector.git" }
+qrs_detector = { git = "https://github.com/bugadani/QrsDetector.git", rev = "0cd8268" }
 macros = { path = "../macros" }
 logger = { workspace = true }
 embedded-io = { workspace = true }
@@ -16,6 +16,7 @@ defmt = { workspace = true, optional = true }
 log = { workspace = true, optional = true }
 
 [features]
-nostd = ["micromath"]
+alloc = ["qrs_detector/alloc"]
+std = ["num-complex/std"]
 log = ["dep:log", "logger/log"]
 defmt = ["dep:defmt", "logger/defmt"]

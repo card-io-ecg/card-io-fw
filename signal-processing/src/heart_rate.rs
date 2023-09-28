@@ -7,8 +7,8 @@ pub use qrs_detector::{
     QrsDetector, Thresholds,
 };
 
-#[cfg(feature = "nostd")]
-use micromath::F32Ext;
+#[allow(unused_imports)]
+use crate::compat::*;
 
 #[allow(clippy::excessive_precision)]
 const LP_COEFFS: [f32; 113] = [
@@ -132,9 +132,9 @@ pub enum State {
     Measure(usize, usize),
 }
 
-pub struct HeartRateCalculator {
+pub struct HeartRateCalculator<FMW, FB> {
     median: MedianFilter<3>,
-    qrs_detector: QrsDetector<300, 50>,
+    qrs_detector: QrsDetector<FMW, FB>,
     differentiator: SlidingWindow<2>,
     state: State,
     max_age: usize,
@@ -146,15 +146,17 @@ pub struct HeartRateCalculator {
     noise_filter: Fir<'static, 113>,
 }
 
-impl HeartRateCalculator {
+impl HeartRateCalculator<(), ()> {
     #[inline]
-    pub fn new(fs: f32) -> Self {
+    pub fn new<const SAMPLES_300: usize, const SAMPLES_50: usize>(
+        fs: f32,
+    ) -> HeartRateCalculator<[f32; SAMPLES_300], [f32; SAMPLES_50]> {
         let fs = fs.sps();
 
         let max_init = fs.s_to_samples(5.0);
         let max_age = fs.s_to_samples(3.0);
 
-        Self {
+        HeartRateCalculator {
             median: MedianFilter::new(),
             qrs_detector: QrsDetector::new(fs),
             differentiator: SlidingWindow::new(),
@@ -168,6 +170,36 @@ impl HeartRateCalculator {
         }
     }
 
+    #[cfg(feature = "alloc")]
+    #[inline]
+    pub fn new_alloc(
+        fs: f32,
+    ) -> HeartRateCalculator<alloc::boxed::Box<[f32]>, alloc::boxed::Box<[f32]>> {
+        let fs = fs.sps();
+
+        let max_init = fs.s_to_samples(5.0);
+        let max_age = fs.s_to_samples(3.0);
+
+        HeartRateCalculator {
+            median: MedianFilter::new(),
+            qrs_detector: QrsDetector::new_alloc(fs),
+            differentiator: SlidingWindow::new(),
+            state: State::Init(max_init),
+            max_age,
+            max_init,
+            current_hr: None,
+            is_beat: false,
+            noise_filter: Fir::from_coeffs(&LP_COEFFS),
+            fs,
+        }
+    }
+}
+
+impl<FMW, FB> HeartRateCalculator<FMW, FB>
+where
+    FMW: AsRef<[f32]> + AsMut<[f32]>,
+    FB: AsRef<[f32]> + AsMut<[f32]>,
+{
     pub fn clear(&mut self) {
         self.median.clear();
         self.qrs_detector.clear();

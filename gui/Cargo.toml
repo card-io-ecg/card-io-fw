@@ -16,7 +16,7 @@ embedded-layout = "0.3"
 tinybmp = "0.5"
 ufmt = { workspace = true }
 
-signal-processing = { workspace = true, features = ["nostd"] }
+signal-processing = { workspace = true }
 logger = { workspace = true }
 
 defmt = { workspace = true, optional = true }
