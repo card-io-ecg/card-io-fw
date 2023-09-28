@@ -92,7 +92,8 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
         }
     }
 
-    if can_upload {
+    // Only upload if we did not store.
+    if can_upload && !store_after_upload {
         // Drop to free up 90kB of memory.
         mem::drop(buffer);
         upload_stored(board).await;
