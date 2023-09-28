@@ -16,16 +16,16 @@ pub enum State {
 }
 
 pub struct HeartRateCalculator<FMW, FB> {
+    fs: SamplingFrequency,
+    max_age: usize,
+    max_init: usize,
+
     median: MedianFilter<3>,
     qrs_detector: QrsDetector<FMW, FB>,
     differentiator: SlidingWindow<2>,
     state: State,
-    max_age: usize,
-    max_init: usize,
-    fs: SamplingFrequency,
-    is_beat: bool,
-
     current_hr: Option<u8>,
+    is_beat: bool,
 }
 
 impl HeartRateCalculator<(), ()> {
@@ -35,20 +35,7 @@ impl HeartRateCalculator<(), ()> {
     ) -> HeartRateCalculator<[f32; SAMPLES_300], [f32; SAMPLES_50]> {
         let fs = fs.sps();
 
-        let max_init = fs.s_to_samples(5.0);
-        let max_age = fs.s_to_samples(3.0);
-
-        HeartRateCalculator {
-            median: MedianFilter::new(),
-            qrs_detector: QrsDetector::new(fs),
-            differentiator: SlidingWindow::new(),
-            state: State::Init(max_init),
-            max_age,
-            max_init,
-            current_hr: None,
-            is_beat: false,
-            fs,
-        }
+        HeartRateCalculator::new_from_qrs(fs, QrsDetector::new(fs))
     }
 
     #[cfg(feature = "alloc")]
@@ -58,20 +45,7 @@ impl HeartRateCalculator<(), ()> {
     ) -> HeartRateCalculator<alloc::boxed::Box<[f32]>, alloc::boxed::Box<[f32]>> {
         let fs = fs.sps();
 
-        let max_init = fs.s_to_samples(5.0);
-        let max_age = fs.s_to_samples(3.0);
-
-        HeartRateCalculator {
-            median: MedianFilter::new(),
-            qrs_detector: QrsDetector::new_alloc(fs),
-            differentiator: SlidingWindow::new(),
-            state: State::Init(max_init),
-            max_age,
-            max_init,
-            current_hr: None,
-            is_beat: false,
-            fs,
-        }
+        HeartRateCalculator::new_from_qrs(fs, QrsDetector::new_alloc(fs))
     }
 }
 
@@ -80,6 +54,24 @@ where
     FMW: AsRef<[f32]> + AsMut<[f32]>,
     FB: AsRef<[f32]> + AsMut<[f32]>,
 {
+    fn new_from_qrs(fs: SamplingFrequency, qrs_detector: QrsDetector<FMW, FB>) -> Self {
+        let max_init = fs.s_to_samples(5.0);
+        let max_age = fs.s_to_samples(3.0);
+
+        HeartRateCalculator {
+            fs,
+            max_age,
+            max_init,
+
+            median: MedianFilter::new(),
+            qrs_detector,
+            differentiator: SlidingWindow::new(),
+            state: State::Init(max_init),
+            current_hr: None,
+            is_beat: false,
+        }
+    }
+
     pub fn clear(&mut self) {
         self.median.clear();
         self.qrs_detector.clear();
