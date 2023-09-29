@@ -192,7 +192,7 @@ const SOCKET_TX_BUFFER: usize = 4096;
 const SOCKET_RX_BUFFER: usize = 4096;
 const HTTP_WRITE_BUFFER: usize = 1024;
 
-const TLS_READ_BUFFER: usize = 16 * 1024;
+const TLS_READ_BUFFER: usize = 16 * 1024 + 256;
 const TLS_WRITE_BUFFER: usize = 4096;
 
 type TcpClientState =
