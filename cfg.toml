@@ -9,3 +9,4 @@ ampdu_rx_enable = 1
 ampdu_tx_enable = 1
 rx_ba_win = 16
 max_burst_size = 4
+tick_rate_hz = 200
