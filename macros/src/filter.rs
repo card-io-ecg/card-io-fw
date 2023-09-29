@@ -152,10 +152,7 @@ fn iir(args: FilterSpec, ty: FilterBandType) -> TokenStream {
     b.truncate(b.len() - remove);
 
     // Strip off always-1 coefficient
-    assert!(a.swap_remove(0) == 1.0);
-
-    a.reverse();
-    b.reverse();
+    assert!(a.remove(0) == 1.0);
 
     let n = a.len();
 
