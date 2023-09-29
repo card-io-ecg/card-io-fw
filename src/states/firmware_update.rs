@@ -84,7 +84,7 @@ async fn do_update(board: &mut Board) -> UpdateResult {
 
     display_message(board, "Looking for updates").await;
 
-    let Ok(mut client_resources) = sta.http_client_resources() else {
+    let Ok(mut client_resources) = sta.https_client_resources() else {
         return UpdateResult::Failed(UpdateError::InternalError);
     };
     let mut client = client_resources.client();

@@ -30,7 +30,7 @@ use esp_wifi::{
 };
 use gui::widgets::wifi::WifiState;
 use macros as cardio;
-use reqwless::client::HttpClient;
+use reqwless::client::{HttpClient, TlsConfig, TlsVerify};
 
 const SCAN_RESULTS: usize = 20;
 
@@ -122,6 +122,7 @@ pub struct Sta {
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
     state: Rc<State>,
+    rng: Rng,
 }
 
 impl Sta {
@@ -166,12 +167,33 @@ impl Sta {
             dns_client: DnsSocket::new(&self.stack),
         })
     }
+
+    /// Allocates resources for an [`HttpClient`].
+    pub fn https_client_resources(&self) -> Result<HttpsClientResources<'_>, AllocError> {
+        // The client state must be heap allocated, because we take a reference to it.
+        let resources = Box::try_new(TlsClientState {
+            tcp_state: UnbufferedTcpClientState::new(),
+            tls_read_buffer: [0; TLS_READ_BUFFER],
+            tls_write_buffer: [0; TLS_WRITE_BUFFER],
+        })?;
+        let client_state = unsafe { addr_of!(resources.tcp_state).as_ref().unwrap() };
+
+        Ok(HttpsClientResources {
+            resources,
+            tcp_client: UnbufferedTcpClient::new(&self.stack, client_state),
+            dns_client: DnsSocket::new(&self.stack),
+            rng: self.rng,
+        })
+    }
 }
 
 const SOCKET_COUNT: usize = 1;
 const TX_BUFFER: usize = 4096;
 const RX_BUFFER: usize = 4096;
 const WRITE_BUFFER: usize = 1024;
+
+const TLS_READ_BUFFER: usize = 16 * 1024;
+const TLS_WRITE_BUFFER: usize = 4096;
 
 type TcpClientState = BufferedTcpClientState<SOCKET_COUNT, TX_BUFFER, RX_BUFFER, WRITE_BUFFER>;
 type TcpClient<'a> =
@@ -189,6 +211,50 @@ impl<'a> HttpClientResources<'a> {
     }
 }
 
+type UnbufferedTcpClientState =
+    embassy_net::tcp::client::TcpClientState<SOCKET_COUNT, TX_BUFFER, RX_BUFFER>;
+type UnbufferedTcpClient<'a> = embassy_net::tcp::client::TcpClient<
+    'a,
+    WifiDevice<'static>,
+    SOCKET_COUNT,
+    TX_BUFFER,
+    RX_BUFFER,
+>;
+
+struct TlsClientState {
+    tcp_state: UnbufferedTcpClientState,
+    tls_read_buffer: [u8; TLS_READ_BUFFER], // must be 16K
+    tls_write_buffer: [u8; TLS_WRITE_BUFFER],
+}
+
+pub struct HttpsClientResources<'a> {
+    resources: Box<TlsClientState>,
+    tcp_client: UnbufferedTcpClient<'a>,
+    dns_client: DnsSocket<'a, WifiDevice<'static>>,
+    rng: Rng,
+}
+
+impl<'a> HttpsClientResources<'a> {
+    pub fn client(
+        &mut self,
+    ) -> HttpClient<'_, UnbufferedTcpClient<'a>, DnsSocket<'a, WifiDevice<'static>>> {
+        let upper = self.rng.random() as u64;
+        let lower = self.rng.random() as u64;
+        let seed = (upper << 32) | lower;
+
+        HttpClient::new_with_tls(
+            &self.tcp_client,
+            &self.dns_client,
+            TlsConfig::new(
+                seed,
+                &mut self.resources.tls_read_buffer,
+                &mut self.resources.tls_write_buffer,
+                TlsVerify::None,
+            ),
+        )
+    }
+}
+
 pub(super) struct StaState {
     init: EspWifiInitialization,
     controller: Shared<WifiController<'static>>,
@@ -199,6 +265,7 @@ pub(super) struct StaState {
     connection_task_control: TaskController<()>,
     net_task_control: TaskController<!>,
     started: bool,
+    rng: Rng,
 }
 
 impl StaState {
@@ -229,6 +296,7 @@ impl StaState {
             connection_task_control: TaskController::new(),
             net_task_control: TaskController::new(),
             started: false,
+            rng,
         }
     }
 
@@ -281,6 +349,7 @@ impl StaState {
             networks: self.networks.clone(),
             known_networks: self.known_networks.clone(),
             state: self.state.clone(),
+            rng: self.rng,
         }
     }
 
@@ -290,6 +359,7 @@ impl StaState {
             networks: self.networks.clone(),
             known_networks: self.known_networks.clone(),
             state: self.state.clone(),
+            rng: self.rng,
         })
     }
 }

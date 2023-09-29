@@ -180,7 +180,7 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
 
     display_message(board, uploading_msg.as_str()).await;
 
-    let Ok(mut client_resources) = sta.http_client_resources() else {
+    let Ok(mut client_resources) = sta.https_client_resources() else {
         display_message(board, "Out of memory").await;
         return StoreMeasurement::Store;
     };
@@ -233,7 +233,7 @@ async fn upload_stored(board: &mut Board) -> bool {
 
     let mut fn_buffer = [0; 64];
 
-    let Ok(mut client_resources) = sta.http_client_resources() else {
+    let Ok(mut client_resources) = sta.https_client_resources() else {
         display_message(board, "Out of memory").await;
         return true;
     };
