@@ -56,5 +56,5 @@ pub async fn wait_for_connection(sta: &Sta, board: &mut Board) -> bool {
     true
 }
 
-pub const DEFAULT_BACKEND_URL: &str = "http://stingray-prime-monkey.ngrok-free.app";
+pub const DEFAULT_BACKEND_URL: &str = "https://stingray-prime-monkey.ngrok-free.app";
 pub const LOW_BATTERY_PERCENTAGE: u8 = 5;
