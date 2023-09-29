@@ -17,7 +17,6 @@ pub mod storage;
 pub mod utils;
 pub mod wifi;
 
-use alloc::boxed::Box;
 use esp_backtrace as _;
 
 #[cfg(feature = "esp32s2")]
@@ -33,27 +32,12 @@ use crate::{
         initialized::Board,
         wifi::sta::{ConnectionState, Sta},
     },
-    buffered_tcp_client::BufferedTcpClientState,
     states::display_message,
 };
 
 pub struct MiscPins {
     pub vbus_detect: VbusDetect,
     pub chg_status: ChargerStatus,
-}
-
-pub struct HttpClientResources {
-    pub client_state: BufferedTcpClientState<1, 4096, 4096, 1024>,
-    pub rx_buffer: [u8; 512],
-}
-
-impl HttpClientResources {
-    pub fn new_boxed() -> Box<Self> {
-        Box::new(Self {
-            client_state: BufferedTcpClientState::new(),
-            rx_buffer: [0; 512],
-        })
-    }
 }
 
 pub async fn wait_for_connection(sta: &Sta, board: &mut Board) -> bool {

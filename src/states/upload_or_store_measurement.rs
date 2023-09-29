@@ -5,7 +5,6 @@ use core::{
 
 use alloc::{boxed::Box, vec::Vec};
 use embassy_futures::select::{select, Either};
-use embassy_net::dns::DnsSocket;
 use embassy_time::{Duration, Timer};
 use embedded_menu::items::NavigationItem;
 use embedded_nal_async::{Dns, TcpConnect};
@@ -25,9 +24,8 @@ use ufmt::uwrite;
 use crate::{
     board::{
         initialized::{Board, StaMode},
-        wait_for_connection, HttpClientResources,
+        wait_for_connection,
     },
-    buffered_tcp_client::BufferedTcpClient,
     states::{
         display_menu_screen, display_message, menu::storage::MeasurementAction, MenuEventHandler,
     },
@@ -182,18 +180,17 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
 
     display_message(board, uploading_msg.as_str()).await;
 
-    let mut resources = HttpClientResources::new_boxed();
+    let Ok(mut client_resources) = sta.http_client_resources() else {
+        display_message(board, "Out of memory").await;
+        return StoreMeasurement::Store;
+    };
+    let mut client = client_resources.client();
 
-    let client = BufferedTcpClient::new(sta.stack(), &resources.client_state);
-    let dns = DnsSocket::new(sta.stack());
-
-    let mut client = HttpClient::new(&client, &dns);
     match upload_measurement(
         &board.config.backend_url,
         &mut client,
         0,
         MeasurementRef { version: 0, buffer },
-        &mut resources.rx_buffer,
     )
     .await
     {
@@ -236,12 +233,11 @@ async fn upload_stored(board: &mut Board) -> bool {
 
     let mut fn_buffer = [0; 64];
 
-    let mut resources = HttpClientResources::new_boxed();
-
-    let client = BufferedTcpClient::new(sta.stack(), &resources.client_state);
-    let dns = DnsSocket::new(sta.stack());
-
-    let mut client = HttpClient::new(&client, &dns);
+    let Ok(mut client_resources) = sta.http_client_resources() else {
+        display_message(board, "Out of memory").await;
+        return true;
+    };
+    let mut client = client_resources.client();
 
     let mut success = true;
     loop {
@@ -264,7 +260,6 @@ async fn upload_stored(board: &mut Board) -> bool {
                             &mut client,
                             0,
                             buffer.as_ref(),
-                            &mut resources.rx_buffer,
                         )
                         .await
                         {
@@ -402,7 +397,6 @@ async fn upload_measurement<T, DNS>(
     client: &mut HttpClient<'_, T, DNS>,
     meas_timestamp: u64,
     samples: MeasurementRef<'_>,
-    rx_buffer: &mut [u8],
 ) -> Result<(), ()>
 where
     T: TcpConnect,
@@ -451,7 +445,8 @@ where
         }
     };
 
-    let upload = select(request.send(rx_buffer), Timer::after(UPLOAD_TIMEOUT)).await;
+    let mut rx_buffer = [0; 512];
+    let upload = select(request.send(&mut rx_buffer), Timer::after(UPLOAD_TIMEOUT)).await;
 
     match upload {
         Either::First(Ok(response)) => {

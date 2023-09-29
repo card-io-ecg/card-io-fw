@@ -1,17 +1,15 @@
 use embassy_futures::select::{select, Either};
-use embassy_net::dns::DnsSocket;
 use embassy_time::{Duration, Instant, Timer};
 use embedded_io::asynch::Read;
-use reqwless::{client::HttpClient, request::Method, response::Status};
+use reqwless::{request::Method, response::Status};
 use ufmt::uwrite;
 
 use crate::{
     board::{
         initialized::{Board, StaMode},
         ota::{Ota0Partition, Ota1Partition, OtaClient, OtaDataPartition},
-        wait_for_connection, HttpClientResources,
+        wait_for_connection,
     },
-    buffered_tcp_client::BufferedTcpClient,
     states::{display_message, menu::AppMenu},
     AppState, SerialNumber,
 };
@@ -86,12 +84,10 @@ async fn do_update(board: &mut Board) -> UpdateResult {
 
     display_message(board, "Looking for updates").await;
 
-    let mut resources = HttpClientResources::new_boxed();
-
-    let client = BufferedTcpClient::new(sta.stack(), &resources.client_state);
-    let dns = DnsSocket::new(sta.stack());
-
-    let mut client = HttpClient::new(&client, &dns);
+    let Ok(mut client_resources) = sta.http_client_resources() else {
+        return UpdateResult::Failed(UpdateError::InternalError);
+    };
+    let mut client = client_resources.client();
 
     let mut url = heapless::String::<128>::new();
     if uwrite!(
@@ -125,12 +121,8 @@ async fn do_update(board: &mut Board) -> UpdateResult {
         Either::Second(_) => return UpdateResult::Failed(UpdateError::HttpConnectionTimeout),
     };
 
-    let result = match select(
-        request.send(&mut resources.rx_buffer),
-        Timer::after(READ_TIMEOUT),
-    )
-    .await
-    {
+    let mut rx_buffer = [0; 512];
+    let result = match select(request.send(&mut rx_buffer), Timer::after(READ_TIMEOUT)).await {
         Either::First(result) => result,
         _ => return UpdateResult::Failed(UpdateError::HttpRequestTimeout),
     };

@@ -66,7 +66,7 @@ impl<'d, D: Driver, const N: usize, const TX_SZ: usize, const RX_SZ: usize, cons
     }
 }
 
-/// Opened TCP connection in a [`TcpClient`].
+/// Opened TCP connection in a [`BufferedTcpClient`].
 pub struct BufferedTcpConnection<
     'd,
     const N: usize,

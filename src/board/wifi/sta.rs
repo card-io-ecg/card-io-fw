@@ -1,10 +1,11 @@
-use core::sync::atomic::Ordering;
+use core::{alloc::AllocError, ptr::addr_of, sync::atomic::Ordering};
 
 use crate::{
     board::{
         hal::{radio::Wifi, Rng},
         wifi::net_task,
     },
+    buffered_tcp_client::{BufferedTcpClient, BufferedTcpClientState},
     task_control::{TaskControlToken, TaskController},
     Shared,
 };
@@ -15,7 +16,7 @@ use embassy_futures::{
     join::join,
     select::{select, Either},
 };
-use embassy_net::{Config, Stack, StackResources};
+use embassy_net::{dns::DnsSocket, Config, Stack, StackResources};
 use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
     mutex::{Mutex, MutexGuard},
@@ -29,6 +30,7 @@ use esp_wifi::{
 };
 use gui::widgets::wifi::WifiState;
 use macros as cardio;
+use reqwless::client::HttpClient;
 
 const SCAN_RESULTS: usize = 20;
 
@@ -150,6 +152,40 @@ impl Sta {
 
     pub fn stack(&self) -> &Stack<WifiDevice<'static>> {
         &self.stack
+    }
+
+    /// Allocates resources for an [`HttpClient`].
+    pub fn http_client_resources(&self) -> Result<HttpClientResources<'_>, AllocError> {
+        // The client state must be heap allocated, because we take a reference to it.
+        let tcp_client_state = Box::try_new(BufferedTcpClientState::new())?;
+        let client_state = unsafe { addr_of!(*tcp_client_state).as_ref().unwrap() };
+
+        Ok(HttpClientResources {
+            _resources: tcp_client_state,
+            tcp_client: BufferedTcpClient::new(&self.stack, client_state),
+            dns_client: DnsSocket::new(&self.stack),
+        })
+    }
+}
+
+const SOCKET_COUNT: usize = 1;
+const TX_BUFFER: usize = 4096;
+const RX_BUFFER: usize = 4096;
+const WRITE_BUFFER: usize = 1024;
+
+type TcpClientState = BufferedTcpClientState<SOCKET_COUNT, TX_BUFFER, RX_BUFFER, WRITE_BUFFER>;
+type TcpClient<'a> =
+    BufferedTcpClient<'a, WifiDevice<'static>, SOCKET_COUNT, TX_BUFFER, RX_BUFFER, WRITE_BUFFER>;
+
+pub struct HttpClientResources<'a> {
+    _resources: Box<TcpClientState>,
+    tcp_client: TcpClient<'a>,
+    dns_client: DnsSocket<'a, WifiDevice<'static>>,
+}
+
+impl<'a> HttpClientResources<'a> {
+    pub fn client(&mut self) -> HttpClient<'_, TcpClient<'a>, DnsSocket<'a, WifiDevice<'static>>> {
+        HttpClient::new(&self.tcp_client, &self.dns_client)
     }
 }
 
