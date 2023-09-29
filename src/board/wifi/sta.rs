@@ -188,16 +188,23 @@ impl Sta {
 }
 
 const SOCKET_COUNT: usize = 1;
-const TX_BUFFER: usize = 4096;
-const RX_BUFFER: usize = 4096;
-const WRITE_BUFFER: usize = 1024;
+const SOCKET_TX_BUFFER: usize = 4096;
+const SOCKET_RX_BUFFER: usize = 4096;
+const HTTP_WRITE_BUFFER: usize = 1024;
 
 const TLS_READ_BUFFER: usize = 16 * 1024;
 const TLS_WRITE_BUFFER: usize = 4096;
 
-type TcpClientState = BufferedTcpClientState<SOCKET_COUNT, TX_BUFFER, RX_BUFFER, WRITE_BUFFER>;
-type TcpClient<'a> =
-    BufferedTcpClient<'a, WifiDevice<'static>, SOCKET_COUNT, TX_BUFFER, RX_BUFFER, WRITE_BUFFER>;
+type TcpClientState =
+    BufferedTcpClientState<SOCKET_COUNT, SOCKET_TX_BUFFER, SOCKET_RX_BUFFER, HTTP_WRITE_BUFFER>;
+type TcpClient<'a> = BufferedTcpClient<
+    'a,
+    WifiDevice<'static>,
+    SOCKET_COUNT,
+    SOCKET_TX_BUFFER,
+    SOCKET_RX_BUFFER,
+    HTTP_WRITE_BUFFER,
+>;
 
 pub struct HttpClientResources<'a> {
     _resources: Box<TcpClientState>,
@@ -212,13 +219,13 @@ impl<'a> HttpClientResources<'a> {
 }
 
 type UnbufferedTcpClientState =
-    embassy_net::tcp::client::TcpClientState<SOCKET_COUNT, TX_BUFFER, RX_BUFFER>;
+    embassy_net::tcp::client::TcpClientState<SOCKET_COUNT, SOCKET_TX_BUFFER, SOCKET_RX_BUFFER>;
 type UnbufferedTcpClient<'a> = embassy_net::tcp::client::TcpClient<
     'a,
     WifiDevice<'static>,
     SOCKET_COUNT,
-    TX_BUFFER,
-    RX_BUFFER,
+    SOCKET_TX_BUFFER,
+    SOCKET_RX_BUFFER,
 >;
 
 struct TlsClientState {
