@@ -2,6 +2,9 @@ use object_chain::{Chain, ChainElement, Link};
 
 pub mod comb;
 pub mod downsample;
+
+#[cfg(feature = "dyn_filter")]
+pub mod dyn_iir;
 pub mod fir;
 pub mod iir;
 pub mod median;

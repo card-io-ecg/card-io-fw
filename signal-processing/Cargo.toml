@@ -15,8 +15,11 @@ embedded-io = { workspace = true }
 defmt = { workspace = true, optional = true }
 log = { workspace = true, optional = true }
 
+sci-rs = { version = "0.2.7", optional = true }
+
 [features]
 alloc = ["qrs_detector/alloc"]
 std = ["num-complex/std"]
 log = ["dep:log", "logger/log"]
 defmt = ["dep:defmt", "logger/defmt"]
+dyn_filter = ["alloc", "dep:sci-rs"]
