@@ -7,7 +7,7 @@
 use crate::filter::{
     iir::{
         precomputed::{HIGH_PASS_50HZ as SIGNATURE_FILTER, HIGH_PASS_50HZ as ERROR_FILTER},
-        HighPass, Iir,
+        HighPass, Iir, IirFilter,
     },
     Filter,
 };
@@ -16,13 +16,13 @@ use crate::filter::{
 use crate::compat::*;
 
 #[derive(Clone)]
-struct FilterCore {
+struct FilterCore<F> {
     // constants
     frequency: f32,
     gamma: f32, // error filter attenuation
 
-    phase_filter: Iir<'static, HighPass, 2>,
-    amplitude_filter: Iir<'static, HighPass, 2>,
+    phase_filter: F,
+    amplitude_filter: F,
 
     // amplitude correction factor
     alpha: f32,
@@ -37,17 +37,20 @@ struct FilterCore {
     y_mod_phi: f32,
 }
 
-impl FilterCore {
+impl<F> FilterCore<F>
+where
+    F: Filter + IirFilter + Clone,
+{
     #[inline(always)]
-    fn new(fs: f32, frequency: f32) -> Self {
+    fn new(fs: f32, frequency: f32, sig_filter: F) -> Self {
         let frequency = 2.0 * core::f32::consts::PI * frequency / fs;
 
         Self {
             frequency,
-            gamma: 2.0 / SIGNATURE_FILTER.transfer_coeff_at(frequency).norm(),
+            gamma: 2.0 / sig_filter.transfer_coeff_at(frequency).norm(),
 
-            phase_filter: SIGNATURE_FILTER,
-            amplitude_filter: SIGNATURE_FILTER,
+            phase_filter: sig_filter.clone(),
+            amplitude_filter: sig_filter,
 
             alpha: 1.0,
 
@@ -59,7 +62,12 @@ impl FilterCore {
             y_mod_phi: 0.0,
         }
     }
+}
 
+impl<F> FilterCore<F>
+where
+    F: Filter,
+{
     fn clear(&mut self) {
         self.phase_filter.clear();
         self.amplitude_filter.clear();
@@ -197,19 +205,19 @@ impl Constants {
 }
 
 #[derive(Clone)]
-pub struct PowerLineFilter<ADB, const N_FS: usize>
+pub struct PowerLineFilter<ADB, F, const N_FS: usize>
 where
     ADB: adaptation_blocking::AdaptationBlockingTrait,
 {
     // configuration
     consts: Constants,
-    cores: [FilterCore; N_FS],
+    cores: [FilterCore<F>; N_FS],
     adaptation_blocking: ADB,
-    error_filter: Iir<'static, HighPass, 2>,
+    error_filter: F,
     sample_idx: usize,
 }
 
-impl<ADB, const N_FS: usize> PowerLineFilter<ADB, N_FS>
+impl<ADB, const N_FS: usize> PowerLineFilter<ADB, Iir<'static, HighPass, 2>, N_FS>
 where
     ADB: adaptation_blocking::AdaptationBlockingTrait,
 {
@@ -217,7 +225,7 @@ where
     pub fn new(fs: f32, frequencies: [f32; N_FS]) -> Self {
         Self {
             consts: Constants::new(fs),
-            cores: frequencies.map(|f| FilterCore::new(fs, f)),
+            cores: frequencies.map(|f| FilterCore::new(fs, f, SIGNATURE_FILTER)),
             adaptation_blocking: ADB::default(),
             error_filter: ERROR_FILTER,
             sample_idx: 0,
@@ -225,9 +233,30 @@ where
     }
 }
 
-impl<ADB, const N_FS: usize> Filter for PowerLineFilter<ADB, N_FS>
+#[cfg(feature = "dyn_filter")]
+use crate::filter::dyn_iir::DynIir;
+
+#[cfg(feature = "dyn_filter")]
+impl<ADB, const N_FS: usize> PowerLineFilter<ADB, DynIir<HighPass, 2>, N_FS>
 where
     ADB: adaptation_blocking::AdaptationBlockingTrait,
+{
+    #[inline]
+    pub fn design(fs: f32, frequencies: [f32; N_FS]) -> Self {
+        Self {
+            consts: Constants::new(fs),
+            cores: frequencies.map(|f| FilterCore::new(fs, f, DynIir::design(fs, f))),
+            adaptation_blocking: ADB::default(),
+            error_filter: DynIir::design(fs, 50.0),
+            sample_idx: 0,
+        }
+    }
+}
+
+impl<ADB, F, const N_FS: usize> Filter for PowerLineFilter<ADB, F, N_FS>
+where
+    ADB: adaptation_blocking::AdaptationBlockingTrait,
+    F: Filter,
 {
     fn clear(&mut self) {
         self.cores.iter_mut().for_each(FilterCore::clear);

@@ -2,6 +2,7 @@ use core::ptr::NonNull;
 
 use alloc::{boxed::Box, vec};
 
+use num_complex::Complex;
 use sci_rs::signal::filter::design::{
     iirfilter_dyn, BaFormatFilter, DigitalFilter, FilterBandType, FilterOutputType,
     FilterType as DesignFilterType,
@@ -88,5 +89,11 @@ impl<T: DynFilterType, const N: usize> Filter for DynIir<T, N> {
 
     fn clear(&mut self) {
         self.filter.clear()
+    }
+}
+
+impl<T: DynFilterType, const N: usize> IirFilter for DynIir<T, N> {
+    fn transfer_coeff_at(&self, w: f32) -> Complex<f32> {
+        self.filter.transfer_coeff_at(w)
     }
 }

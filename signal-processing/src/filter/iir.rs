@@ -43,6 +43,10 @@ pub mod precomputed {
     );
 }
 
+pub trait IirFilter {
+    fn transfer_coeff_at(&self, w: f32) -> Complex<f32>;
+}
+
 #[derive(Clone)]
 pub struct HighPass {
     first_sample: Option<f32>,
@@ -80,10 +84,7 @@ impl FilterType for LowPass {
 }
 
 #[derive(Clone)]
-pub struct Iir<'a, T, const N: usize>
-where
-    T: FilterType,
-{
+pub struct Iir<'a, T, const N: usize> {
     previous_inputs: SlidingWindow<N>,
     previous_outputs: SlidingWindow<N>,
 
@@ -107,8 +108,10 @@ where
             filter_kind: T::NEW,
         }
     }
+}
 
-    pub fn transfer_coeff_at(&self, w: f32) -> Complex<f32> {
+impl<'a, T, const N: usize> IirFilter for Iir<'a, T, N> {
+    fn transfer_coeff_at(&self, w: f32) -> Complex<f32> {
         let e_j_theta = |k: usize| Complex::from_polar(1.0, -1.0 * ((k + 1) as f32) * w);
 
         let mut num = Complex::new(self.num_coeffs[0], 0.0);

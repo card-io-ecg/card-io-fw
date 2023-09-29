@@ -89,7 +89,7 @@ struct EcgTaskParams {
 
 // PLI filtering algo is probably overkill for displaying, but it's fancy
 pub type EcgFilter = chain! {
-    PowerLineFilter<AdaptationBlocking<EstimatedSum<1200>, 4, 19>, 1>,
+    PowerLineFilter<AdaptationBlocking<EstimatedSum<1200>, 4, 19>, Iir<'static, HighPass, 2>, 1>,
     Iir<'static, HighPass, 2>
 };
 
