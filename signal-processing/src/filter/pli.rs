@@ -5,10 +5,7 @@
 //! Implementation loosely based on matlab code found in <https://github.com/s-gv/rnicu/blob/master/ecg/adaptive_filter/pll_martens_errorfilt_supp.m>
 
 use crate::filter::{
-    iir::{
-        precomputed::{HIGH_PASS_50HZ as SIGNATURE_FILTER, HIGH_PASS_50HZ as ERROR_FILTER},
-        HighPass, Iir, IirFilter,
-    },
+    iir::{HighPass, Iir, IirFilter},
     Filter,
 };
 
@@ -222,10 +219,24 @@ where
     ADB: adaptation_blocking::AdaptationBlockingTrait,
 {
     #[inline]
-    pub fn new(fs: f32, frequencies: [f32; N_FS]) -> Self {
+    pub fn new_1ksps(frequencies: [f32; N_FS]) -> Self {
+        #[rustfmt::skip]
+        const SIGNATURE_FILTER: Iir<HighPass, 2> = macros::designfilt!(
+            "highpassiir",
+            "FilterOrder", 2,
+            "HalfPowerFrequency", 50,
+            "SampleRate", 1000
+        );
+        #[rustfmt::skip]
+        const ERROR_FILTER: Iir<HighPass, 2> = macros::designfilt!(
+            "highpassiir",
+            "FilterOrder", 2,
+            "HalfPowerFrequency", 50,
+            "SampleRate", 1000
+        );
         Self {
-            consts: Constants::new(fs),
-            cores: frequencies.map(|f| FilterCore::new(fs, f, SIGNATURE_FILTER)),
+            consts: Constants::new(1000.0),
+            cores: frequencies.map(|f| FilterCore::new(1000.0, f, SIGNATURE_FILTER)),
             adaptation_blocking: ADB::default(),
             error_filter: ERROR_FILTER,
             sample_idx: 0,

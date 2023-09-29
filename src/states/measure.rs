@@ -35,13 +35,7 @@ use signal_processing::{
     compressing_buffer::CompressingBuffer,
     filter::{
         downsample::DownSampler,
-        iir::{
-            precomputed::{
-                HIGH_PASS_FOR_DISPLAY_NONE, HIGH_PASS_FOR_DISPLAY_STRONG,
-                HIGH_PASS_FOR_DISPLAY_WEAK,
-            },
-            HighPass, Iir, LowPass,
-        },
+        iir::{precomputed::ALL_PASS, HighPass, Iir, LowPass},
         pli::{adaptation_blocking::AdaptationBlocking, PowerLineFilter},
         Filter,
     },
@@ -116,7 +110,7 @@ impl EcgObjects {
     #[inline(always)]
     fn new(hpf: Iir<'static, HighPass, 2>) -> Self {
         Self {
-            filter: Chain::new(PowerLineFilter::new(1000.0, [50.0])).append(hpf),
+            filter: Chain::new(PowerLineFilter::new_1ksps([50.0])).append(hpf),
             downsampler: Chain::new(DownSampler::new())
                 .append(DownSampler::new())
                 .append(DownSampler::new()),
@@ -135,9 +129,21 @@ impl EcgObjects {
 
 pub async fn measure(board: &mut Board) -> AppState {
     let filter = match board.config.filter_strength() {
-        FilterStrength::None => HIGH_PASS_FOR_DISPLAY_NONE,
-        FilterStrength::Weak => HIGH_PASS_FOR_DISPLAY_WEAK,
-        FilterStrength::Strong => HIGH_PASS_FOR_DISPLAY_STRONG,
+        FilterStrength::None => ALL_PASS,
+        #[rustfmt::skip]
+        FilterStrength::Weak => macros::designfilt!(
+            "highpassiir",
+            "FilterOrder", 2,
+            "HalfPowerFrequency", 0.75,
+            "SampleRate", 1000
+        ),
+        #[rustfmt::skip]
+        FilterStrength::Strong => macros::designfilt!(
+            "highpassiir",
+            "FilterOrder", 2,
+            "HalfPowerFrequency", 1.5,
+            "SampleRate", 1000
+        ),
     };
     let ecg_buffer = Box::try_new(CompressingBuffer::EMPTY).ok();
     let mut ecg = Box::new(EcgObjects::new(filter));

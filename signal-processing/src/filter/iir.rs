@@ -8,39 +8,7 @@ use crate::compat::*;
 pub mod precomputed {
     use super::{HighPass, Iir};
 
-    pub const HIGH_PASS_FOR_DISPLAY_NONE: Iir<'static, HighPass, 2> = Iir::new(&[1.], &[]);
-
-    #[rustfmt::skip]
-    pub const HIGH_PASS_FOR_DISPLAY_WEAK: Iir<'static, HighPass, 2> = macros::designfilt!(
-        "highpassiir",
-        "FilterOrder", 2,
-        "HalfPowerFrequency", 0.75,
-        "SampleRate", 1000
-    );
-
-    #[rustfmt::skip]
-    pub const HIGH_PASS_FOR_DISPLAY_STRONG: Iir<'static, HighPass, 2> = macros::designfilt!(
-        "highpassiir",
-        "FilterOrder", 2,
-        "HalfPowerFrequency", 1.5,
-        "SampleRate", 1000
-    );
-
-    #[rustfmt::skip]
-    pub const HIGH_PASS_50HZ: Iir<'static, HighPass, 2> = macros::designfilt!(
-        "highpassiir",
-        "FilterOrder", 2,
-        "HalfPowerFrequency", 50,
-        "SampleRate", 1000
-    );
-
-    #[rustfmt::skip]
-    pub const HIGH_PASS_80HZ: Iir<'static, HighPass, 2> = macros::designfilt!(
-        "highpassiir",
-        "FilterOrder", 2,
-        "HalfPowerFrequency", 80,
-        "SampleRate", 1000
-    );
+    pub const ALL_PASS: Iir<'static, HighPass, 2> = Iir::new(&[1.], &[]);
 }
 
 pub trait IirFilter {
