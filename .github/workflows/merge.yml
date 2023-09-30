@@ -1,4 +1,4 @@
-name: Check firmware
+name: Merge PR
 
 on:
   merge_group:
