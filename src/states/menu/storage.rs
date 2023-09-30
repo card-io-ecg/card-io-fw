@@ -11,7 +11,7 @@ use embedded_menu::{
 };
 use gui::screens::create_menu;
 use norfs::storable::{LoadError, Loadable, Storable};
-use ufmt::{uDisplay, uwrite};
+use ufmt::uwrite;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue)]
 pub enum MeasurementAction {

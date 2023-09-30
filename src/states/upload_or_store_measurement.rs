@@ -1,6 +1,7 @@
 use core::{
     marker::PhantomData,
     mem::{self, MaybeUninit},
+    str,
 };
 
 use alloc::{boxed::Box, vec::Vec};
@@ -26,6 +27,7 @@ use crate::{
         initialized::{Board, StaMode},
         wait_for_connection,
     },
+    human_readable::BinarySize,
     states::{
         display_menu_screen, display_message, menu::storage::MeasurementAction, MenuEventHandler,
     },
@@ -174,8 +176,8 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
     let mut uploading_msg = heapless::String::<48>::new();
     unwrap!(uwrite!(
         &mut uploading_msg,
-        "Uploading measurement: {} bytes",
-        buffer.len()
+        "Uploading measurement: {}",
+        BinarySize(buffer.len())
     ));
 
     display_message(board, uploading_msg.as_str()).await;
@@ -461,7 +463,7 @@ where
                     debug!(
                         "Header {}: {}",
                         header.0,
-                        core::str::from_utf8(header.1).unwrap_or("not a string")
+                        str::from_utf8(header.1).unwrap_or("not a string")
                     );
                 }
                 Err(())
@@ -484,8 +486,8 @@ async fn try_store_measurement(board: &mut Board, measurement: &[u8]) -> Result<
     let mut saving_msg = heapless::String::<48>::new();
     unwrap!(uwrite!(
         &mut saving_msg,
-        "Saving measurement: {} bytes",
-        measurement.len()
+        "Saving measurement: {}",
+        BinarySize(measurement.len())
     ));
     display_message(board, &saving_msg).await;
     let Some(storage) = board.storage.as_mut() else {

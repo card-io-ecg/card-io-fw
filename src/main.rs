@@ -71,6 +71,7 @@ use crate::{
             about::about_menu, display::display_menu, main::main_menu, storage::storage_menu,
             wifi_ap::wifi_ap, wifi_sta::wifi_sta, AppMenu,
         },
+        throughput::throughput,
         upload_or_store_measurement::{upload_or_store_measurement, upload_stored_measurements},
         MESSAGE_DURATION,
     },
@@ -126,6 +127,7 @@ pub enum AppState {
     Menu(AppMenu),
     DisplaySerial,
     FirmwareUpdate,
+    Throughput,
     Shutdown,
     UploadStored(AppMenu),
     UploadOrStore(Box<CompressingBuffer<ECG_BUFFER_SIZE>>),
@@ -141,6 +143,7 @@ impl core::fmt::Debug for AppState {
             Self::Menu(arg0) => f.debug_tuple("Menu").field(arg0).finish(),
             Self::DisplaySerial => write!(f, "DisplaySerial"),
             Self::FirmwareUpdate => write!(f, "FirmwareUpdate"),
+            Self::Throughput => write!(f, "Throughput"),
             Self::Shutdown => write!(f, "Shutdown"),
             Self::UploadStored(arg0) => f.debug_tuple("UploadStored").field(arg0).finish(),
             Self::UploadOrStore(buf) => f.debug_tuple("UploadOrStore").field(&buf.len()).finish(),
@@ -159,6 +162,7 @@ impl defmt::Format for AppState {
             Self::Menu(arg0) => defmt::write!(f, "Menu({:?})", arg0),
             Self::DisplaySerial => defmt::write!(f, "DisplaySerial"),
             Self::FirmwareUpdate => defmt::write!(f, "FirmwareUpdate"),
+            Self::Throughput => defmt::write!(f, "Throughput"),
             Self::Shutdown => defmt::write!(f, "Shutdown"),
             Self::UploadStored(arg0) => defmt::write!(f, "UploadStored({:?})", arg0),
             Self::UploadOrStore(buf) => defmt::write!(f, "UploadOrStore (len={})", buf.len()),
@@ -339,6 +343,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
             AppState::Menu(AppMenu::BatteryInfo) => battery_info_menu(&mut board).await,
             AppState::DisplaySerial => display_serial(&mut board).await,
             AppState::FirmwareUpdate => firmware_update(&mut board).await,
+            AppState::Throughput => throughput(&mut board).await,
             AppState::UploadStored(next_state) => {
                 upload_stored_measurements(&mut board, AppState::Menu(next_state)).await
             }
