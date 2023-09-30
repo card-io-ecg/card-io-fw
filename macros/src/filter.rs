@@ -154,6 +154,12 @@ fn iir(args: FilterSpec, ty: FilterBandType) -> TokenStream {
     // Strip off always-1 coefficient
     assert!(a.remove(0) == 1.0);
 
+    // we reverse a to avoid having to reverse it during filtering
+    a.reverse();
+
+    // b seems to be returned in the wrong order
+    b.reverse();
+
     let n = a.len();
 
     quote! {
