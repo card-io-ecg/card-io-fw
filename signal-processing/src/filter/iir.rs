@@ -158,12 +158,47 @@ mod test {
     }
 
     #[test]
-    fn test_iir_impluse_response_order1() {
-        let input = [0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0.];
-        let expectation = [
-            0.0000, 0.7548, -0.3702, -0.1886, -0.0961, -0.0490, -0.0250, -0.0127, -0.0065, -0.0033,
-            -0.0017,
-        ];
+    fn test_lowpass_iir_impluse_response_order1() {
+        let input = [0., 1., 0., 0., 0., 0., 0.];
+        let expectation = [0.0000, 0.2452, 0.3702, 0.1886, 0.0961, 0.0490, 0.0250];
+
+        #[rustfmt::skip]
+        test_filter(
+            macros::designfilt!(
+                "lowpassiir",
+                "FilterOrder", 1,
+                "HalfPowerFrequency", 1,
+                "SampleRate", 10
+            ),
+            &input,
+            &expectation,
+            0.0001
+        );
+    }
+
+    #[test]
+    fn test_lowpass_iir_step_response_order1() {
+        let input = [0., 1., 1., 1., 1., 1., 1.];
+        let expectation = [0.0000, 0.2452, 0.6154, 0.8041, 0.9002, 0.9491, 0.9741];
+
+        #[rustfmt::skip]
+        test_filter(
+            macros::designfilt!(
+                "lowpassiir",
+                "FilterOrder", 1,
+                "HalfPowerFrequency", 1,
+                "SampleRate", 10
+            ),
+            &input,
+            &expectation,
+            0.0001
+        );
+    }
+
+    #[test]
+    fn test_highpass_iir_impluse_response_order1() {
+        let input = [0., 1., 0., 0., 0., 0., 0.];
+        let expectation = [0.0000, 0.7548, -0.3702, -0.1886, -0.0961, -0.0490, -0.0250];
 
         #[rustfmt::skip]
         test_filter(
@@ -180,11 +215,9 @@ mod test {
     }
 
     #[test]
-    fn test_iir_step_response_order1() {
-        let input = [0., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1.];
-        let expectation = [
-            0.0000, 0.7548, 0.3846, 0.1959, 0.0998, 0.0509, 0.0259, 0.0132, 0.0067, 0.0034, 0.0017,
-        ];
+    fn test_highpass_iir_step_response_order1() {
+        let input = [0., 1., 1., 1., 1., 1., 1.];
+        let expectation = [0.0000, 0.7548, 0.3846, 0.1959, 0.0998, 0.0509, 0.0259];
 
         #[rustfmt::skip]
         test_filter(
@@ -201,12 +234,47 @@ mod test {
     }
 
     #[test]
-    fn test_iir_step_response_order2() {
-        let input = [0., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1.];
-        let expectation = [
-            0.0000, 0.6389, 0.0914, -0.1593, -0.2198, -0.1855, -0.1213, -0.0620, -0.0208, 0.0018,
-            0.0106,
-        ];
+    fn test_lowpass_iir_impluse_response_order2() {
+        let input = [0., 1., 0., 0., 0., 0., 0., 0.];
+        let expectation = [0.0000, 0.0675, 0.2120, 0.2819, 0.2347, 0.1519, 0.0767];
+
+        #[rustfmt::skip]
+        test_filter(
+            macros::designfilt!(
+                "lowpassiir",
+                "FilterOrder", 2,
+                "HalfPowerFrequency", 1,
+                "SampleRate", 10
+            ),
+            &input,
+            &expectation,
+            0.0001
+        );
+    }
+
+    #[test]
+    fn test_lowpass_iir_step_response_order2() {
+        let input = [0., 1., 1., 1., 1., 1., 1.];
+        let expectation = [0.0000, 0.0675, 0.2795, 0.5614, 0.7961, 0.9480, 1.0248];
+
+        #[rustfmt::skip]
+        test_filter(
+            macros::designfilt!(
+                "lowpassiir",
+                "FilterOrder", 2,
+                "HalfPowerFrequency", 1,
+                "SampleRate", 10
+            ),
+            &input,
+            &expectation,
+            0.0001
+        );
+    }
+
+    #[test]
+    fn test_highpass_iir_impluse_response_order2() {
+        let input = [0., 1., 0., 0., 0., 0., 0., 0.];
+        let expectation = [0.0000, 0.6389, -0.5476, -0.2507, -0.0605, 0.0343, 0.0642];
 
         #[rustfmt::skip]
         test_filter(
@@ -223,12 +291,9 @@ mod test {
     }
 
     #[test]
-    fn test_iir_impluse_response_order2() {
-        let input = [0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.];
-        let expectation = [
-            0.0000, 0.6389, -0.5476, -0.2507, -0.0605, 0.0343, 0.0642, 0.0592, 0.0412, 0.0226,
-            0.0089,
-        ];
+    fn test_highpass_iir_step_response_order2() {
+        let input = [0., 1., 1., 1., 1., 1., 1.];
+        let expectation = [0.0000, 0.6389, 0.0914, -0.1593, -0.2198, -0.1855, -0.1213];
 
         #[rustfmt::skip]
         test_filter(

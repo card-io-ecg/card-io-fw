@@ -219,7 +219,7 @@ fn extra_checks(hw: HardwareVersion) -> AnyResult<()> {
 fn test() -> AnyResult<()> {
     let packages = ["signal-processing"];
 
-    let mut args = vec!["test"];
+    let mut args = vec!["test", "--features=dyn_filter"];
 
     for p in packages {
         args.push("-p");
