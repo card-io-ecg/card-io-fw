@@ -1,11 +1,18 @@
-name: Check firmware
+name: PR checks
 
 on:
-  merge_group:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - main
 
 env:
   CARGO_TERM_COLOR: always
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+concurrency:
+  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
 
 jobs:
   test:
@@ -20,15 +27,11 @@ jobs:
           ldproxy: false
       - uses: Swatinem/rust-cache@v2
 
-      - uses: cargo-bins/cargo-binstall@main
-      - name: setup espflash
-        run: cargo binstall --no-confirm --force cargo-espflash
+      - name: format check
+        run: cargo fmt --check
 
       - name: check
         run: cargo xcheck
 
       - name: test
         run: cargo xtask test
-  
-      - name: build
-        run: cargo xbuild
