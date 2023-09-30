@@ -18,6 +18,7 @@ pub enum MainMenuEvents {
     WifiSetup,
     WifiListVisible,
     FirmwareUpdate,
+    Throughput,
     Storage,
     Shutdown,
 }
@@ -28,7 +29,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
 
     let builder = create_menu("Main menu");
 
-    let mut optional_items = heapless::Vec::<_, 3>::new();
+    let mut optional_items = heapless::Vec::<_, 4>::new();
 
     if board.can_enable_wifi() {
         unwrap!(optional_items
@@ -49,6 +50,13 @@ pub async fn main_menu(board: &mut Board) -> AppState {
                 .push(NavigationItem::new(
                     "Firmware update",
                     MainMenuEvents::FirmwareUpdate
+                ))
+                .ok());
+
+            unwrap!(optional_items
+                .push(NavigationItem::new(
+                    "Speed test",
+                    MainMenuEvents::Throughput
                 ))
                 .ok());
         }
@@ -92,6 +100,7 @@ pub async fn main_menu(board: &mut Board) -> AppState {
                 MainMenuEvents::WifiListVisible => return AppState::Menu(AppMenu::WifiListVisible),
                 MainMenuEvents::Storage => return AppState::Menu(AppMenu::Storage),
                 MainMenuEvents::FirmwareUpdate => return AppState::FirmwareUpdate,
+                MainMenuEvents::Throughput => return AppState::Throughput,
                 MainMenuEvents::Shutdown => return AppState::Shutdown,
             };
         }

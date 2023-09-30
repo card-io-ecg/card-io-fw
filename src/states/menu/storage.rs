@@ -1,5 +1,6 @@
 use crate::{
     board::{initialized::Board, storage::FileSystem},
+    human_readable::BinarySize,
     states::{display_menu_screen, display_message, menu::AppMenu, MenuEventHandler},
     AppState,
 };
@@ -10,7 +11,7 @@ use embedded_menu::{
 };
 use gui::screens::create_menu;
 use norfs::storable::{LoadError, Loadable, Storable};
-use ufmt::{uDisplay, uwrite};
+use ufmt::uwrite;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue)]
 pub enum MeasurementAction {
@@ -54,29 +55,6 @@ pub enum StorageMenuEvents {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct StorageMenu {
     pub store_measurement: bool,
-}
-
-struct BinarySize(usize);
-
-impl uDisplay for BinarySize {
-    fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
-    where
-        W: ufmt::uWrite + ?Sized,
-    {
-        const SUFFIXES: &[&str] = &["kB", "MB", "GB"];
-        const SIZES: &[usize] = &[1024, 1024 * 1024, 1024 * 1024 * 1024];
-
-        for (size, suffix) in SIZES.iter().cloned().zip(SUFFIXES.iter().cloned()).rev() {
-            if self.0 >= size {
-                let int = self.0 / size;
-                let frac = (self.0 % size) / (size / 10);
-                uwrite!(f, "{}.{}{}", int, frac, suffix)?;
-                return Ok(());
-            }
-        }
-
-        uwrite!(f, "{}B", self.0)
-    }
 }
 
 struct StorageEventHandler;

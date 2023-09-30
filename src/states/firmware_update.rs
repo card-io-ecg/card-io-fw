@@ -10,6 +10,7 @@ use crate::{
         ota::{Ota0Partition, Ota1Partition, OtaClient, OtaDataPartition},
         wait_for_connection,
     },
+    human_readable::Throughput,
     states::{display_message, menu::AppMenu},
     AppState, SerialNumber,
 };
@@ -152,10 +153,10 @@ async fn do_update(board: &mut Board) -> UpdateResult {
     };
 
     let size = response.content_length;
-    let mut current = 0;
+    let mut total = 0;
     let mut buffer = [0; 512];
 
-    print_progress(board, &mut buffer, current, size).await;
+    print_progress(board, &mut buffer, total, size, None).await;
 
     if let Err(e) = ota.erase().await {
         warn!("Failed to erase OTA: {}", e);
@@ -164,7 +165,8 @@ async fn do_update(board: &mut Board) -> UpdateResult {
 
     let mut reader = response.body().reader();
 
-    let mut started = Instant::now();
+    let started = Instant::now();
+    let mut last_print = Instant::now();
     let mut received_1s = 0;
     loop {
         let received_buffer =
@@ -185,21 +187,24 @@ async fn do_update(board: &mut Board) -> UpdateResult {
             return UpdateResult::Failed(UpdateError::WriteError);
         }
 
-        current += received_buffer.len();
+        total += received_buffer.len();
         received_1s += received_buffer.len();
 
-        let elapsed_ms = started.elapsed().as_millis();
-        if elapsed_ms > 500 {
-            let kib_per_sec = received_1s as f32 / elapsed_ms as f32;
+        let elapsed = last_print.elapsed();
+        if elapsed.as_millis() > 500 {
+            let speed = Throughput(received_1s, elapsed);
+            let avg_speed = Throughput(total, started.elapsed());
 
             debug!(
-                "got {}B in {}ms {} KB/s",
-                received_1s, elapsed_ms, kib_per_sec
+                "got {}B in {}ms {}",
+                received_1s,
+                elapsed.as_millis(),
+                speed
             );
-            started = Instant::now();
+            last_print = Instant::now();
             received_1s = 0;
 
-            print_progress(board, &mut buffer, current, size).await;
+            print_progress(board, &mut buffer, total, size, Some(avg_speed)).await;
         }
     }
 
@@ -216,6 +221,7 @@ async fn print_progress(
     message: &mut [u8],
     current: usize,
     size: Option<usize>,
+    speed: Option<Throughput>,
 ) {
     let mut message = slice_string::SliceString::new(message);
     if let Some(size) = size {
@@ -224,5 +230,10 @@ async fn print_progress(
     } else {
         unwrap!(uwrite!(message, "Downloading update: {} bytes", current));
     }
+
+    if let Some(speed) = speed {
+        unwrap!(uwrite!(message, "\n{}", speed));
+    }
+
     display_message(board, message.as_str()).await;
 }

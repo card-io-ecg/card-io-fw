@@ -5,6 +5,7 @@ pub mod firmware_update;
 pub mod init;
 pub mod measure;
 pub mod menu;
+pub mod throughput;
 pub mod upload_or_store_measurement;
 
 use embassy_time::{Duration, Instant, Ticker, Timer};
