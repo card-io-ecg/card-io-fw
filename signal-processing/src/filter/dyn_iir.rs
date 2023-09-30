@@ -65,10 +65,14 @@ where
         a.truncate(a.len() - remove);
         b.truncate(b.len() - remove);
 
-        b.reverse();
-
         // Strip off always-1 coefficient
         assert!(a.remove(0) == 1.0);
+
+        // we reverse a to avoid having to reverse it during filtering
+        a.reverse();
+
+        // b seems to be returned in the wrong order
+        b.reverse();
 
         let denom_coeffs = a.into_boxed_slice();
         let num_coeffs = b.into_boxed_slice();

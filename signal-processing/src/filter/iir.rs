@@ -1,3 +1,5 @@
+use core::f32::consts::TAU;
+
 use num_complex::Complex;
 
 use crate::{filter::Filter, sliding::SlidingWindow};
@@ -80,16 +82,17 @@ where
 
 impl<'a, T, const N: usize> IirFilter for Iir<'a, T, N> {
     fn transfer_coeff_at(&self, w: f32) -> Complex<f32> {
-        let e_j_theta = |k: usize| Complex::from_polar(1.0, -1.0 * ((k + 1) as f32) * w);
+        let w = w * TAU;
+        let e_j_theta = |k: usize| Complex::from_polar(1.0, -1.0 * (k as f32) * w);
 
-        let mut num = Complex::new(self.num_coeffs[0], 0.0);
+        let mut num = Complex::new(0.0, 0.0);
         let mut den = Complex::new(1.0, 0.0);
 
-        for (k, coeff) in self.num_coeffs.iter().skip(1).enumerate() {
-            num += coeff * e_j_theta(k + 1);
+        for (k, coeff) in self.num_coeffs.iter().enumerate() {
+            num += coeff * e_j_theta(k);
         }
 
-        for (k, coeff) in self.denom_coeffs.iter().enumerate() {
+        for (k, coeff) in self.denom_coeffs.iter().rev().enumerate() {
             den += coeff * e_j_theta(k + 1);
         }
 
@@ -113,11 +116,7 @@ where
         {
             y_out += coeff * spl;
         }
-        for (coeff, spl) in self
-            .previous_outputs
-            .iter()
-            .zip(self.denom_coeffs.iter().rev())
-        {
+        for (coeff, spl) in self.previous_outputs.iter().zip(self.denom_coeffs.iter()) {
             y_out -= coeff * spl;
         }
 
@@ -136,7 +135,47 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::*;
+    use super::{ComplExt, Filter, HighPass, Iir, IirFilter, LowPass};
+
+    #[track_caller]
+    fn assert_float_equals(value: f32, expectation: f32, tolerance: f32) {
+        assert!(
+            (value - expectation).abs() < tolerance,
+            "assertion failed: `(left == right)`\n  left: `{:?}`,\n right: `{:?}`",
+            value,
+            expectation
+        );
+    }
+
+    #[test]
+    fn transfer_coeff_low_pass() {
+        #[rustfmt::skip]
+        let filter = macros::designfilt!(
+            "lowpassiir",
+            "FilterOrder", 2,
+            "HalfPowerFrequency", 1,
+            "SampleRate", 10
+        );
+
+        assert_float_equals(filter.transfer_coeff_at(0.0).norm(), 1.0, 0.01);
+        // We expect -3dB or 0.5 magnitude at normalized frequency of 0.1 (f/fs)
+        assert_float_equals(filter.transfer_coeff_at(0.1).norm(), 0.5_f32.sqrt(), 0.01);
+    }
+
+    #[test]
+    fn transfer_coeff_high_pass() {
+        #[rustfmt::skip]
+        let filter = macros::designfilt!(
+            "highpassiir",
+            "FilterOrder", 2,
+            "HalfPowerFrequency", 1,
+            "SampleRate", 10
+        );
+
+        assert_float_equals(filter.transfer_coeff_at(0.0).norm(), 0.0, 0.01);
+        // We expect -3dB or 0.5 magnitude at normalized frequency of 0.1 (f/fs)
+        assert_float_equals(filter.transfer_coeff_at(0.1).norm(), 0.5_f32.sqrt(), 0.01);
+    }
 
     #[test]
     fn test_iir_no_input() {
