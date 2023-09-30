@@ -1,13 +1,10 @@
-name: Build firmware
+name: Check firmware
 
 on:
-  push:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
-    paths-ignore:
-      - '**.md'
-      - '.github/**'
-      - '.vscode/**'
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,14 +12,10 @@ env:
 
 concurrency:
   cancel-in-progress: true
-  group: ${{ github.workflow }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
 
 jobs:
-  build-fw:
-    strategy:
-      matrix:
-        version: ["v4"]
-
+  test:
     runs-on: ubuntu-latest
 
     steps:
@@ -39,15 +32,10 @@ jobs:
         run: cargo binstall --no-confirm --force cargo-espflash
 
       - name: format check
-        run:
-          cargo fmt --check
+        run: cargo fmt --check
 
+      - name: test
+        run: cargo xtask test
+  
       - name: build
-        run: |
-          cargo xbuild ${{ matrix.version }}
-
-      - name: archive
-        uses: actions/upload-artifact@v3
-        with:
-          name: card_io_fw_${{ matrix.version }}.bin
-          path: target/card_io_fw.bin
+        run: cargo xbuild
