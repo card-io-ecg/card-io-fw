@@ -143,7 +143,7 @@ async fn run_test(board: &mut Board) -> TestResult {
     let mut reader = response.body().reader();
 
     let started = Instant::now();
-    let mut current_started = Instant::now();
+    let mut last_print = Instant::now();
     let mut received_1s = 0;
     loop {
         let received_len = match select(reader.read(&mut buffer), Timer::after(READ_TIMEOUT)).await
@@ -161,25 +161,17 @@ async fn run_test(board: &mut Board) -> TestResult {
 
         received_1s += received_len;
 
-        let elapsed = current_started.elapsed();
+        let elapsed = last_print.elapsed();
         if elapsed.as_millis() > 500 {
             received_total += received_1s;
 
-            let kib_per_sec = Throughput(received_1s, elapsed);
-            let avg_kib_per_sec = Throughput(received_total, started.elapsed());
+            let speed = Throughput(received_1s, elapsed);
+            let avg_speed = Throughput(received_total, started.elapsed());
 
             received_1s = 0;
-            current_started = Instant::now();
+            last_print = Instant::now();
 
-            print_progress(
-                board,
-                &mut buffer,
-                received_total,
-                size,
-                kib_per_sec,
-                avg_kib_per_sec,
-            )
-            .await;
+            print_progress(board, &mut buffer, received_total, size, speed, avg_speed).await;
         }
     }
 

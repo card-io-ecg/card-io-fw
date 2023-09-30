@@ -153,10 +153,10 @@ async fn do_update(board: &mut Board) -> UpdateResult {
     };
 
     let size = response.content_length;
-    let mut current = 0;
+    let mut total = 0;
     let mut buffer = [0; 512];
 
-    print_progress(board, &mut buffer, current, size, None).await;
+    print_progress(board, &mut buffer, total, size, None).await;
 
     if let Err(e) = ota.erase().await {
         warn!("Failed to erase OTA: {}", e);
@@ -165,7 +165,8 @@ async fn do_update(board: &mut Board) -> UpdateResult {
 
     let mut reader = response.body().reader();
 
-    let mut started = Instant::now();
+    let started = Instant::now();
+    let mut last_print = Instant::now();
     let mut received_1s = 0;
     loop {
         let received_buffer =
@@ -186,12 +187,13 @@ async fn do_update(board: &mut Board) -> UpdateResult {
             return UpdateResult::Failed(UpdateError::WriteError);
         }
 
-        current += received_buffer.len();
+        total += received_buffer.len();
         received_1s += received_buffer.len();
 
-        let elapsed = started.elapsed();
+        let elapsed = last_print.elapsed();
         if elapsed.as_millis() > 500 {
             let speed = Throughput(received_1s, elapsed);
+            let avg_speed = Throughput(total, started.elapsed());
 
             debug!(
                 "got {}B in {}ms {}",
@@ -199,10 +201,10 @@ async fn do_update(board: &mut Board) -> UpdateResult {
                 elapsed.as_millis(),
                 speed
             );
-            started = Instant::now();
+            last_print = Instant::now();
             received_1s = 0;
 
-            print_progress(board, &mut buffer, current, size, Some(speed)).await;
+            print_progress(board, &mut buffer, total, size, Some(avg_speed)).await;
         }
     }
 
