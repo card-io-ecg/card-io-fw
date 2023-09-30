@@ -79,6 +79,7 @@ use crate::{
 mod board;
 mod buffered_tcp_client;
 mod heap;
+mod human_readable;
 mod replace_with;
 mod sleep;
 mod stack_protection;
