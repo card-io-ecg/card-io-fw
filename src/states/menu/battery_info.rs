@@ -107,5 +107,5 @@ pub async fn battery_info_menu(board: &mut Board) -> AppState {
         ticker.next().await;
     }
 
-    AppState::Menu(AppMenu::Main)
+    AppState::Shutdown
 }

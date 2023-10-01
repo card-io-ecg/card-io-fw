@@ -54,7 +54,7 @@ pub async fn about_menu(board: &mut Board) -> AppState {
 
     display_menu_screen(menu, board, AboutMenuHandler)
         .await
-        .unwrap_or(AppState::Menu(AppMenu::Main))
+        .unwrap_or(AppState::Shutdown)
 }
 
 struct AboutMenuHandler;

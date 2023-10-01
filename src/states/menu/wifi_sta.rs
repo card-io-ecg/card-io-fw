@@ -89,5 +89,5 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
         ticker.next().await;
     }
 
-    AppState::Menu(AppMenu::Main)
+    AppState::Shutdown
 }
