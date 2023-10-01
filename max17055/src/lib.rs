@@ -457,11 +457,25 @@ where
         Ok(self.config.raw_capacity_to_uAh(raw))
     }
 
-    /// Returns the reported capacity in μAh.
-    pub async fn read_reported_capacity(&mut self) -> Result<u32, Error<I2C::Error>> {
+    /// Returns the reported remaining capacity in μAh.
+    pub async fn read_reported_remaining_capacity(&mut self) -> Result<u32, Error<I2C::Error>> {
         let reg = self.read_register_async::<RepCap>().await?;
         let raw = reg.capacity().read().unwrap_or(0);
         Ok(self.config.raw_capacity_to_uAh(raw))
+    }
+
+    /// Returns the reported full capacity in μAh.
+    pub async fn read_reported_capacity(&mut self) -> Result<u32, Error<I2C::Error>> {
+        let reg = self.read_register_async::<FullCapRep>().await?;
+        let raw = reg.capacity().read().unwrap_or(0);
+        Ok(self.config.raw_capacity_to_uAh(raw))
+    }
+
+    /// Returns the cell age in %.
+    pub async fn read_cell_age(&mut self) -> Result<u8, Error<I2C::Error>> {
+        let reg = self.read_register_async::<Age>().await?;
+        let raw = reg.percentage().read().unwrap_or(0);
+        Ok((raw >> 8) as u8)
     }
 
     /// Returns the reported state of charge %.

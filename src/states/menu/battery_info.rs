@@ -22,7 +22,7 @@ pub async fn battery_info_menu(board: &mut Board) -> AppState {
 
     let list_item = |label| NavigationItem::new(label, BatteryEvents::None);
 
-    let mut items = heapless::Vec::<_, 5>::new();
+    let mut items = heapless::Vec::<_, 6>::new();
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let mut input = TouchInputShaper::new();
@@ -64,6 +64,9 @@ pub async fn battery_info_menu(board: &mut Board) -> AppState {
             unwrap!(items
                 .push(list_item(format!("Capacity {:>8}mAh", capacity / 1000)))
                 .ok());
+
+            let age = unwrap!(sensor.fg.read_cell_age().await.ok());
+            unwrap!(items.push(list_item(format!("Cell age {:>10}%", age))).ok());
 
             let charge_cycles = unwrap!(sensor.fg.read_charge_cycles().await.ok());
             unwrap!(items
