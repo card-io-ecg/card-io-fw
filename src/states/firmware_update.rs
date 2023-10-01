@@ -8,7 +8,6 @@ use crate::{
     board::{
         initialized::{Board, StaMode},
         ota::{Ota0Partition, Ota1Partition, OtaClient, OtaDataPartition},
-        wait_for_connection,
     },
     human_readable::Throughput,
     states::{display_message, menu::AppMenu},
@@ -73,15 +72,15 @@ pub async fn firmware_update(board: &mut Board) -> AppState {
 }
 
 async fn do_update(board: &mut Board) -> UpdateResult {
-    display_message(board, "Connecting to WiFi").await;
-
-    let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await else {
+    let sta = if let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await {
+        if sta.wait_for_connection(board).await {
+            sta
+        } else {
+            return UpdateResult::Failed(UpdateError::WifiNotConnected);
+        }
+    } else {
         return UpdateResult::Failed(UpdateError::WifiNotEnabled);
     };
-
-    if !wait_for_connection(&sta, board).await {
-        return UpdateResult::Failed(UpdateError::WifiNotConnected);
-    }
 
     display_message(board, "Looking for updates").await;
 

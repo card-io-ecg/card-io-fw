@@ -27,33 +27,9 @@ pub use esp32s3_hal as hal;
 
 pub use hardware::*;
 
-use crate::{
-    board::{
-        initialized::Board,
-        wifi::sta::{ConnectionState, Sta},
-    },
-    states::display_message,
-};
-
 pub struct MiscPins {
     pub vbus_detect: VbusDetect,
     pub chg_status: ChargerStatus,
-}
-
-pub async fn wait_for_connection(sta: &Sta, board: &mut Board) -> bool {
-    debug!("Waiting for network connection");
-    if sta.connection_state() != ConnectionState::Connected {
-        while sta.wait_for_state_change().await == ConnectionState::Connecting {
-            display_message(board, "Connecting...").await;
-        }
-
-        if sta.connection_state() != ConnectionState::Connected {
-            debug!("No network connection");
-            return false;
-        }
-    }
-
-    true
 }
 
 pub const DEFAULT_BACKEND_URL: &str = "https://stingray-prime-monkey.ngrok-free.app";

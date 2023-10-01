@@ -3,9 +3,11 @@ use core::{alloc::AllocError, ptr::addr_of, sync::atomic::Ordering};
 use crate::{
     board::{
         hal::{radio::Wifi, Rng},
+        initialized::Board,
         wifi::net_task,
     },
     buffered_tcp_client::{BufferedTcpClient, BufferedTcpClientState},
+    states::display_message,
     task_control::{TaskControlToken, TaskController},
     Shared,
 };
@@ -149,6 +151,21 @@ impl Sta {
 
     pub async fn wait_for_state_change(&self) -> ConnectionState {
         self.state.wait().await.into()
+    }
+
+    pub async fn wait_for_connection(&self, board: &mut Board) -> bool {
+        debug!("Waiting for network connection");
+        if self.connection_state() != ConnectionState::Connected {
+            display_message(board, "Connecting...").await;
+            while self.wait_for_state_change().await == ConnectionState::Connecting {}
+
+            if self.connection_state() != ConnectionState::Connected {
+                debug!("No network connection");
+                return false;
+            }
+        }
+
+        true
     }
 
     pub fn stack(&self) -> &Stack<WifiDevice<'static>> {

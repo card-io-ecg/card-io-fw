@@ -23,10 +23,7 @@ use signal_processing::compressing_buffer::{CompressingBuffer, EkgFormat};
 use ufmt::uwrite;
 
 use crate::{
-    board::{
-        initialized::{Board, StaMode},
-        wait_for_connection,
-    },
+    board::initialized::{Board, StaMode},
     human_readable::BinarySize,
     states::{
         display_menu_screen, display_message, menu::storage::MeasurementAction, MenuEventHandler,
@@ -163,14 +160,16 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
         return StoreMeasurement::Store;
     }
 
-    let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await else {
+    let sta = if let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await {
+        if sta.wait_for_connection(board).await {
+            sta
+        } else {
+            // If we do not have a network connection, save to file.
+            return StoreMeasurement::Store;
+        }
+    } else {
         return StoreMeasurement::Store;
     };
-
-    if !wait_for_connection(&sta, board).await {
-        // If we do not have a network connection, save to file.
-        return StoreMeasurement::Store;
-    }
 
     // If we found a network, attempt to upload.
     // TODO: only try to upload if we are registered.
@@ -213,17 +212,17 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
 }
 
 async fn upload_stored(board: &mut Board) {
-    let Some(sta) = board.enable_wifi_sta(StaMode::OnDemand).await else {
+    let sta = if let Some(sta) = board.enable_wifi_sta(StaMode::OnDemand).await {
+        if sta.wait_for_connection(board).await {
+            sta
+        } else {
+            display_message(board, "Failed to connect to WiFi").await;
+            return;
+        }
+    } else {
         display_message(board, "Nothing to upload").await;
         return;
     };
-
-    display_message(board, "Connecting to WiFi").await;
-
-    if !wait_for_connection(&sta, board).await {
-        display_message(board, "Failed to connect to WiFi").await;
-        return;
-    }
 
     display_message(board, "Uploading stored measurements...").await;
 

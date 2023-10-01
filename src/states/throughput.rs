@@ -5,10 +5,7 @@ use reqwless::{request::Method, response::Status};
 use ufmt::{uwrite, uwriteln};
 
 use crate::{
-    board::{
-        initialized::{Board, StaMode},
-        wait_for_connection,
-    },
+    board::initialized::{Board, StaMode},
     human_readable::{BinarySize, Throughput},
     states::{display_message, menu::AppMenu},
     AppState, SerialNumber,
@@ -68,17 +65,15 @@ pub async fn throughput(board: &mut Board) -> AppState {
 }
 
 async fn run_test(board: &mut Board) -> TestResult {
-    display_message(board, "Connecting to WiFi").await;
-
-    let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await else {
+    let sta = if let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await {
+        if sta.wait_for_connection(board).await {
+            sta
+        } else {
+            return TestResult::Failed(TestError::WifiNotConnected);
+        }
+    } else {
         return TestResult::Failed(TestError::WifiNotEnabled);
     };
-
-    display_message(board, "Connecting...").await;
-
-    if !wait_for_connection(&sta, board).await {
-        return TestResult::Failed(TestError::WifiNotConnected);
-    }
 
     let Ok(mut client_resources) = sta.https_client_resources() else {
         return TestResult::Failed(TestError::InternalError);
