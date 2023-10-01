@@ -1,14 +1,8 @@
-use embedded_graphics::{prelude::DrawTarget, Drawable};
 use embedded_io::asynch::{Read, Write};
-use embedded_menu::{items::select::SelectValue, Menu, SelectValue};
+use embedded_menu::{items::select::SelectValue, SelectValue};
 use norfs::storable::{LoadError, Loadable, Storable};
 
 use crate::widgets::battery_small::BatteryStyle;
-
-#[derive(Clone, Copy)]
-pub enum DisplayMenuEvents {
-    Back,
-}
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue)]
 pub enum DisplayBrightness {
@@ -103,21 +97,4 @@ impl Storable for FilterStrength {
     async fn store<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
         writer.write_all(&[*self as u8]).await
     }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Menu)]
-#[menu(
-    title = "Display",
-    navigation(events = DisplayMenuEvents),
-    items = [
-        data(label = "Brightness", field = brightness),
-        data(label = "Battery", field = battery_display),
-        data(label = "ECG Filter", field = filter_strength),
-        navigation(label = "Back", event = DisplayMenuEvents::Back)
-    ]
-)]
-pub struct DisplayMenu {
-    pub brightness: DisplayBrightness,
-    pub battery_display: BatteryStyle,
-    pub filter_strength: FilterStrength,
 }
