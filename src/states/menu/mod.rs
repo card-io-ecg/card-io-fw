@@ -139,6 +139,7 @@ pub trait MenuScreen {
             ticker.next().await;
         }
 
+        info!("Menu timeout");
         None
     }
 }
