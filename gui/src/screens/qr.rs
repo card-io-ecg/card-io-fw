@@ -13,6 +13,7 @@ use crate::screens::{message::MessageScreen, NORMAL_TEXT};
 pub struct QrCodeScreen<'a> {
     pub message: &'a str,
     pub countdown: Option<usize>,
+    pub invert: bool,
 }
 
 impl<'a> QrCodeScreen<'a> {
@@ -20,6 +21,7 @@ impl<'a> QrCodeScreen<'a> {
         Self {
             message,
             countdown: None,
+            invert: false,
         }
     }
 }
@@ -60,9 +62,9 @@ impl Drawable for QrCodeScreen<'_> {
                 let x_offset = (size.width as i32 - qr_side) / 2;
                 let y_offset = (size.height as i32 - qr_side) / 2;
 
-                for y in 0..qr.size() {
-                    for x in 0..qr.size() {
-                        if !qr.get_module(x, y) {
+                for y in -scale..qr.size() + scale {
+                    for x in -scale..qr.size() + scale {
+                        if self.invert ^ !qr.get_module(x, y) {
                             continue;
                         }
 
