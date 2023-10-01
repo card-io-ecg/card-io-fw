@@ -13,10 +13,14 @@ use gui::{
 };
 
 pub async fn display_menu(board: &mut Board) -> AppState {
-    DisplayMenu
+    let result = DisplayMenu
         .display(board)
         .await
-        .unwrap_or(AppState::Shutdown)
+        .unwrap_or(AppState::Shutdown);
+
+    board.save_config().await;
+
+    result
 }
 
 #[derive(Clone, Copy)]
@@ -72,10 +76,7 @@ impl MenuScreen for DisplayMenu {
                 board.config_changed = true;
                 board.config.filter_strength = strength;
             }
-            DisplayMenuEvents::Back => {
-                board.save_config().await;
-                return Some(AppState::Menu(AppMenu::Main));
-            }
+            DisplayMenuEvents::Back => return Some(AppState::Menu(AppMenu::Main)),
         }
 
         None
