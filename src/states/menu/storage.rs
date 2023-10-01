@@ -1,5 +1,9 @@
 use crate::{
-    board::{config::Config, initialized::Board, storage::FileSystem},
+    board::{
+        config::{types::MeasurementAction, Config},
+        initialized::Board,
+        storage::FileSystem,
+    },
     human_readable::BinarySize,
     states::{
         display_message,
@@ -7,46 +11,11 @@ use crate::{
     },
     AppState,
 };
-use embedded_io::asynch::{Read, Write};
-use embedded_menu::{
-    items::{NavigationItem, Select},
-    SelectValue,
-};
+use embedded_menu::items::{NavigationItem, Select};
 use gui::screens::create_menu;
-use norfs::storable::{LoadError, Loadable, Storable};
 use ufmt::uwrite;
 
 use super::AppMenuBuilder;
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue)]
-pub enum MeasurementAction {
-    Ask = 0,
-    Auto = 1,
-    Store = 2,
-    Upload = 3,
-    Discard = 4,
-}
-
-impl Loadable for MeasurementAction {
-    async fn load<R: Read>(reader: &mut R) -> Result<Self, LoadError<R::Error>> {
-        let data = match u8::load(reader).await? {
-            0 => Self::Ask,
-            1 => Self::Auto,
-            2 => Self::Store,
-            3 => Self::Upload,
-            4 => Self::Discard,
-            _ => return Err(LoadError::InvalidValue),
-        };
-
-        Ok(data)
-    }
-}
-
-impl Storable for MeasurementAction {
-    async fn store<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
-        writer.write_all(&[*self as u8]).await
-    }
-}
 
 #[derive(Clone, Copy)]
 pub enum StorageMenuEvents {
@@ -149,6 +118,7 @@ impl MenuScreen for StorageMenu {
                 board.storage = FileSystem::mount().await;
 
                 // Prevent saving config changes
+                // TODO: this doesn't reset the currently active display parameters
                 *board.config = Config::default();
                 board.config_changed = false;
 

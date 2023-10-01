@@ -22,11 +22,14 @@ use signal_processing::compressing_buffer::{CompressingBuffer, EkgFormat};
 use ufmt::uwrite;
 
 use crate::{
-    board::initialized::{Board, StaMode},
+    board::{
+        config::types::MeasurementAction,
+        initialized::{Board, StaMode},
+    },
     human_readable::BinarySize,
     states::{
         display_message,
-        menu::{storage::MeasurementAction, AppMenuBuilder, MenuScreen},
+        menu::{AppMenuBuilder, MenuScreen},
     },
     AppState, SerialNumber,
 };

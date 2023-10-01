@@ -1,16 +1,13 @@
 use crate::{
-    board::initialized::Board,
+    board::{
+        config::types::{DisplayBrightness, FilterStrength},
+        initialized::Board,
+    },
     states::menu::{AppMenu, MenuScreen},
     AppState,
 };
 use embedded_menu::items::{NavigationItem, Select};
-use gui::{
-    screens::{
-        create_menu,
-        display_menu::{DisplayBrightness, FilterStrength},
-    },
-    widgets::battery_small::BatteryStyle,
-};
+use gui::{screens::create_menu, widgets::battery_small::BatteryStyle};
 
 pub async fn display_menu(board: &mut Board) -> AppState {
     let result = DisplayMenu

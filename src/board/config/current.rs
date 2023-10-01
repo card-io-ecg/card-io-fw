@@ -1,15 +1,15 @@
 use config_site::data::network::WifiNetwork;
 use embedded_io::asynch::{Read, Write};
-use gui::{
-    screens::display_menu::{DisplayBrightness, FilterStrength},
-    widgets::battery_small::BatteryStyle,
-};
+use gui::widgets::battery_small::BatteryStyle;
 use norfs::storable::{LoadError, Loadable, Storable};
 use ssd1306::prelude::Brightness;
 
-use crate::{board::DEFAULT_BACKEND_URL, states::menu::storage::MeasurementAction};
+use crate::board::DEFAULT_BACKEND_URL;
 
-use super::CURRENT_VERSION;
+use super::{
+    types::{DisplayBrightness, FilterStrength, MeasurementAction},
+    CURRENT_VERSION,
+};
 
 #[derive(Clone)]
 pub struct Config {
