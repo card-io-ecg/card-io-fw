@@ -126,7 +126,7 @@ impl Board {
             .unwrap_or(false)
     }
 
-    async fn sta_has_work(&mut self) -> bool {
+    pub async fn sta_has_work(&mut self) -> bool {
         // TODO: we can do a flag that is true on boot, so that entering the menu will always
         // connect and look for update, etc. We can also use a flag to see if we have ongoing
         // communication, so we can keep wifi on. Question is: when/how do we disable wifi if

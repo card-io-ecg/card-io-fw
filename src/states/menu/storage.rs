@@ -130,6 +130,7 @@ pub async fn storage_menu(board: &mut Board) -> AppState {
     if board.can_enable_wifi()
         && !board.config.known_networks.is_empty()
         && !board.config.backend_url.is_empty()
+        && board.sta_has_work().await
     {
         unwrap!(items
             .push(NavigationItem::new(

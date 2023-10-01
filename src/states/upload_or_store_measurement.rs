@@ -96,7 +96,10 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     if can_upload && !store_after_upload {
         // Drop to free up 90kB of memory.
         mem::drop(buffer);
-        upload_stored(board).await;
+
+        if board.sta_has_work().await {
+            upload_stored(board).await;
+        }
     }
 
     next_state
@@ -211,6 +214,7 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
 
 async fn upload_stored(board: &mut Board) {
     let Some(sta) = board.enable_wifi_sta(StaMode::OnDemand).await else {
+        display_message(board, "Nothing to upload").await;
         return;
     };
 
