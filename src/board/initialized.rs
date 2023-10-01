@@ -63,11 +63,6 @@ impl Board {
             return None;
         }
 
-        // Let's assume that when we disable STA, we don't have any work to do. This might be wrong,
-        // especially when we disconnect from an AP, but in that case it's fine to just not try
-        // again.
-        self.sta_work_available = Some(false);
-
         self.wifi.initialize(&self.clocks);
 
         let sta = self
@@ -148,7 +143,7 @@ impl Board {
         self.sta_work_available.unwrap_or(false)
     }
 
-    pub fn signal_sta_work_available(&mut self) {
-        self.sta_work_available = Some(true);
+    pub fn signal_sta_work_available(&mut self, available: bool) {
+        self.sta_work_available = Some(available);
     }
 }
