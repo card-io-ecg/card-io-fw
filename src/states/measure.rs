@@ -2,6 +2,7 @@ use core::ops::{Deref, DerefMut};
 
 use crate::{
     board::{
+        config::types::FilterStrength,
         hal::{prelude::*, spi::Error as SpiError},
         initialized::Board,
         EcgFrontend, PoweredEcgFrontend,
@@ -24,9 +25,7 @@ use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
 use embedded_hal_bus::spi::DeviceError;
 use gui::{
-    screens::{
-        display_menu::FilterStrength, init::StartupScreen, measure::EcgScreen, screen::Screen,
-    },
+    screens::{init::StartupScreen, measure::EcgScreen, screen::Screen},
     widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
 };
 use macros as cardio;

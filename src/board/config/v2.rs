@@ -1,7 +1,9 @@
 use config_site::data::network::WifiNetwork;
 use embedded_io::asynch::Read;
-use gui::{screens::display_menu::DisplayBrightness, widgets::battery_small::BatteryStyle};
+use gui::widgets::battery_small::BatteryStyle;
 use norfs::storable::{LoadError, Loadable};
+
+use super::types::DisplayBrightness;
 
 #[derive(Clone)]
 pub struct Config {

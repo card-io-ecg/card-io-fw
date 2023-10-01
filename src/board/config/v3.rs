@@ -1,12 +1,11 @@
 use config_site::data::network::WifiNetwork;
 use embedded_io::asynch::Read;
-use gui::{
-    screens::display_menu::{DisplayBrightness, FilterStrength},
-    widgets::battery_small::BatteryStyle,
-};
+use gui::widgets::battery_small::BatteryStyle;
 use norfs::storable::{LoadError, Loadable};
 
 use crate::board::DEFAULT_BACKEND_URL;
+
+use super::types::{DisplayBrightness, FilterStrength};
 
 #[derive(Clone)]
 pub struct Config {

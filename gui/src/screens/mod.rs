@@ -17,7 +17,6 @@ use embedded_text::{
 };
 
 pub mod charging;
-pub mod display_menu;
 pub mod init;
 pub mod measure;
 pub mod message;

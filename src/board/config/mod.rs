@@ -4,6 +4,8 @@ pub mod v2;
 pub mod v3;
 pub mod v4;
 
+pub mod types;
+
 pub use current::Config;
 
 use embedded_io::asynch::Read;

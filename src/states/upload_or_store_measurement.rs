@@ -1,5 +1,4 @@
 use core::{
-    marker::PhantomData,
     mem::{self, MaybeUninit},
     str,
 };
@@ -23,10 +22,14 @@ use signal_processing::compressing_buffer::{CompressingBuffer, EkgFormat};
 use ufmt::uwrite;
 
 use crate::{
-    board::initialized::{Board, StaMode},
+    board::{
+        config::types::MeasurementAction,
+        initialized::{Board, StaMode},
+    },
     human_readable::BinarySize,
     states::{
-        display_menu_screen, display_message, menu::storage::MeasurementAction, MenuEventHandler,
+        display_message,
+        menu::{AppMenuBuilder, MenuScreen},
     },
     AppState, SerialNumber,
 };
@@ -102,56 +105,63 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     next_state
 }
 
-#[derive(Default)]
-struct ReturnEvent<R>(PhantomData<R>);
-
-impl<R> MenuEventHandler for ReturnEvent<R> {
-    type Input = R;
-    type Result = R;
-
-    async fn handle_event(
-        &mut self,
-        event: Self::Input,
-        _board: &mut Board,
-    ) -> Option<Self::Result> {
-        Some(event)
-    }
-}
-
 async fn ask_for_measurement_action(board: &mut Board) -> (bool, bool) {
     let network_configured =
         !board.config.backend_url.is_empty() && !board.config.known_networks.is_empty();
+
     let can_store = board.storage.is_some();
 
     if !network_configured && !can_store {
         return (false, false);
     }
 
-    let mut items = heapless::Vec::<_, 3>::new();
-
-    let mut add_item = |label, value| {
-        unwrap!(items.push(NavigationItem::new(label, value)).ok());
-    };
-
-    if network_configured {
-        if can_store {
-            add_item("Upload or store", (true, true));
-        }
-        add_item("Upload", (true, false));
-    }
-
-    if can_store {
-        add_item("Store", (false, true));
-    }
-
-    let menu = create_menu("EKG action")
-        .add_items(items)
-        .add_item(NavigationItem::new("Discard", (false, false)))
-        .build();
-
-    display_menu_screen(menu, board, ReturnEvent::default())
+    AskForMeasurementActionMenu
+        .display(board)
         .await
         .unwrap_or((false, false))
+}
+
+struct AskForMeasurementActionMenu;
+
+impl MenuScreen for AskForMeasurementActionMenu {
+    type Event = (bool, bool);
+    type Result = (bool, bool);
+
+    async fn menu(&mut self, board: &mut Board) -> impl AppMenuBuilder<Self::Event> {
+        let mut items = heapless::Vec::<_, 3>::new();
+
+        let mut add_item = |label, value| {
+            unwrap!(items.push(NavigationItem::new(label, value)).ok());
+        };
+
+        let network_configured =
+            !board.config.backend_url.is_empty() && !board.config.known_networks.is_empty();
+
+        let can_store = board.storage.is_some();
+
+        if network_configured {
+            if can_store {
+                add_item("Upload or store", (true, true));
+            }
+            add_item("Upload", (true, false));
+        }
+
+        if can_store {
+            add_item("Store", (false, true));
+        }
+
+        create_menu("EKG action")
+            .add_items(items)
+            .add_item(NavigationItem::new("Discard", (false, false)))
+    }
+
+    async fn handle_event(
+        &mut self,
+        event: Self::Event,
+        _board: &mut Board,
+    ) -> Option<Self::Result> {
+        Some(event)
+    }
 }
 
 async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
