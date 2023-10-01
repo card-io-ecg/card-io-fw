@@ -8,15 +8,6 @@ pub struct Config {
     pub display_brightness: DisplayBrightness,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            battery_display_style: BatteryStyle::LowIndicator,
-            display_brightness: DisplayBrightness::Normal,
-        }
-    }
-}
-
 impl Loadable for Config {
     async fn load<R: Read>(reader: &mut R) -> Result<Self, LoadError<R::Error>> {
         let data = Self {

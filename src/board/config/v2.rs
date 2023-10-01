@@ -15,16 +15,6 @@ impl From<super::v1::Config> for Config {
         Self {
             battery_display_style: value.battery_display_style,
             display_brightness: value.display_brightness,
-            ..Default::default()
-        }
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            battery_display_style: BatteryStyle::LowIndicator,
-            display_brightness: DisplayBrightness::Normal,
             known_networks: heapless::Vec::new(),
         }
     }

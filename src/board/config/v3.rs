@@ -23,17 +23,6 @@ impl From<super::v2::Config> for Config {
             battery_display_style: value.battery_display_style,
             display_brightness: value.display_brightness,
             known_networks: value.known_networks,
-            ..Default::default()
-        }
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            battery_display_style: BatteryStyle::LowIndicator,
-            display_brightness: DisplayBrightness::Normal,
-            known_networks: heapless::Vec::new(),
             filter_strength: FilterStrength::Weak,
             backend_url: heapless::String::from(DEFAULT_BACKEND_URL),
         }

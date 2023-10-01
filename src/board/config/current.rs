@@ -7,7 +7,7 @@ use gui::{
 use norfs::storable::{LoadError, Loadable, Storable};
 use ssd1306::prelude::Brightness;
 
-use crate::states::menu::storage::MeasurementAction;
+use crate::{board::DEFAULT_BACKEND_URL, states::menu::storage::MeasurementAction};
 
 use super::CURRENT_VERSION;
 
@@ -46,7 +46,7 @@ impl Default for Config {
             display_brightness: DisplayBrightness::Normal,
             known_networks: heapless::Vec::new(),
             filter_strength: FilterStrength::Weak,
-            backend_url: heapless::String::new(),
+            backend_url: heapless::String::from(DEFAULT_BACKEND_URL),
             measurement_action: MeasurementAction::Auto,
         }
     }
