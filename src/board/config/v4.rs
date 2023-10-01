@@ -6,8 +6,6 @@ use gui::{
 };
 use norfs::storable::{LoadError, Loadable};
 
-use crate::board::DEFAULT_BACKEND_URL;
-
 #[derive(Clone)]
 pub struct Config {
     pub battery_display_style: BatteryStyle,
@@ -26,19 +24,6 @@ impl From<super::v3::Config> for Config {
             known_networks: value.known_networks,
             filter_strength: value.filter_strength,
             backend_url: value.backend_url,
-            ..Default::default()
-        }
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            battery_display_style: BatteryStyle::LowIndicator,
-            display_brightness: DisplayBrightness::Normal,
-            known_networks: heapless::Vec::new(),
-            filter_strength: FilterStrength::Weak,
-            backend_url: heapless::String::from(DEFAULT_BACKEND_URL),
             store_measurement: true,
         }
     }

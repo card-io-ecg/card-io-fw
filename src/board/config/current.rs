@@ -7,7 +7,7 @@ use gui::{
 use norfs::storable::{LoadError, Loadable, Storable};
 use ssd1306::prelude::Brightness;
 
-use crate::states::menu::storage::MeasurementAction;
+use crate::{board::DEFAULT_BACKEND_URL, states::menu::storage::MeasurementAction};
 
 use super::CURRENT_VERSION;
 
@@ -30,11 +30,10 @@ impl From<super::v4::Config> for Config {
             filter_strength: value.filter_strength,
             backend_url: value.backend_url,
             measurement_action: if value.store_measurement {
-                MeasurementAction::Store
-            } else {
                 MeasurementAction::Auto
+            } else {
+                MeasurementAction::Upload
             },
-            ..Default::default()
         }
     }
 }
@@ -46,7 +45,7 @@ impl Default for Config {
             display_brightness: DisplayBrightness::Normal,
             known_networks: heapless::Vec::new(),
             filter_strength: FilterStrength::Weak,
-            backend_url: heapless::String::new(),
+            backend_url: heapless::String::from(DEFAULT_BACKEND_URL),
             measurement_action: MeasurementAction::Auto,
         }
     }
