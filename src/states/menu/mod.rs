@@ -97,6 +97,8 @@ pub trait MenuScreen {
     type Event;
     type Result;
 
+    const REFRESH_PERIOD: Option<Duration> = None;
+
     async fn menu(&mut self, board: &mut Board) -> impl AppMenuBuilder<Self::Event>;
 
     async fn handle_event(&mut self, event: Self::Event, board: &mut Board)
@@ -112,12 +114,23 @@ pub trait MenuScreen {
         let mut ticker = Ticker::every(MIN_FRAME_TIME);
         let mut input = TouchInputShaper::new();
 
+        let mut refresh = Self::REFRESH_PERIOD.map(Timeout::new);
+
         while !exit_timer.is_elapsed() && !board.battery_monitor.is_low() {
             input.update(&mut board.frontend);
 
             let is_touched = input.is_touched();
             if is_touched {
                 exit_timer.reset();
+            }
+
+            if let Some(refresh) = refresh.as_mut() {
+                if refresh.is_elapsed() {
+                    refresh.reset();
+
+                    let state = screen.content.state();
+                    screen.content = self.menu(board).await.build_with_state(state);
+                }
             }
 
             if let Some(event) = screen.content.interact(is_touched) {
@@ -140,67 +153,6 @@ pub trait MenuScreen {
         }
 
         info!("Menu timeout");
-        None
-    }
-}
-
-pub trait DynamicMenuScreen {
-    type Event;
-    type Result;
-
-    const REFRESH_PERIOD: Duration;
-
-    async fn menu(&mut self, board: &mut Board) -> impl AppMenuBuilder<Self::Event>;
-
-    async fn handle_event(&mut self, event: Self::Event, board: &mut Board)
-        -> Option<Self::Result>;
-
-    async fn display(&mut self, board: &mut Board) -> Option<Self::Result> {
-        let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
-        let mut ticker = Ticker::every(MIN_FRAME_TIME);
-        let mut input = TouchInputShaper::new();
-
-        let mut screen = Screen {
-            content: self.menu(board).await.build(),
-            status_bar: board.status_bar(),
-        };
-
-        let mut refresh = Timeout::new(Self::REFRESH_PERIOD);
-
-        while !exit_timer.is_elapsed() && !board.battery_monitor.is_low() {
-            input.update(&mut board.frontend);
-
-            let is_touched = input.is_touched();
-            if is_touched {
-                exit_timer.reset();
-            }
-
-            if refresh.is_elapsed() {
-                refresh.reset();
-
-                let state = screen.content.state();
-                screen.content = self.menu(board).await.build_with_state(state);
-            }
-
-            if let Some(event) = screen.content.interact(is_touched) {
-                if let Some(result) = self.handle_event(event, board).await {
-                    return Some(result);
-                }
-            }
-
-            screen.status_bar = board.status_bar();
-
-            board
-                .display
-                .frame(|display| {
-                    screen.content.update(display);
-                    screen.draw(display)
-                })
-                .await;
-
-            ticker.next().await;
-        }
-
         None
     }
 }

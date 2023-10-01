@@ -1,6 +1,6 @@
 use crate::{
     board::initialized::Board,
-    states::menu::{AppMenu, AppMenuBuilder, DynamicMenuScreen},
+    states::menu::{AppMenu, AppMenuBuilder, MenuScreen},
     AppState,
 };
 use alloc::format;
@@ -22,11 +22,11 @@ pub async fn battery_info_menu(board: &mut Board) -> AppState {
 }
 
 struct BatteryInfoMenu;
-impl DynamicMenuScreen for BatteryInfoMenu {
+impl MenuScreen for BatteryInfoMenu {
     type Event = BatteryEvents;
     type Result = AppState;
 
-    const REFRESH_PERIOD: Duration = Duration::from_secs(1);
+    const REFRESH_PERIOD: Option<Duration> = Some(Duration::from_secs(1));
 
     async fn menu(&mut self, board: &mut Board) -> impl AppMenuBuilder<Self::Event> {
         let mut items = heapless::Vec::<_, 6>::new();
@@ -55,7 +55,7 @@ impl DynamicMenuScreen for BatteryInfoMenu {
         list_item(format!("Cell age {:>10}%", age));
 
         let charge_cycles = unwrap!(sensor.fg.read_charge_cycles().await.ok());
-        list_item(format!("Chg Cycles {:>9}", charge_cycles));
+        list_item(format!("Charge cycles {:>6}", charge_cycles));
 
         create_menu("Battery info")
             .add_items(items)
