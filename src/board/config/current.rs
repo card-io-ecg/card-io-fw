@@ -30,11 +30,10 @@ impl From<super::v4::Config> for Config {
             filter_strength: value.filter_strength,
             backend_url: value.backend_url,
             measurement_action: if value.store_measurement {
-                MeasurementAction::Store
-            } else {
                 MeasurementAction::Auto
+            } else {
+                MeasurementAction::Upload
             },
-            ..Default::default()
         }
     }
 }
