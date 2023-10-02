@@ -7,7 +7,7 @@ edition = "2021"
 object-chain = { workspace = true }
 micromath = { version = "2.0.0" }
 num-complex = { version = "0.4.4", default-features = false }
-qrs_detector = { git = "https://github.com/bugadani/QrsDetector.git", rev = "0cd8268" }
+qrs_detector = { git = "https://github.com/bugadani/QrsDetector.git", rev = "6384709" }
 macros = { path = "../macros" }
 logger = { workspace = true }
 embedded-io = { workspace = true }
