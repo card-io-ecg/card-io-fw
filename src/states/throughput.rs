@@ -80,6 +80,8 @@ async fn run_test(board: &mut Board) -> TestResult {
     };
     let mut client = client_resources.client();
 
+    display_message(board, "Connecting...").await;
+
     let mut url = heapless::String::<128>::new();
     if uwrite!(
         &mut url,
