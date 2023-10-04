@@ -9,6 +9,7 @@ use crate::{
     buffered_tcp_client::{BufferedTcpClient, BufferedTcpClientState},
     states::display_message,
     task_control::{TaskControlToken, TaskController},
+    timeout::Timeout,
     Shared,
 };
 use alloc::{boxed::Box, rc::Rc, vec::Vec};
@@ -24,7 +25,7 @@ use embassy_sync::{
     mutex::{Mutex, MutexGuard},
     signal::Signal,
 };
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Ticker, Timer};
 use embedded_svc::wifi::{AccessPointInfo, ClientConfiguration, Configuration, Wifi as _};
 use esp_wifi::{
     wifi::{WifiController, WifiDevice, WifiEvent, WifiMode},
@@ -155,13 +156,19 @@ impl Sta {
     pub async fn wait_for_connection(&self, board: &mut Board) -> bool {
         if self.connection_state() != ConnectionState::Connected {
             debug!("Waiting for network connection");
-            display_message(board, "Connecting...").await;
 
             let _ = select(
                 async {
                     while self.wait_for_state_change().await == ConnectionState::Connecting {}
                 },
-                Timer::after(Duration::from_secs(10)),
+                async {
+                    let exit_timer = Timeout::new(Duration::from_secs(10));
+                    let mut ticker = Ticker::every(Duration::from_millis(100));
+                    while !exit_timer.is_elapsed() {
+                        display_message(board, "Connecting...").await;
+                        ticker.next().await;
+                    }
+                },
             )
             .await;
         }
