@@ -234,8 +234,8 @@ lto = "off"
 [profile.release]
 debug = true
 codegen-units = 1
-lto = "off"
+lto = "fat"
 
 [profile.lto]
 inherits = "release"
-lto = true
+lto = "fat"
