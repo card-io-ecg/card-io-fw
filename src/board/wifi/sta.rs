@@ -154,18 +154,25 @@ impl Sta {
     }
 
     pub async fn wait_for_connection(&self, board: &mut Board) -> bool {
-        debug!("Waiting for network connection");
         if self.connection_state() != ConnectionState::Connected {
+            debug!("Waiting for network connection");
             display_message(board, "Connecting...").await;
-            while self.wait_for_state_change().await == ConnectionState::Connecting {}
 
-            if self.connection_state() != ConnectionState::Connected {
-                debug!("No network connection");
-                return false;
-            }
+            let _ = select(
+                async {
+                    while self.wait_for_state_change().await == ConnectionState::Connecting {}
+                },
+                Timer::after(Duration::from_secs(10)),
+            )
+            .await;
         }
 
-        true
+        if self.connection_state() == ConnectionState::Connected {
+            true
+        } else {
+            debug!("No network connection");
+            false
+        }
     }
 
     pub fn stack(&self) -> &Stack<WifiDevice<'static>> {
