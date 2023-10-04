@@ -51,7 +51,6 @@ impl State {
 
     async fn wait(&self) -> InternalConnectionState {
         self.signal.wait().await;
-        self.signal.reset();
         self.read()
     }
 
