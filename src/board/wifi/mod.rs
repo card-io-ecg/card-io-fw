@@ -305,5 +305,5 @@ pub async fn net_task(
     stack: Rc<Stack<WifiDevice<'static>>>,
     mut task_control: TaskControlToken<!>,
 ) {
-    task_control.run_cancellable(stack.run()).await;
+    task_control.run_cancellable(|_| stack.run()).await;
 }

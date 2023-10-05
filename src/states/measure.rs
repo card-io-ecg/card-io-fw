@@ -12,15 +12,13 @@ use crate::{
         display_message_while_touched, menu::AppMenu, to_progress, INIT_MENU_THRESHOLD, INIT_TIME,
         MIN_FRAME_TIME,
     },
+    task_control::{TaskControlToken, TaskController},
     timeout::Timeout,
     AppState,
 };
 use ads129x::{Error, Sample};
 use alloc::{boxed::Box, sync::Arc};
-use embassy_futures::select::{select, Either};
-use embassy_sync::{
-    blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel, signal::Signal,
-};
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
 use embedded_hal_bus::spi::DeviceError;
@@ -43,8 +41,6 @@ use signal_processing::{
 };
 
 type MessageQueue = Channel<CriticalSectionRawMutex, Message, 32>;
-
-static THREAD_CONTROL: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 
 struct SharedFrontend(Box<PoweredEcgFrontend>);
 unsafe impl Send for SharedFrontend {} // SAFETY: yolo
@@ -72,11 +68,10 @@ impl DerefMut for SharedFrontend {
 
 enum Message {
     Sample(Sample),
-    End(SharedFrontend, Result<(), Error<SpiError>>),
 }
 
 struct EcgTaskParams {
-    frontend: SharedFrontend,
+    token: TaskControlToken<Result<(), Error<SpiError>>, SharedFrontend>,
     sender: Arc<MessageQueue>,
 }
 
@@ -193,11 +188,13 @@ async fn measure_impl(
 
     let queue = Arc::new(MessageQueue::new());
 
+    let task_control = TaskController::from_resources(frontend);
+
     board
         .high_prio_spawner
         .must_spawn(reader_task(EcgTaskParams {
+            token: task_control.token(),
             sender: queue.clone(),
-            frontend,
         }));
 
     ecg.heart_rate_calculator.clear();
@@ -221,7 +218,8 @@ async fn measure_impl(
     let exit_timer = Timeout::new_with_start(INIT_TIME, Instant::now() - INIT_MENU_THRESHOLD);
     let mut drop_samples = 1500; // Slight delay for the input to settle
     let mut entered = Instant::now();
-    loop {
+
+    while !task_control.has_exited() && !board.battery_monitor.is_low() {
         let display_full = screen.content.buffer_full();
         while let Ok(message) = queue.try_recv() {
             match message {
@@ -244,17 +242,6 @@ async fn measure_impl(
                     } else {
                         drop_samples -= 1;
                     }
-                }
-                Message::End(frontend, result) => {
-                    board.frontend = frontend.shut_down().await;
-
-                    return if result.is_ok() && !exit_timer.is_elapsed() {
-                        (AppState::Menu(AppMenu::Main), board)
-                    } else if let Some(ecg_buffer) = ecg_buffer {
-                        (AppState::UploadOrStore(ecg_buffer), board)
-                    } else {
-                        (AppState::Shutdown, board)
-                    };
                 }
             }
         }
@@ -285,10 +272,6 @@ async fn measure_impl(
             debug_print_timer.reset();
         }
 
-        if board.battery_monitor.is_low() {
-            THREAD_CONTROL.signal(());
-        }
-
         let battery_data = board.battery_monitor.battery_data();
         let status_bar = StatusBar {
             battery: Battery::with_style(battery_data, board.config.battery_style()),
@@ -317,28 +300,42 @@ async fn measure_impl(
 
         ticker.next().await;
     }
+
+    let result = task_control.stop().await;
+    let next_state = match result {
+        Ok(result) => {
+            // task stopped itself
+            if let Err(_e) = result.as_ref() {
+                warn!("Measurement task error"); // TODO: print error once supported
+            }
+            if result.is_ok() && !exit_timer.is_elapsed() {
+                AppState::Menu(AppMenu::Main)
+            } else if let Some(ecg_buffer) = ecg_buffer {
+                AppState::UploadOrStore(ecg_buffer)
+            } else {
+                AppState::Shutdown
+            }
+        }
+        Err(_) => {
+            // task was aborted - battery low
+            AppState::Shutdown
+        }
+    };
+
+    let frontend = task_control.unwrap();
+    board.frontend = frontend.shut_down().await;
+
+    (next_state, board)
 }
 
 #[cardio::task]
 async fn reader_task(params: EcgTaskParams) {
-    let EcgTaskParams {
-        sender,
-        mut frontend,
-    } = params;
+    let EcgTaskParams { mut token, sender } = params;
 
-    let result = select(
-        read_ecg(sender.as_ref(), &mut frontend),
-        THREAD_CONTROL.wait(),
-    )
-    .await;
-
-    let result = match result {
-        Either::First(result) => result,
-        Either::Second(_) => Ok(()),
-    };
-
-    info!("Stopping measurement task");
-    sender.send(Message::End(frontend, result)).await;
+    token
+        .run_cancellable(|frontend| read_ecg(sender.as_ref(), frontend))
+        .await;
+    info!("Measurement task stopped");
 }
 
 async fn read_ecg(

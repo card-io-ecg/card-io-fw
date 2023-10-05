@@ -59,7 +59,7 @@ pub async fn monitor_task_fg(
     mut task_control: TaskControlToken<()>,
 ) {
     task_control
-        .run_cancellable(async {
+        .run_cancellable(|_| async {
             let mut timer = Ticker::every(Duration::from_secs(1));
             info!("Fuel gauge monitor started");
 
