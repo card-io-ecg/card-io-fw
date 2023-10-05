@@ -270,14 +270,13 @@ impl<'a> HttpsClientResources<'a> {
 
 pub(super) struct StaState {
     init: EspWifiInitialization,
-    controller: Shared<WifiController<'static>>,
+    controller: Option<Box<WifiController<'static>>>,
     stack: Rc<Stack<WifiDevice<'static>>>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
     state: Rc<State>,
-    connection_task_control: TaskController<()>,
+    connection_task_control: Option<TaskController<(), StaTaskResources>>,
     net_task_control: TaskController<!>,
-    started: bool,
     rng: Rng,
 }
 
@@ -301,14 +300,13 @@ impl StaState {
 
         Self {
             init,
-            controller: Rc::new(Mutex::new(controller)),
+            controller: Some(Box::new(controller)),
             stack: Rc::new(Stack::new(wifi_interface, config, resources, random_seed)),
             networks: Rc::new(Mutex::new(heapless::Vec::new())),
             known_networks: Rc::new(Mutex::new(Vec::new())),
             state: Rc::new(State::new(InternalConnectionState::NotConnected)),
-            connection_task_control: TaskController::new(),
+            connection_task_control: None,
             net_task_control: TaskController::new(),
-            started: false,
             rng,
         }
     }
@@ -318,51 +316,52 @@ impl StaState {
     }
 
     pub(super) async fn stop(&mut self) {
-        if self.started {
+        if let Some(task_control) = self.connection_task_control.take() {
             info!("Stopping STA");
-            let _ = join(
-                self.connection_task_control.stop(),
-                self.net_task_control.stop(),
-            )
-            .await;
 
-            let mut controller = self.controller.lock().await;
+            let _ = join(task_control.stop(), self.net_task_control.stop()).await;
+
+            let mut controller = task_control.unwrap().controller;
             if matches!(controller.is_started(), Ok(true)) {
                 unwrap!(controller.stop().await);
             }
 
             info!("Stopped STA");
-            self.started = false;
+
+            self.controller = Some(controller);
         }
     }
 
     pub(super) async fn start(&mut self) -> Sta {
-        if !self.started {
+        if let Some(controller) = self.controller.take() {
             info!("Starting STA");
             let spawner = Spawner::for_current_executor().await;
 
             self.state.reset();
 
+            let task_control = TaskController::from_resources(StaTaskResources { controller });
+
             info!("Starting STA task");
             spawner.must_spawn(sta_task(
-                self.controller.clone(),
                 self.networks.clone(),
                 self.known_networks.clone(),
                 self.state.clone(),
                 self.stack.clone(),
-                self.connection_task_control.token(),
+                task_control.token(),
             ));
             info!("Starting NET task");
             spawner.must_spawn(net_task(self.stack.clone(), self.net_task_control.token()));
 
-            self.started = true;
+            self.connection_task_control = Some(task_control);
         }
 
         self.handle_unchecked()
     }
 
     pub(crate) fn handle(&self) -> Option<Sta> {
-        self.started.then_some(self.handle_unchecked())
+        self.connection_task_control
+            .as_ref()
+            .map(|_| self.handle_unchecked())
     }
 
     fn handle_unchecked(&self) -> Sta {
@@ -376,22 +375,25 @@ impl StaState {
     }
 }
 
+struct StaTaskResources {
+    controller: Box<WifiController<'static>>,
+}
+
 #[cardio::task]
 async fn sta_task(
-    controller: Shared<WifiController<'static>>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
     state: Rc<State>,
     stack: Rc<Stack<WifiDevice<'static>>>,
-    mut task_control: TaskControlToken<()>,
+    mut task_control: TaskControlToken<(), StaTaskResources>,
 ) {
     const SCAN_PERIOD: Duration = Duration::from_secs(5);
     const CONNECT_RETRY_PERIOD: Duration = Duration::from_millis(100);
     const CONNECT_RETRY_COUNT: usize = 5;
 
     task_control
-        .run_cancellable(|_| async {
-            let mut controller = controller.lock().await;
+        .run_cancellable(|resources| async {
+            let controller = &mut resources.controller;
 
             'scan_and_connect: loop {
                 if !matches!(controller.is_started(), Ok(true)) {
