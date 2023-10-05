@@ -96,7 +96,7 @@ pub struct TaskControlToken<R: Send> {
 impl<R: Send> TaskControlToken<R> {
     /// Runs a cancellable task. The task ends when either the future completes, or the task is
     /// cancelled.
-    pub async fn run_cancellable<F: Future<Output = R>>(&mut self, f: impl FnOnce() -> F) {
-        self.inner.run_cancellable(f()).await
+    pub async fn run_cancellable<F: Future<Output = R>>(&mut self, f: impl FnOnce(()) -> F) {
+        self.inner.run_cancellable(f(())).await
     }
 }

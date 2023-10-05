@@ -168,7 +168,7 @@ pub(super) async fn ap_task(
     client_count: Rc<AtomicU32>,
 ) {
     task_control
-        .run_cancellable(|| async {
+        .run_cancellable(|_| async {
             let mut controller = controller.lock().await;
             info!("Start connection task");
 
