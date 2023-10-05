@@ -8,7 +8,6 @@ use crate::{
     },
     states::display_message,
     task_control::{TaskControlToken, TaskController},
-    timeout::Timeout,
     Shared,
 };
 use alloc::{boxed::Box, rc::Rc, vec::Vec};
@@ -205,20 +204,7 @@ impl Sta {
         &self.stack
     }
 
-    /// Allocates resources for an [`HttpClient`].
-    pub fn http_client_resources(&self) -> Result<HttpClientResources<'_>, AllocError> {
-        // The client state must be heap allocated, because we take a reference to it.
-        let tcp_client_state = Box::try_new(TcpClientState::new())?;
-        let client_state = unsafe { addr_of!(*tcp_client_state).as_ref().unwrap() };
-
-        Ok(HttpClientResources {
-            _resources: tcp_client_state,
-            tcp_client: TcpClient::new(&self.stack, client_state),
-            dns_client: DnsSocket::new(&self.stack),
-        })
-    }
-
-    /// Allocates resources for an [`HttpClient`].
+    /// Allocates resources for an HTTPS capable [`HttpClient`].
     pub fn https_client_resources(&self) -> Result<HttpsClientResources<'_>, AllocError> {
         // The client state must be heap allocated, because we take a reference to it.
         let resources = Box::try_new(TlsClientState {
@@ -243,18 +229,6 @@ const SOCKET_RX_BUFFER: usize = 4096;
 
 const TLS_READ_BUFFER: usize = 16 * 1024 + 256;
 const TLS_WRITE_BUFFER: usize = 4096;
-
-pub struct HttpClientResources<'a> {
-    _resources: Box<TcpClientState>,
-    tcp_client: TcpClient<'a>,
-    dns_client: DnsSocket<'a, WifiDevice<'static>>,
-}
-
-impl<'a> HttpClientResources<'a> {
-    pub fn client(&mut self) -> HttpClient<'_, TcpClient<'a>, DnsSocket<'a, WifiDevice<'static>>> {
-        HttpClient::new(&self.tcp_client, &self.dns_client)
-    }
-}
 
 type TcpClientState =
     embassy_net::tcp::client::TcpClientState<SOCKET_COUNT, SOCKET_TX_BUFFER, SOCKET_RX_BUFFER>;
