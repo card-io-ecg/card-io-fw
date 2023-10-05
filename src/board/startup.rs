@@ -17,7 +17,6 @@ use crate::{
             interrupt, peripherals,
             prelude::*,
             spi::{dma::WithDmaSpi3, SpiMode},
-            system::PeripheralClockControl,
             Rtc, Spi,
         },
         utils::DummyOutputPin,
@@ -38,7 +37,6 @@ pub struct StartupResources {
     pub display: Display,
     pub frontend: EcgFrontend,
     pub clocks: Clocks<'static>,
-    pub peripheral_clock_control: PeripheralClockControl,
     #[cfg(feature = "battery_adc")]
     pub battery_adc: BatteryAdc,
 
@@ -69,7 +67,6 @@ impl StartupResources {
         display_cs: impl Into<DisplayChipSelect>,
         display_sclk: impl Into<DisplaySclk>,
         display_mosi: impl Into<DisplayMosi>,
-        pcc: &mut PeripheralClockControl,
         clocks: &Clocks,
     ) -> Display {
         unwrap!(interrupt::enable(
@@ -93,7 +90,6 @@ impl StartupResources {
             display_mosi.into(),
             40u32.MHz(),
             SpiMode::Mode0,
-            pcc,
             clocks,
         )
         .with_dma(display_dma_channel.configure(
@@ -128,7 +124,6 @@ impl StartupResources {
         touch_detect: impl Into<TouchDetect>,
         adc_cs: impl Into<AdcChipSelect>,
 
-        pcc: &mut PeripheralClockControl,
         clocks: &Clocks,
     ) -> EcgFrontend {
         unwrap!(interrupt::enable(
@@ -155,7 +150,6 @@ impl StartupResources {
                     adc_miso.into(),
                     1u32.MHz(),
                     SpiMode::Mode1,
-                    pcc,
                     clocks,
                 )
                 .with_dma(adc_dma_channel.configure(

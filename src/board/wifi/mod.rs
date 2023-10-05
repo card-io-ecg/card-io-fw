@@ -9,7 +9,7 @@ use crate::{
             clock::Clocks,
             peripherals::{RNG, TIMG1},
             radio::Wifi,
-            system::{PeripheralClockControl, RadioClockControl},
+            system::RadioClockControl,
             timer::{Timer0, TimerGroup},
             Rng, Timer,
         },
@@ -176,14 +176,13 @@ impl WifiDriver {
         rng: RNG,
         rcc: RadioClockControl,
         clocks: &Clocks,
-        pcc: &mut PeripheralClockControl,
     ) -> Self {
         let rng = Rng::new(rng);
         Self {
             wifi,
             rng,
             state: WifiDriverState::Uninitialized(WifiInitResources {
-                timer: TimerGroup::new(timer, clocks, pcc).timer0,
+                timer: TimerGroup::new(timer, clocks).timer0,
                 rng,
                 rcc,
             }),

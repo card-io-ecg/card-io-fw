@@ -143,7 +143,7 @@ smoltcp = { workspace = true }
 crc = "3.0.1"
 
 [patch.crates-io]
-# esp32s3-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "24edf7bdc4788469a592e2fe6cf2580443101971" }
+esp32s3-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "44e968f7a83f80be43d60cdc01c10eccab4b39cf" }
 # esp32s3-hal = { path = "../../esp-hal/esp32s3-hal" }
 # esp-hal-common = { path = "../../esp-hal/esp-hal-common" }
 # esp-wifi = { path = "../esp-wifi/esp-wifi" }

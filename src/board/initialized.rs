@@ -2,7 +2,7 @@ use crate::{
     board::{
         config::Config,
         drivers::battery_monitor::BatteryMonitor,
-        hal::{clock::Clocks, system::PeripheralClockControl},
+        hal::clock::Clocks,
         storage::FileSystem,
         wifi::{ap::Ap, sta::Sta, WifiDriver},
         ChargerStatus, EcgFrontend, PoweredDisplay, VbusDetect,
@@ -24,7 +24,6 @@ pub struct Board {
     pub display: PoweredDisplay,
     pub frontend: EcgFrontend,
     pub clocks: Clocks<'static>,
-    pub peripheral_clock_control: PeripheralClockControl,
     pub high_prio_spawner: SendSpawner,
     pub battery_monitor: BatteryMonitor<VbusDetect, ChargerStatus>,
     pub wifi: &'static mut WifiDriver,
