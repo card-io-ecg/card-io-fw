@@ -196,10 +196,6 @@ impl Sta {
         }
     }
 
-    pub fn stack(&self) -> &Stack<WifiDevice<'static>> {
-        &self.stack
-    }
-
     /// Allocates resources for an HTTPS capable [`HttpClient`].
     pub fn https_client_resources(&self) -> Result<HttpsClientResources<'_>, AllocError> {
         // The client state must be heap allocated, because we take a reference to it.
