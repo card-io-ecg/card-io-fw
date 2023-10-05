@@ -97,7 +97,7 @@ pub async fn monitor_task_adc(
     mut task_control: TaskControlToken<()>,
 ) {
     task_control
-        .run_cancellable(async {
+        .run_cancellable(|_| async {
             let mut timer = Ticker::every(Duration::from_millis(10));
             info!("ADC monitor started");
 

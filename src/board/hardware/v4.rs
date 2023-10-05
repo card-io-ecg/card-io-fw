@@ -1,16 +1,8 @@
-#[cfg(feature = "battery_adc")]
-use crate::board::{
-    drivers::battery_adc::BatteryAdc as BatteryAdcType,
-    hal::{adc::ADC1, gpio::Analog},
-};
-
-#[cfg(feature = "battery_max17055")]
-use crate::board::{drivers::battery_fg::BatteryFg as BatteryFgType, hal::i2c::I2C};
-#[cfg(feature = "battery_max17055")]
 use max17055::{DesignData, Max17055};
 
 use crate::board::{
     drivers::{
+        battery_monitor::battery_fg::BatteryFg as BatteryFgType,
         display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
         frontend::{Frontend, PoweredFrontend},
     },
@@ -20,6 +12,7 @@ use crate::board::{
         embassy,
         gdma::*,
         gpio::{Floating, GpioPin, Input, Output, PullUp, PushPull},
+        i2c::I2C,
         interrupt,
         peripherals::{self, Peripherals},
         prelude::*,
@@ -65,7 +58,6 @@ pub type TouchDetect = GpioPin<Input<Floating>, 1>;
 pub type AdcSpi<'d> =
     ExclusiveDevice<SpiDma<'d, AdcSpiInstance, Channel1, FullDuplexMode>, AdcChipSelect, Delay>;
 
-#[cfg(feature = "battery_max17055")]
 pub type BatteryAdcEnable = GpioPin<Output<PushPull>, 8>;
 pub type VbusDetect = GpioPin<Input<Floating>, 17>;
 pub type ChargerStatus = GpioPin<Input<PullUp>, 47>;
@@ -77,9 +69,7 @@ pub type PoweredEcgFrontend =
 pub type Display = DisplayType<DisplayReset>;
 pub type PoweredDisplay = PoweredDisplayType<DisplayReset>;
 
-#[cfg(feature = "battery_max17055")]
 pub type BatteryFgI2c = I2C<'static, hal::peripherals::I2C0>;
-#[cfg(feature = "battery_max17055")]
 pub type BatteryFg = BatteryFgType<BatteryFgI2c, BatteryAdcEnable>;
 
 impl super::startup::StartupResources {
@@ -128,7 +118,6 @@ impl super::startup::StartupResources {
             &clocks,
         );
 
-        #[cfg(feature = "battery_max17055")]
         let battery_fg = {
             let i2c0 = I2C::new(
                 peripherals.I2C0,
@@ -172,7 +161,6 @@ impl super::startup::StartupResources {
         Self {
             display,
             frontend: adc,
-            #[cfg(feature = "battery_max17055")]
             battery_fg,
             wifi: WIFI_DRIVER.init_with(|| {
                 WifiDriver::new(

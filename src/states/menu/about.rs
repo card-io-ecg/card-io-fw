@@ -3,7 +3,10 @@ use crate::{
     states::menu::{AppMenu, AppMenuBuilder, MenuScreen},
     AppState, SerialNumber,
 };
-use alloc::{format, string::String};
+
+use alloc::format;
+#[cfg(feature = "battery_max17055")]
+use alloc::string::String;
 use embedded_menu::items::NavigationItem;
 use gui::screens::create_menu;
 use ufmt::uwrite;

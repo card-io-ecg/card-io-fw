@@ -5,14 +5,23 @@ use embedded_hal::digital::InputPin;
 use gui::screens::BatteryInfo;
 
 #[cfg(feature = "battery_adc")]
+pub mod battery_adc;
+#[cfg(feature = "battery_max17055")]
+pub mod battery_fg;
+
+#[cfg(feature = "battery_adc")]
 use crate::board::{
-    drivers::battery_adc::{monitor_task_adc as monitor_task, BatteryAdcData as BatteryData},
+    drivers::battery_monitor::battery_adc::{
+        monitor_task_adc as monitor_task, BatteryAdcData as BatteryData,
+    },
     BatteryAdc as BatterySensor,
 };
 
 #[cfg(feature = "battery_max17055")]
 use crate::board::{
-    drivers::battery_fg::{monitor_task_fg as monitor_task, BatteryFgData as BatteryData},
+    drivers::battery_monitor::battery_fg::{
+        monitor_task_fg as monitor_task, BatteryFgData as BatteryData,
+    },
     BatteryFg as BatterySensor,
 };
 

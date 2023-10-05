@@ -1,11 +1,13 @@
 #[cfg(feature = "battery_adc")]
 use crate::board::{
-    drivers::battery_adc::BatteryAdc as BatteryAdcType,
+    drivers::battery_monitor::battery_adc::BatteryAdc as BatteryAdcType,
     hal::{adc::ADC1, gpio::Analog},
 };
 
 #[cfg(feature = "battery_max17055")]
-use crate::board::{drivers::battery_fg::BatteryFg as BatteryFgType, hal::i2c::I2C};
+use crate::board::{
+    drivers::battery_monitor::battery_fg::BatteryFg as BatteryFgType, hal::i2c::I2C,
+};
 #[cfg(feature = "battery_max17055")]
 use max17055::{DesignData, Max17055};
 

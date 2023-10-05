@@ -1,6 +1,6 @@
 use crate::board::{
     drivers::{
-        battery_adc::BatteryAdc as BatteryAdcType,
+        battery_monitor::battery_adc::BatteryAdc as BatteryAdcType,
         display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
         frontend::{Frontend, PoweredFrontend},
     },
