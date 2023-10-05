@@ -7,7 +7,6 @@ use crate::{
 use alloc::{borrow::Cow, format};
 use embedded_menu::items::NavigationItem;
 use gui::screens::create_menu;
-use ufmt::uwrite;
 
 #[derive(Clone, Copy)]
 pub enum AboutMenuEvents {
@@ -34,15 +33,12 @@ impl MenuScreen for AboutAppMenu {
     async fn menu(&mut self, board: &mut Board) -> impl AppMenuBuilder<Self::Event> {
         let list_item = |label| NavigationItem::new(label, AboutMenuEvents::None);
 
-        let mut serial = heapless::String::<12>::new();
-        unwrap!(uwrite!(&mut serial, "{}", SerialNumber::new()));
-
         let mut items = heapless::Vec::<_, 5>::new();
         items.extend([
             list_item(Cow::from(env!("FW_VERSION_MENU_ITEM"))),
             list_item(Cow::from(env!("HW_VERSION_MENU_ITEM"))),
             NavigationItem::new(
-                Cow::from(format!("Serial  {}", serial)),
+                Cow::from(format!("Serial  {}", SerialNumber)),
                 AboutMenuEvents::ToSerial,
             ),
             list_item(Cow::from(match board.frontend.device_id() {

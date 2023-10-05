@@ -98,7 +98,7 @@ where
                 if let Some(idx) = self.qrs_detector.update(complex_lead) {
                     let idx = idx as usize;
                     self.is_beat = true;
-                    State::Measure(idx as usize, self.max_age)
+                    State::Measure(idx, self.max_age)
                 } else {
                     State::Init(n - 1)
                 }

@@ -19,7 +19,7 @@ impl<T: Copy, const N: usize> Clone for Buffer<T, N> {
         Self {
             write_idx: self.write_idx,
             count: self.count,
-            buffer: self.buffer.clone(),
+            buffer: self.buffer,
         }
     }
 }

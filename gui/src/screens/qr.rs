@@ -52,7 +52,7 @@ impl Drawable for QrCodeScreen<'_> {
 
         match data {
             Ok(qr) => {
-                let min_qr_side = qr.size() as i32;
+                let min_qr_side = qr.size();
 
                 let size = display.bounding_box().size;
                 let scale = size.width.min(size.height) as i32 / min_qr_side;

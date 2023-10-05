@@ -88,7 +88,7 @@ async fn run_test(board: &mut Board) -> TestResult {
         "{}/firmware/{}/{}/0000000",
         board.config.backend_url.as_str(),
         env!("HW_VERSION"),
-        SerialNumber::new()
+        SerialNumber
     )
     .is_err()
     {

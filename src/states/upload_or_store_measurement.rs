@@ -421,14 +421,7 @@ where
     const UPLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
     let mut upload_url = heapless::String::<128>::new();
-    if uwrite!(
-        &mut upload_url,
-        "{}/upload_data/{}",
-        url,
-        SerialNumber::new()
-    )
-    .is_err()
-    {
+    if uwrite!(&mut upload_url, "{}/upload_data/{}", url, SerialNumber).is_err() {
         warn!("URL too long");
         return Err(());
     }

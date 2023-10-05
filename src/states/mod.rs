@@ -64,12 +64,10 @@ impl TouchInputShaper {
         if touched {
             self.released_delay = 5;
             self.touched = true;
+        } else if self.released_delay > 0 {
+            self.released_delay -= 1;
         } else {
-            if self.released_delay > 0 {
-                self.released_delay -= 1;
-            } else {
-                self.touched = false;
-            }
+            self.touched = false;
         }
 
         if !self.touched {

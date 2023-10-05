@@ -95,7 +95,7 @@ async fn do_update(board: &mut Board) -> UpdateResult {
         "{}/firmware/{}/{}/{}",
         board.config.backend_url.as_str(),
         env!("HW_VERSION"),
-        SerialNumber::new(),
+        SerialNumber,
         env!("COMMIT_HASH")
     )
     .is_err()

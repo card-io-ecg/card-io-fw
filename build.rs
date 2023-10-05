@@ -92,11 +92,11 @@ fn main() {
     // Device info list items
     println!(
         "cargo:rustc-env=FW_VERSION_MENU_ITEM=FW {:>17}",
-        format_args!("{pkg_version}-{git_hash_str}")
+        format!("{pkg_version}-{git_hash_str}")
     );
 
     println!(
         "cargo:rustc-env=HW_VERSION_MENU_ITEM=HW {:>17}",
-        format_args!("{}/{}", mcu.as_str(), hw_version.as_str())
+        format!("{}/{}", mcu.as_str(), hw_version.as_str())
     );
 }

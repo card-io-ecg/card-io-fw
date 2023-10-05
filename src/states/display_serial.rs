@@ -14,7 +14,7 @@ pub async fn display_serial(board: &mut Board) -> AppState {
     let mut shutdown_timer = Timeout::new(Duration::from_secs(30));
 
     let mut serial = heapless::String::<32>::new();
-    unwrap!(uwrite!(&mut serial, "Card/IO:{}", SerialNumber::new()));
+    unwrap!(uwrite!(&mut serial, "Card/IO:{}", SerialNumber));
 
     while !shutdown_timer.is_elapsed() {
         if board.frontend.is_touched() {

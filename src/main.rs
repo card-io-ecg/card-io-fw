@@ -89,19 +89,11 @@ mod states;
 mod task_control;
 mod timeout;
 
-pub struct SerialNumber {
-    bytes: [u8; 6],
-}
+pub struct SerialNumber;
 
 impl SerialNumber {
-    pub fn new() -> Self {
-        Self {
-            bytes: hal::efuse::Efuse::get_mac_address(),
-        }
-    }
-
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.bytes
+    pub fn bytes() -> [u8; 6] {
+        hal::efuse::Efuse::get_mac_address()
     }
 }
 
@@ -110,10 +102,18 @@ impl ufmt::uDisplay for SerialNumber {
     where
         W: ufmt::uWrite + ?Sized,
     {
-        for byte in self.bytes {
+        for byte in Self::bytes() {
             ufmt::uwrite!(f, "{:X}", byte)?;
         }
         Ok(())
+    }
+}
+
+impl core::fmt::Display for SerialNumber {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut serial = heapless::String::<12>::new();
+        unwrap!(ufmt::uwrite!(&mut serial, "{}", self));
+        f.write_str(&serial)
     }
 }
 

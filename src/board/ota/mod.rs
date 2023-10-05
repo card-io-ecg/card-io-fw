@@ -115,14 +115,10 @@ impl Slot {
     fn current(seq0: u32, seq1: u32) -> Option<Slot> {
         if seq0 == 0xffffffff && seq1 == 0xffffffff {
             None
-        } else if seq0 == 0xffffffff {
+        } else if seq0 == 0xffffffff || seq1 > seq0 {
             Some(Slot::Ota1)
-        } else if seq1 == 0xffffffff {
-            Some(Slot::Ota0)
-        } else if seq0 > seq1 {
-            Some(Slot::Ota0)
         } else {
-            Some(Slot::Ota1)
+            Some(Slot::Ota0)
         }
     }
 
