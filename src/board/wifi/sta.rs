@@ -6,7 +6,6 @@ use crate::{
         initialized::Board,
         wifi::net_task,
     },
-    buffered_tcp_client::{BufferedTcpClient, BufferedTcpClientState},
     states::display_message,
     task_control::{TaskControlToken, TaskController},
     timeout::Timeout,
@@ -60,6 +59,7 @@ impl State {
     }
 
     fn update(&self, value: InternalConnectionState) {
+        debug!("Updating connection state: {:?}", value);
         self.value.store(value, Ordering::Release);
         self.signal.signal(());
     }
@@ -97,11 +97,13 @@ impl From<ConnectionState> for WifiState {
     }
 }
 
-#[atomic_enum::atomic_enum]
 #[derive(PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[atomic_enum::atomic_enum]
 enum InternalConnectionState {
     NotConnected,
     Connecting,
+    WaitingForIp,
     Connected,
     Disconnected,
 }
@@ -112,7 +114,9 @@ impl From<InternalConnectionState> for ConnectionState {
             InternalConnectionState::NotConnected | InternalConnectionState::Disconnected => {
                 ConnectionState::NotConnected
             }
-            InternalConnectionState::Connecting => ConnectionState::Connecting,
+            InternalConnectionState::Connecting | InternalConnectionState::WaitingForIp => {
+                ConnectionState::Connecting
+            }
             InternalConnectionState::Connected => ConnectionState::Connected,
         }
     }
@@ -159,12 +163,28 @@ impl Sta {
 
             let _ = select(
                 async {
-                    while self.wait_for_state_change().await == ConnectionState::Connecting {}
+                    loop {
+                        let result = select(
+                            self.wait_for_state_change(),
+                            Timer::after(Duration::from_secs(10)),
+                        )
+                        .await;
+                        match result {
+                            Either::First(state) => {
+                                if state == ConnectionState::Connected {
+                                    break;
+                                }
+                            }
+                            Either::Second(_) => {
+                                debug!("State change timeout");
+                                break;
+                            }
+                        }
+                    }
                 },
                 async {
-                    let exit_timer = Timeout::new(Duration::from_secs(10));
                     let mut ticker = Ticker::every(Duration::from_millis(100));
-                    while !exit_timer.is_elapsed() {
+                    loop {
                         display_message(board, "Connecting...").await;
                         ticker.next().await;
                     }
@@ -470,6 +490,7 @@ async fn sta_task(
                 for _ in 0..CONNECT_RETRY_COUNT {
                     match controller.connect().await {
                         Ok(_) => {
+                            state.update(InternalConnectionState::WaitingForIp);
                             info!("Waiting to get IP address...");
 
                             let wait_for_ip = async {
