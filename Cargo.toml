@@ -18,7 +18,6 @@ embedded-svc = { version = "0.25", default-features = false }
 embassy-net = { version = "0.1.0", features = [
     "nightly",
     "tcp",
-    "udp",
     "dhcpv4",
     "dns",
     "unstable-traits",
@@ -46,6 +45,10 @@ defmt = { version = "=0.3.5" }
 ufmt = "0.2.0"
 slice-string = "0.7.0"
 tinyvec = "1.6.0"
+
+smoltcp = { version = "0.10.0", default-features = false, features = [
+  "dns-max-server-count-2",
+] }
 
 [dependencies]
 embassy-futures = { version = "0.1.0" }
@@ -136,9 +139,7 @@ logger = { workspace = true }
 log = { workspace = true, optional = true }
 defmt = { workspace = true, optional = true }
 
-smoltcp = { version = "0.10.0", default-features = false, features = [
-  "dns-max-server-count-2",
-] }
+smoltcp = { workspace = true }
 crc = "3.0.1"
 
 [patch.crates-io]
