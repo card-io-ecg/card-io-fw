@@ -138,8 +138,9 @@ impl ApState {
             )
             .await;
 
-            if matches!(self.controller.lock().await.is_started(), Ok(true)) {
-                unwrap!(self.controller.lock().await.stop().await);
+            let mut controller = self.controller.lock().await;
+            if matches!(controller.is_started(), Ok(true)) {
+                unwrap!(controller.stop().await);
             }
 
             info!("Stopped AP");
@@ -167,6 +168,7 @@ pub(super) async fn ap_task(
 ) {
     task_control
         .run_cancellable(async {
+            let mut controller = controller.lock().await;
             info!("Start connection task");
 
             let client_config = Configuration::AccessPoint(AccessPointConfiguration {
@@ -174,10 +176,10 @@ pub(super) async fn ap_task(
                 max_connections: 1,
                 ..Default::default()
             });
-            unwrap!(controller.lock().await.set_configuration(&client_config));
+            unwrap!(controller.set_configuration(&client_config));
             info!("Starting wifi");
 
-            unwrap!(controller.lock().await.start().await);
+            unwrap!(controller.start().await);
             info!("Wifi started!");
 
             loop {
@@ -186,8 +188,6 @@ pub(super) async fn ap_task(
                 | WifiStackState::ApStaDisconnected = esp_wifi::wifi::get_wifi_state()
                 {
                     let events = controller
-                        .lock()
-                        .await
                         .wait_for_events(
                             WifiEvent::ApStop
                                 | WifiEvent::ApStaconnected

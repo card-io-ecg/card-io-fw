@@ -350,8 +350,9 @@ impl StaState {
             )
             .await;
 
-            if matches!(self.controller.lock().await.is_started(), Ok(true)) {
-                unwrap!(self.controller.lock().await.stop().await);
+            let mut controller = self.controller.lock().await;
+            if matches!(controller.is_started(), Ok(true)) {
+                unwrap!(controller.stop().await);
             }
 
             info!("Stopped STA");
@@ -416,18 +417,19 @@ async fn sta_task(
 
     task_control
         .run_cancellable(async {
+            let mut controller = controller.lock().await;
+
             'scan_and_connect: loop {
-                if !matches!(controller.lock().await.is_started(), Ok(true)) {
+                if !matches!(controller.is_started(), Ok(true)) {
                     info!("Starting wifi");
-                    unwrap!(controller.lock().await.start().await);
+                    unwrap!(controller.start().await);
                     info!("Wifi started!");
                 }
 
                 let connect_to = 'select: loop {
                     info!("Scanning...");
 
-                    let mut scan_results =
-                        Box::new(controller.lock().await.scan_n::<SCAN_RESULTS>().await);
+                    let mut scan_results = Box::new(controller.scan_n::<SCAN_RESULTS>().await);
 
                     match scan_results.as_mut() {
                         Ok((ref mut visible_networks, network_count)) => {
@@ -473,17 +475,16 @@ async fn sta_task(
                 info!("Connecting to {}...", connect_to.ssid);
                 state.update(InternalConnectionState::Connecting);
 
-                unwrap!(controller
-                    .lock()
-                    .await
-                    .set_configuration(&Configuration::Client(ClientConfiguration {
+                unwrap!(controller.set_configuration(&Configuration::Client(
+                    ClientConfiguration {
                         ssid: connect_to.ssid.clone(),
                         password: connect_to.pass,
                         ..Default::default()
-                    })));
+                    }
+                )));
 
                 for _ in 0..CONNECT_RETRY_COUNT {
-                    match controller.lock().await.connect().await {
+                    match controller.connect().await {
                         Ok(_) => {
                             info!("Waiting to get IP address...");
 
@@ -498,8 +499,6 @@ async fn sta_task(
                             };
 
                             let wait_for_disconnect = async {
-                                let mut controller = controller.lock().await;
-
                                 controller.wait_for_event(WifiEvent::StaDisconnected).await;
                             };
 
@@ -510,8 +509,6 @@ async fn sta_task(
 
                                     // keep pending Disconnected event to avoid a race condition
                                     controller
-                                        .lock()
-                                        .await
                                         .wait_for_events(WifiEvent::StaDisconnected.into(), false)
                                         .await;
 
