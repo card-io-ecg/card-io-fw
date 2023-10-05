@@ -390,7 +390,7 @@ async fn sta_task(
     const CONNECT_RETRY_COUNT: usize = 5;
 
     task_control
-        .run_cancellable(async {
+        .run_cancellable(|| async {
             let mut controller = controller.lock().await;
 
             'scan_and_connect: loop {

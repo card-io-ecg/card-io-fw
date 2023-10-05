@@ -135,7 +135,7 @@ async fn webserver_task(
 ) {
     info!("Started webserver task");
     task_control
-        .run_cancellable(async {
+        .run_cancellable(|| async {
             let mut resources = Box::new(WebserverResources {
                 tx_buffer: [0; 4096],
                 rx_buffer: [0; 4096],
