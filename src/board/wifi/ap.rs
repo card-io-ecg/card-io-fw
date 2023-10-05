@@ -130,8 +130,8 @@ impl ApState {
         if self.started {
             info!("Stopping AP");
             let _ = join(
-                self.connection_task_control.stop_from_outside(),
-                self.net_task_control.stop_from_outside(),
+                self.connection_task_control.stop(),
+                self.net_task_control.stop(),
             )
             .await;
 

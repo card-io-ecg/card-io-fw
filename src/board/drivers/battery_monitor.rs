@@ -98,7 +98,7 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
     }
 
     pub async fn stop(self) -> (VBUS, CHG) {
-        _ = self.signal.stop_from_outside().await;
+        _ = self.signal.stop().await;
         (self.vbus_detect, self.charger_status)
     }
 }

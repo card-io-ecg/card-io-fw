@@ -63,7 +63,7 @@ impl<R: Send> TaskController<R> {
     }
 
     /// Stops the controlled task, and returns its return value.
-    pub async fn stop_from_outside(&self) -> Result<R, Aborted> {
+    pub async fn stop(&self) -> Result<R, Aborted> {
         self.inner.stop_from_outside().await
     }
 

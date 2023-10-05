@@ -95,7 +95,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     }
 
     for control in webserver_task_control {
-        let _ = control.stop_from_outside().await;
+        let _ = control.stop().await;
     }
 
     board.disable_wifi().await;
