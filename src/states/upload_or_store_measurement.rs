@@ -4,8 +4,7 @@ use core::{
 };
 
 use alloc::{boxed::Box, vec::Vec};
-use embassy_futures::select::{select, Either};
-use embassy_time::{Duration, Timer};
+use embassy_time::Duration;
 use embedded_menu::items::NavigationItem;
 use embedded_nal_async::{Dns, TcpConnect};
 use gui::screens::create_menu;
@@ -31,6 +30,7 @@ use crate::{
         display_message,
         menu::{AppMenuBuilder, MenuScreen},
     },
+    timeout::Timeout,
     AppState, SerialNumber,
 };
 
@@ -440,31 +440,24 @@ where
 
     let headers = [("X-Timestamp", timestamp.as_str())];
 
-    let connect = select(
-        client.request(Method::POST, &upload_url),
-        Timer::after(CONNECT_TIMEOUT),
-    )
-    .await;
-
-    let mut request = match connect {
-        Either::First(Ok(request)) => request
-            .headers(&headers) // TODO
-            .body(samples),
-        Either::First(Err(e)) => {
-            warn!("HTTP connect error: {}", e);
-            return Err(());
-        }
-        Either::Second(_) => {
-            warn!("Conect timeout");
-            return Err(());
-        }
-    };
+    let mut request =
+        match Timeout::with(CONNECT_TIMEOUT, client.request(Method::POST, &upload_url)).await {
+            Some(Ok(request)) => request
+                .headers(&headers) // TODO
+                .body(samples),
+            Some(Err(e)) => {
+                warn!("HTTP connect error: {}", e);
+                return Err(());
+            }
+            _ => {
+                warn!("Conect timeout");
+                return Err(());
+            }
+        };
 
     let mut rx_buffer = [0; 512];
-    let upload = select(request.send(&mut rx_buffer), Timer::after(UPLOAD_TIMEOUT)).await;
-
-    match upload {
-        Either::First(Ok(response)) => {
+    match Timeout::with(UPLOAD_TIMEOUT, request.send(&mut rx_buffer)).await {
+        Some(Ok(response)) => {
             if [Status::Ok, Status::Created].contains(&response.status) {
                 Ok(())
             } else {
@@ -482,11 +475,11 @@ where
                 Err(())
             }
         }
-        Either::First(Err(e)) => {
+        Some(Err(e)) => {
             warn!("HTTP upload error: {}", e);
             Err(())
         }
-        Either::Second(_) => {
+        _ => {
             warn!("Timeout");
             Err(())
         }

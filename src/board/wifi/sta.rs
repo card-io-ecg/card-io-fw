@@ -8,6 +8,7 @@ use crate::{
     },
     states::display_message,
     task_control::{TaskControlToken, TaskController},
+    timeout::Timeout,
     Shared,
 };
 use alloc::{boxed::Box, rc::Rc, vec::Vec};
@@ -163,18 +164,13 @@ impl Sta {
             let _ = select(
                 async {
                     loop {
-                        let result = select(
-                            self.wait_for_state_change(),
-                            Timer::after(Duration::from_secs(10)),
-                        )
-                        .await;
+                        let result =
+                            Timeout::with(Duration::from_secs(10), self.wait_for_state_change())
+                                .await;
                         match result {
-                            Either::First(state) => {
-                                if state == ConnectionState::Connected {
-                                    break;
-                                }
-                            }
-                            Either::Second(_) => {
+                            Some(ConnectionState::Connected) => break,
+                            Some(_state) => {}
+                            _ => {
                                 debug!("State change timeout");
                                 break;
                             }

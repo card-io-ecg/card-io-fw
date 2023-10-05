@@ -1,5 +1,4 @@
-use embassy_futures::select::{select, Either};
-use embassy_time::{Duration, Instant, Timer};
+use embassy_time::{Duration, Instant};
 use embedded_io::asynch::Read;
 use reqwless::{request::Method, response::Status};
 use ufmt::uwrite;
@@ -11,6 +10,7 @@ use crate::{
     },
     human_readable::Throughput,
     states::{display_message, menu::AppMenu},
+    timeout::Timeout,
     AppState, SerialNumber,
 };
 
@@ -106,24 +106,19 @@ async fn do_update(board: &mut Board) -> UpdateResult {
 
     debug!("Looking for update at {}", url.as_str());
 
-    let connect = select(
-        client.request(Method::GET, &url),
-        Timer::after(CONNECT_TIMEOUT),
-    )
-    .await;
-
-    let mut request = match connect {
-        Either::First(Ok(request)) => request,
-        Either::First(Err(e)) => {
+    let mut request = match Timeout::with(CONNECT_TIMEOUT, client.request(Method::GET, &url)).await
+    {
+        Some(Ok(request)) => request,
+        Some(Err(e)) => {
             warn!("HTTP connect error: {}", e);
             return UpdateResult::Failed(UpdateError::HttpConnectionFailed);
         }
-        Either::Second(_) => return UpdateResult::Failed(UpdateError::HttpConnectionTimeout),
+        None => return UpdateResult::Failed(UpdateError::HttpConnectionTimeout),
     };
 
     let mut rx_buffer = [0; 512];
-    let result = match select(request.send(&mut rx_buffer), Timer::after(READ_TIMEOUT)).await {
-        Either::First(result) => result,
+    let result = match Timeout::with(READ_TIMEOUT, request.send(&mut rx_buffer)).await {
+        Some(result) => result,
         _ => return UpdateResult::Failed(UpdateError::HttpRequestTimeout),
     };
 
@@ -168,18 +163,17 @@ async fn do_update(board: &mut Board) -> UpdateResult {
     let mut last_print = Instant::now();
     let mut received_1s = 0;
     loop {
-        let received_buffer =
-            match select(reader.read(&mut buffer), Timer::after(READ_TIMEOUT)).await {
-                Either::First(result) => match result {
-                    Ok(0) => break,
-                    Ok(read) => &buffer[..read],
-                    Err(e) => {
-                        warn!("HTTP read error: {}", e);
-                        return UpdateResult::Failed(UpdateError::DownloadFailed);
-                    }
-                },
-                _ => return UpdateResult::Failed(UpdateError::DownloadTimeout),
-            };
+        let received_buffer = match Timeout::with(READ_TIMEOUT, reader.read(&mut buffer)).await {
+            Some(result) => match result {
+                Ok(0) => break,
+                Ok(read) => &buffer[..read],
+                Err(e) => {
+                    warn!("HTTP read error: {}", e);
+                    return UpdateResult::Failed(UpdateError::DownloadFailed);
+                }
+            },
+            _ => return UpdateResult::Failed(UpdateError::DownloadTimeout),
+        };
 
         if let Err(e) = ota.write(received_buffer).await {
             warn!("Failed to write OTA: {}", e);
