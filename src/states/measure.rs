@@ -1,16 +1,13 @@
-use core::ops::{Deref, DerefMut};
-
 use crate::{
     board::{
         config::types::FilterStrength,
         hal::{prelude::*, spi::Error as SpiError},
         initialized::Board,
-        EcgFrontend, PoweredEcgFrontend,
+        PoweredEcgFrontend,
     },
     replace_with::replace_with_or_abort_and_return_async,
     states::{
-        display_message_while_touched, menu::AppMenu, to_progress, INIT_MENU_THRESHOLD, INIT_TIME,
-        MIN_FRAME_TIME,
+        display_message, menu::AppMenu, to_progress, INIT_MENU_THRESHOLD, INIT_TIME, MIN_FRAME_TIME,
     },
     task_control::{TaskControlToken, TaskController},
     timeout::Timeout,
@@ -40,38 +37,14 @@ use signal_processing::{
     moving::sum::EstimatedSum,
 };
 
-type MessageQueue = Channel<CriticalSectionRawMutex, Message, 32>;
+type MessageQueue = Channel<CriticalSectionRawMutex, Sample, 32>;
 
-struct SharedFrontend(Box<PoweredEcgFrontend>);
-unsafe impl Send for SharedFrontend {} // SAFETY: yolo
-impl SharedFrontend {
-    pub fn new(frontend: PoweredEcgFrontend) -> Self {
-        Self(Box::new(frontend))
-    }
-
-    pub async fn shut_down(self) -> EcgFrontend {
-        self.0.shut_down().await
-    }
-}
-impl Deref for SharedFrontend {
-    type Target = PoweredEcgFrontend;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-impl DerefMut for SharedFrontend {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-enum Message {
-    Sample(Sample),
-}
+// FIXME: avoid this allow
+#[allow(suspicious_auto_trait_impls)] // SAFETY: yolo
+unsafe impl Send for PoweredEcgFrontend {}
 
 struct EcgTaskParams {
-    token: TaskControlToken<Result<(), Error<SpiError>>, SharedFrontend>,
+    token: TaskControlToken<Result<(), Error<SpiError>>, PoweredEcgFrontend>,
     sender: Arc<MessageQueue>,
 }
 
@@ -158,11 +131,10 @@ async fn measure_impl(
     mut ecg_buffer: Option<Box<CompressingBuffer<ECG_BUFFER_SIZE>>>,
 ) -> (AppState, Board) {
     let mut frontend = match board.frontend.enable_async().await {
-        Ok(frontend) => SharedFrontend::new(frontend),
+        Ok(frontend) => frontend,
         Err((fe, _err)) => {
             board.frontend = fe;
-
-            display_message_while_touched(&mut board, "ADC error").await;
+            display_message(&mut board, "ADC error").await;
 
             return (AppState::Shutdown, board);
         }
@@ -178,7 +150,7 @@ async fn measure_impl(
 
         Err(_e) => {
             board.frontend = frontend.shut_down().await;
-            display_message_while_touched(&mut board, "ADC error").await;
+            display_message(&mut board, "ADC error").await;
 
             return (AppState::Shutdown, board);
         }
@@ -221,28 +193,24 @@ async fn measure_impl(
 
     while !task_control.has_exited() && !board.battery_monitor.is_low() {
         let display_full = screen.content.buffer_full();
-        while let Ok(message) = queue.try_recv() {
-            match message {
-                Message::Sample(sample) => {
-                    samples += 1;
+        while let Ok(sample) = queue.try_recv() {
+            samples += 1;
 
-                    if drop_samples == 0 {
-                        if let Some(ecg_buffer) = ecg_buffer.as_deref_mut() {
-                            ecg_buffer.push(sample.raw());
-                        }
-                        if let Some(filtered) = ecg.filter.update(sample.voltage()) {
-                            if let Some(filtered) = ecg.hr_noise_filter.update(filtered) {
-                                ecg.heart_rate_calculator.update(filtered);
-                            }
+            if drop_samples == 0 {
+                if let Some(ecg_buffer) = ecg_buffer.as_deref_mut() {
+                    ecg_buffer.push(sample.raw());
+                }
+                if let Some(filtered) = ecg.filter.update(sample.voltage()) {
+                    if let Some(filtered) = ecg.hr_noise_filter.update(filtered) {
+                        ecg.heart_rate_calculator.update(filtered);
+                    }
 
-                            if let Some(downsampled) = ecg.downsampler.update(filtered) {
-                                screen.content.push(downsampled);
-                            }
-                        }
-                    } else {
-                        drop_samples -= 1;
+                    if let Some(downsampled) = ecg.downsampler.update(filtered) {
+                        screen.content.push(downsampled);
                     }
                 }
+            } else {
+                drop_samples -= 1;
             }
         }
 
@@ -350,10 +318,7 @@ async fn read_ecg(
                     return Ok(());
                 }
 
-                if queue
-                    .try_send(Message::Sample(sample.ch1_sample()))
-                    .is_err()
-                {
+                if queue.try_send(sample.ch1_sample()).is_err() {
                     warn!("Sample lost");
                 }
             }
