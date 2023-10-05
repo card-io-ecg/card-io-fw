@@ -188,12 +188,12 @@ impl Sta {
     /// Allocates resources for an [`HttpClient`].
     pub fn http_client_resources(&self) -> Result<HttpClientResources<'_>, AllocError> {
         // The client state must be heap allocated, because we take a reference to it.
-        let tcp_client_state = Box::try_new(BufferedTcpClientState::new())?;
+        let tcp_client_state = Box::try_new(TcpClientState::new())?;
         let client_state = unsafe { addr_of!(*tcp_client_state).as_ref().unwrap() };
 
         Ok(HttpClientResources {
             _resources: tcp_client_state,
-            tcp_client: BufferedTcpClient::new(&self.stack, client_state),
+            tcp_client: TcpClient::new(&self.stack, client_state),
             dns_client: DnsSocket::new(&self.stack),
         })
     }
@@ -202,7 +202,7 @@ impl Sta {
     pub fn https_client_resources(&self) -> Result<HttpsClientResources<'_>, AllocError> {
         // The client state must be heap allocated, because we take a reference to it.
         let resources = Box::try_new(TlsClientState {
-            tcp_state: UnbufferedTcpClientState::new(),
+            tcp_state: TcpClientState::new(),
             tls_read_buffer: [0; TLS_READ_BUFFER],
             tls_write_buffer: [0; TLS_WRITE_BUFFER],
         })?;
@@ -210,7 +210,7 @@ impl Sta {
 
         Ok(HttpsClientResources {
             resources,
-            tcp_client: UnbufferedTcpClient::new(&self.stack, client_state),
+            tcp_client: TcpClient::new(&self.stack, client_state),
             dns_client: DnsSocket::new(&self.stack),
             rng: self.rng,
         })
@@ -220,21 +220,9 @@ impl Sta {
 const SOCKET_COUNT: usize = 1;
 const SOCKET_TX_BUFFER: usize = 4096;
 const SOCKET_RX_BUFFER: usize = 4096;
-const HTTP_WRITE_BUFFER: usize = 1024;
 
 const TLS_READ_BUFFER: usize = 16 * 1024 + 256;
 const TLS_WRITE_BUFFER: usize = 4096;
-
-type TcpClientState =
-    BufferedTcpClientState<SOCKET_COUNT, SOCKET_TX_BUFFER, SOCKET_RX_BUFFER, HTTP_WRITE_BUFFER>;
-type TcpClient<'a> = BufferedTcpClient<
-    'a,
-    WifiDevice<'static>,
-    SOCKET_COUNT,
-    SOCKET_TX_BUFFER,
-    SOCKET_RX_BUFFER,
-    HTTP_WRITE_BUFFER,
->;
 
 pub struct HttpClientResources<'a> {
     _resources: Box<TcpClientState>,
@@ -248,9 +236,9 @@ impl<'a> HttpClientResources<'a> {
     }
 }
 
-type UnbufferedTcpClientState =
+type TcpClientState =
     embassy_net::tcp::client::TcpClientState<SOCKET_COUNT, SOCKET_TX_BUFFER, SOCKET_RX_BUFFER>;
-type UnbufferedTcpClient<'a> = embassy_net::tcp::client::TcpClient<
+type TcpClient<'a> = embassy_net::tcp::client::TcpClient<
     'a,
     WifiDevice<'static>,
     SOCKET_COUNT,
@@ -259,22 +247,20 @@ type UnbufferedTcpClient<'a> = embassy_net::tcp::client::TcpClient<
 >;
 
 struct TlsClientState {
-    tcp_state: UnbufferedTcpClientState,
+    tcp_state: TcpClientState,
     tls_read_buffer: [u8; TLS_READ_BUFFER], // must be 16K
     tls_write_buffer: [u8; TLS_WRITE_BUFFER],
 }
 
 pub struct HttpsClientResources<'a> {
     resources: Box<TlsClientState>,
-    tcp_client: UnbufferedTcpClient<'a>,
+    tcp_client: TcpClient<'a>,
     dns_client: DnsSocket<'a, WifiDevice<'static>>,
     rng: Rng,
 }
 
 impl<'a> HttpsClientResources<'a> {
-    pub fn client(
-        &mut self,
-    ) -> HttpClient<'_, UnbufferedTcpClient<'a>, DnsSocket<'a, WifiDevice<'static>>> {
+    pub fn client(&mut self) -> HttpClient<'_, TcpClient<'a>, DnsSocket<'a, WifiDevice<'static>>> {
         let upper = self.rng.random() as u64;
         let lower = self.rng.random() as u64;
         let seed = (upper << 32) | lower;
