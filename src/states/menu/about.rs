@@ -4,9 +4,7 @@ use crate::{
     AppState, SerialNumber,
 };
 
-use alloc::format;
-#[cfg(feature = "battery_max17055")]
-use alloc::string::String;
+use alloc::{borrow::Cow, format};
 use embedded_menu::items::NavigationItem;
 use gui::screens::create_menu;
 use ufmt::uwrite;
@@ -39,25 +37,25 @@ impl MenuScreen for AboutAppMenu {
         let mut serial = heapless::String::<12>::new();
         unwrap!(uwrite!(&mut serial, "{}", SerialNumber::new()));
 
-        let mut hw_version = heapless::String::<16>::new();
-        unwrap!(uwrite!(&mut hw_version, "ESP32-S3/{}", env!("HW_VERSION")));
-
         let mut items = heapless::Vec::<_, 5>::new();
         items.extend([
-            list_item(format!("FW {:>17}", env!("FW_VERSION"))),
-            list_item(format!("HW {:>17}", hw_version)),
-            NavigationItem::new(format!("Serial  {}", serial), AboutMenuEvents::ToSerial),
-            list_item(match board.frontend.device_id() {
+            list_item(Cow::from(env!("FW_VERSION_MENU_ITEM"))),
+            list_item(Cow::from(env!("HW_VERSION_MENU_ITEM"))),
+            NavigationItem::new(
+                Cow::from(format!("Serial  {}", serial)),
+                AboutMenuEvents::ToSerial,
+            ),
+            list_item(Cow::from(match board.frontend.device_id() {
                 Some(id) => format!("ADC {:>16}", format!("{id:?}")),
                 None => format!("ADC          Unknown"),
-            }),
+            })),
         ]);
 
         #[cfg(feature = "battery_max17055")]
         {
             unwrap!(items
                 .push(
-                    NavigationItem::new(String::from("Fuel gauge"), AboutMenuEvents::ToBatteryInfo)
+                    NavigationItem::new(Cow::from("Fuel gauge"), AboutMenuEvents::ToBatteryInfo)
                         .with_marker("MAX17055")
                 )
                 .ok());
