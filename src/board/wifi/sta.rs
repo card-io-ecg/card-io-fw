@@ -382,6 +382,14 @@ impl StaState {
             self.started = true;
         }
 
+        self.handle_unchecked()
+    }
+
+    pub(crate) fn handle(&self) -> Option<Sta> {
+        self.started.then_some(self.handle_unchecked())
+    }
+
+    fn handle_unchecked(&self) -> Sta {
         Sta {
             stack: self.stack.clone(),
             networks: self.networks.clone(),
@@ -389,16 +397,6 @@ impl StaState {
             state: self.state.clone(),
             rng: self.rng,
         }
-    }
-
-    pub(crate) fn handle(&self) -> Option<Sta> {
-        self.started.then_some(Sta {
-            stack: self.stack.clone(),
-            networks: self.networks.clone(),
-            known_networks: self.known_networks.clone(),
-            state: self.state.clone(),
-            rng: self.rng,
-        })
     }
 }
 

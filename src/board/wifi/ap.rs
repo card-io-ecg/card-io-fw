@@ -123,10 +123,7 @@ impl ApState {
             self.started = true;
         }
 
-        Ap {
-            stack: self.stack.clone(),
-            client_count: self.client_count.clone(),
-        }
+        self.handle_unchecked()
     }
 
     pub(super) async fn stop(&mut self) {
@@ -153,10 +150,14 @@ impl ApState {
     }
 
     pub(crate) fn handle(&self) -> Option<Ap> {
-        self.started.then_some(Ap {
+        self.started.then_some(self.handle_unchecked())
+    }
+
+    fn handle_unchecked(&self) -> Ap {
+        Ap {
             stack: self.stack.clone(),
             client_count: self.client_count.clone(),
-        })
+        }
     }
 }
 
