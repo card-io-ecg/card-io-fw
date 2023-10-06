@@ -29,15 +29,19 @@ where
         Self { fg, enable }
     }
 
-    pub async fn enable<D: DelayUs>(&mut self, delay: &mut D) {
-        unwrap!(self.enable.set_high().ok());
+    pub async fn enable<D: DelayUs>(&mut self, delay: &mut D) -> Result<(), ()> {
+        self.enable.set_high().map_err(|_| ())?;
         delay.delay_ms(10).await;
-        unwrap!(self.fg.load_initial_config_async(delay).await.ok());
+        self.fg
+            .load_initial_config_async(delay)
+            .await
+            .map_err(|_| ())?;
+        Ok(())
     }
 
     pub async fn read_data(&mut self) -> Result<BatteryFgData, ()> {
-        let voltage_uv = unwrap!(self.fg.read_vcell().await.ok());
-        let percentage = unwrap!(self.fg.read_reported_soc().await.ok());
+        let voltage_uv = self.fg.read_vcell().await.map_err(|_| ())?;
+        let percentage = self.fg.read_reported_soc().await.map_err(|_| ())?;
 
         Ok(BatteryFgData {
             voltage: (voltage_uv / 1000) as u16, // mV
@@ -63,18 +67,20 @@ pub async fn monitor_task_fg(
             let mut timer = Ticker::every(Duration::from_secs(1));
             info!("Fuel gauge monitor started");
 
-            fuel_gauge.lock().await.enable(&mut Delay).await;
+            if fuel_gauge.lock().await.enable(&mut Delay).await.is_ok() {
+                loop {
+                    if let Ok(data) = fuel_gauge.lock().await.read_data().await {
+                        let mut state = battery_state.lock().await;
+                        state.data = Some(data);
+                        debug!("Battery data: {:?}", data);
+                    } else {
+                        error!("Failed to read battery data");
+                    }
 
-            loop {
-                let data = unwrap!(fuel_gauge.lock().await.read_data().await);
-
-                {
-                    let mut state = battery_state.lock().await;
-                    state.data = Some(data);
+                    timer.next().await;
                 }
-                debug!("Battery data: {:?}", data);
-
-                timer.next().await;
+            } else {
+                error!("Failed to enable fuel gauge");
             }
         })
         .await;
