@@ -128,12 +128,13 @@ pub mod adaptation_blocking {
     #[allow(unused_imports)]
     use crate::compat::*;
 
-    pub trait AdaptationBlockingTrait: Default {
+    pub trait AdaptationBlockingTrait {
+        fn new(fs: f32) -> Self;
         fn update(&mut self, sample: f32) -> Option<(f32, bool)>;
         fn clear(&mut self);
     }
 
-    #[derive(Default, Clone)]
+    #[derive(Clone)]
     pub struct NoAdaptationBlocking;
 
     #[derive(Default, Clone)]
@@ -148,6 +149,9 @@ pub mod adaptation_blocking {
     }
 
     impl AdaptationBlockingTrait for NoAdaptationBlocking {
+        fn new(_fs: f32) -> Self {
+            Self
+        }
         fn update(&mut self, sample: f32) -> Option<(f32, bool)> {
             Some((sample, false))
         }
@@ -158,6 +162,12 @@ pub mod adaptation_blocking {
     where
         V: MovingSum + Default,
     {
+        fn new(_fs: f32) -> Self {
+            Self {
+                ..Default::default()
+            }
+        }
+
         fn update(&mut self, sample: f32) -> Option<(f32, bool)> {
             let delayed_sample = self.delay.push(sample);
             let comb_filtered = self.comb_filter.update(sample)?;
@@ -237,7 +247,7 @@ where
         Self {
             consts: Constants::new(1000.0),
             cores: frequencies.map(|f| FilterCore::new(1000.0, f, SIGNATURE_FILTER)),
-            adaptation_blocking: ADB::default(),
+            adaptation_blocking: ADB::new(1000.0),
             error_filter: ERROR_FILTER,
             sample_idx: 0,
         }
@@ -257,7 +267,7 @@ where
         Self {
             consts: Constants::new(fs),
             cores: frequencies.map(|f| FilterCore::new(fs, f, DynIir::design(fs, f))),
-            adaptation_blocking: ADB::default(),
+            adaptation_blocking: ADB::new(fs),
             error_filter: DynIir::design(fs, 50.0),
             sample_idx: 0,
         }
