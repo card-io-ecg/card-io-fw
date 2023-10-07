@@ -7,22 +7,24 @@ pub struct Sum<const N: usize> {
 }
 
 pub trait MovingSum {
-    const WINDOW_SIZE: usize;
-
     fn new() -> Self;
+    fn window_size(&self) -> usize;
     fn clear(&mut self);
     fn update(&mut self, sample: f32) -> Option<f32>;
 }
 
 impl<const N: usize> MovingSum for Sum<N> {
-    const WINDOW_SIZE: usize = N;
-
     #[inline(always)]
     fn new() -> Self {
         Self {
             window: SlidingWindow::new(),
             current: 0.0,
         }
+    }
+
+    #[inline(always)]
+    fn window_size(&self) -> usize {
+        N
     }
 
     fn clear(&mut self) {
@@ -47,14 +49,17 @@ pub struct EstimatedSum<const N: usize> {
 }
 
 impl<const N: usize> MovingSum for EstimatedSum<N> {
-    const WINDOW_SIZE: usize = N;
-
     #[inline(always)]
     fn new() -> Self {
         Self {
             current: 0.0,
             samples: 0,
         }
+    }
+
+    #[inline(always)]
+    fn window_size(&self) -> usize {
+        N
     }
 
     fn clear(&mut self) {

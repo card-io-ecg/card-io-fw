@@ -15,6 +15,7 @@ impl<S: MovingSum> MovingAverage<S> {
     }
 
     pub fn update(&mut self, sample: f32) -> Option<f32> {
-        self.sum.update(sample / (S::WINDOW_SIZE as f32))
+        let window_size = self.sum.window_size() as f32;
+        self.sum.update(sample / window_size)
     }
 }
