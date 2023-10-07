@@ -1,7 +1,6 @@
 use crate::moving::sum::MovingSum;
 
 pub trait MovingVariance {
-    fn new() -> Self;
     fn window_size(&self) -> usize;
     fn clear(&mut self);
     fn update(&mut self, sample: f32) -> Option<f32>;
@@ -12,12 +11,14 @@ pub struct MovingVarianceOfErgodic<S: MovingSum> {
     sum: S,
 }
 
-impl<S: MovingSum> MovingVariance for MovingVarianceOfErgodic<S> {
+impl<S: MovingSum> MovingVarianceOfErgodic<S> {
     #[inline(always)]
-    fn new() -> Self {
-        Self { sum: S::new() }
+    pub fn new(sum: S) -> Self {
+        Self { sum }
     }
+}
 
+impl<S: MovingSum> MovingVariance for MovingVarianceOfErgodic<S> {
     #[inline(always)]
     fn window_size(&self) -> usize {
         self.sum.window_size()

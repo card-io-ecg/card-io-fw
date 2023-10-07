@@ -6,8 +6,8 @@ pub struct MovingAverage<S: MovingSum> {
 }
 
 impl<S: MovingSum> MovingAverage<S> {
-    pub fn new() -> Self {
-        Self { sum: S::new() }
+    pub fn new(sum: S) -> Self {
+        Self { sum }
     }
 
     pub fn clear(&mut self) {

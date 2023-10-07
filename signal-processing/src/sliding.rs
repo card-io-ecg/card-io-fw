@@ -73,6 +73,10 @@ impl AllocSlidingWindow {
         self.write_idx = 0;
     }
 
+    pub fn capacity(&self) -> usize {
+        self.buffer.len()
+    }
+
     pub fn len(&self) -> usize {
         self.count
     }
@@ -82,7 +86,7 @@ impl AllocSlidingWindow {
     }
 
     pub fn is_full(&self) -> bool {
-        self.len() == self.buffer.len()
+        self.len() == self.capacity()
     }
 
     pub fn push(&mut self, sample: f32) -> Option<f32> {
