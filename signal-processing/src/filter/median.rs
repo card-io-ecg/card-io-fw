@@ -40,7 +40,7 @@ impl<const N: usize> Filter for MedianFilter<N> {
         self.buffer.push(sample);
 
         if self.buffer.is_full() {
-            let mut iter = self.buffer.iter();
+            let mut iter = self.buffer.iter_unordered();
 
             let mut copy: [f32; N] = [0.0; N];
             copy.fill_with(|| unwrap!(iter.next()));

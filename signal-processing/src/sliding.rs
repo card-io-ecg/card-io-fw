@@ -4,7 +4,7 @@ use crate::buffer::Buffer;
 
 #[derive(Clone)]
 pub struct SlidingWindow<const N: usize> {
-    buffer: Buffer<f32, N>,
+    buffer: Buffer<f32, N, false>,
 }
 
 impl<const N: usize> Default for SlidingWindow<N> {
@@ -46,6 +46,10 @@ impl<const N: usize> SlidingWindow<N> {
 
     pub fn iter(&self) -> impl Iterator<Item = f32> + Clone + '_ {
         self.buffer.iter()
+    }
+
+    pub fn iter_unordered(&self) -> impl Iterator<Item = f32> + Clone + '_ {
+        self.buffer.iter_unordered()
     }
 }
 

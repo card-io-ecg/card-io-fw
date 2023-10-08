@@ -82,7 +82,7 @@ pub struct CompressingBuffer<const N: usize> {
     writer: EkgFormat,
     element_count: usize,
 
-    buffer: Buffer<u8, N>,
+    buffer: Buffer<u8, N, true>,
 }
 
 impl<const N: usize> CompressingBuffer<N> {

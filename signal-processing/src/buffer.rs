@@ -2,19 +2,19 @@ use core::{convert::Infallible, mem::MaybeUninit, ops::Range};
 
 use embedded_io::{blocking::Read, Io};
 
-pub struct Buffer<T: Copy, const N: usize> {
+pub struct Buffer<T: Copy, const N: usize, const POP: bool> {
     write_idx: usize,
     count: usize,
     buffer: [MaybeUninit<T>; N],
 }
 
-impl<T: Copy, const N: usize> Default for Buffer<T, N> {
+impl<T: Copy, const N: usize, const POP: bool> Default for Buffer<T, N, POP> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T: Copy, const N: usize> Clone for Buffer<T, N> {
+impl<T: Copy, const N: usize, const POP: bool> Clone for Buffer<T, N, POP> {
     fn clone(&self) -> Self {
         Self {
             write_idx: self.write_idx,
@@ -24,7 +24,7 @@ impl<T: Copy, const N: usize> Clone for Buffer<T, N> {
     }
 }
 
-impl<T: Copy, const N: usize> Buffer<T, N> {
+impl<T: Copy, const N: usize, const POP: bool> Buffer<T, N, POP> {
     pub const EMPTY: Self = Self::new();
 
     pub const fn new() -> Self {
@@ -72,16 +72,6 @@ impl<T: Copy, const N: usize> Buffer<T, N> {
 
     fn read_index(&self) -> usize {
         (self.write_idx + N - self.count) % N
-    }
-
-    pub fn pop(&mut self) -> Option<T> {
-        if self.is_empty() {
-            None
-        } else {
-            let old_byte = self.buffer[self.read_index()];
-            self.count -= 1;
-            Some(unsafe { old_byte.assume_init() })
-        }
     }
 
     fn slice_idxs(&self) -> (Range<usize>, Range<usize>) {
@@ -194,11 +184,29 @@ impl<T: Copy, const N: usize> Buffer<T, N> {
     }
 }
 
-impl<T: Copy, const N: usize> Io for Buffer<T, N> {
+impl<T: Copy, const N: usize> Buffer<T, N, false> {
+    pub fn iter_unordered(&self) -> impl Iterator<Item = T> + Clone + '_ {
+        (0..self.count).map(|i| unsafe { self.buffer[i].assume_init() })
+    }
+}
+
+impl<T: Copy, const N: usize> Buffer<T, N, true> {
+    pub fn pop(&mut self) -> Option<T> {
+        if self.is_empty() {
+            None
+        } else {
+            let old_byte = self.buffer[self.read_index()];
+            self.count -= 1;
+            Some(unsafe { old_byte.assume_init() })
+        }
+    }
+}
+
+impl<T: Copy, const N: usize> Io for Buffer<T, N, true> {
     type Error = Infallible;
 }
 
-impl<const N: usize> Read for Buffer<u8, N> {
+impl<const N: usize> Read for Buffer<u8, N, true> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         let mut written = 0;
         while written < buf.len() {
@@ -218,19 +226,19 @@ impl<const N: usize> Read for Buffer<u8, N> {
 mod test {
     #[test]
     fn new_buffer_is_empty() {
-        let buffer = super::Buffer::<u8, 4>::new();
+        let buffer = super::Buffer::<u8, 4, true>::new();
         assert!(buffer.is_empty());
     }
 
     #[test]
     fn pop_returns_none_if_empty() {
-        let mut buffer = super::Buffer::<u8, 4>::new();
+        let mut buffer = super::Buffer::<u8, 4, true>::new();
         assert_eq!(buffer.pop(), None);
     }
 
     #[test]
     fn push_increases_len() {
-        let mut buffer = super::Buffer::<u8, 4>::new();
+        let mut buffer = super::Buffer::<u8, 4, true>::new();
         let old = buffer.push(1);
         assert_eq!(buffer.len(), 1);
         assert_eq!(old, None);
@@ -238,7 +246,7 @@ mod test {
 
     #[test]
     fn push_into_full_does_not_increase_length() {
-        let mut buffer = super::Buffer::<u8, 4>::new();
+        let mut buffer = super::Buffer::<u8, 4, true>::new();
         buffer.push(1);
         buffer.push(2);
         buffer.push(3);
@@ -250,7 +258,7 @@ mod test {
 
     #[test]
     fn iter_returns_items_in_insertion_order() {
-        let mut buffer = super::Buffer::<u8, 4>::new();
+        let mut buffer = super::Buffer::<u8, 4, true>::new();
         buffer.push(1);
         buffer.push(2);
         buffer.push(3);
@@ -261,7 +269,7 @@ mod test {
 
     #[test]
     fn iter_returns_items_in_insertion_order2() {
-        let mut buffer = super::Buffer::<u8, 4>::new();
+        let mut buffer = super::Buffer::<u8, 4, true>::new();
         buffer.push(1);
         buffer.push(2);
         buffer.push(3);
@@ -274,7 +282,7 @@ mod test {
 
     #[test]
     fn pop_removes_and_returns_oldest() {
-        let mut buffer = super::Buffer::<u8, 4>::new();
+        let mut buffer = super::Buffer::<u8, 4, true>::new();
         buffer.push(1);
         buffer.push(2);
         buffer.push(3);
@@ -294,7 +302,7 @@ mod test {
 
     #[test]
     fn iter_does_not_return_popped() {
-        let mut buffer = super::Buffer::<u8, 4>::new();
+        let mut buffer = super::Buffer::<u8, 4, true>::new();
         buffer.push(1);
         buffer.push(2);
         buffer.push(3);
@@ -310,7 +318,7 @@ mod test {
 
     #[test]
     fn make_contiguous_rearranges_internal_buffer_1() {
-        let mut buffer = super::Buffer::<u8, 5>::new();
+        let mut buffer = super::Buffer::<u8, 5, true>::new();
         buffer.push(1);
         buffer.push(2);
         buffer.push(3);
@@ -337,7 +345,7 @@ mod test {
 
     #[test]
     fn make_contiguous_rearranges_internal_buffer_2() {
-        let mut buffer = super::Buffer::<u8, 5>::new();
+        let mut buffer = super::Buffer::<u8, 5, true>::new();
         buffer.push(1);
         buffer.push(2);
         buffer.push(3);
@@ -362,7 +370,7 @@ mod test {
 
     #[test]
     fn make_contiguous_rearranges_internal_buffer_3() {
-        let mut buffer = super::Buffer::<u8, 6>::new();
+        let mut buffer = super::Buffer::<u8, 6, true>::new();
         buffer.push(1);
         buffer.push(2);
         buffer.push(3);
@@ -389,7 +397,7 @@ mod test {
 
     #[test]
     fn make_contiguous_rearranges_internal_buffer_4() {
-        let mut buffer = super::Buffer::<u8, 6>::new();
+        let mut buffer = super::Buffer::<u8, 6, true>::new();
         buffer.push(1);
         buffer.push(2);
         buffer.push(3);
