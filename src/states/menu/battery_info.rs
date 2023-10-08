@@ -39,23 +39,29 @@ impl MenuScreen for BatteryInfoMenu {
 
         let mut sensor = board.battery_monitor.sensor().await;
 
-        let voltage = unwrap!(sensor.fg.read_vcell().await.ok());
-        list_item(format!("Voltage {:>10}mV", voltage / 1000));
+        if let Ok(voltage) = sensor.fg.read_vcell().await {
+            list_item(format!("Voltage {:>10}mV", voltage / 1000));
+        }
 
-        let current = unwrap!(sensor.fg.read_current().await.ok());
-        list_item(format!("Current {:>10}mA", current / 1000));
+        if let Ok(current) = sensor.fg.read_current().await {
+            list_item(format!("Current {:>10}mA", current / 1000));
+        }
 
-        let capacity = unwrap!(sensor.fg.read_design_capacity().await.ok());
-        list_item(format!("Nominal {:>9}mAh", capacity / 1000));
+        if let Ok(capacity) = sensor.fg.read_design_capacity().await {
+            list_item(format!("Nominal {:>9}mAh", capacity / 1000));
+        }
 
-        let capacity = unwrap!(sensor.fg.read_reported_capacity().await.ok());
-        list_item(format!("Capacity {:>8}mAh", capacity / 1000));
+        if let Ok(capacity) = sensor.fg.read_reported_capacity().await {
+            list_item(format!("Capacity {:>8}mAh", capacity / 1000));
+        }
 
-        let age = unwrap!(sensor.fg.read_cell_age().await.ok());
-        list_item(format!("Cell age {:>10}%", age));
+        if let Ok(age) = sensor.fg.read_cell_age().await {
+            list_item(format!("Cell age {:>10}%", age));
+        }
 
-        let charge_cycles = unwrap!(sensor.fg.read_charge_cycles().await.ok());
-        list_item(format!("Charge cycles {:>6}", charge_cycles));
+        if let Ok(charge_cycles) = sensor.fg.read_charge_cycles().await {
+            list_item(format!("Charge cycles {:>6}", charge_cycles));
+        }
 
         create_menu("Battery info")
             .add_items(items)
