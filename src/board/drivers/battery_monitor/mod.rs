@@ -2,7 +2,7 @@ use crate::{task_control::TaskController, Shared, SharedGuard};
 use alloc::rc::Rc;
 use embassy_sync::mutex::Mutex;
 use embedded_hal::digital::InputPin;
-use gui::screens::BatteryInfo;
+use gui::screens::{BatteryInfo, ChargingState};
 
 #[cfg(feature = "battery_adc")]
 pub mod battery_adc;
@@ -87,6 +87,14 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
             .map(|data| self.convert_battery_data(data))
     }
 
+    pub fn charging_state(&self) -> ChargingState {
+        match (self.is_plugged(), self.is_charging()) {
+            (_, true) => ChargingState::Charging,
+            (true, false) => ChargingState::Plugged,
+            (false, false) => ChargingState::Discharging,
+        }
+    }
+
     pub fn is_plugged(&self) -> bool {
         unwrap!(self.vbus_detect.is_high().ok())
     }
@@ -132,7 +140,7 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
 
         BatteryInfo {
             voltage: data.voltage,
-            is_charging: self.is_charging(),
+            charging_state: self.charging_state(),
             percentage,
             is_low: percentage < LOW_BATTERY_PERCENTAGE,
         }
@@ -144,7 +152,7 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
     pub fn convert_battery_data(&self, data: BatteryData) -> BatteryInfo {
         BatteryInfo {
             voltage: data.voltage,
-            is_charging: self.is_charging(),
+            charging_state: self.charging_state(),
             percentage: data.percentage,
             is_low: data.percentage < LOW_BATTERY_PERCENTAGE,
         }

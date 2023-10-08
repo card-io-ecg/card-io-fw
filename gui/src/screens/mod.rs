@@ -60,9 +60,30 @@ pub const NORMAL_TEXT: MonoTextStyle<'static, BinaryColor> =
     MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
 
 #[derive(Clone, Copy, PartialEq)]
+pub enum ChargingState {
+    Discharging,
+    Plugged,
+    Charging,
+}
+
+#[derive(Clone, Copy, PartialEq)]
 pub struct BatteryInfo {
     pub voltage: u16,
     pub percentage: u8,
-    pub is_charging: bool,
+    pub charging_state: ChargingState,
     pub is_low: bool,
+}
+
+impl BatteryInfo {
+    pub fn is_charging(&self) -> bool {
+        self.charging_state == ChargingState::Charging
+    }
+
+    pub fn is_discharging(&self) -> bool {
+        self.charging_state == ChargingState::Discharging
+    }
+
+    pub fn is_plugged(&self) -> bool {
+        self.charging_state != ChargingState::Discharging
+    }
 }

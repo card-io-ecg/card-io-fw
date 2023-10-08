@@ -121,7 +121,7 @@ impl Board {
     pub fn can_enable_wifi(&mut self) -> bool {
         self.battery_monitor
             .battery_data()
-            .map(|battery| battery.percentage > 50 || battery.is_charging)
+            .map(|battery| battery.percentage > 50 || battery.is_charging())
             .unwrap_or(false)
     }
 

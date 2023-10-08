@@ -2,7 +2,7 @@ use embedded_graphics::{
     geometry::AnchorPoint,
     image::{Image, ImageRaw},
     pixelcolor::BinaryColor,
-    prelude::{DrawTarget, DrawTargetExt, Point, Size},
+    prelude::{DrawTarget, DrawTargetExt, OriginDimensions, Point, Size},
     primitives::{Line, Primitive, PrimitiveStyle, Rectangle},
     text::{renderer::TextRenderer, Alignment, Baseline, Text, TextStyleBuilder},
     Drawable,
@@ -13,7 +13,7 @@ use embedded_menu::items::select::SelectValue;
 use norfs::storable::{LoadError, Loadable, Storable};
 use ufmt::uwrite;
 
-use crate::screens::{BatteryInfo, NORMAL_TEXT};
+use crate::screens::{BatteryInfo, ChargingState, NORMAL_TEXT};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BatteryStyle {
@@ -97,25 +97,48 @@ impl BatteryStyle {
         &self,
         target: &mut D,
         battery_data_width: u32,
+        state: ChargingState,
     ) -> Result<(), D::Error> {
-        #[rustfmt::skip]
         #[allow(clippy::unusual_byte_groupings)]
-        const DATA: &[u8] = &[
-            0b010100_00,
-            0b010100_00,
-            0b111110_00,
-            0b011100_00,
-            0b011100_00,
-            0b001000_00,
-            0b001000_00,
-            0b010000_00,
-        ];
-        const IMAGE_WIDTH: u32 = 6;
-        let raw_image = ImageRaw::<BinaryColor>::new(DATA, IMAGE_WIDTH);
+        const PLUGGED_IMAGE: ImageRaw<'_, BinaryColor> = ImageRaw::<BinaryColor>::new(
+            &[
+                0b010100_00,
+                0b010100_00,
+                0b111110_00,
+                0b011100_00,
+                0b011100_00,
+                0b001000_00,
+                0b001000_00,
+                0b010000_00,
+            ],
+            6,
+        );
+        #[allow(clippy::unusual_byte_groupings)]
+        const CHARGING_IMAGE: ImageRaw<'_, BinaryColor> = ImageRaw::<BinaryColor>::new(
+            &[
+                0b000000_00,
+                0b000100_00,
+                0b001000_00,
+                0b011000_00,
+                0b001100_00,
+                0b001000_00,
+                0b010000_00,
+                0b000000_00,
+            ],
+            6,
+        );
+
+        let raw_image = match state {
+            ChargingState::Discharging => return Ok(()),
+            ChargingState::Plugged => &PLUGGED_IMAGE,
+            ChargingState::Charging => &CHARGING_IMAGE,
+        };
+
         let image = Image::new(
-            &raw_image,
+            raw_image,
             Point::new(
-                (target.bounding_box().size.width - battery_data_width - IMAGE_WIDTH) as i32,
+                (target.bounding_box().size.width - battery_data_width - raw_image.size().width)
+                    as i32,
                 0,
             ),
         );
@@ -141,7 +164,7 @@ impl BatteryStyle {
 
                 self.draw_text(target, &string)?
             }
-            BatteryStyle::LowIndicator if !data.is_charging => {
+            BatteryStyle::LowIndicator if !data.is_charging() => {
                 if data.percentage < 25 {
                     let top_right = target.bounding_box().anchor_point(AnchorPoint::TopRight);
                     let box_top_left = self.draw_battery_outline(target, top_right)?;
@@ -177,9 +200,7 @@ impl BatteryStyle {
             }
         };
 
-        if data.is_charging {
-            self.draw_charging_indicator(target, battery_data_width)?;
-        }
+        self.draw_charging_indicator(target, battery_data_width, data.charging_state)?;
 
         Ok(())
     }
