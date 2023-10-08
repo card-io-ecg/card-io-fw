@@ -257,11 +257,9 @@ async fn measure_impl(
                     }
                     .draw(display)
                 } else {
-                    if let Some(hr) = ecg.heart_rate_calculator.current_hr() {
-                        screen.content.update_heart_rate(hr);
-                    } else {
-                        screen.content.clear_heart_rate();
-                    }
+                    screen
+                        .content
+                        .update_heart_rate(ecg.heart_rate_calculator.current_hr());
                     screen.content.elapsed_secs = entered.elapsed().as_secs() as usize;
 
                     screen.status_bar = status_bar;

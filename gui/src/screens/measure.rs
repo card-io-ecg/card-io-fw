@@ -151,12 +151,8 @@ impl EcgScreen {
         (min, max)
     }
 
-    pub fn update_heart_rate(&mut self, hr: u8) {
-        self.heart_rate = NonZeroU8::new(hr);
-    }
-
-    pub fn clear_heart_rate(&mut self) {
-        self.heart_rate = None;
+    pub fn update_heart_rate(&mut self, hr: Option<NonZeroU8>) {
+        self.heart_rate = hr;
     }
 }
 

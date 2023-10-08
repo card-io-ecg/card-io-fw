@@ -1,3 +1,5 @@
+use core::num::NonZeroU8;
+
 use crate::{
     filter::{median::MedianFilter, Filter},
     sliding::SlidingWindow,
@@ -12,7 +14,7 @@ use crate::compat::*;
 
 pub enum State {
     Init(usize),
-    Measure(usize, usize),
+    Measure(u32, usize),
 }
 
 pub struct HeartRateCalculator<FMW, FB> {
@@ -24,7 +26,7 @@ pub struct HeartRateCalculator<FMW, FB> {
     qrs_detector: QrsDetector<FMW, FB>,
     differentiator: SlidingWindow<2>,
     state: State,
-    current_hr: Option<u8>,
+    current_hr: Option<NonZeroU8>,
     is_beat: bool,
 }
 
@@ -96,7 +98,6 @@ where
             }
             State::Init(n) => {
                 if let Some(idx) = self.qrs_detector.update(complex_lead) {
-                    let idx = idx as usize;
                     self.is_beat = true;
                     State::Measure(idx, self.max_age)
                 } else {
@@ -106,11 +107,10 @@ where
 
             State::Measure(prev_idx, age) => {
                 if let Some(idx) = self.qrs_detector.update(complex_lead) {
-                    let idx = idx as usize;
                     let raw = self.fs.s_to_samples(60.0) as f32 / (idx - prev_idx) as f32;
                     let hr = self.median.update(raw).unwrap_or(raw);
 
-                    self.current_hr = Some(hr as u8);
+                    self.current_hr = NonZeroU8::new(hr as u8);
                     self.is_beat = true;
                     State::Measure(idx, self.max_age)
                 } else if age > 0 {
@@ -131,7 +131,7 @@ where
     }
 
     #[inline]
-    pub fn current_hr(&self) -> Option<u8> {
+    pub fn current_hr(&self) -> Option<NonZeroU8> {
         self.current_hr
     }
 
