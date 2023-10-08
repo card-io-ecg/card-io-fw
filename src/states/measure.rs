@@ -189,9 +189,9 @@ async fn measure_impl(
     let mut debug_print_timer = Timeout::new(Duration::from_secs(1));
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
-    let exit_timer = Timeout::new_with_start(INIT_TIME, Instant::now() - INIT_MENU_THRESHOLD);
     let mut drop_samples = 1500; // Slight delay for the input to settle
     let mut entered = Instant::now();
+    let exit_timer = Timeout::new_with_start(INIT_TIME, entered - INIT_MENU_THRESHOLD);
 
     while !task_control.has_exited() && !board.battery_monitor.is_low() {
         let display_full = screen.content.buffer_full();
@@ -225,13 +225,6 @@ async fn measure_impl(
             }
         }
 
-        if let Some(hr) = ecg.heart_rate_calculator.current_hr() {
-            screen.content.update_heart_rate(hr);
-        } else {
-            screen.content.clear_heart_rate();
-        }
-        screen.content.elapsed_secs = entered.elapsed().as_secs() as usize;
-
         if debug_print_timer.is_elapsed() {
             debug!(
                 "Collected {} samples in {}ms",
@@ -264,6 +257,13 @@ async fn measure_impl(
                     }
                     .draw(display)
                 } else {
+                    if let Some(hr) = ecg.heart_rate_calculator.current_hr() {
+                        screen.content.update_heart_rate(hr);
+                    } else {
+                        screen.content.clear_heart_rate();
+                    }
+                    screen.content.elapsed_secs = entered.elapsed().as_secs() as usize;
+
                     screen.status_bar = status_bar;
                     screen.draw(display)
                 }
