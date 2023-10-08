@@ -71,16 +71,18 @@ impl Default for DownSampler {
 }
 
 impl Filter for DownSampler {
+    #[inline]
     fn clear(&mut self) {
         self.filter.clear();
         self.output_next = false;
     }
 
+    #[inline]
     fn update(&mut self, sample: f32) -> Option<f32> {
         let filtered = self.filter.update(sample)?;
 
         let output = self.output_next;
-        self.output_next = !self.output_next;
+        self.output_next = !output;
 
         if output {
             Some(filtered)
