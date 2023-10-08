@@ -89,38 +89,40 @@ where
         };
 
         let complex_lead = (sample - old_sample).abs();
+        let detection = self.qrs_detector.update(complex_lead);
+
+        // TODO: separate state and age to simplify this:
 
         self.is_beat = false;
-        self.state = match self.state {
-            State::Init(0) => {
-                self.clear();
-                return Some(complex_lead);
-            }
+        match self.state {
             State::Init(n) => {
-                if let Some(idx) = self.qrs_detector.update(complex_lead) {
+                if let Some(idx) = detection {
                     self.is_beat = true;
-                    State::Measure(idx, self.max_age)
+
+                    self.state = State::Measure(idx, self.max_age);
+                } else if n > 0 {
+                    self.state = State::Init(n - 1);
                 } else {
-                    State::Init(n - 1)
+                    self.clear();
                 }
             }
 
             State::Measure(prev_idx, age) => {
-                if let Some(idx) = self.qrs_detector.update(complex_lead) {
+                if let Some(idx) = detection {
                     let raw = self.fs.s_to_samples(60.0) as f32 / (idx - prev_idx) as f32;
                     let hr = self.median.update(raw).unwrap_or(raw);
 
                     self.current_hr = NonZeroU8::new(hr as u8);
                     self.is_beat = true;
-                    State::Measure(idx, self.max_age)
+
+                    self.state = State::Measure(idx, self.max_age);
                 } else if age > 0 {
-                    State::Measure(prev_idx, age - 1)
+                    self.state = State::Measure(prev_idx, age - 1);
                 } else {
                     self.clear();
-                    return Some(complex_lead);
                 }
             }
-        };
+        }
 
         Some(complex_lead)
     }
