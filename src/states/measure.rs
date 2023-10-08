@@ -112,6 +112,8 @@ pub async fn measure(board: &mut Board) -> AppState {
             "SampleRate", 1000
         ),
     };
+
+    // We allocate two different objects because the filters don't need to outlive this app state.
     let ecg_buffer = Box::try_new(CompressingBuffer::EMPTY).ok();
     let mut ecg = Box::new(EcgObjects::new(filter));
 
@@ -240,31 +242,33 @@ async fn measure_impl(
             debug_print_timer.reset();
         }
 
-        let battery_data = board.battery_monitor.battery_data();
         let status_bar = StatusBar {
-            battery: Battery::with_style(battery_data, board.config.battery_style()),
+            battery: Battery::with_style(
+                board.battery_monitor.battery_data(),
+                board.config.battery_style(),
+            ),
             wifi: WifiStateView::disabled(),
         };
 
-        if !exit_timer.is_elapsed() {
-            let init_screen = Screen {
-                content: StartupScreen {
-                    label: "Release to menu",
-                    progress: to_progress(exit_timer.elapsed(), INIT_TIME),
-                },
+        board
+            .display
+            .frame(|display| {
+                if !exit_timer.is_elapsed() {
+                    Screen {
+                        content: StartupScreen {
+                            label: "Release to menu",
+                            progress: to_progress(exit_timer.elapsed(), INIT_TIME),
+                        },
 
-                status_bar,
-            };
-
-            board
-                .display
-                .frame(|display| init_screen.draw(display))
-                .await;
-        } else {
-            screen.status_bar = status_bar;
-
-            board.display.frame(|display| screen.draw(display)).await;
-        }
+                        status_bar,
+                    }
+                    .draw(display)
+                } else {
+                    screen.status_bar = status_bar;
+                    screen.draw(display)
+                }
+            })
+            .await;
 
         ticker.next().await;
     }
