@@ -15,6 +15,72 @@ use ufmt::uwrite;
 
 use crate::screens::{BatteryInfo, ChargingState, NORMAL_TEXT};
 
+fn draw_image_right_aligned<D>(
+    target: &mut D,
+    raw_image: &ImageRaw<'_, BinaryColor>,
+    top_right: Point,
+) -> Result<Point, <D as DrawTarget>::Error>
+where
+    D: DrawTarget<Color = BinaryColor>,
+{
+    let top_left = top_right - Point::new(raw_image.size().width as i32, 0);
+    Image::new(raw_image, top_left).draw(target)?;
+
+    Ok(top_left)
+}
+
+struct ChargingIndicator {
+    state: ChargingState,
+    top_right: Point,
+}
+
+impl Drawable for ChargingIndicator {
+    type Color = BinaryColor;
+    type Output = Point;
+
+    fn draw<D>(&self, target: &mut D) -> Result<Self::Output, D::Error>
+    where
+        D: DrawTarget<Color = Self::Color>,
+    {
+        #[allow(clippy::unusual_byte_groupings)]
+        const PLUGGED_IMAGE: ImageRaw<'_, BinaryColor> = ImageRaw::new(
+            &[
+                0b010100_00,
+                0b010100_00,
+                0b111110_00,
+                0b011100_00,
+                0b011100_00,
+                0b001000_00,
+                0b001000_00,
+                0b010000_00,
+            ],
+            6,
+        );
+        #[allow(clippy::unusual_byte_groupings)]
+        const CHARGING_IMAGE: ImageRaw<'_, BinaryColor> = ImageRaw::new(
+            &[
+                0b000000_00,
+                0b000100_00,
+                0b001000_00,
+                0b011000_00,
+                0b001100_00,
+                0b001000_00,
+                0b010000_00,
+                0b000000_00,
+            ],
+            6,
+        );
+
+        let raw_image = match self.state {
+            ChargingState::Discharging => return Ok(self.top_right),
+            ChargingState::Plugged => &PLUGGED_IMAGE,
+            ChargingState::Charging => &CHARGING_IMAGE,
+        };
+
+        draw_image_right_aligned(target, raw_image, self.top_right)
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BatteryStyle {
     MilliVolts,
@@ -49,25 +115,22 @@ impl BatteryStyle {
     ) -> Result<Point, D::Error> {
         #[rustfmt::skip]
         #[allow(clippy::unusual_byte_groupings)]
-        const DATA: &[u8] = &[
-            0b00000000, 0b00000_000,
-            0b11111111, 0b11110_000,
-            0b10000000, 0b00010_000,
-            0b10000000, 0b00011_000,
-            0b10000000, 0b00011_000,
-            0b10000000, 0b00011_000,
-            0b10000000, 0b00010_000,
-            0b11111111, 0b11110_000,
-            0b00000000, 0b00000_000,
-        ];
-        const IMAGE_WIDTH: u32 = 13;
+        const BATTERY_OUTLINE: ImageRaw<'_, BinaryColor> = ImageRaw::new(
+            &[
+                0b00000000, 0b00000_000,
+                0b11111111, 0b11110_000,
+                0b10000000, 0b00010_000,
+                0b10000000, 0b00011_000,
+                0b10000000, 0b00011_000,
+                0b10000000, 0b00011_000,
+                0b10000000, 0b00010_000,
+                0b11111111, 0b11110_000,
+                0b00000000, 0b00000_000,
+            ],
+            13
+        );
 
-        let top_left = top_right - Point::new(IMAGE_WIDTH as i32 - 1, 0);
-
-        let raw_image = ImageRaw::<BinaryColor>::new(DATA, IMAGE_WIDTH);
-        Image::new(&raw_image, top_left).draw(target)?;
-
-        Ok(top_left)
+        draw_image_right_aligned(target, &BATTERY_OUTLINE, top_right)
     }
 
     fn draw_text<D: DrawTarget<Color = BinaryColor>>(
@@ -91,58 +154,6 @@ impl BatteryStyle {
             .bounding_box
             .size
             .width)
-    }
-
-    fn draw_charging_indicator<D: DrawTarget<Color = BinaryColor>>(
-        &self,
-        target: &mut D,
-        battery_data_width: u32,
-        state: ChargingState,
-    ) -> Result<(), D::Error> {
-        #[allow(clippy::unusual_byte_groupings)]
-        const PLUGGED_IMAGE: ImageRaw<'_, BinaryColor> = ImageRaw::<BinaryColor>::new(
-            &[
-                0b010100_00,
-                0b010100_00,
-                0b111110_00,
-                0b011100_00,
-                0b011100_00,
-                0b001000_00,
-                0b001000_00,
-                0b010000_00,
-            ],
-            6,
-        );
-        #[allow(clippy::unusual_byte_groupings)]
-        const CHARGING_IMAGE: ImageRaw<'_, BinaryColor> = ImageRaw::<BinaryColor>::new(
-            &[
-                0b000000_00,
-                0b000100_00,
-                0b001000_00,
-                0b011000_00,
-                0b001100_00,
-                0b001000_00,
-                0b010000_00,
-                0b000000_00,
-            ],
-            6,
-        );
-
-        let raw_image = match state {
-            ChargingState::Discharging => return Ok(()),
-            ChargingState::Plugged => &PLUGGED_IMAGE,
-            ChargingState::Charging => &CHARGING_IMAGE,
-        };
-
-        let image = Image::new(
-            raw_image,
-            Point::new(
-                (target.bounding_box().size.width - battery_data_width - raw_image.size().width)
-                    as i32,
-                0,
-            ),
-        );
-        image.draw(target)
     }
 
     fn draw<D: DrawTarget<Color = BinaryColor>>(
@@ -200,7 +211,14 @@ impl BatteryStyle {
             }
         };
 
-        self.draw_charging_indicator(target, battery_data_width, data.charging_state)?;
+        ChargingIndicator {
+            state: data.charging_state,
+            top_right: Point::new(
+                (target.bounding_box().size.width - battery_data_width) as i32,
+                0,
+            ),
+        }
+        .draw(target)?;
 
         Ok(())
     }
