@@ -199,6 +199,7 @@ defmt = [
     "norfs/defmt",
     "embedded-io/defmt",
     "embedded-svc/defmt",
+    "embedded-graphics/defmt",
     "esp-println/defmt",
     "esp-wifi/defmt",
     "esp32s3-hal/defmt",
