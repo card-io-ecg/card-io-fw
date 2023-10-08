@@ -1,6 +1,5 @@
 use crate::widgets::status_bar::StatusBar;
 use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
-use embedded_layout::prelude::{horizontal, vertical, Align};
 
 /// Screen that has a status bar.
 pub struct Screen<C>
@@ -24,10 +23,7 @@ where
         D: DrawTarget<Color = Self::Color>,
     {
         self.content.draw(display)?;
-
-        self.status_bar
-            .align_to(&display.bounding_box(), horizontal::Right, vertical::Top)
-            .draw(display)?;
+        self.status_bar.draw(display)?;
 
         Ok(())
     }
