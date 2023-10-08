@@ -261,6 +261,18 @@ fn asm() -> AnyResult<()> {
     .stdout_path("target/asm.s")
     .run()?;
 
+    cmd!(
+        "xtensa-esp32s3-elf-nm",
+        "./target/xtensa-esp32s3-none-elf/release/card_io_fw",
+        "-S",
+        "--size-sort",
+    )
+    .stdout_path("target/syms.txt")
+    .run()?;
+
+    cmd!("rustfilt", "-i=target/asm.s", "-o=target/asm_filt.s").run()?;
+    cmd!("rustfilt", "-i=target/syms.txt", "-o=target/syms_filt.txt").run()?;
+
     println!("🛠️  Assembly saved to target/asm.s");
 
     Ok(())
