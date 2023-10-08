@@ -168,6 +168,7 @@ macro_rules! define_register_type {
     }) => {
         #[derive(PartialEq, Copy, Clone, Debug)]
         #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        #[cfg_attr(feature = "ufmt-impl", derive(ufmt::derive::uDebug))]
         pub enum $type {
             $(
                 $(#[$variant_attr])*

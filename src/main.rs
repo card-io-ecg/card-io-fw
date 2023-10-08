@@ -81,7 +81,7 @@ use crate::{
 
 mod board;
 mod heap;
-mod human_readable;
+pub mod human_readable;
 mod replace_with;
 mod sleep;
 mod stack_protection;
@@ -111,8 +111,7 @@ impl ufmt::uDisplay for SerialNumber {
 
 impl core::fmt::Display for SerialNumber {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let mut serial = heapless::String::<12>::new();
-        unwrap!(ufmt::uwrite!(&mut serial, "{}", self));
+        let serial = uformat!(12, "{}", self);
         f.write_str(&serial)
     }
 }

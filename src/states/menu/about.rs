@@ -1,10 +1,10 @@
 use crate::{
     board::initialized::Board,
+    human_readable::LeftPadAny,
     states::menu::{AppMenu, AppMenuBuilder, MenuScreen},
-    AppState, SerialNumber,
+    uformat, AppState, SerialNumber,
 };
 
-use alloc::{borrow::Cow, format};
 use embedded_menu::items::NavigationItem;
 use gui::screens::create_menu;
 
@@ -35,23 +35,23 @@ impl MenuScreen for AboutAppMenu {
 
         let mut items = heapless::Vec::<_, 5>::new();
         items.extend([
-            list_item(Cow::from(env!("FW_VERSION_MENU_ITEM"))),
-            list_item(Cow::from(env!("HW_VERSION_MENU_ITEM"))),
+            list_item(uformat!(20, "{}", env!("FW_VERSION_MENU_ITEM"))),
+            list_item(uformat!(20, "{}", env!("HW_VERSION_MENU_ITEM"))),
             NavigationItem::new(
-                Cow::from(format!("Serial  {}", SerialNumber)),
+                uformat!(20, "Serial  {}", SerialNumber),
                 AboutMenuEvents::ToSerial,
             ),
-            list_item(Cow::from(match board.frontend.device_id() {
-                Some(id) => format!("ADC {:>16}", format!("{id:?}")),
-                None => format!("ADC          Unknown"),
-            })),
+            list_item(match board.frontend.device_id() {
+                Some(id) => uformat!(20, "ADC {:?}", LeftPadAny(16, id)),
+                None => uformat!(20, "ADC          Unknown"),
+            }),
         ]);
 
         #[cfg(feature = "battery_max17055")]
         {
             unwrap!(items
                 .push(
-                    NavigationItem::new(Cow::from("Fuel gauge"), AboutMenuEvents::ToBatteryInfo)
+                    NavigationItem::new(uformat!(20, "Fuel gauge"), AboutMenuEvents::ToBatteryInfo)
                         .with_marker("MAX17055")
                 )
                 .ok());

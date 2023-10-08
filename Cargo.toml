@@ -103,8 +103,8 @@ register-access = { path = "register-access" }
 gui = { path = "gui" }
 macros = { path = "macros" }
 embassy-alloc-taskpool = { path = "embassy-alloc-taskpool" }
-ads129x = { path = "ads129x" }
-max17055 = { path = "max17055", optional = true }
+ads129x = { path = "ads129x", features = ["ufmt-impl"] }
+max17055 = { path = "max17055", optional = true, features = ["ufmt-impl"] }
 signal-processing = { workspace = true }
 replace_with = { version = "0.1", default-features = false, features = [
     "nightly",

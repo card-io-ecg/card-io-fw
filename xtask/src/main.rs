@@ -270,6 +270,9 @@ fn asm() -> AnyResult<()> {
     .stdout_path("target/syms.txt")
     .run()?;
 
+    std::fs::remove_file("target/asm_filt.s").ok();
+    std::fs::remove_file("target/syms_filt.txt").ok();
+
     cmd!("rustfilt", "-i=target/asm.s", "-o=target/asm_filt.s").run()?;
     cmd!("rustfilt", "-i=target/syms.txt", "-o=target/syms_filt.txt").run()?;
 

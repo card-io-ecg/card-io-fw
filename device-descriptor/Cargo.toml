@@ -7,7 +7,9 @@ edition = "2021"
 
 [dependencies]
 defmt = { workspace = true, optional = true }
+ufmt = { workspace = true, optional = true }
 
 [features]
 default = []
 defmt = ["dep:defmt"]
+ufmt-impl = ["dep:ufmt"]

@@ -1,9 +1,9 @@
 use crate::{
     board::initialized::Board,
+    human_readable::LeftPad,
     states::menu::{AppMenu, AppMenuBuilder, MenuScreen},
-    AppState,
+    uformat, AppState,
 };
-use alloc::format;
 use embassy_time::Duration;
 use embedded_menu::items::NavigationItem;
 use gui::screens::create_menu;
@@ -40,27 +40,39 @@ impl MenuScreen for BatteryInfoMenu {
         let mut sensor = board.battery_monitor.sensor().await;
 
         if let Ok(voltage) = sensor.fg.read_vcell().await {
-            list_item(format!("Voltage {:>10}mV", voltage / 1000));
+            list_item(uformat!(
+                20,
+                "Voltage {}mV",
+                LeftPad(10, voltage as i32 / 1000)
+            ));
         }
 
         if let Ok(current) = sensor.fg.read_current().await {
-            list_item(format!("Current {:>10}mA", current / 1000));
+            list_item(uformat!(
+                20,
+                "Current {}mA",
+                LeftPad(10, current as i32 / 1000)
+            ));
         }
 
-        if let Ok(capacity) = sensor.fg.read_design_capacity().await {
-            list_item(format!("Nominal {:>9}mAh", capacity / 1000));
+        if let Ok(cap) = sensor.fg.read_design_capacity().await {
+            list_item(uformat!(20, "Nominal {}mAh", LeftPad(9, cap as i32 / 1000)));
         }
 
-        if let Ok(capacity) = sensor.fg.read_reported_capacity().await {
-            list_item(format!("Capacity {:>8}mAh", capacity / 1000));
+        if let Ok(cap) = sensor.fg.read_reported_capacity().await {
+            list_item(uformat!(
+                20,
+                "Capacity {}mAh",
+                LeftPad(8, cap as i32 / 1000)
+            ));
         }
 
         if let Ok(age) = sensor.fg.read_cell_age().await {
-            list_item(format!("Cell age {:>10}%", age));
+            list_item(uformat!(20, "Cell age {}%", LeftPad(10, age as i32)));
         }
 
-        if let Ok(charge_cycles) = sensor.fg.read_charge_cycles().await {
-            list_item(format!("Charge cycles {:>6}", charge_cycles));
+        if let Ok(cycles) = sensor.fg.read_charge_cycles().await {
+            list_item(uformat!(20, "Charge cycles {}", LeftPad(6, cycles as i32)));
         }
 
         create_menu("Battery info")
