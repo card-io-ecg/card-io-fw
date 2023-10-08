@@ -1,4 +1,4 @@
-use core::num::NonZeroU8;
+use core::num::{NonZeroU32, NonZeroU8};
 
 use crate::{
     filter::{median::MedianFilter, Filter},
@@ -12,11 +12,6 @@ pub use qrs_detector::{
 #[allow(unused_imports)]
 use crate::compat::*;
 
-pub enum State {
-    Init(usize),
-    Measure(u32, usize),
-}
-
 pub struct HeartRateCalculator<FMW, FB> {
     fs: SamplingFrequency,
     max_age: usize,
@@ -25,9 +20,10 @@ pub struct HeartRateCalculator<FMW, FB> {
     median: MedianFilter<3>,
     qrs_detector: QrsDetector<FMW, FB>,
     differentiator: SlidingWindow<2>,
-    state: State,
+    prev_detection: Option<NonZeroU32>,
     current_hr: Option<NonZeroU8>,
     is_beat: bool,
+    age: usize,
 }
 
 impl HeartRateCalculator<(), ()> {
@@ -68,9 +64,10 @@ where
             median: MedianFilter::new(),
             qrs_detector,
             differentiator: SlidingWindow::new(),
-            state: State::Init(max_init),
+            prev_detection: None,
             current_hr: None,
             is_beat: false,
+            age: max_init,
         }
     }
 
@@ -78,9 +75,10 @@ where
         self.median.clear();
         self.qrs_detector.clear();
         self.differentiator.clear();
-        self.state = State::Init(self.max_init);
+        self.prev_detection = None;
         self.current_hr = None;
         self.is_beat = false;
+        self.age = self.max_init;
     }
 
     pub fn update(&mut self, sample: f32) -> Option<f32> {
@@ -89,39 +87,23 @@ where
         };
 
         let complex_lead = (sample - old_sample).abs();
-        let detection = self.qrs_detector.update(complex_lead);
 
-        // TODO: separate state and age to simplify this:
+        if let Some(idx) = self.qrs_detector.update(complex_lead) {
+            if let Some(prev_idx) = self.prev_detection {
+                let raw = self.fs.s_to_samples(60.0) as f32 / (idx - prev_idx.get()) as f32;
+                let hr = self.median.update(raw).unwrap_or(raw);
 
-        self.is_beat = false;
-        match self.state {
-            State::Init(n) => {
-                if let Some(idx) = detection {
-                    self.is_beat = true;
-
-                    self.state = State::Measure(idx, self.max_age);
-                } else if n > 0 {
-                    self.state = State::Init(n - 1);
-                } else {
-                    self.clear();
-                }
+                self.current_hr = NonZeroU8::new(hr as u8);
             }
 
-            State::Measure(prev_idx, age) => {
-                if let Some(idx) = detection {
-                    let raw = self.fs.s_to_samples(60.0) as f32 / (idx - prev_idx) as f32;
-                    let hr = self.median.update(raw).unwrap_or(raw);
-
-                    self.current_hr = NonZeroU8::new(hr as u8);
-                    self.is_beat = true;
-
-                    self.state = State::Measure(idx, self.max_age);
-                } else if age > 0 {
-                    self.state = State::Measure(prev_idx, age - 1);
-                } else {
-                    self.clear();
-                }
-            }
+            self.is_beat = true;
+            self.prev_detection = NonZeroU32::new(idx);
+            self.age = self.max_age;
+        } else if self.age > 0 {
+            self.is_beat = false;
+            self.age -= 1;
+        } else {
+            self.clear();
         }
 
         Some(complex_lead)
