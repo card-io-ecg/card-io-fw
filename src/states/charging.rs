@@ -31,7 +31,7 @@ pub async fn charging(board: &mut Board) -> AppState {
             exit_timer.reset();
         }
 
-        if charging_screen.update_touched(board.frontend.is_touched()) {
+        if charging_screen.update_touched(input.is_touched()) {
             return AppState::Menu(AppMenu::Main);
         }
 
