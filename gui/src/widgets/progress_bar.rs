@@ -5,12 +5,12 @@ use embedded_graphics::{
     pixelcolor::BinaryColor,
     prelude::{DrawTarget, Point, Size},
     primitives::{Primitive, PrimitiveStyle, Rectangle},
+    text::Text,
     Drawable,
 };
-use embedded_text::TextBox;
 
 use crate::{
-    screens::{CENTERED_TEXTBOX, NORMAL_TEXT},
+    screens::{CENTERED_TEXT, NORMAL_TEXT},
     utils::BinaryColorDrawTargetExt,
 };
 
@@ -31,6 +31,7 @@ impl Drawable for ProgressBar<'_> {
         const FILL_STYLE: PrimitiveStyle<BinaryColor> = PrimitiveStyle::with_fill(BinaryColor::On);
 
         let progress_border = Rectangle::new(Point::new(0, 51), Size::new(128, 13));
+        let text_center = progress_border.anchor_point(AnchorPoint::Center);
         let filler_area = progress_border.offset(-2); // 1px gap between border and fill
 
         let max_progress = self.max_progress.get();
@@ -51,9 +52,7 @@ impl Drawable for ProgressBar<'_> {
         // of the progress bar with one draw call
         let mut draw_area = display.invert_area(&progress_filler);
 
-        // using embedded-text because I'm lazy to position the label vertically
-        TextBox::with_textbox_style(self.label, progress_border, NORMAL_TEXT, CENTERED_TEXTBOX)
-            .set_vertical_offset(1) // Slight adjustment
+        Text::with_text_style(self.label, text_center, NORMAL_TEXT, CENTERED_TEXT)
             .draw(&mut draw_area)?;
 
         Ok(())

@@ -4,6 +4,7 @@ use embedded_graphics::{
         MonoTextStyle,
     },
     pixelcolor::BinaryColor,
+    text::{Alignment, Baseline, TextStyle, TextStyleBuilder},
 };
 use embedded_menu::{
     builder::MenuBuilder,
@@ -58,6 +59,11 @@ pub const BOTTOM_CENTERED_TEXTBOX: TextBoxStyle = TextBoxStyleBuilder::new()
 
 pub const NORMAL_TEXT: MonoTextStyle<'static, BinaryColor> =
     MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
+
+pub const CENTERED_TEXT: TextStyle = TextStyleBuilder::new()
+    .alignment(Alignment::Center)
+    .baseline(Baseline::Middle)
+    .build();
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum ChargingState {
