@@ -112,13 +112,19 @@ impl Slot {
         }
     }
 
-    fn current(seq0: u32, seq1: u32) -> Option<Slot> {
-        if seq0 == 0xffffffff && seq1 == 0xffffffff {
-            None
-        } else if seq0 == 0xffffffff || seq1 > seq0 {
-            Some(Slot::Ota1)
-        } else {
-            Some(Slot::Ota0)
+    fn current(seq0: u32, seq1: u32) -> Slot {
+        debug!("seq0: {} seq1: {}", seq0, seq1);
+        match (seq0, seq1) {
+            // If nothing is programmed, assume we're running from the first partition
+            (_, u32::MAX) => Slot::Ota0,
+            (u32::MAX, _) => Slot::Ota1,
+            (seq0, seq1) => {
+                if seq0 > seq1 {
+                    Slot::Ota0
+                } else {
+                    Slot::Ota1
+                }
+            }
         }
     }
 
@@ -152,14 +158,12 @@ where
         })
     }
 
-    fn app_slot(&self) -> Option<Slot> {
+    fn app_slot(&self) -> Slot {
         Slot::current(self.slot0.ota_seq, self.slot1.ota_seq)
     }
 
     fn update_slot(&self) -> Slot {
-        self.app_slot()
-            .map(|slot| slot.next())
-            .unwrap_or(Slot::Ota0)
+        self.app_slot().next()
     }
 
     fn next_sequence_count(&self) -> u32 {
