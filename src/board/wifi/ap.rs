@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, rc::Rc};
+use alloc::rc::Rc;
 use core::sync::atomic::{AtomicU32, Ordering};
 use gui::widgets::wifi::WifiState;
 
@@ -89,8 +89,6 @@ impl ApState {
         let net_task_control = TaskController::new();
         let client_count = Rc::new(AtomicU32::new(0));
 
-        let controller = Box::new(controller);
-
         let connection_task_control =
             TaskController::from_resources(ApTaskResources { controller });
 
@@ -151,7 +149,7 @@ impl ApState {
 }
 
 struct ApTaskResources {
-    controller: Box<WifiController<'static>>,
+    controller: WifiController<'static>,
 }
 
 #[cardio::task]

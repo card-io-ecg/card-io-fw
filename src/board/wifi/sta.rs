@@ -289,8 +289,6 @@ impl StaState {
         let state = Rc::new(State::new(InternalConnectionState::NotConnected));
         let net_task_control = TaskController::new();
 
-        let controller = Box::new(controller);
-
         let connection_task_control =
             TaskController::from_resources(StaTaskResources { controller });
 
@@ -349,7 +347,7 @@ impl StaState {
 }
 
 struct StaTaskResources {
-    controller: Box<WifiController<'static>>,
+    controller: WifiController<'static>,
 }
 
 #[cardio::task]
