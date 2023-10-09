@@ -141,39 +141,23 @@ impl WifiDriverState {
     async fn uninit_mode(&mut self) {
         match self {
             WifiDriverState::Sta(sta) => {
-                {
-                    let sta = unsafe {
-                        // Preinit is only called immediately before initialization, which means we
-                        // immediate initialize MaybeUninit data. This in turn means that we can't
-                        // have uninitialized data in preinit that was created before calling this
-                        // function.
-                        sta.assume_init_mut()
-                    };
-                    sta.stop().await;
+                unsafe {
+                    // Preinit is only called immediately before initialization, which means we
+                    // immediate initialize MaybeUninit data. This in turn means that we can't
+                    // have uninitialized data in preinit that was created before calling this
+                    // function.
+                    *self = Self::Initialized(sta.assume_init_read().stop().await);
                 }
-
-                *self = Self::Initialized(unsafe {
-                    // Safety: same as above
-                    sta.assume_init_read().unwrap()
-                });
             }
 
             WifiDriverState::Ap(ap) => {
-                {
-                    let ap = unsafe {
-                        // Preinit is only called immediately before initialization, which means we
-                        // immediate initialize MaybeUninit data. This in turn means that we can't
-                        // have uninitialized data in preinit that was created before calling this
-                        // function.
-                        ap.assume_init_mut()
-                    };
-                    ap.stop().await;
+                unsafe {
+                    // Preinit is only called immediately before initialization, which means we
+                    // immediate initialize MaybeUninit data. This in turn means that we can't
+                    // have uninitialized data in preinit that was created before calling this
+                    // function.
+                    *self = Self::Initialized(ap.assume_init_read().stop().await);
                 }
-
-                *self = Self::Initialized(unsafe {
-                    // Safety: same as above
-                    ap.assume_init_read().unwrap()
-                });
             }
 
             _ => {}
@@ -241,7 +225,7 @@ impl WifiDriver {
             return None;
         }
 
-        self.state.uninit_mode().await;
+        self.stop_if().await;
 
         let WifiDriverState::Initialized(init) = self.state.replace_with(mode) else {
             unsafe { unreachable_unchecked() }

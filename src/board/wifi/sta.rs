@@ -300,27 +300,6 @@ impl StaState {
         }
     }
 
-    pub(super) fn unwrap(self) -> EspWifiInitialization {
-        self.init
-    }
-
-    pub(super) async fn stop(&mut self) {
-        if let Some(task_control) = self.connection_task_control.take() {
-            info!("Stopping STA");
-
-            let _ = join(task_control.stop(), self.net_task_control.stop()).await;
-
-            let mut controller = task_control.unwrap().controller;
-            if matches!(controller.is_started(), Ok(true)) {
-                unwrap!(controller.stop().await);
-            }
-
-            info!("Stopped STA");
-
-            self.controller = Some(controller);
-        }
-    }
-
     pub(super) async fn start(&mut self) -> Sta {
         if let Some(controller) = self.controller.take() {
             info!("Starting STA");
@@ -345,6 +324,22 @@ impl StaState {
         }
 
         self.handle_unchecked()
+    }
+
+    pub(super) async fn stop(self) -> EspWifiInitialization {
+        if let Some(task_control) = self.connection_task_control {
+            info!("Stopping STA");
+
+            let _ = join(task_control.stop(), self.net_task_control.stop()).await;
+
+            let mut controller = task_control.unwrap().controller;
+            if matches!(controller.is_started(), Ok(true)) {
+                unwrap!(controller.stop().await);
+            }
+
+            info!("Stopped STA");
+        }
+        self.init
     }
 
     pub(crate) fn handle(&self) -> Option<Sta> {

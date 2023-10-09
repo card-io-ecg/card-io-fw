@@ -93,10 +93,6 @@ impl ApState {
         }
     }
 
-    pub(super) fn unwrap(self) -> EspWifiInitialization {
-        self.init
-    }
-
     pub(super) async fn start(&mut self) -> Ap {
         if let Some(controller) = self.controller.take() {
             info!("Starting AP");
@@ -115,8 +111,8 @@ impl ApState {
         self.handle_unchecked()
     }
 
-    pub(super) async fn stop(&mut self) {
-        if let Some(task_control) = self.connection_task_control.take() {
+    pub(super) async fn stop(self) -> EspWifiInitialization {
+        if let Some(task_control) = self.connection_task_control {
             info!("Stopping AP");
             let _ = join(task_control.stop(), self.net_task_control.stop()).await;
 
@@ -125,10 +121,9 @@ impl ApState {
                 unwrap!(controller.stop().await);
             }
 
-            self.controller = Some(controller);
-
             info!("Stopped AP");
         }
+        self.init
     }
 
     pub(super) fn is_running(&self) -> bool {
