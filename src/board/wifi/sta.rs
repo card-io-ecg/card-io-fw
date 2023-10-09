@@ -4,7 +4,7 @@ use crate::{
     board::{
         hal::{radio::Wifi, Rng},
         initialized::Board,
-        wifi::{net_task, STACK_SOCKET_COUNT},
+        wifi::{net_task, StackWrapper},
     },
     states::display_message,
     task_control::{TaskControlToken, TaskController},
@@ -18,7 +18,7 @@ use embassy_futures::{
     join::join,
     select::{select, Either},
 };
-use embassy_net::{dns::DnsSocket, Config, Stack, StackResources};
+use embassy_net::{dns::DnsSocket, Config};
 use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
     mutex::{Mutex, MutexGuard},
@@ -124,7 +124,7 @@ impl From<InternalConnectionState> for ConnectionState {
 
 #[derive(Clone)]
 pub struct Sta {
-    stack: Rc<Stack<WifiDevice<'static>>>,
+    stack: Rc<StackWrapper>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
     state: Rc<State>,
@@ -267,7 +267,7 @@ impl<'a> HttpsClientResources<'a> {
 pub(super) struct StaState {
     init: EspWifiInitialization,
     controller: Option<Box<WifiController<'static>>>,
-    stack: Rc<Stack<WifiDevice<'static>>>,
+    stack: Rc<StackWrapper>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
     state: Rc<State>,
@@ -281,23 +281,17 @@ impl StaState {
         init: EspWifiInitialization,
         config: Config,
         wifi: &'static mut Wifi,
-        resources: &'static mut StackResources<STACK_SOCKET_COUNT>,
-        mut rng: Rng,
+        rng: Rng,
     ) -> Self {
         info!("Configuring STA");
 
         let (wifi_interface, controller) =
             unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Sta));
 
-        let lower = rng.random() as u64;
-        let upper = rng.random() as u64;
-
-        let random_seed = upper << 32 | lower;
-
         Self {
             init,
             controller: Some(Box::new(controller)),
-            stack: Rc::new(Stack::new(wifi_interface, config, resources, random_seed)),
+            stack: Rc::new(StackWrapper::new(wifi_interface, config, rng)),
             networks: Rc::new(Mutex::new(heapless::Vec::new())),
             known_networks: Rc::new(Mutex::new(Vec::new())),
             state: Rc::new(State::new(InternalConnectionState::NotConnected)),
@@ -380,7 +374,7 @@ async fn sta_task(
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
     state: Rc<State>,
-    stack: Rc<Stack<WifiDevice<'static>>>,
+    stack: Rc<StackWrapper>,
     mut task_control: TaskControlToken<(), StaTaskResources>,
 ) {
     const SCAN_PERIOD: Duration = Duration::from_secs(5);

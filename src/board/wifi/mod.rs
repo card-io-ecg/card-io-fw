@@ -1,6 +1,8 @@
 use core::{
     hint::unreachable_unchecked,
     mem::{self, MaybeUninit},
+    ops::Deref,
+    ptr::NonNull,
 };
 
 use crate::{
@@ -29,10 +31,49 @@ pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
     mem::transmute(what)
 }
 
+const STACK_SOCKET_COUNT: usize = 3;
+
+struct StackWrapper(
+    NonNull<StackResources<STACK_SOCKET_COUNT>>,
+    Stack<WifiDevice<'static>>,
+);
+
+impl StackWrapper {
+    fn new(wifi_interface: WifiDevice<'static>, config: Config, mut rng: Rng) -> StackWrapper {
+        let lower = rng.random() as u64;
+        let upper = rng.random() as u64;
+
+        let random_seed = upper << 32 | lower;
+
+        let resources = Box::new(StackResources::new());
+        let resources_ref = Box::leak(resources);
+
+        Self(
+            NonNull::from(&mut *resources_ref),
+            Stack::new(wifi_interface, config, resources_ref, random_seed),
+        )
+    }
+}
+
+impl Deref for StackWrapper {
+    type Target = Stack<WifiDevice<'static>>;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        &self.1
+    }
+}
+
+impl Drop for StackWrapper {
+    fn drop(&mut self) {
+        unsafe {
+            _ = Box::from_raw(self.0.as_mut());
+        }
+    }
+}
+
 pub mod ap;
 pub mod sta;
-
-const STACK_SOCKET_COUNT: usize = 3;
 
 #[derive(Default, PartialEq)]
 pub enum GenericConnectionState {
@@ -72,14 +113,8 @@ impl WifiHandle {
 enum WifiDriverState {
     Uninitialized(WifiInitResources),
     Initialized(EspWifiInitialization),
-    Ap(
-        MaybeUninit<ApState>,
-        Box<StackResources<STACK_SOCKET_COUNT>>,
-    ),
-    Sta(
-        MaybeUninit<StaState>,
-        Box<StackResources<STACK_SOCKET_COUNT>>,
-    ),
+    Ap(MaybeUninit<ApState>),
+    Sta(MaybeUninit<StaState>),
 }
 
 impl WifiDriverState {
@@ -105,7 +140,7 @@ impl WifiDriverState {
 
     async fn uninit_mode(&mut self) {
         match self {
-            WifiDriverState::Sta(sta, _) => {
+            WifiDriverState::Sta(sta) => {
                 {
                     let sta = unsafe {
                         // Preinit is only called immediately before initialization, which means we
@@ -123,7 +158,7 @@ impl WifiDriverState {
                 });
             }
 
-            WifiDriverState::Ap(ap, _) => {
+            WifiDriverState::Ap(ap) => {
                 {
                     let ap = unsafe {
                         // Preinit is only called immediately before initialization, which means we
@@ -147,25 +182,17 @@ impl WifiDriverState {
 
     fn replace_with(&mut self, mode: WifiMode) -> Self {
         match mode {
-            WifiMode::Ap => mem::replace(
-                self,
-                Self::Ap(MaybeUninit::uninit(), Box::new(StackResources::new())),
-            ),
-            WifiMode::Sta => mem::replace(
-                self,
-                Self::Sta(MaybeUninit::uninit(), Box::new(StackResources::new())),
-            ),
+            WifiMode::Ap => mem::replace(self, Self::Ap(MaybeUninit::uninit())),
+            WifiMode::Sta => mem::replace(self, Self::Sta(MaybeUninit::uninit())),
         }
     }
 
     fn handle(&self) -> Option<WifiHandle> {
         match self {
-            WifiDriverState::Sta(sta, _) => unsafe {
+            WifiDriverState::Sta(sta) => unsafe {
                 sta.assume_init_ref().handle().map(WifiHandle::Sta)
             },
-            WifiDriverState::Ap(ap, _) => unsafe {
-                ap.assume_init_ref().handle().map(WifiHandle::Ap)
-            },
+            WifiDriverState::Ap(ap) => unsafe { ap.assume_init_ref().handle().map(WifiHandle::Ap) },
             _ => None,
         }
     }
@@ -203,8 +230,8 @@ impl WifiDriver {
 
     pub fn wifi_mode(&self) -> Option<WifiMode> {
         match self.state {
-            WifiDriverState::Ap(_, _) => Some(WifiMode::Ap),
-            WifiDriverState::Sta(_, _) => Some(WifiMode::Sta),
+            WifiDriverState::Ap(_) => Some(WifiMode::Ap),
+            WifiDriverState::Sta(_) => Some(WifiMode::Sta),
             _ => None,
         }
     }
@@ -229,14 +256,13 @@ impl WifiDriver {
 
         // Init AP mode
         match &mut self.state {
-            WifiDriverState::Ap(ap, resources) => {
+            WifiDriverState::Ap(ap) => {
                 // Initialize the memory if we need to
                 if let Some(init) = init {
                     ap.write(ApState::init(
                         init,
                         config,
                         unsafe { as_static_mut(&mut self.wifi) },
-                        unsafe { as_static_mut(resources) },
                         self.rng,
                     ));
                 }
@@ -247,7 +273,7 @@ impl WifiDriver {
 
             WifiDriverState::Uninitialized { .. }
             | WifiDriverState::Initialized { .. }
-            | WifiDriverState::Sta(_, _) => {
+            | WifiDriverState::Sta(_) => {
                 unreachable!()
             }
         }
@@ -259,14 +285,13 @@ impl WifiDriver {
 
         // Init STA mode
         match &mut self.state {
-            WifiDriverState::Sta(sta, resources) => {
+            WifiDriverState::Sta(sta) => {
                 // Initialize the memory if we need to
                 if let Some(init) = init {
                     sta.write(StaState::init(
                         init,
                         config,
                         unsafe { as_static_mut(&mut self.wifi) },
-                        unsafe { as_static_mut(resources) },
                         self.rng,
                     ));
                 }
@@ -277,7 +302,7 @@ impl WifiDriver {
 
             WifiDriverState::Uninitialized { .. }
             | WifiDriverState::Initialized { .. }
-            | WifiDriverState::Ap(_, _) => {
+            | WifiDriverState::Ap(_) => {
                 unreachable!()
             }
         }
@@ -288,7 +313,7 @@ impl WifiDriver {
     }
 
     pub fn ap_running(&self) -> bool {
-        if let WifiDriverState::Ap(ap, _) = &self.state {
+        if let WifiDriverState::Ap(ap) = &self.state {
             let ap = unsafe { ap.assume_init_ref() };
             ap.is_running()
         } else {
@@ -308,9 +333,6 @@ impl WifiDriver {
 }
 
 #[cardio::task]
-pub async fn net_task(
-    stack: Rc<Stack<WifiDevice<'static>>>,
-    mut task_control: TaskControlToken<!>,
-) {
+async fn net_task(stack: Rc<StackWrapper>, mut task_control: TaskControlToken<!>) {
     task_control.run_cancellable(|_| stack.run()).await;
 }

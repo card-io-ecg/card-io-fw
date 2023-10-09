@@ -5,13 +5,13 @@ use gui::widgets::wifi::WifiState;
 use crate::{
     board::{
         hal::{radio::Wifi, Rng},
-        wifi::{net_task, STACK_SOCKET_COUNT},
+        wifi::{net_task, StackWrapper},
     },
     task_control::{TaskControlToken, TaskController},
 };
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
-use embassy_net::{Config, Stack, StackResources};
+use embassy_net::{Config, Stack};
 use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi as _};
 use esp_wifi::{
     wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState as WifiStackState},
@@ -36,7 +36,7 @@ impl From<ApConnectionState> for WifiState {
 
 #[derive(Clone)]
 pub struct Ap {
-    stack: Rc<Stack<WifiDevice<'static>>>,
+    stack: Rc<StackWrapper>,
     client_count: Rc<AtomicU32>,
 }
 
@@ -65,7 +65,7 @@ impl Ap {
 pub(super) struct ApState {
     init: EspWifiInitialization,
     controller: Option<Box<WifiController<'static>>>,
-    stack: Rc<Stack<WifiDevice<'static>>>,
+    stack: Rc<StackWrapper>,
     connection_task_control: Option<TaskController<(), ApTaskResources>>,
     net_task_control: TaskController<!>,
     client_count: Rc<AtomicU32>,
@@ -76,23 +76,17 @@ impl ApState {
         init: EspWifiInitialization,
         config: Config,
         wifi: &'static mut Wifi,
-        resources: &'static mut StackResources<STACK_SOCKET_COUNT>,
-        mut rng: Rng,
+        rng: Rng,
     ) -> Self {
         info!("Configuring AP");
 
         let (wifi_interface, controller) =
             unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap));
 
-        let lower = rng.random() as u64;
-        let upper = rng.random() as u64;
-
-        let random_seed = upper << 32 | lower;
-
         Self {
             init,
             controller: Some(Box::new(controller)),
-            stack: Rc::new(Stack::new(wifi_interface, config, resources, random_seed)),
+            stack: Rc::new(StackWrapper::new(wifi_interface, config, rng)),
             connection_task_control: None,
             net_task_control: TaskController::new(),
             client_count: Rc::new(AtomicU32::new(0)),
