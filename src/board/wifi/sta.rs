@@ -269,11 +269,12 @@ pub(super) struct StaState {
 }
 
 impl StaState {
-    pub(super) async fn init(
+    pub(super) fn init(
         init: EspWifiInitialization,
         config: Config,
         wifi: &'static mut Wifi,
         rng: Rng,
+        spawner: Spawner,
     ) -> Self {
         info!("Configuring STA");
 
@@ -281,7 +282,6 @@ impl StaState {
             unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Sta));
 
         info!("Starting STA");
-        let spawner = Spawner::for_current_executor().await;
 
         let stack = Rc::new(StackWrapper::new(wifi_interface, config, rng));
         let networks = Rc::new(Mutex::new(heapless::Vec::new()));

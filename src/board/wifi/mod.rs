@@ -1,4 +1,4 @@
-use core::{future::Future, hint::unreachable_unchecked, mem, ops::Deref, ptr::NonNull};
+use core::{hint::unreachable_unchecked, mem, ops::Deref, ptr::NonNull};
 
 use crate::{
     board::{
@@ -15,10 +15,10 @@ use crate::{
             sta::{Sta, StaState},
         },
     },
-    replace_with::replace_with_async,
     task_control::TaskControlToken,
 };
 use alloc::{boxed::Box, rc::Rc};
+use embassy_executor::Spawner;
 use embassy_net::{Config, Stack, StackResources};
 use esp_wifi::{wifi::WifiDevice, EspWifiInitFor, EspWifiInitialization};
 use macros as cardio;
@@ -113,12 +113,13 @@ enum WifiDriverState {
 }
 
 impl WifiDriverState {
-    async fn initialize<F: Future<Output = Self>>(
+    async fn initialize(
         &mut self,
         clocks: &Clocks<'_>,
-        callback: impl FnOnce(EspWifiInitialization) -> F,
+        callback: impl FnOnce(EspWifiInitialization) -> Self,
     ) {
-        replace_with_async(self, |this| async {
+        self.uninit().await;
+        replace_with::replace_with_or_abort(self, |this| {
             let token = match this {
                 Self::Uninitialized(resources) => {
                     info!("Initializing Wifi driver");
@@ -133,24 +134,22 @@ impl WifiDriverState {
                     token
                 }
                 Self::Initialized(token) => token,
-                Self::Sta(sta) => sta.stop().await,
-                Self::Ap(ap) => ap.stop().await,
+                _ => unreachable!(),
             };
 
-            callback(token).await
-        })
-        .await
+            callback(token)
+        });
     }
 
     async fn uninit(&mut self) {
-        replace_with_async(self, |this| async {
-            match this {
+        unsafe {
+            let new = match core::ptr::read(self) {
                 Self::Sta(sta) => Self::Initialized(sta.stop().await),
                 Self::Ap(ap) => Self::Initialized(ap.stop().await),
                 state => state,
-            }
-        })
-        .await;
+            };
+            core::ptr::write(self, new);
+        }
     }
 
     fn handle(&self) -> Option<WifiHandle> {
@@ -185,17 +184,16 @@ impl WifiDriver {
     pub async fn configure_ap(&mut self, config: Config, clocks: &Clocks<'_>) -> Ap {
         // Prepare, stop STA if running
         if !matches!(self.state, WifiDriverState::Ap(_)) {
+            let spawner = Spawner::for_current_executor().await;
             self.state
-                .initialize(clocks, |init| async {
-                    WifiDriverState::Ap(
-                        ApState::init(
-                            init,
-                            config,
-                            unsafe { as_static_mut(&mut self.wifi) },
-                            self.rng,
-                        )
-                        .await,
-                    )
+                .initialize(clocks, |init| {
+                    WifiDriverState::Ap(ApState::init(
+                        init,
+                        config,
+                        unsafe { as_static_mut(&mut self.wifi) },
+                        self.rng,
+                        spawner,
+                    ))
                 })
                 .await;
         };
@@ -210,17 +208,16 @@ impl WifiDriver {
     pub async fn configure_sta(&mut self, config: Config, clocks: &Clocks<'_>) -> Sta {
         // Prepare, stop AP if running
         if !matches!(self.state, WifiDriverState::Sta(_)) {
+            let spawner = Spawner::for_current_executor().await;
             self.state
-                .initialize(clocks, |init| async {
-                    WifiDriverState::Sta(
-                        StaState::init(
-                            init,
-                            config,
-                            unsafe { as_static_mut(&mut self.wifi) },
-                            self.rng,
-                        )
-                        .await,
-                    )
+                .initialize(clocks, |init| {
+                    WifiDriverState::Sta(StaState::init(
+                        init,
+                        config,
+                        unsafe { as_static_mut(&mut self.wifi) },
+                        self.rng,
+                        spawner,
+                    ))
                 })
                 .await;
         };

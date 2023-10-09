@@ -71,11 +71,12 @@ pub(super) struct ApState {
 }
 
 impl ApState {
-    pub(super) async fn init(
+    pub(super) fn init(
         init: EspWifiInitialization,
         config: Config,
         wifi: &'static mut Wifi,
         rng: Rng,
+        spawner: Spawner,
     ) -> Self {
         info!("Configuring AP");
 
@@ -83,7 +84,6 @@ impl ApState {
             unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap));
 
         info!("Starting AP");
-        let spawner = Spawner::for_current_executor().await;
 
         let stack = Rc::new(StackWrapper::new(wifi_interface, config, rng));
         let net_task_control = TaskController::new();
