@@ -1,9 +1,4 @@
-use core::{
-    hint::unreachable_unchecked,
-    mem::{self, MaybeUninit},
-    ops::Deref,
-    ptr::NonNull,
-};
+use core::{future::Future, hint::unreachable_unchecked, mem, ops::Deref, ptr::NonNull};
 
 use crate::{
     board::{
@@ -20,6 +15,7 @@ use crate::{
             sta::{Sta, StaState},
         },
     },
+    replace_with::replace_with_async,
     task_control::TaskControlToken,
 };
 use alloc::{boxed::Box, rc::Rc};
@@ -109,85 +105,61 @@ impl WifiHandle {
     }
 }
 
-#[allow(clippy::large_enum_variant)]
 enum WifiDriverState {
     Uninitialized(WifiInitResources),
     Initialized(EspWifiInitialization),
-    Ap(MaybeUninit<ApState>),
-    Sta(MaybeUninit<StaState>),
+    Ap(ApState),
+    Sta(StaState),
 }
 
 impl WifiDriverState {
-    fn initialize(&mut self, clocks: &Clocks<'_>) {
-        if let WifiDriverState::Uninitialized(_) = self {
-            info!("Initializing Wifi driver");
-            // The replacement value doesn't matter as we immediately overwrite it,
-            // but we need to move out of the resources
-            if let WifiDriverState::Uninitialized(resources) = self.replace_with(WifiMode::Ap) {
-                *self = WifiDriverState::Initialized(unwrap!(esp_wifi::initialize(
-                    EspWifiInitFor::Wifi,
-                    resources.timer,
-                    resources.rng,
-                    resources.rcc,
-                    clocks,
-                )));
-                info!("Wifi driver initialized");
-            } else {
-                unsafe { unreachable_unchecked() }
-            }
-        }
+    async fn initialize<F: Future<Output = Self>>(
+        &mut self,
+        clocks: &Clocks<'_>,
+        callback: impl FnOnce(EspWifiInitialization) -> F,
+    ) {
+        replace_with_async(self, |this| async {
+            let token = match this {
+                Self::Uninitialized(resources) => {
+                    info!("Initializing Wifi driver");
+                    let token = unwrap!(esp_wifi::initialize(
+                        EspWifiInitFor::Wifi,
+                        resources.timer,
+                        resources.rng,
+                        resources.rcc,
+                        clocks,
+                    ));
+                    info!("Wifi driver initialized");
+                    token
+                }
+                Self::Initialized(token) => token,
+                Self::Sta(sta) => sta.stop().await,
+                Self::Ap(ap) => ap.stop().await,
+            };
+
+            callback(token).await
+        })
+        .await
     }
 
-    async fn uninit_mode(&mut self) {
-        match self {
-            WifiDriverState::Sta(sta) => {
-                unsafe {
-                    // Preinit is only called immediately before initialization, which means we
-                    // immediate initialize MaybeUninit data. This in turn means that we can't
-                    // have uninitialized data in preinit that was created before calling this
-                    // function.
-                    *self = Self::Initialized(sta.assume_init_read().stop().await);
-                }
+    async fn uninit(&mut self) {
+        replace_with_async(self, |this| async {
+            match this {
+                Self::Sta(sta) => Self::Initialized(sta.stop().await),
+                Self::Ap(ap) => Self::Initialized(ap.stop().await),
+                state => state,
             }
-
-            WifiDriverState::Ap(ap) => {
-                unsafe {
-                    // Preinit is only called immediately before initialization, which means we
-                    // immediate initialize MaybeUninit data. This in turn means that we can't
-                    // have uninitialized data in preinit that was created before calling this
-                    // function.
-                    *self = Self::Initialized(ap.assume_init_read().stop().await);
-                }
-            }
-
-            _ => {}
-        }
-    }
-
-    fn replace_with(&mut self, mode: WifiMode) -> Self {
-        match mode {
-            WifiMode::Ap => mem::replace(self, Self::Ap(MaybeUninit::uninit())),
-            WifiMode::Sta => mem::replace(self, Self::Sta(MaybeUninit::uninit())),
-        }
+        })
+        .await;
     }
 
     fn handle(&self) -> Option<WifiHandle> {
         match self {
-            WifiDriverState::Sta(sta) => unsafe {
-                Some(sta.assume_init_ref().handle()).map(WifiHandle::Sta)
-            },
-            WifiDriverState::Ap(ap) => unsafe {
-                Some(ap.assume_init_ref().handle()).map(WifiHandle::Ap)
-            },
+            WifiDriverState::Sta(sta) => Some(WifiHandle::Sta(sta.handle())),
+            WifiDriverState::Ap(ap) => Some(WifiHandle::Ap(ap.handle())),
             _ => None,
         }
     }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub enum WifiMode {
-    Ap,
-    Sta,
 }
 
 impl WifiDriver {
@@ -213,25 +185,23 @@ impl WifiDriver {
     pub async fn configure_ap(&mut self, config: Config, clocks: &Clocks<'_>) -> Ap {
         // Prepare, stop STA if running
         if !matches!(self.state, WifiDriverState::Ap(_)) {
-            self.stop_if().await;
-            self.state.initialize(clocks);
-            let WifiDriverState::Initialized(init) = self.state.replace_with(WifiMode::Ap) else {
-                unsafe { unreachable_unchecked() }
-            };
-            // Init AP mode
-            self.state = WifiDriverState::Ap(MaybeUninit::new(
-                ApState::init(
-                    init,
-                    config,
-                    unsafe { as_static_mut(&mut self.wifi) },
-                    self.rng,
-                )
-                .await,
-            ));
+            self.state
+                .initialize(clocks, |init| async {
+                    WifiDriverState::Ap(
+                        ApState::init(
+                            init,
+                            config,
+                            unsafe { as_static_mut(&mut self.wifi) },
+                            self.rng,
+                        )
+                        .await,
+                    )
+                })
+                .await;
         };
 
         if let WifiDriverState::Ap(ap) = &self.state {
-            unsafe { ap.assume_init_ref().handle() }
+            ap.handle()
         } else {
             unsafe { unreachable_unchecked() }
         }
@@ -240,37 +210,34 @@ impl WifiDriver {
     pub async fn configure_sta(&mut self, config: Config, clocks: &Clocks<'_>) -> Sta {
         // Prepare, stop AP if running
         if !matches!(self.state, WifiDriverState::Sta(_)) {
-            self.stop_if().await;
-            self.state.initialize(clocks);
-            let WifiDriverState::Initialized(init) = self.state.replace_with(WifiMode::Sta) else {
-                unsafe { unreachable_unchecked() }
-            };
-            // Init STA mode
-            self.state = WifiDriverState::Sta(MaybeUninit::new(
-                StaState::init(
-                    init,
-                    config,
-                    unsafe { as_static_mut(&mut self.wifi) },
-                    self.rng,
-                )
-                .await,
-            ));
+            self.state
+                .initialize(clocks, |init| async {
+                    WifiDriverState::Sta(
+                        StaState::init(
+                            init,
+                            config,
+                            unsafe { as_static_mut(&mut self.wifi) },
+                            self.rng,
+                        )
+                        .await,
+                    )
+                })
+                .await;
         };
 
         if let WifiDriverState::Sta(sta) = &self.state {
-            unsafe { sta.assume_init_ref().handle() }
+            sta.handle()
         } else {
             unsafe { unreachable_unchecked() }
         }
     }
 
     pub async fn stop_if(&mut self) {
-        self.state.uninit_mode().await;
+        self.state.uninit().await;
     }
 
     pub fn ap_running(&self) -> bool {
         if let WifiDriverState::Ap(ap) = &self.state {
-            let ap = unsafe { ap.assume_init_ref() };
             ap.is_running()
         } else {
             false
