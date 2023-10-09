@@ -210,10 +210,6 @@ impl WifiDriver {
         }
     }
 
-    pub fn initialize(&mut self, clocks: &Clocks) {
-        self.state.initialize(clocks);
-    }
-
     pub fn wifi_mode(&self) -> Option<WifiMode> {
         match self.state {
             WifiDriverState::Ap(_) => Some(WifiMode::Ap),
@@ -222,12 +218,17 @@ impl WifiDriver {
         }
     }
 
-    async fn preinit(&mut self, mode: WifiMode) -> Option<EspWifiInitialization> {
+    async fn preinit(
+        &mut self,
+        mode: WifiMode,
+        clocks: &Clocks<'_>,
+    ) -> Option<EspWifiInitialization> {
         if self.wifi_mode() == Some(mode) {
             return None;
         }
 
         self.stop_if().await;
+        self.state.initialize(clocks);
 
         let WifiDriverState::Initialized(init) = self.state.replace_with(mode) else {
             unsafe { unreachable_unchecked() }
@@ -236,9 +237,9 @@ impl WifiDriver {
         Some(init)
     }
 
-    pub async fn configure_ap(&mut self, config: Config) -> Ap {
+    pub async fn configure_ap(&mut self, config: Config, clocks: &Clocks<'_>) -> Ap {
         // Prepare, stop STA if running
-        let init = self.preinit(WifiMode::Ap).await;
+        let init = self.preinit(WifiMode::Ap, clocks).await;
 
         // Init AP mode
         match &mut self.state {
@@ -267,9 +268,9 @@ impl WifiDriver {
         }
     }
 
-    pub async fn configure_sta(&mut self, config: Config) -> Sta {
+    pub async fn configure_sta(&mut self, config: Config, clocks: &Clocks<'_>) -> Sta {
         // Prepare, stop AP if running
-        let init = self.preinit(WifiMode::Sta).await;
+        let init = self.preinit(WifiMode::Sta, clocks).await;
 
         // Init STA mode
         match &mut self.state {
