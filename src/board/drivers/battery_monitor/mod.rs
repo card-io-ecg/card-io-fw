@@ -1,3 +1,5 @@
+use core::ops::{Deref, DerefMut};
+
 use crate::{task_control::TaskController, Shared, SharedGuard};
 use alloc::rc::Rc;
 use embassy_sync::mutex::Mutex;
@@ -14,7 +16,7 @@ use crate::board::{
     drivers::battery_monitor::battery_adc::{
         monitor_task_adc as monitor_task, BatteryAdcData as BatteryData,
     },
-    BatteryAdc as BatterySensor,
+    BatteryAdc as BatterySensorImpl,
 };
 
 #[cfg(feature = "battery_max17055")]
@@ -22,7 +24,7 @@ use crate::board::{
     drivers::battery_monitor::battery_fg::{
         monitor_task_fg as monitor_task, BatteryFgData as BatteryData,
     },
-    BatteryFg as BatterySensor,
+    BatteryFg as BatterySensorImpl,
 };
 
 #[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
@@ -32,14 +34,36 @@ use crate::board::LOW_BATTERY_PERCENTAGE;
 use embassy_executor::Spawner;
 
 #[derive(Default, Clone, Copy)]
-pub struct BatteryState {
-    pub data: Option<BatteryData>,
+struct BatteryState {
+    data: Option<BatteryData>,
 }
 
-type SharedBatteryState = Shared<BatteryState>;
+pub struct BatterySensor {
+    state: BatteryState,
+    sensor: BatterySensorImpl,
+}
+
+impl BatterySensor {
+    pub fn update_data(&mut self, data: BatteryData) {
+        self.state.data = Some(data);
+    }
+}
+
+impl Deref for BatterySensor {
+    type Target = BatterySensorImpl;
+
+    fn deref(&self) -> &Self::Target {
+        &self.sensor
+    }
+}
+
+impl DerefMut for BatterySensor {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.sensor
+    }
+}
 
 pub struct BatteryMonitor<VBUS, CHG> {
-    battery_state: SharedBatteryState,
     vbus_detect: VBUS,
     charger_status: CHG,
     last_battery_state: BatteryState,
@@ -48,10 +72,12 @@ pub struct BatteryMonitor<VBUS, CHG> {
 }
 
 impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
-    pub async fn start(vbus_detect: VBUS, charger_status: CHG, adc: BatterySensor) -> Self {
+    pub async fn start(vbus_detect: VBUS, charger_status: CHG, sensor: BatterySensorImpl) -> Self {
         let this = BatteryMonitor {
-            battery_state: Rc::new(Mutex::new(BatteryState::default())),
-            sensor: Rc::new(Mutex::new(adc)),
+            sensor: Rc::new(Mutex::new(BatterySensor {
+                state: BatteryState::default(),
+                sensor,
+            })),
             vbus_detect,
             charger_status,
             last_battery_state: BatteryState::default(),
@@ -60,19 +86,15 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
 
         let spawner = Spawner::for_current_executor().await;
         spawner
-            .spawn(monitor_task(
-                this.sensor.clone(),
-                this.battery_state.clone(),
-                this.signal.token(),
-            ))
+            .spawn(monitor_task(this.sensor.clone(), this.signal.token()))
             .ok();
 
         this
     }
 
     fn load_battery_data(&mut self) {
-        if let Ok(state) = self.battery_state.try_lock() {
-            self.last_battery_state = *state;
+        if let Ok(state) = self.sensor.try_lock() {
+            self.last_battery_state = state.state;
         }
     }
 

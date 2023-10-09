@@ -1,14 +1,11 @@
 use crate::{
-    board::{
-        drivers::battery_monitor::SharedBatteryState,
-        hal::{
-            adc::{
-                AdcCalEfuse, AdcCalLine, AdcConfig, AdcHasLineCal, AdcPin, Attenuation,
-                CalibrationAccess, ADC,
-            },
-            peripheral::Peripheral,
-            prelude::*,
+    board::hal::{
+        adc::{
+            AdcCalEfuse, AdcCalLine, AdcConfig, AdcHasLineCal, AdcPin, Attenuation,
+            CalibrationAccess, ADC,
         },
+        peripheral::Peripheral,
+        prelude::*,
     },
     task_control::TaskControlToken,
     Shared,
@@ -92,8 +89,7 @@ where
 
 #[embassy_executor::task]
 pub async fn monitor_task_adc(
-    battery: Shared<crate::board::BatteryAdc>,
-    battery_state: SharedBatteryState,
+    battery: Shared<super::BatterySensor>,
     mut task_control: TaskControlToken<()>,
 ) {
     task_control
@@ -111,28 +107,31 @@ pub async fn monitor_task_adc(
             const AVG_SAMPLE_COUNT: u32 = 128;
 
             loop {
-                let data = unwrap!(battery.lock().await.read_data().await);
+                {
+                    let mut sensor = battery.lock().await;
+                    if let Ok(data) = sensor.read_data().await {
+                        voltage_accumulator += data.voltage as u32;
+                        current_accumulator += data.charge_current as u32;
 
-                voltage_accumulator += data.voltage as u32;
-                current_accumulator += data.charge_current as u32;
+                        if sample_count == AVG_SAMPLE_COUNT {
+                            let average = BatteryAdcData {
+                                voltage: (voltage_accumulator / AVG_SAMPLE_COUNT) as u16,
+                                charge_current: (current_accumulator / AVG_SAMPLE_COUNT) as u16,
+                            };
+                            sensor.update_data(average);
 
-                if sample_count == AVG_SAMPLE_COUNT {
-                    let mut state = battery_state.lock().await;
+                            debug!("Battery data: {:?}", average);
 
-                    let average = BatteryAdcData {
-                        voltage: (voltage_accumulator / AVG_SAMPLE_COUNT) as u16,
-                        charge_current: (current_accumulator / AVG_SAMPLE_COUNT) as u16,
-                    };
-                    state.data = Some(average);
+                            sample_count = 0;
 
-                    debug!("Battery data: {:?}", average);
-
-                    sample_count = 0;
-
-                    voltage_accumulator = 0;
-                    current_accumulator = 0;
-                } else {
-                    sample_count += 1;
+                            voltage_accumulator = 0;
+                            current_accumulator = 0;
+                        } else {
+                            sample_count += 1;
+                        }
+                    } else {
+                        error!("Failed to read battery data");
+                    }
                 }
 
                 timer.next().await;

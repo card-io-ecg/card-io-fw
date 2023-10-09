@@ -3,10 +3,7 @@ use embedded_hal::digital::OutputPin;
 use embedded_hal_async::{delay::DelayUs, i2c::I2c};
 use max17055::Max17055;
 
-use crate::{
-    board::drivers::battery_monitor::SharedBatteryState, hal::gpio::RTCPinWithResistors,
-    task_control::TaskControlToken, Shared,
-};
+use crate::{hal::gpio::RTCPinWithResistors, task_control::TaskControlToken, Shared};
 
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -58,8 +55,7 @@ where
 
 #[embassy_executor::task]
 pub async fn monitor_task_fg(
-    fuel_gauge: Shared<crate::board::BatteryFg>,
-    battery_state: SharedBatteryState,
+    fuel_gauge: Shared<super::BatterySensor>,
     mut task_control: TaskControlToken<()>,
 ) {
     task_control
@@ -73,12 +69,14 @@ pub async fn monitor_task_fg(
 
             let mut timer = Ticker::every(Duration::from_secs(1));
             loop {
-                if let Ok(data) = fuel_gauge.lock().await.read_data().await {
-                    let mut state = battery_state.lock().await;
-                    state.data = Some(data);
-                    trace!("Battery data: {:?}", data);
-                } else {
-                    error!("Failed to read battery data");
+                {
+                    let mut sensor = fuel_gauge.lock().await;
+                    if let Ok(data) = sensor.read_data().await {
+                        sensor.update_data(data);
+                        trace!("Battery data: {:?}", data);
+                    } else {
+                        error!("Failed to read battery data");
+                    }
                 }
 
                 timer.next().await;
