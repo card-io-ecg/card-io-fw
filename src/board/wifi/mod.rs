@@ -243,16 +243,19 @@ impl WifiDriver {
             WifiDriverState::Ap(ap) => {
                 // Initialize the memory if we need to
                 if let Some(init) = init {
-                    ap.write(ApState::init(
-                        init,
-                        config,
-                        unsafe { as_static_mut(&mut self.wifi) },
-                        self.rng,
-                    ));
+                    ap.write(
+                        ApState::init(
+                            init,
+                            config,
+                            unsafe { as_static_mut(&mut self.wifi) },
+                            self.rng,
+                        )
+                        .await,
+                    );
                 }
 
                 let ap = unsafe { ap.assume_init_mut() };
-                ap.start().await
+                unwrap!(ap.handle())
             }
 
             WifiDriverState::Uninitialized { .. }
@@ -272,16 +275,19 @@ impl WifiDriver {
             WifiDriverState::Sta(sta) => {
                 // Initialize the memory if we need to
                 if let Some(init) = init {
-                    sta.write(StaState::init(
-                        init,
-                        config,
-                        unsafe { as_static_mut(&mut self.wifi) },
-                        self.rng,
-                    ));
+                    sta.write(
+                        StaState::init(
+                            init,
+                            config,
+                            unsafe { as_static_mut(&mut self.wifi) },
+                            self.rng,
+                        )
+                        .await,
+                    );
                 }
 
                 let sta = unsafe { sta.assume_init_mut() };
-                sta.start().await
+                unwrap!(sta.handle())
             }
 
             WifiDriverState::Uninitialized { .. }

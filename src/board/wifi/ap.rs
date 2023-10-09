@@ -64,7 +64,6 @@ impl Ap {
 
 pub(super) struct ApState {
     init: EspWifiInitialization,
-    controller: Option<Box<WifiController<'static>>>,
     stack: Rc<StackWrapper>,
     connection_task_control: Option<TaskController<(), ApTaskResources>>,
     net_task_control: TaskController<!>,
@@ -72,7 +71,7 @@ pub(super) struct ApState {
 }
 
 impl ApState {
-    pub(super) fn init(
+    pub(super) async fn init(
         init: EspWifiInitialization,
         config: Config,
         wifi: &'static mut Wifi,
@@ -83,32 +82,30 @@ impl ApState {
         let (wifi_interface, controller) =
             unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap));
 
+        info!("Starting AP");
+        let spawner = Spawner::for_current_executor().await;
+
+        let stack = Rc::new(StackWrapper::new(wifi_interface, config, rng));
+        let net_task_control = TaskController::new();
+        let client_count = Rc::new(AtomicU32::new(0));
+
+        let controller = Box::new(controller);
+
+        let task_control = TaskController::from_resources(ApTaskResources { controller });
+
+        info!("Starting AP task");
+        spawner.must_spawn(ap_task(task_control.token(), client_count.clone()));
+
+        info!("Starting NET task");
+        spawner.must_spawn(net_task(stack.clone(), net_task_control.token()));
+
         Self {
             init,
-            controller: Some(Box::new(controller)),
-            stack: Rc::new(StackWrapper::new(wifi_interface, config, rng)),
-            connection_task_control: None,
-            net_task_control: TaskController::new(),
-            client_count: Rc::new(AtomicU32::new(0)),
+            stack,
+            net_task_control,
+            client_count,
+            connection_task_control: Some(task_control),
         }
-    }
-
-    pub(super) async fn start(&mut self) -> Ap {
-        if let Some(controller) = self.controller.take() {
-            info!("Starting AP");
-            let spawner = Spawner::for_current_executor().await;
-
-            let task_control = TaskController::from_resources(ApTaskResources { controller });
-
-            info!("Starting AP task");
-            spawner.must_spawn(ap_task(task_control.token(), self.client_count.clone()));
-            info!("Starting NET task");
-            spawner.must_spawn(net_task(self.stack.clone(), self.net_task_control.token()));
-
-            self.connection_task_control = Some(task_control)
-        }
-
-        self.handle_unchecked()
     }
 
     pub(super) async fn stop(self) -> EspWifiInitialization {
