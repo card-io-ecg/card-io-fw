@@ -1,3 +1,5 @@
+use core::num::NonZeroU32;
+
 use embedded_graphics::{
     pixelcolor::BinaryColor,
     prelude::{DrawTarget, Point},
@@ -19,14 +21,14 @@ pub struct ChargingScreen {
 }
 
 impl ChargingScreen {
-    fn max_progress(&self) -> u32 {
-        self.fps * 2
+    fn max_progress(&self) -> NonZeroU32 {
+        NonZeroU32::new(self.fps * 2).unwrap_or(NonZeroU32::MIN)
     }
 
     pub fn update_touched(&mut self, touched: bool) -> bool {
         if touched {
             self.progress += 1;
-            self.progress >= self.max_progress()
+            self.progress >= self.max_progress().get()
         } else {
             self.progress = 0;
             false

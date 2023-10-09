@@ -1,3 +1,5 @@
+use core::num::NonZeroU32;
+
 use embedded_graphics::{
     image::Image,
     pixelcolor::BinaryColor,
@@ -22,7 +24,7 @@ impl Drawable for StartupScreen<'_> {
         ProgressBar {
             label: self.label,
             progress: self.progress,
-            max_progress: 255,
+            max_progress: unwrap!(NonZeroU32::new(255)),
         }
         .draw(display)?;
 
