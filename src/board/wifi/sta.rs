@@ -263,7 +263,7 @@ pub(super) struct StaState {
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
     state: Rc<State>,
-    connection_task_control: Option<TaskController<(), StaTaskResources>>,
+    connection_task_control: TaskController<(), StaTaskResources>,
     net_task_control: TaskController<!>,
     rng: Rng,
 }
@@ -291,7 +291,8 @@ impl StaState {
 
         let controller = Box::new(controller);
 
-        let task_control = TaskController::from_resources(StaTaskResources { controller });
+        let connection_task_control =
+            TaskController::from_resources(StaTaskResources { controller });
 
         info!("Starting STA task");
         spawner.must_spawn(sta_task(
@@ -299,7 +300,7 @@ impl StaState {
             known_networks.clone(),
             state.clone(),
             stack.clone(),
-            task_control.token(),
+            connection_task_control.token(),
         ));
 
         info!("Starting NET task");
@@ -313,33 +314,30 @@ impl StaState {
             state,
             net_task_control,
             rng,
-            connection_task_control: Some(task_control),
+            connection_task_control,
         }
     }
 
     pub(super) async fn stop(self) -> EspWifiInitialization {
-        if let Some(task_control) = self.connection_task_control {
-            info!("Stopping STA");
+        info!("Stopping STA");
 
-            let _ = join(task_control.stop(), self.net_task_control.stop()).await;
+        let _ = join(
+            self.connection_task_control.stop(),
+            self.net_task_control.stop(),
+        )
+        .await;
 
-            let mut controller = task_control.unwrap().controller;
-            if matches!(controller.is_started(), Ok(true)) {
-                unwrap!(controller.stop().await);
-            }
-
-            info!("Stopped STA");
+        let mut controller = self.connection_task_control.unwrap().controller;
+        if matches!(controller.is_started(), Ok(true)) {
+            unwrap!(controller.stop().await);
         }
+
+        info!("Stopped STA");
+
         self.init
     }
 
-    pub(crate) fn handle(&self) -> Option<Sta> {
-        self.connection_task_control
-            .as_ref()
-            .map(|_| self.handle_unchecked())
-    }
-
-    fn handle_unchecked(&self) -> Sta {
+    pub(crate) fn handle(&self) -> Sta {
         Sta {
             stack: self.stack.clone(),
             networks: self.networks.clone(),

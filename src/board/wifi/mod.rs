@@ -174,9 +174,11 @@ impl WifiDriverState {
     fn handle(&self) -> Option<WifiHandle> {
         match self {
             WifiDriverState::Sta(sta) => unsafe {
-                sta.assume_init_ref().handle().map(WifiHandle::Sta)
+                Some(sta.assume_init_ref().handle()).map(WifiHandle::Sta)
             },
-            WifiDriverState::Ap(ap) => unsafe { ap.assume_init_ref().handle().map(WifiHandle::Ap) },
+            WifiDriverState::Ap(ap) => unsafe {
+                Some(ap.assume_init_ref().handle()).map(WifiHandle::Ap)
+            },
             _ => None,
         }
     }
@@ -254,8 +256,7 @@ impl WifiDriver {
                     );
                 }
 
-                let ap = unsafe { ap.assume_init_mut() };
-                unwrap!(ap.handle())
+                unsafe { ap.assume_init_ref().handle() }
             }
 
             WifiDriverState::Uninitialized { .. }
@@ -286,8 +287,7 @@ impl WifiDriver {
                     );
                 }
 
-                let sta = unsafe { sta.assume_init_mut() };
-                unwrap!(sta.handle())
+                unsafe { sta.assume_init_ref().handle() }
             }
 
             WifiDriverState::Uninitialized { .. }

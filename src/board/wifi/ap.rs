@@ -65,7 +65,7 @@ impl Ap {
 pub(super) struct ApState {
     init: EspWifiInitialization,
     stack: Rc<StackWrapper>,
-    connection_task_control: Option<TaskController<(), ApTaskResources>>,
+    connection_task_control: TaskController<(), ApTaskResources>,
     net_task_control: TaskController<!>,
     client_count: Rc<AtomicU32>,
 }
@@ -91,10 +91,14 @@ impl ApState {
 
         let controller = Box::new(controller);
 
-        let task_control = TaskController::from_resources(ApTaskResources { controller });
+        let connection_task_control =
+            TaskController::from_resources(ApTaskResources { controller });
 
         info!("Starting AP task");
-        spawner.must_spawn(ap_task(task_control.token(), client_count.clone()));
+        spawner.must_spawn(ap_task(
+            connection_task_control.token(),
+            client_count.clone(),
+        ));
 
         info!("Starting NET task");
         spawner.must_spawn(net_task(stack.clone(), net_task_control.token()));
@@ -104,22 +108,25 @@ impl ApState {
             stack,
             net_task_control,
             client_count,
-            connection_task_control: Some(task_control),
+            connection_task_control,
         }
     }
 
     pub(super) async fn stop(self) -> EspWifiInitialization {
-        if let Some(task_control) = self.connection_task_control {
-            info!("Stopping AP");
-            let _ = join(task_control.stop(), self.net_task_control.stop()).await;
+        info!("Stopping AP");
+        let _ = join(
+            self.connection_task_control.stop(),
+            self.net_task_control.stop(),
+        )
+        .await;
 
-            let mut controller = task_control.unwrap().controller;
-            if matches!(controller.is_started(), Ok(true)) {
-                unwrap!(controller.stop().await);
-            }
-
-            info!("Stopped AP");
+        let mut controller = self.connection_task_control.unwrap().controller;
+        if matches!(controller.is_started(), Ok(true)) {
+            unwrap!(controller.stop().await);
         }
+
+        info!("Stopped AP");
+
         self.init
     }
 
@@ -128,22 +135,14 @@ impl ApState {
             return false;
         }
 
-        if let Some(connection_task) = &self.connection_task_control {
-            if connection_task.has_exited() {
-                return false;
-            }
+        if self.connection_task_control.has_exited() {
+            return false;
         }
 
         true
     }
 
-    pub(crate) fn handle(&self) -> Option<Ap> {
-        self.connection_task_control
-            .as_ref()
-            .map(|_| self.handle_unchecked())
-    }
-
-    fn handle_unchecked(&self) -> Ap {
+    pub(crate) fn handle(&self) -> Ap {
         Ap {
             stack: self.stack.clone(),
             client_count: self.client_count.clone(),
