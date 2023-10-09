@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, rc::Rc};
+use alloc::rc::Rc;
 use core::sync::atomic::{AtomicU32, Ordering};
 use gui::widgets::wifi::WifiState;
 
@@ -64,9 +64,8 @@ impl Ap {
 
 pub(super) struct ApState {
     init: EspWifiInitialization,
-    controller: Option<Box<WifiController<'static>>>,
     stack: Rc<StackWrapper>,
-    connection_task_control: Option<TaskController<(), ApTaskResources>>,
+    connection_task_control: TaskController<(), ApTaskResources>,
     net_task_control: TaskController<!>,
     client_count: Rc<AtomicU32>,
 }
@@ -77,58 +76,56 @@ impl ApState {
         config: Config,
         wifi: &'static mut Wifi,
         rng: Rng,
+        spawner: Spawner,
     ) -> Self {
         info!("Configuring AP");
 
         let (wifi_interface, controller) =
             unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap));
 
+        info!("Starting AP");
+
+        let stack = Rc::new(StackWrapper::new(wifi_interface, config, rng));
+        let net_task_control = TaskController::new();
+        let client_count = Rc::new(AtomicU32::new(0));
+
+        let connection_task_control =
+            TaskController::from_resources(ApTaskResources { controller });
+
+        info!("Starting AP task");
+        spawner.must_spawn(ap_task(
+            connection_task_control.token(),
+            client_count.clone(),
+        ));
+
+        info!("Starting NET task");
+        spawner.must_spawn(net_task(stack.clone(), net_task_control.token()));
+
         Self {
             init,
-            controller: Some(Box::new(controller)),
-            stack: Rc::new(StackWrapper::new(wifi_interface, config, rng)),
-            connection_task_control: None,
-            net_task_control: TaskController::new(),
-            client_count: Rc::new(AtomicU32::new(0)),
+            stack,
+            net_task_control,
+            client_count,
+            connection_task_control,
         }
     }
 
-    pub(super) fn unwrap(self) -> EspWifiInitialization {
+    pub(super) async fn stop(self) -> EspWifiInitialization {
+        info!("Stopping AP");
+        let _ = join(
+            self.connection_task_control.stop(),
+            self.net_task_control.stop(),
+        )
+        .await;
+
+        let mut controller = self.connection_task_control.unwrap().controller;
+        if matches!(controller.is_started(), Ok(true)) {
+            unwrap!(controller.stop().await);
+        }
+
+        info!("Stopped AP");
+
         self.init
-    }
-
-    pub(super) async fn start(&mut self) -> Ap {
-        if let Some(controller) = self.controller.take() {
-            info!("Starting AP");
-            let spawner = Spawner::for_current_executor().await;
-
-            let task_control = TaskController::from_resources(ApTaskResources { controller });
-
-            info!("Starting AP task");
-            spawner.must_spawn(ap_task(task_control.token(), self.client_count.clone()));
-            info!("Starting NET task");
-            spawner.must_spawn(net_task(self.stack.clone(), self.net_task_control.token()));
-
-            self.connection_task_control = Some(task_control)
-        }
-
-        self.handle_unchecked()
-    }
-
-    pub(super) async fn stop(&mut self) {
-        if let Some(task_control) = self.connection_task_control.take() {
-            info!("Stopping AP");
-            let _ = join(task_control.stop(), self.net_task_control.stop()).await;
-
-            let mut controller = task_control.unwrap().controller;
-            if matches!(controller.is_started(), Ok(true)) {
-                unwrap!(controller.stop().await);
-            }
-
-            self.controller = Some(controller);
-
-            info!("Stopped AP");
-        }
     }
 
     pub(super) fn is_running(&self) -> bool {
@@ -136,22 +133,14 @@ impl ApState {
             return false;
         }
 
-        if let Some(connection_task) = &self.connection_task_control {
-            if connection_task.has_exited() {
-                return false;
-            }
+        if self.connection_task_control.has_exited() {
+            return false;
         }
 
         true
     }
 
-    pub(crate) fn handle(&self) -> Option<Ap> {
-        self.connection_task_control
-            .as_ref()
-            .map(|_| self.handle_unchecked())
-    }
-
-    fn handle_unchecked(&self) -> Ap {
+    pub(crate) fn handle(&self) -> Ap {
         Ap {
             stack: self.stack.clone(),
             client_count: self.client_count.clone(),
@@ -160,7 +149,7 @@ impl ApState {
 }
 
 struct ApTaskResources {
-    controller: Box<WifiController<'static>>,
+    controller: WifiController<'static>,
 }
 
 #[cardio::task]

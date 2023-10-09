@@ -62,11 +62,9 @@ impl Board {
             return None;
         }
 
-        self.wifi.initialize(&self.clocks);
-
         let sta = self
             .wifi
-            .configure_sta(NetConfig::dhcpv4(Default::default()))
+            .configure_sta(NetConfig::dhcpv4(Default::default()), &self.clocks)
             .await;
 
         sta.update_known_networks(&self.config.known_networks).await;
@@ -99,15 +97,16 @@ impl Board {
             return None;
         }
 
-        self.wifi.initialize(&self.clocks);
-
         let ap = self
             .wifi
-            .configure_ap(NetConfig::ipv4_static(StaticConfigV4 {
-                address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
-                gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
-                dns_servers: Default::default(),
-            }))
+            .configure_ap(
+                NetConfig::ipv4_static(StaticConfigV4 {
+                    address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
+                    gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
+                    dns_servers: Default::default(),
+                }),
+                &self.clocks,
+            )
             .await;
 
         Some(ap)

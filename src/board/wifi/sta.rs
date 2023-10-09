@@ -63,12 +63,6 @@ impl State {
         self.value.store(value, Ordering::Release);
         self.signal.signal(());
     }
-
-    fn reset(&self) {
-        self.value
-            .store(InternalConnectionState::NotConnected, Ordering::Release);
-        self.signal.reset();
-    }
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -265,12 +259,11 @@ impl<'a> HttpsClientResources<'a> {
 
 pub(super) struct StaState {
     init: EspWifiInitialization,
-    controller: Option<Box<WifiController<'static>>>,
     stack: Rc<StackWrapper>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
     state: Rc<State>,
-    connection_task_control: Option<TaskController<(), StaTaskResources>>,
+    connection_task_control: TaskController<(), StaTaskResources>,
     net_task_control: TaskController<!>,
     rng: Rng,
 }
@@ -281,79 +274,68 @@ impl StaState {
         config: Config,
         wifi: &'static mut Wifi,
         rng: Rng,
+        spawner: Spawner,
     ) -> Self {
         info!("Configuring STA");
 
         let (wifi_interface, controller) =
             unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Sta));
 
+        info!("Starting STA");
+
+        let stack = Rc::new(StackWrapper::new(wifi_interface, config, rng));
+        let networks = Rc::new(Mutex::new(heapless::Vec::new()));
+        let known_networks = Rc::new(Mutex::new(Vec::new()));
+        let state = Rc::new(State::new(InternalConnectionState::NotConnected));
+        let net_task_control = TaskController::new();
+
+        let connection_task_control =
+            TaskController::from_resources(StaTaskResources { controller });
+
+        info!("Starting STA task");
+        spawner.must_spawn(sta_task(
+            networks.clone(),
+            known_networks.clone(),
+            state.clone(),
+            stack.clone(),
+            connection_task_control.token(),
+        ));
+
+        info!("Starting NET task");
+        spawner.must_spawn(net_task(stack.clone(), net_task_control.token()));
+
         Self {
             init,
-            controller: Some(Box::new(controller)),
-            stack: Rc::new(StackWrapper::new(wifi_interface, config, rng)),
-            networks: Rc::new(Mutex::new(heapless::Vec::new())),
-            known_networks: Rc::new(Mutex::new(Vec::new())),
-            state: Rc::new(State::new(InternalConnectionState::NotConnected)),
-            connection_task_control: None,
-            net_task_control: TaskController::new(),
+            stack,
+            networks,
+            known_networks,
+            state,
+            net_task_control,
             rng,
+            connection_task_control,
         }
     }
 
-    pub(super) fn unwrap(self) -> EspWifiInitialization {
+    pub(super) async fn stop(self) -> EspWifiInitialization {
+        info!("Stopping STA");
+
+        let _ = join(
+            self.connection_task_control.stop(),
+            self.net_task_control.stop(),
+        )
+        .await;
+
+        let mut controller = self.connection_task_control.unwrap().controller;
+        if matches!(controller.is_started(), Ok(true)) {
+            unwrap!(controller.stop().await);
+        }
+
+        info!("Stopped STA");
+
         self.init
     }
 
-    pub(super) async fn stop(&mut self) {
-        if let Some(task_control) = self.connection_task_control.take() {
-            info!("Stopping STA");
-
-            let _ = join(task_control.stop(), self.net_task_control.stop()).await;
-
-            let mut controller = task_control.unwrap().controller;
-            if matches!(controller.is_started(), Ok(true)) {
-                unwrap!(controller.stop().await);
-            }
-
-            info!("Stopped STA");
-
-            self.controller = Some(controller);
-        }
-    }
-
-    pub(super) async fn start(&mut self) -> Sta {
-        if let Some(controller) = self.controller.take() {
-            info!("Starting STA");
-            let spawner = Spawner::for_current_executor().await;
-
-            self.state.reset();
-
-            let task_control = TaskController::from_resources(StaTaskResources { controller });
-
-            info!("Starting STA task");
-            spawner.must_spawn(sta_task(
-                self.networks.clone(),
-                self.known_networks.clone(),
-                self.state.clone(),
-                self.stack.clone(),
-                task_control.token(),
-            ));
-            info!("Starting NET task");
-            spawner.must_spawn(net_task(self.stack.clone(), self.net_task_control.token()));
-
-            self.connection_task_control = Some(task_control);
-        }
-
-        self.handle_unchecked()
-    }
-
-    pub(crate) fn handle(&self) -> Option<Sta> {
-        self.connection_task_control
-            .as_ref()
-            .map(|_| self.handle_unchecked())
-    }
-
-    fn handle_unchecked(&self) -> Sta {
+    pub(crate) fn handle(&self) -> Sta {
         Sta {
             stack: self.stack.clone(),
             networks: self.networks.clone(),
@@ -365,7 +347,7 @@ impl StaState {
 }
 
 struct StaTaskResources {
-    controller: Box<WifiController<'static>>,
+    controller: WifiController<'static>,
 }
 
 #[cardio::task]
