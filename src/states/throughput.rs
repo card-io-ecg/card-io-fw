@@ -1,3 +1,4 @@
+use embassy_futures::select::{select, Either};
 use embassy_time::{Duration, Instant};
 use embedded_io::asynch::Read;
 use reqwless::{request::Method, response::Status};
@@ -80,8 +81,6 @@ async fn run_test(board: &mut Board) -> TestResult {
     };
     let mut client = client_resources.client();
 
-    display_message(board, "Connecting...").await;
-
     let mut url = heapless::String::<128>::new();
     if uwrite!(
         &mut url,
@@ -98,8 +97,20 @@ async fn run_test(board: &mut Board) -> TestResult {
 
     debug!("Testing throughput using {}", url.as_str());
 
-    let mut request = match Timeout::with(CONNECT_TIMEOUT, client.request(Method::GET, &url)).await
-    {
+    let connect = Timeout::with(CONNECT_TIMEOUT, async {
+        let futures = select(client.request(Method::GET, &url), async {
+            loop {
+                // A message is displayed for at least 300ms so we don't need to wait here.
+                display_message(board, "Connecting to server...").await;
+            }
+        });
+        match futures.await {
+            Either::First(request) => request,
+            Either::Second(_) => unreachable!(),
+        }
+    });
+
+    let mut request = match connect.await {
         Some(Ok(request)) => request,
         Some(Err(e)) => {
             warn!("HTTP connect error: {}", e);

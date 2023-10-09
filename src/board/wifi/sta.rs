@@ -24,7 +24,7 @@ use embassy_sync::{
     mutex::{Mutex, MutexGuard},
     signal::Signal,
 };
-use embassy_time::{Duration, Ticker, Timer};
+use embassy_time::{Duration, Timer};
 use embedded_svc::wifi::{AccessPointInfo, ClientConfiguration, Configuration, Wifi as _};
 use esp_wifi::{
     wifi::{WifiController, WifiDevice, WifiEvent, WifiMode},
@@ -178,10 +178,9 @@ impl Sta {
                     }
                 },
                 async {
-                    let mut ticker = Ticker::every(Duration::from_millis(100));
                     loop {
+                        // A message is displayed for at least 300ms so we don't need to wait here.
                         display_message(board, "Connecting...").await;
-                        ticker.next().await;
                     }
                 },
             )
