@@ -5,7 +5,6 @@ use crate::{
         initialized::Board,
         PoweredEcgFrontend,
     },
-    replace_with::replace_with_or_abort_and_return_async,
     states::{
         display_message, menu::AppMenu, to_progress, INIT_MENU_THRESHOLD, INIT_TIME, MIN_FRAME_TIME,
     },
@@ -121,10 +120,12 @@ pub async fn measure(board: &mut Board) -> AppState {
         warn!("Failed to allocate ECG buffer");
     }
 
-    replace_with_or_abort_and_return_async(board, |board| async {
-        measure_impl(board, &mut ecg, ecg_buffer).await
-    })
-    .await
+    unsafe {
+        let read_board = core::ptr::read(board);
+        let (next_state, new_board) = measure_impl(read_board, &mut ecg, ecg_buffer).await;
+        core::ptr::write(board, new_board);
+        next_state
+    }
 }
 
 async fn measure_impl(

@@ -82,7 +82,6 @@ use crate::{
 mod board;
 mod heap;
 pub mod human_readable;
-mod replace_with;
 mod sleep;
 mod stack_protection;
 mod states;
