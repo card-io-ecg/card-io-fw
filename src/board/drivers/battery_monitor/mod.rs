@@ -36,7 +36,7 @@ pub struct BatteryState {
     pub data: Option<BatteryData>,
 }
 
-pub type SharedBatteryState = Shared<BatteryState>;
+type SharedBatteryState = Shared<BatteryState>;
 
 pub struct BatteryMonitor<VBUS, CHG> {
     battery_state: SharedBatteryState,

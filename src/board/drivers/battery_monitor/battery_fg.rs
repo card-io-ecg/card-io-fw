@@ -64,23 +64,24 @@ pub async fn monitor_task_fg(
 ) {
     task_control
         .run_cancellable(|_| async {
-            let mut timer = Ticker::every(Duration::from_secs(1));
+            if fuel_gauge.lock().await.enable(&mut Delay).await.is_err() {
+                error!("Failed to enable fuel gauge");
+                return;
+            }
+
             info!("Fuel gauge monitor started");
 
-            if fuel_gauge.lock().await.enable(&mut Delay).await.is_ok() {
-                loop {
-                    if let Ok(data) = fuel_gauge.lock().await.read_data().await {
-                        let mut state = battery_state.lock().await;
-                        state.data = Some(data);
-                        debug!("Battery data: {:?}", data);
-                    } else {
-                        error!("Failed to read battery data");
-                    }
-
-                    timer.next().await;
+            let mut timer = Ticker::every(Duration::from_secs(1));
+            loop {
+                if let Ok(data) = fuel_gauge.lock().await.read_data().await {
+                    let mut state = battery_state.lock().await;
+                    state.data = Some(data);
+                    trace!("Battery data: {:?}", data);
+                } else {
+                    error!("Failed to read battery data");
                 }
-            } else {
-                error!("Failed to enable fuel gauge");
+
+                timer.next().await;
             }
         })
         .await;
