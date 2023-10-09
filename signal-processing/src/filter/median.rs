@@ -19,10 +19,8 @@ impl<const N: usize> MedianFilter<N> {
 
     fn nth(data: &mut [f32; N], n: usize) -> f32 {
         for i in 0..(n + 1) {
-            let min_value = data[i];
-
             for j in i + 1..data.len() {
-                if data[j] < min_value {
+                if data[j] < data[i] {
                     data.swap(i, j);
                 }
             }
