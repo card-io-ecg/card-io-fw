@@ -4,7 +4,7 @@ use crate::{
     board::{
         hal::{radio::Wifi, Rng},
         initialized::Board,
-        wifi::net_task,
+        wifi::{net_task, STACK_SOCKET_COUNT},
     },
     states::display_message,
     task_control::{TaskControlToken, TaskController},
@@ -281,7 +281,7 @@ impl StaState {
         init: EspWifiInitialization,
         config: Config,
         wifi: &'static mut Wifi,
-        resources: &'static mut StackResources<3>,
+        resources: &'static mut StackResources<STACK_SOCKET_COUNT>,
         mut rng: Rng,
     ) -> Self {
         info!("Configuring STA");

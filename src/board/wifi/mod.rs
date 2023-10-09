@@ -32,6 +32,8 @@ pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
 pub mod ap;
 pub mod sta;
 
+const STACK_SOCKET_COUNT: usize = 3;
+
 #[derive(Default, PartialEq)]
 pub enum GenericConnectionState {
     Sta(sta::ConnectionState),
@@ -70,8 +72,14 @@ impl WifiHandle {
 enum WifiDriverState {
     Uninitialized(WifiInitResources),
     Initialized(EspWifiInitialization),
-    Ap(MaybeUninit<ApState>, Box<StackResources<3>>),
-    Sta(MaybeUninit<StaState>, Box<StackResources<3>>),
+    Ap(
+        MaybeUninit<ApState>,
+        Box<StackResources<STACK_SOCKET_COUNT>>,
+    ),
+    Sta(
+        MaybeUninit<StaState>,
+        Box<StackResources<STACK_SOCKET_COUNT>>,
+    ),
 }
 
 impl WifiDriverState {
