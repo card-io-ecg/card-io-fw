@@ -3,7 +3,7 @@ use core::{cell::RefCell, num::NonZeroU8};
 use embedded_graphics::{
     image::{Image, ImageRaw},
     pixelcolor::BinaryColor,
-    prelude::{Dimensions, DrawTarget, OriginDimensions, Point},
+    prelude::{DrawTarget, OriginDimensions, Point},
     primitives::{Line, Primitive, PrimitiveStyle},
     text::{Baseline, Text},
     Drawable,
