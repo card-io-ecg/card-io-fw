@@ -13,7 +13,7 @@ embedded-hal-async = "1.0.0-rc.1"
 embedded-hal-bus = { version = "0.1.0-rc.1", features = ["async"] }
 embedded-nal-async = "0.4.0"
 embedded-io = { version = "0.4", features = ["async"] }
-embedded-menu = "0.4.3"
+embedded-menu = "0.4.4"
 embedded-svc = { version = "0.25", default-features = false }
 embassy-net = { version = "0.1.0", features = [
     "nightly",
