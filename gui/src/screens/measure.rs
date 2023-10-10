@@ -3,7 +3,7 @@ use core::{cell::RefCell, num::NonZeroU8};
 use embedded_graphics::{
     image::{Image, ImageRaw},
     pixelcolor::BinaryColor,
-    prelude::{DrawTarget, Point},
+    prelude::{Dimensions, DrawTarget, OriginDimensions, Point},
     primitives::{Line, Primitive, PrimitiveStyle},
     text::{Baseline, Text},
     Drawable,
@@ -180,25 +180,22 @@ impl Drawable for EcgScreen {
             .draw(display)?;
 
         if let Some(hr) = self.heart_rate {
-            #[rustfmt::skip]
-            const HEART: &[u8] = &[
-                0b00000000,
-                0b01101100,
-                0b11111110,
-                0b11111110,
-                0b11111110,
-                0b01111100,
-                0b00111000,
-                0b00010000,
-            ];
-            const IMAGE_WIDTH: u32 = 8;
-            const RAW_IMAGE: ImageRaw<'_, BinaryColor> =
-                ImageRaw::<BinaryColor>::new(HEART, IMAGE_WIDTH);
+            const HEART: ImageRaw<'_, BinaryColor> = ImageRaw::new(
+                &[
+                    0b00000000, //
+                    0b01101100, //
+                    0b11111110, //
+                    0b11111110, //
+                    0b11111110, //
+                    0b01111100, //
+                    0b00111000, //
+                    0b00010000, //
+                ],
+                8,
+            );
 
-            let image = Image::new(&RAW_IMAGE, status_loc);
-
-            image.draw(display)?;
-            status_loc += Point::new(IMAGE_WIDTH as i32 + 1, 0);
+            Image::new(&HEART, status_loc).draw(display)?;
+            status_loc += Point::new(HEART.size().width as i32, 0);
 
             str_buffer.clear();
             unwrap!(uwrite!(&mut str_buffer, "{}", hr));
