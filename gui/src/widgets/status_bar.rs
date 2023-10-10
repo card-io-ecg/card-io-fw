@@ -3,7 +3,9 @@ use embedded_graphics::{
     prelude::{DrawTarget, Point},
     Drawable,
 };
-use embedded_layout::{layout::linear::LinearLayout, prelude::*, ViewGroup};
+use embedded_layout::{
+    layout::linear::LinearLayout, prelude::*, view_group::EmptyViewGroup, ViewGroup,
+};
 
 use crate::{
     screens::BatteryInfo,
@@ -39,11 +41,13 @@ impl Drawable for StatusBar {
     fn draw<DT: DrawTarget<Color = BinaryColor>>(&self, display: &mut DT) -> Result<(), DT::Error> {
         // Roundabout way because we can't call draw on the LinearLayout as it results in an
         // indirect infinite recursion.
-        let views = LinearLayout::horizontal(*self)
+        let mut views = *self;
+
+        LinearLayout::horizontal(EmptyViewGroup)
             .with_alignment(vertical::Top)
-            .arrange()
-            .align_to(&display.bounding_box(), horizontal::Right, vertical::Top)
-            .into_inner();
+            .arrange_view_group(&mut views);
+
+        views.align_to_mut(&display.bounding_box(), horizontal::Right, vertical::Top);
 
         views.battery.draw(display)?;
         views.wifi.draw(display)?;

@@ -12,7 +12,7 @@ norfs = { workspace = true }
 embedded-io = { workspace = true }
 heapless = { workspace = true, features = ["ufmt-impl"] }
 embedded-text = "0.6.4"
-embedded-layout = "0.3"
+embedded-layout = "0.4.1"
 tinybmp = "0.5"
 ufmt = { workspace = true }
 

@@ -4,9 +4,10 @@ use embedded_graphics::{
     primitives::Rectangle,
     Drawable,
 };
-use embedded_layout::{view_group::ViewGroup, View};
-
-use crate::widgets::empty::EMPTY_VIEW_GROUP;
+use embedded_layout::{
+    view_group::{ViewGroup, EMPTY_VIEW_GROUP},
+    View,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[non_exhaustive]
