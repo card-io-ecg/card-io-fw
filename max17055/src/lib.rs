@@ -199,8 +199,8 @@ where
     where
         R: Register<RegisterWidth = u16>,
     {
-        for el in buffer.iter_mut() {
-            self.write_one(R::ADDRESS, *el)?;
+        for (i, el) in buffer.iter_mut().enumerate() {
+            self.write_one((R::ADDRESS as usize + i) as u8, *el)?;
         }
         Ok(())
     }
@@ -249,8 +249,9 @@ where
     where
         R: Register<RegisterWidth = u16>,
     {
-        for el in buffer.iter_mut() {
-            self.write_one_async(R::ADDRESS, *el).await?;
+        for (i, el) in buffer.iter_mut().enumerate() {
+            self.write_one_async((R::ADDRESS as usize + i) as u8, *el)
+                .await?;
         }
 
         Ok(())
