@@ -19,6 +19,7 @@ fn find_suffix(amount: usize) -> Option<(usize, usize, &'static str)> {
 pub struct BinarySize(pub usize);
 
 impl uDisplay for BinarySize {
+    #[inline(never)]
     fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
     where
         W: ufmt::uWrite + ?Sized,
@@ -182,10 +183,10 @@ impl<D: uDebug> uDebug for LeftPadAny<D> {
 
 #[macro_export]
 macro_rules! uformat {
-    ($len:literal, $($arg:tt)*) => {
+    ($len:literal$(, $arg:expr)*) => {
         {
             let mut s = heapless::String::<$len>::new();
-            unwrap!(ufmt::uwrite!(&mut s, $($arg)*));
+            unwrap!(ufmt::uwrite!(&mut s $(, $arg)*));
             s
         }
     }

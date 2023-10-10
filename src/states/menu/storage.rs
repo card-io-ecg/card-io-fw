@@ -9,11 +9,10 @@ use crate::{
         display_message,
         menu::{AppMenu, MenuScreen},
     },
-    AppState,
+    uformat, AppState,
 };
 use embedded_menu::items::{NavigationItem, Select};
 use gui::screens::create_menu;
-use ufmt::uwrite;
 
 use super::AppMenuBuilder;
 
@@ -48,14 +47,12 @@ impl MenuScreen for StorageMenu {
         let mut used_item = heapless::Vec::<_, 1>::new();
         if let Some(storage) = board.storage.as_mut() {
             if let Ok(used) = storage.used_bytes().await {
-                let mut used_str = heapless::String::<32>::new();
-                unwrap!(uwrite!(
-                    &mut used_str,
+                let used_str = uformat!(
+                    32,
                     "{}/{}",
                     BinarySize(used),
                     BinarySize(storage.capacity())
-                )
-                .ok());
+                );
 
                 unwrap!(used_item
                     .push(

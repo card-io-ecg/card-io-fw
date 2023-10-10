@@ -31,7 +31,7 @@ use crate::{
         menu::{AppMenuBuilder, MenuScreen},
     },
     timeout::Timeout,
-    AppState, SerialNumber,
+    uformat, AppState, SerialNumber,
 };
 
 /// Whether to store the measurement or not. Used instead of a bool to reduce confusion.
@@ -185,13 +185,7 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
     // TODO: only try to upload if we are registered.
     debug!("Trying to upload measurement");
 
-    let mut uploading_msg = heapless::String::<48>::new();
-    unwrap!(uwrite!(
-        &mut uploading_msg,
-        "Uploading measurement: {}",
-        BinarySize(buffer.len())
-    ));
-
+    let uploading_msg = uformat!(32, "Uploading measurement: {}", BinarySize(buffer.len()));
     display_message(board, uploading_msg.as_str()).await;
 
     let Ok(mut client_resources) = sta.https_client_resources() else {
@@ -482,12 +476,7 @@ where
 async fn try_store_measurement(board: &mut Board, measurement: &[u8]) -> Result<(), StorageError> {
     debug!("Trying to store measurement");
 
-    let mut saving_msg = heapless::String::<48>::new();
-    unwrap!(uwrite!(
-        &mut saving_msg,
-        "Saving measurement: {}",
-        BinarySize(measurement.len())
-    ));
+    let saving_msg = uformat!(32, "Saving measurement: {}", BinarySize(measurement.len()));
     display_message(board, &saving_msg).await;
     let Some(storage) = board.storage.as_mut() else {
         return Ok(());
