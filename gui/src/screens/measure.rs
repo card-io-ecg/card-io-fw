@@ -18,7 +18,7 @@ use ufmt::uwrite;
 use crate::screens::{message::MessageScreen, NORMAL_TEXT};
 
 struct CameraConfig {
-    shrink_frames: usize,
+    shrink_end: usize,
     shrink_delay: usize,
 }
 
@@ -47,8 +47,8 @@ impl Limit {
 
     pub fn update(&mut self, value: f32, config: &CameraConfig) -> f32 {
         let reset = match self.kind {
-            LimitKind::Min => value < self.current,
-            LimitKind::Max => value > self.current,
+            LimitKind::Min => value <= self.current,
+            LimitKind::Max => value >= self.current,
         };
 
         if reset {
@@ -57,8 +57,7 @@ impl Limit {
         } else {
             self.age += 1;
             if self.age > config.shrink_delay {
-                let remaining_shrink_frames =
-                    config.shrink_frames - (self.age - config.shrink_delay);
+                let remaining_shrink_frames = config.shrink_end - self.age;
 
                 if remaining_shrink_frames == 0 {
                     self.age = 0;
@@ -114,8 +113,10 @@ impl EcgScreen {
                 min_limit: Limit::new(LimitKind::Min),
                 max_limit: Limit::new(LimitKind::Max),
                 config: CameraConfig {
-                    shrink_frames: 60,
-                    shrink_delay: 60,
+                    // We display samples at 125sps. A 50 sample delay means we don't shrink the viewport
+                    // between pulses if the heart rate is above 1.4s or 42bpm.
+                    shrink_end: 120,
+                    shrink_delay: 50,
                 },
             }),
         }
