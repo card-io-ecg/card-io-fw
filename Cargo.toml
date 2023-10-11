@@ -79,6 +79,7 @@ esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "887eb22", de
     "phy-enable-usb",
     "ps-max-modem",
     "wifi",
+    "wifi-logs",
     "embedded-svc",
     "async",
     "embassy-net"
@@ -147,7 +148,8 @@ esp32s3-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "44e968f7a8
 # esp-hal-common = { path = "../../esp-hal/esp-hal-common" }
 
 [patch.'https://github.com/esp-rs/esp-wifi.git']
-esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", branch = "timer" }
+# esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", branch = "strbuf" }
+esp-wifi = { path = "../esp-wifi/esp-wifi" }
 
 [features]
 default = ["esp32s3", "defmt"]
