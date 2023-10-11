@@ -290,7 +290,10 @@ fn asm() -> AnyResult<()> {
 fn main() -> AnyResult<()> {
     let cli = Cli::parse();
 
-    env::set_var("DEFMT_LOG", "card_io_fw=debug,info");
+    env::set_var(
+        "DEFMT_LOG",
+        "card_io_fw=debug,esp_wifi=debug,smoltcp=debug,info",
+    );
 
     match cli.subcommand {
         Subcommands::Build { hw, variant: opt } => build(hw.unwrap_or_default(), opt),
