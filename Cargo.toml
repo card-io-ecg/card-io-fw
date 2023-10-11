@@ -75,14 +75,13 @@ esp-println = { version = "0.6.0", default-features = false, features = [
     "critical-section",
 ] }
 esp-alloc = { version = "0.3.0" }
-esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "15e5a55", default-features = false, features = [
+esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "16afb0f", default-features = false, features = [
     "phy-enable-usb",
     "ps-min-modem",
     "wifi",
     "embedded-svc",
     "async",
-    "embassy-net",
-    "utils"
+    "embassy-net"
 ] }
 
 display-interface = { git = "https://github.com/therealprof/display-interface.git", branch = "master" }
