@@ -255,7 +255,7 @@ fn example(package: String, name: String, watch: bool) -> AnyResult<()> {
 fn asm() -> AnyResult<()> {
     cmd!(
         "xtensa-esp32s3-elf-objdump",
-        "-Sd",
+        "-d",
         "./target/xtensa-esp32s3-none-elf/release/card_io_fw"
     )
     .stdout_path("target/asm.s")
