@@ -115,6 +115,7 @@ fn build(hw: HardwareVersion, opt: Option<BuildVariant>) -> AnyResult<()> {
                     "rustc",
                     "--target=xtensa-esp32s3-none-elf",
                     "-Zbuild-std=core,alloc",
+                    "-Zbuild-std-features=panic_immediate_abort",
                     &format!("--features={}", hw.feature()),
                     "--profile=lto",
                     "--",
@@ -138,6 +139,7 @@ fn build(hw: HardwareVersion, opt: Option<BuildVariant>) -> AnyResult<()> {
         "-s4mb",
         &format!("--features={}", hw.feature()),
         "-Zbuild-std=core,alloc",
+        "-Zbuild-std-features=panic_immediate_abort",
         "target/card_io_fw.bin",
     ])
     .run()?;
@@ -154,6 +156,7 @@ fn run(hw: HardwareVersion) -> AnyResult<()> {
         "--release",
         "--target=xtensa-esp32s3-none-elf",
         "-Zbuild-std=core,alloc",
+        "-Zbuild-std-features=panic_immediate_abort",
         &format!("--features={}", hw.feature()),
     ])
     .run()?;
@@ -178,6 +181,7 @@ fn checks(hw: HardwareVersion) -> AnyResult<()> {
         "check",
         "--target=xtensa-esp32s3-none-elf",
         "-Zbuild-std=core,alloc",
+        "-Zbuild-std-features=panic_immediate_abort",
         &format!("--features={}", hw.feature()),
     ])
     .run()?;
@@ -191,6 +195,7 @@ fn docs(open: bool, hw: HardwareVersion) -> AnyResult<()> {
         "doc",
         "--target=xtensa-esp32s3-none-elf",
         "-Zbuild-std=core,alloc",
+        "-Zbuild-std-features=panic_immediate_abort",
         &hw,
     ];
 
@@ -209,6 +214,7 @@ fn extra_checks(hw: HardwareVersion) -> AnyResult<()> {
         "clippy",
         "--target=xtensa-esp32s3-none-elf",
         "-Zbuild-std=core,alloc",
+        "-Zbuild-std-features=panic_immediate_abort",
         &format!("--features={}", hw.feature()),
     ])
     .run()?;
