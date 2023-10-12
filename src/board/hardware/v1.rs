@@ -13,7 +13,7 @@ use crate::board::{
         gpio::{Analog, Floating, GpioPin, Input, Output, PullUp, PushPull},
         peripherals::{self, Peripherals},
         prelude::*,
-        spi::{dma::SpiDma, FullDuplexMode},
+        spi::{master::dma::SpiDma, FullDuplexMode},
         systimer::SystemTimer,
         Rtc, IO,
     },
