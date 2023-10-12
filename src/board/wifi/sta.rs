@@ -197,7 +197,7 @@ impl Sta {
             tls_read_buffer: [0; TLS_READ_BUFFER],
             tls_write_buffer: [0; TLS_WRITE_BUFFER],
         })?;
-        let client_state = unsafe { addr_of!(resources.tcp_state).as_ref().unwrap() };
+        let client_state = unsafe { unwrap!(addr_of!(resources.tcp_state).as_ref()) };
 
         Ok(HttpsClientResources {
             resources,

@@ -52,7 +52,7 @@ impl<R: Send, D: Send> Inner<R, D> {
         self.token.reset();
         self.exited.reset();
 
-        let resources = unsafe { self.resources.get().as_mut().unwrap() };
+        let resources = unsafe { unwrap!(self.resources.get().as_mut()) };
 
         let result = match select(f(resources), self.token.wait()).await {
             Either::First(result) => Ok(result),
