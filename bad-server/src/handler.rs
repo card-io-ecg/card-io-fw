@@ -99,7 +99,7 @@ impl<C: Connection> RequestHandler<C> for StaticHandler<'_> {
             response
                 .send_headers(self.headers)
                 .await?
-                .send_headers(&[etag_header])
+                .send_header(etag_header)
                 .await?;
 
             response.send_body(self.body).await
