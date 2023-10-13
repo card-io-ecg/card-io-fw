@@ -77,13 +77,14 @@ impl OtaHeader {
     }
 
     fn from_buffer(buffer: [u8; 32]) -> OtaHeader {
+        let ota_seq = u32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]);
+        let state = u32::from_le_bytes([buffer[24], buffer[25], buffer[26], buffer[27]]);
+        let crc = u32::from_le_bytes([buffer[28], buffer[29], buffer[30], buffer[31]]);
+
         OtaHeader {
-            ota_seq: u32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]),
-            ota_state: OtaState::try_from(u32::from_le_bytes([
-                buffer[24], buffer[25], buffer[26], buffer[27],
-            ]))
-            .ok(),
-            crc: u32::from_le_bytes([buffer[28], buffer[29], buffer[30], buffer[31]]),
+            ota_seq,
+            ota_state: OtaState::try_from(state).ok(),
+            crc,
         }
     }
 
