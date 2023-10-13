@@ -35,6 +35,7 @@ impl ConfigFile {
     }
 
     /// Migrates config data to newest format.
+    #[inline(never)]
     pub fn into_config(mut self) -> Config {
         if let Self::V1(config) = self {
             self = Self::V2(v2::Config::from(config));

@@ -39,6 +39,7 @@ impl From<super::v4::Config> for Config {
 }
 
 impl Default for Config {
+    #[inline(never)]
     fn default() -> Self {
         Self {
             battery_display_style: BatteryStyle::LowIndicator,
