@@ -198,7 +198,7 @@ where
 
         self.frontend
             .adc
-            .write_command_async(Command::START, &mut [])
+            .write_command_async(Command::START)
             .await?;
 
         Ok(())
@@ -222,10 +222,7 @@ where
 
     #[allow(unused)]
     pub async fn enable_rdatac(&mut self) -> Result<(), Error<S::Error>> {
-        self.frontend
-            .adc
-            .write_command_async(Command::RDATAC, &mut [])
-            .await
+        self.frontend.adc.write_command_async(Command::RDATAC).await
     }
 
     pub async fn read_clksel(&mut self) -> Result<PinState, Error<S::Error>> {
@@ -259,17 +256,8 @@ where
     }
 
     pub async fn shut_down(mut self) -> Frontend<S, DRDY, RESET, CLKEN, TOUCH> {
-        let _ = self
-            .frontend
-            .adc
-            .write_command_async(Command::STOP, &mut [])
-            .await;
-
-        let _ = self
-            .frontend
-            .adc
-            .write_command_async(Command::RESET, &mut [])
-            .await;
+        let _ = self.frontend.adc.write_command_async(Command::STOP).await;
+        let _ = self.frontend.adc.write_command_async(Command::RESET).await;
 
         unwrap!(self.frontend.reset.set_low().ok());
 

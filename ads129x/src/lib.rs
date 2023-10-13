@@ -136,7 +136,7 @@ where
     where
         R: ReadOnlyRegister<RegisterWidth = u8>,
     {
-        self.write_command(Self::start_read_command::<R>(buffer), buffer)
+        self.write_command_internal(Self::start_read_command::<R>(buffer), buffer)
     }
 
     fn write_register<R>(&mut self, reg: R) -> Result<(), Self::Error>
@@ -150,7 +150,7 @@ where
     where
         R: Register<RegisterWidth = u8>,
     {
-        self.write_command(Self::start_write_command::<R>(buffer), buffer)
+        self.write_command_internal(Self::start_write_command::<R>(buffer), buffer)
     }
 }
 
@@ -174,7 +174,7 @@ where
     where
         R: ReadOnlyRegister<RegisterWidth = u8>,
     {
-        self.write_command_async(Self::start_read_command::<R>(buffer), buffer)
+        self.write_command_internal_async(Self::start_read_command::<R>(buffer), buffer)
             .await
     }
 
@@ -189,7 +189,7 @@ where
     where
         R: Register<RegisterWidth = u8>,
     {
-        self.write_command_async(Self::start_write_command::<R>(buffer), buffer)
+        self.write_command_internal_async(Self::start_write_command::<R>(buffer), buffer)
             .await
     }
 }
@@ -241,19 +241,30 @@ where
             .map_err(Error::Transfer)
     }
 
-    pub fn write_command(
+    fn write_command_internal(
         &mut self,
         command: Command,
         payload: &mut [u8],
     ) -> Result<(), Error<SPI::Error>> {
         let (bytes, len) = command.into();
+        let command = &bytes[0..len];
 
-        self.spi
-            .transaction(&mut [
-                Operation::Write(&bytes[0..len]),
-                Operation::TransferInPlace(payload),
-            ])
-            .map_err(Error::Transfer)
+        if payload.is_empty() {
+            self.spi
+                .transaction(&mut [Operation::Write(command)])
+                .map_err(Error::Transfer)
+        } else {
+            self.spi
+                .transaction(&mut [
+                    Operation::Write(command),
+                    Operation::TransferInPlace(payload),
+                ])
+                .map_err(Error::Transfer)
+        }
+    }
+
+    pub fn write_command(&mut self, command: Command) -> Result<(), Error<SPI::Error>> {
+        self.write_command_internal(command, &mut [])
     }
 
     pub fn apply_configuration(
@@ -326,20 +337,32 @@ where
         Ok(AdsData::new(unwrap!(buffer[bytes..bytes + 9].try_into())))
     }
 
-    pub async fn write_command_async(
+    async fn write_command_internal_async(
         &mut self,
         command: Command,
         payload: &mut [u8],
     ) -> Result<(), Error<SPI::Error>> {
         let (bytes, len) = command.into();
+        let command = &bytes[0..len];
 
-        self.spi
-            .transaction(&mut [
-                Operation::Write(&bytes[0..len]),
-                Operation::TransferInPlace(payload),
-            ])
-            .await
-            .map_err(Error::Transfer)
+        if payload.is_empty() {
+            self.spi
+                .transaction(&mut [Operation::Write(command)])
+                .await
+                .map_err(Error::Transfer)
+        } else {
+            self.spi
+                .transaction(&mut [
+                    Operation::Write(command),
+                    Operation::TransferInPlace(payload),
+                ])
+                .await
+                .map_err(Error::Transfer)
+        }
+    }
+
+    pub async fn write_command_async(&mut self, command: Command) -> Result<(), Error<SPI::Error>> {
+        self.write_command_internal_async(command, &mut []).await
     }
 
     pub async fn read_device_id_async(&mut self) -> Result<DeviceId, Error<SPI::Error>> {
@@ -375,7 +398,7 @@ where
         unwrap!(reset.set_high().ok());
         delay.delay_ms(Self::MIN_RST_WAIT).await;
 
-        self.write_command_async(Command::SDATAC, &mut []).await
+        self.write_command_async(Command::SDATAC).await
     }
 }
 
