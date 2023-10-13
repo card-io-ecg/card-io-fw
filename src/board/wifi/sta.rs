@@ -139,10 +139,10 @@ impl Sta {
     pub async fn update_known_networks(&self, networks: &[WifiNetwork]) {
         let mut known = self.known_networks.lock().await;
 
-        known.retain(|(network, _)| networks.contains(network));
+        known.clear();
         for network in networks {
             if !known.iter().any(|(kn, _)| kn == network) {
-                known.push((network.clone(), NetworkPreference::Deprioritized));
+                known.push((network.clone(), NetworkPreference::Preferred));
             }
         }
     }
