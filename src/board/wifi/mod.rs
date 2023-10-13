@@ -35,7 +35,7 @@ struct StackWrapper(
 );
 
 impl StackWrapper {
-    fn new(wifi_interface: WifiDevice<'static>, config: Config, mut rng: Rng) -> StackWrapper {
+    fn new(wifi_interface: WifiDevice<'static>, config: Config, mut rng: Rng) -> Rc<StackWrapper> {
         let lower = rng.random() as u64;
         let upper = rng.random() as u64;
 
@@ -44,10 +44,10 @@ impl StackWrapper {
         let resources = Box::new(StackResources::new());
         let resources_ref = Box::leak(resources);
 
-        Self(
+        Rc::new(Self(
             NonNull::from(&mut *resources_ref),
             Stack::new(wifi_interface, config, resources_ref, random_seed),
-        )
+        ))
     }
 }
 

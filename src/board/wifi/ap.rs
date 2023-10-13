@@ -85,7 +85,7 @@ impl ApState {
 
         info!("Starting AP");
 
-        let stack = Rc::new(StackWrapper::new(wifi_interface, config, rng));
+        let stack = StackWrapper::new(wifi_interface, config, rng);
         let net_task_control = TaskController::new();
         let client_count = Rc::new(AtomicU32::new(0));
 

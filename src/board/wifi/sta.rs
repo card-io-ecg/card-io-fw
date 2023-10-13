@@ -283,7 +283,7 @@ impl StaState {
 
         info!("Starting STA");
 
-        let stack = Rc::new(StackWrapper::new(wifi_interface, config, rng));
+        let stack = StackWrapper::new(wifi_interface, config, rng);
         let networks = Rc::new(Mutex::new(heapless::Vec::new()));
         let known_networks = Rc::new(Mutex::new(Vec::new()));
         let state = Rc::new(State::new(InternalConnectionState::NotConnected));
