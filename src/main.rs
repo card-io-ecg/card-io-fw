@@ -43,6 +43,8 @@ use crate::board::VbusDetect;
 #[cfg(feature = "battery_max17055")]
 pub use crate::states::menu::battery_info::battery_info_menu;
 
+#[cfg(feature = "hw_v1")]
+use crate::states::adc_setup::adc_setup;
 use crate::{
     board::{
         config::{Config, ConfigFile},
@@ -63,7 +65,6 @@ use crate::{
         TouchDetect,
     },
     states::{
-        adc_setup::adc_setup,
         charging::charging,
         display_serial::display_serial,
         firmware_update::firmware_update,
@@ -119,7 +120,9 @@ pub type Shared<T> = Rc<Mutex<NoopRawMutex, T>>;
 pub type SharedGuard<'a, T> = MutexGuard<'a, NoopRawMutex, T>;
 
 pub enum AppState {
+    #[cfg(feature = "hw_v1")]
     AdcSetup,
+    PreInitialize,
     Initialize,
     Measure,
     Charging,
@@ -135,7 +138,9 @@ pub enum AppState {
 impl core::fmt::Debug for AppState {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            #[cfg(feature = "hw_v1")]
             Self::AdcSetup => write!(f, "AdcSetup"),
+            Self::PreInitialize => write!(f, "PreInitialize"),
             Self::Initialize => write!(f, "Initialize"),
             Self::Measure => write!(f, "Measure"),
             Self::Charging => write!(f, "Charging"),
@@ -154,7 +159,9 @@ impl core::fmt::Debug for AppState {
 impl defmt::Format for AppState {
     fn format(&self, f: defmt::Formatter) {
         match self {
+            #[cfg(feature = "hw_v1")]
             Self::AdcSetup => defmt::write!(f, "AdcSetup"),
+            Self::PreInitialize => defmt::write!(f, "PreInitialize"),
             Self::Initialize => defmt::write!(f, "Initialize"),
             Self::Measure => defmt::write!(f, "Measure"),
             Self::Charging => defmt::write!(f, "Charging"),
@@ -322,12 +329,24 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
     })
     .await;
 
+    #[cfg(feature = "hw_v1")]
     let mut state = AppState::AdcSetup;
+
+    #[cfg(not(feature = "hw_v1"))]
+    let mut state = AppState::PreInitialize;
 
     loop {
         info!("New app state: {:?}", state);
         state = match state {
+            #[cfg(feature = "hw_v1")]
             AppState::AdcSetup => adc_setup(&mut board).await,
+            AppState::PreInitialize => {
+                if board.battery_monitor.is_plugged() {
+                    AppState::Charging
+                } else {
+                    AppState::Initialize
+                }
+            }
             AppState::Initialize => initialize(&mut board).await,
             AppState::Charging => charging(&mut board).await,
             AppState::Measure => measure(&mut board).await,

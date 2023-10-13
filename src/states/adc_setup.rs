@@ -15,12 +15,7 @@ async fn adc_setup_impl(mut board: Board) -> (AppState, Board) {
     let next_state = match board.frontend.enable_async().await {
         Ok(frontend) => {
             board.frontend = frontend.shut_down().await;
-
-            if board.battery_monitor.is_plugged() {
-                AppState::Charging
-            } else {
-                AppState::Initialize
-            }
+            AppState::PreInitialize
         }
         Err((fe, _err)) => {
             board.frontend = fe;
