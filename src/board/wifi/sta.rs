@@ -316,7 +316,7 @@ impl StaState {
         }
     }
 
-    pub(super) async fn stop(self) -> EspWifiInitialization {
+    pub(super) async fn stop(mut self) -> EspWifiInitialization {
         info!("Stopping STA");
 
         let _ = join(
@@ -325,7 +325,7 @@ impl StaState {
         )
         .await;
 
-        let mut controller = self.connection_task_control.unwrap().controller;
+        let controller = &mut self.connection_task_control.resources_mut().controller;
         if matches!(controller.is_started(), Ok(true)) {
             unwrap!(controller.stop().await);
         }
