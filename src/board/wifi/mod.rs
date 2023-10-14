@@ -19,7 +19,9 @@ use crate::{
 };
 use alloc::{boxed::Box, rc::Rc};
 use embassy_executor::Spawner;
+use embassy_futures::select::select;
 use embassy_net::{Config, Stack, StackResources};
+use embassy_time::{Duration, Timer as DelayTimer};
 use esp_wifi::{wifi::WifiDevice, EspWifiInitFor, EspWifiInitialization};
 use macros as cardio;
 
@@ -256,5 +258,16 @@ impl WifiDriver {
 
 #[cardio::task]
 async fn net_task(stack: Rc<StackWrapper>, mut task_control: TaskControlToken<!>) {
-    task_control.run_cancellable(|_| stack.run()).await;
+    task_control
+        .run_cancellable(|_| async {
+            select(stack.run(), async {
+                // HACK: force polling the interface in case some write operation doesn't wake it up
+                loop {
+                    DelayTimer::after(Duration::from_secs(1)).await;
+                }
+            })
+            .await;
+            unreachable!()
+        })
+        .await;
 }
