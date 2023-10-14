@@ -145,6 +145,8 @@ crc = "3.0.1"
 esp32s3-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "44e968f7a83f80be43d60cdc01c10eccab4b39cf" }
 # esp32s3-hal = { path = "../../esp-hal/esp32s3-hal" }
 # esp-hal-common = { path = "../../esp-hal/esp-hal-common" }
+
+# [patch.'https://github.com/esp-rs/esp-wifi.git']
 # esp-wifi = { path = "../esp-wifi/esp-wifi" }
 
 [features]
