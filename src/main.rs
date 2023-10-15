@@ -225,21 +225,19 @@ where
 
         match storage.read("config").await {
             Ok(mut config) => match config.read_loadable::<ConfigFile>(storage).await {
-                Ok(config) => CONFIG.init(config.into_config()),
+                Ok(config) => return CONFIG.init(config.into_config()),
                 Err(e) => {
                     warn!("Failed to read config file: {:?}. Reverting to defaults", e);
-                    CONFIG.init(Config::default())
                 }
             },
             Err(e) => {
                 warn!("Failed to load config: {:?}. Reverting to defaults", e);
-                CONFIG.init(Config::default())
             }
         }
     } else {
         warn!("Storage unavailable. Using default config");
-        CONFIG.init(Config::default())
     }
+    CONFIG.init(Config::default())
 }
 
 async fn saved_measurement_exists<M>(storage: &mut Storage<M>) -> bool
