@@ -72,7 +72,7 @@ pub async fn firmware_update(board: &mut Board) -> AppState {
 }
 
 async fn do_update(board: &mut Board) -> UpdateResult {
-    let sta = if let Some(sta) = board.inner.enable_wifi_sta(StaMode::Enable).await {
+    let sta = if let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await {
         if sta.wait_for_connection(board).await {
             sta
         } else {
@@ -93,7 +93,7 @@ async fn do_update(board: &mut Board) -> UpdateResult {
     if uwrite!(
         &mut url,
         "{}/firmware/{}/{}/{}",
-        board.inner.config.backend_url.as_str(),
+        board.config.backend_url.as_str(),
         env!("HW_VERSION"),
         SerialNumber,
         env!("COMMIT_HASH")

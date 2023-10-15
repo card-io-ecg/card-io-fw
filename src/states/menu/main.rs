@@ -40,12 +40,12 @@ impl MenuScreen for MainMenu {
         let mut optional_item =
             |label, event| unwrap!(optional_items.push(NavigationItem::new(label, event)).ok());
 
-        if board.inner.can_enable_wifi() {
+        if board.can_enable_wifi() {
             optional_item("Wifi setup", MainMenuEvents::WifiSetup);
             optional_item("Wifi networks", MainMenuEvents::WifiListVisible);
 
-            let network_configured = !board.inner.config.backend_url.is_empty()
-                && !board.inner.config.known_networks.is_empty();
+            let network_configured =
+                !board.config.backend_url.is_empty() && !board.config.known_networks.is_empty();
 
             if network_configured {
                 optional_item("Firmware update", MainMenuEvents::FirmwareUpdate);

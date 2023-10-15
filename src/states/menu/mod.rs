@@ -113,7 +113,7 @@ pub trait MenuScreen {
 
         let mut refresh = Self::REFRESH_PERIOD.map(Timeout::new);
 
-        while !exit_timer.is_elapsed() && !board.inner.battery_monitor.is_low() {
+        while !exit_timer.is_elapsed() && !board.battery_monitor.is_low() {
             input.update(&mut board.frontend);
 
             let is_touched = input.is_touched();

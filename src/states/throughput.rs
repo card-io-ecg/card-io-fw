@@ -66,7 +66,7 @@ pub async fn throughput(board: &mut Board) -> AppState {
 }
 
 async fn run_test(board: &mut Board) -> TestResult {
-    let sta = if let Some(sta) = board.inner.enable_wifi_sta(StaMode::Enable).await {
+    let sta = if let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await {
         if sta.wait_for_connection(board).await {
             sta
         } else {
@@ -85,7 +85,7 @@ async fn run_test(board: &mut Board) -> TestResult {
     if uwrite!(
         &mut url,
         "{}/firmware/{}/{}/0000000",
-        board.inner.config.backend_url.as_str(),
+        board.config.backend_url.as_str(),
         env!("HW_VERSION"),
         SerialNumber
     )

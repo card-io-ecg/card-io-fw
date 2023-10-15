@@ -89,7 +89,7 @@ impl EcgObjects {
 }
 
 pub async fn measure(board: &mut Board) -> AppState {
-    let filter = match board.inner.config.filter_strength() {
+    let filter = match board.config.filter_strength() {
         FilterStrength::None => ALL_PASS,
         #[rustfmt::skip]
         FilterStrength::Weak => macros::designfilt!(

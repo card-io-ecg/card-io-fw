@@ -37,7 +37,7 @@ impl MenuScreen for BatteryInfoMenu {
                 .ok())
         };
 
-        let mut sensor = board.inner.battery_monitor.sensor().await;
+        let mut sensor = board.battery_monitor.sensor().await;
 
         if let Ok(voltage) = sensor.fg.read_vcell().await {
             list_item(uformat!(

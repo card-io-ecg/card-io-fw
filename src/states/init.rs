@@ -6,7 +6,7 @@ use crate::{
 };
 use embassy_time::Ticker;
 use embedded_graphics::Drawable;
-use gui::screens::{init::StartupScreen, screen::Screen};
+use gui::screens::init::StartupScreen;
 
 pub async fn initialize(board: &mut Board) -> AppState {
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
@@ -21,23 +21,20 @@ pub async fn initialize(board: &mut Board) -> AppState {
             return AppState::Shutdown;
         }
 
-        if board.inner.battery_monitor.is_low() {
+        if board.battery_monitor.is_low() {
             return AppState::Shutdown;
         }
 
         let elapsed = exit_timer.elapsed();
-        let init_screen = Screen {
-            content: StartupScreen {
-                label: "Release to shutdown",
-                progress: to_progress(elapsed, INIT_TIME),
-            },
-
-            status_bar: board.inner.status_bar(),
-        };
 
         board
-            .display
-            .frame(|display| init_screen.draw(display))
+            .with_status_bar(|display| {
+                StartupScreen {
+                    label: "Release to shutdown",
+                    progress: to_progress(elapsed, INIT_TIME),
+                }
+                .draw(display)
+            })
             .await;
 
         ticker.next().await;

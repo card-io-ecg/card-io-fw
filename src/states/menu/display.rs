@@ -15,7 +15,7 @@ pub async fn display_menu(board: &mut Board) -> AppState {
         .await
         .unwrap_or(AppState::Shutdown);
 
-    board.inner.save_config().await;
+    board.save_config().await;
 
     result
 }
@@ -37,15 +37,15 @@ impl MenuScreen for DisplayMenu {
     async fn menu(&mut self, board: &mut Board) -> impl super::AppMenuBuilder<Self::Event> {
         create_menu("Display")
             .add_item(
-                Select::new("Brightness", board.inner.config.display_brightness)
+                Select::new("Brightness", board.config.display_brightness)
                     .with_value_converter(DisplayMenuEvents::ChangeBrigtness),
             )
             .add_item(
-                Select::new("Battery", board.inner.config.battery_display_style)
+                Select::new("Battery", board.config.battery_display_style)
                     .with_value_converter(DisplayMenuEvents::ChangeBatteryStyle),
             )
             .add_item(
-                Select::new("EKG Filter", board.inner.config.filter_strength)
+                Select::new("EKG Filter", board.config.filter_strength)
                     .with_value_converter(DisplayMenuEvents::ChangeFilterStrength),
             )
             .add_item(NavigationItem::new("Back", DisplayMenuEvents::Back))
@@ -58,20 +58,14 @@ impl MenuScreen for DisplayMenu {
     ) -> Option<Self::Result> {
         match event {
             DisplayMenuEvents::ChangeBrigtness(brightness) => {
-                board
-                    .inner
-                    .update_config(|config| config.display_brightness = brightness);
+                board.update_config(|config| config.display_brightness = brightness);
                 board.apply_hw_config_changes().await;
             }
             DisplayMenuEvents::ChangeBatteryStyle(style) => {
-                board
-                    .inner
-                    .update_config(|config| config.battery_display_style = style);
+                board.update_config(|config| config.battery_display_style = style);
             }
             DisplayMenuEvents::ChangeFilterStrength(strength) => {
-                board
-                    .inner
-                    .update_config(|config| config.filter_strength = strength);
+                board.update_config(|config| config.filter_strength = strength);
             }
             DisplayMenuEvents::Back => return Some(AppState::Menu(AppMenu::Main)),
         }

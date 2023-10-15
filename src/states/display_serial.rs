@@ -6,7 +6,7 @@ use crate::{
 };
 use embassy_time::{Duration, Ticker};
 use embedded_graphics::Drawable;
-use gui::screens::{qr::QrCodeScreen, screen::Screen};
+use gui::screens::qr::QrCodeScreen;
 use ufmt::uwrite;
 
 pub async fn display_serial(board: &mut Board) -> AppState {
@@ -21,23 +21,19 @@ pub async fn display_serial(board: &mut Board) -> AppState {
             shutdown_timer.reset();
         }
 
-        if board.inner.battery_monitor.is_low() {
+        if board.battery_monitor.is_low() {
             return AppState::Shutdown;
         }
 
-        let init_screen = Screen {
-            content: QrCodeScreen {
-                message: serial.as_str(),
-                countdown: Some(shutdown_timer.remaining().as_secs() as usize),
-                invert: false,
-            },
-
-            status_bar: board.inner.status_bar(),
-        };
-
         board
-            .display
-            .frame(|display| init_screen.draw(display))
+            .with_status_bar(|display| {
+                QrCodeScreen {
+                    message: serial.as_str(),
+                    countdown: Some(shutdown_timer.remaining().as_secs() as usize),
+                    invert: false,
+                }
+                .draw(display)
+            })
             .await;
 
         ticker.next().await;

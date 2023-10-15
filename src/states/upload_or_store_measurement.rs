@@ -66,7 +66,7 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
         return next_state;
     }
 
-    let (can_upload, can_store) = match board.inner.config.measurement_action {
+    let (can_upload, can_store) = match board.config.measurement_action {
         MeasurementAction::Ask => ask_for_measurement_action(board).await,
         MeasurementAction::Auto => (true, true),
         MeasurementAction::Store => (false, true),
@@ -96,7 +96,7 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
         // Drop to free up 90kB of memory.
         mem::drop(buffer);
 
-        if board.inner.sta_has_work().await {
+        if board.sta_has_work().await {
             upload_stored(board).await;
         }
     }
@@ -106,9 +106,9 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
 
 async fn ask_for_measurement_action(board: &mut Board) -> (bool, bool) {
     let network_configured =
-        !board.inner.config.backend_url.is_empty() && !board.inner.config.known_networks.is_empty();
+        !board.config.backend_url.is_empty() && !board.config.known_networks.is_empty();
 
-    let can_store = board.inner.storage.is_some();
+    let can_store = board.storage.is_some();
 
     if !network_configured && !can_store {
         return (false, false);
@@ -133,10 +133,10 @@ impl MenuScreen for AskForMeasurementActionMenu {
             unwrap!(items.push(NavigationItem::new(label, value)).ok());
         };
 
-        let network_configured = !board.inner.config.backend_url.is_empty()
-            && !board.inner.config.known_networks.is_empty();
+        let network_configured =
+            !board.config.backend_url.is_empty() && !board.config.known_networks.is_empty();
 
-        let can_store = board.inner.storage.is_some();
+        let can_store = board.storage.is_some();
 
         if network_configured {
             if can_store {
@@ -164,12 +164,12 @@ impl MenuScreen for AskForMeasurementActionMenu {
 }
 
 async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
-    if board.inner.config.backend_url.is_empty() {
+    if board.config.backend_url.is_empty() {
         debug!("No backend URL configured, not uploading.");
         return StoreMeasurement::Store;
     }
 
-    let sta = if let Some(sta) = board.inner.enable_wifi_sta(StaMode::Enable).await {
+    let sta = if let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await {
         if sta.wait_for_connection(board).await {
             sta
         } else {
@@ -194,7 +194,7 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
     let mut client = client_resources.client();
 
     match upload_measurement(
-        &board.inner.config.backend_url,
+        &board.config.backend_url,
         &mut client,
         0,
         MeasurementRef { version: 0, buffer },
@@ -215,7 +215,7 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
 }
 
 async fn upload_stored(board: &mut Board) {
-    let sta = if let Some(sta) = board.inner.enable_wifi_sta(StaMode::OnDemand).await {
+    let sta = if let Some(sta) = board.enable_wifi_sta(StaMode::OnDemand).await {
         if sta.wait_for_connection(board).await {
             sta
         } else {
@@ -308,7 +308,7 @@ async fn upload_stored(board: &mut Board) {
     };
     board.display_message(message).await;
 
-    board.inner.signal_sta_work_available(!success);
+    board.signal_sta_work_available(!success);
 }
 
 struct Measurement {
@@ -479,7 +479,7 @@ async fn try_store_measurement(board: &mut Board, measurement: &[u8]) -> Result<
 
     let saving_msg = uformat!(32, "Saving measurement: {}", BinarySize(measurement.len()));
     board.display_message(&saving_msg).await;
-    let Some(storage) = board.inner.storage.as_mut() else {
+    let Some(storage) = board.storage.as_mut() else {
         return Ok(());
     };
 
@@ -498,7 +498,7 @@ async fn try_store_measurement(board: &mut Board, measurement: &[u8]) -> Result<
 
     info!("Measurement saved to {}", filename);
 
-    board.inner.signal_sta_work_available(true);
+    board.signal_sta_work_available(true);
 
     Ok(())
 }

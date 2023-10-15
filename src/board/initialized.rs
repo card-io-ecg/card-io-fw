@@ -1,3 +1,5 @@
+use core::ops::{Deref, DerefMut};
+
 use crate::{
     board::{
         config::Config,
@@ -48,6 +50,21 @@ pub struct Board {
     pub frontend: EcgFrontend,
     pub inner: Inner,
 }
+
+impl Deref for Board {
+    type Target = Inner;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl DerefMut for Board {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
+
 impl Board {
     pub async fn display_message(&mut self, message: &str) {
         self.inner.wait_for_message(MESSAGE_MIN_DURATION).await;
@@ -82,6 +99,22 @@ impl Board {
 }
 
 impl Inner {
+    pub async fn with_status_bar(
+        &mut self,
+        display: &mut PoweredDisplay,
+        draw: impl FnOnce(&mut PoweredDisplay) -> Result<(), DisplayError>,
+    ) {
+        display
+            .frame(|display| {
+                let status_bar = self.status_bar();
+                status_bar.draw(display)?;
+                draw(display)?;
+
+                Ok(())
+            })
+            .await;
+    }
+
     pub async fn wait_for_message(&mut self, duration: Duration) {
         if let Some(message_at) = self.message_displayed_at.take() {
             Timer::at(message_at + duration).await;
