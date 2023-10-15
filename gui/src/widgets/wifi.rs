@@ -1,7 +1,7 @@
 use embedded_graphics::{
     image::{Image, ImageRaw},
     pixelcolor::BinaryColor,
-    prelude::{Dimensions, DrawTarget, DrawTargetExt, Point, Size},
+    prelude::{Dimensions, DrawTarget, Point, Size},
     primitives::Rectangle,
     Drawable,
 };
@@ -121,8 +121,7 @@ impl Drawable for WifiStateView {
         D: DrawTarget<Color = Self::Color>,
     {
         if let Some(data) = self.data {
-            let mut cropped = target.cropped(&self.bounds());
-            Image::new(&data.image(), Point::zero()).draw(&mut cropped)?;
+            Image::new(&data.image(), self.top_left).draw(target)?;
         }
 
         Ok(())

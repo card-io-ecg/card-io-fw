@@ -2,7 +2,7 @@ use embedded_graphics::{
     geometry::AnchorPoint,
     image::{Image, ImageRaw},
     pixelcolor::BinaryColor,
-    prelude::{DrawTarget, DrawTargetExt, OriginDimensions, Point, Size},
+    prelude::{DrawTarget, OriginDimensions, Point, Size},
     primitives::{Primitive, PrimitiveStyle, Rectangle},
     text::{renderer::TextRenderer, Alignment, Baseline, Text, TextStyleBuilder},
     Drawable,
@@ -92,7 +92,7 @@ pub enum BatteryStyle {
 impl BatteryStyle {
     #[rustfmt::skip]
     #[allow(clippy::unusual_byte_groupings)]
-    const BATTERY_OUTLINE: ImageRaw<'_, BinaryColor> = ImageRaw::new(
+    const BATTERY_OUTLINE: ImageRaw<'static, BinaryColor> = ImageRaw::new(
         &[
             0b00000000, 0b00000_000,
             0b11111111, 0b11110_000,
@@ -109,7 +109,7 @@ impl BatteryStyle {
 
     #[rustfmt::skip]
     #[allow(clippy::unusual_byte_groupings)]
-    const LOW_BATTERY: ImageRaw<'_, BinaryColor> = ImageRaw::new(
+    const LOW_BATTERY: ImageRaw<'static, BinaryColor> = ImageRaw::new(
         &[
             0b00000000, 0b00000_000,
             0b11111111, 0b11110_000,
@@ -162,10 +162,12 @@ impl BatteryStyle {
         &self,
         target: &mut D,
         string: &str,
+        bounds: &Rectangle,
     ) -> Result<u32, D::Error> {
+        let top_right = bounds.anchor_point(AnchorPoint::TopRight);
         Text::with_text_style(
             string,
-            Point::new(target.bounding_box().size.width as i32 - 1, 0),
+            top_right,
             NORMAL_TEXT,
             TextStyleBuilder::new()
                 .baseline(Baseline::Top)
@@ -185,6 +187,7 @@ impl BatteryStyle {
         &self,
         target: &mut D,
         data: BatteryInfo,
+        bounds: &Rectangle,
     ) -> Result<(), D::Error> {
         let battery_data_width = match self {
             BatteryStyle::MilliVolts | BatteryStyle::Percentage => {
@@ -196,11 +199,11 @@ impl BatteryStyle {
                     _ = uwrite!(&mut string, "{}%", data.percentage);
                 }
 
-                self.draw_text(target, &string)?
+                self.draw_text(target, &string, bounds)?
             }
             BatteryStyle::LowIndicator if !data.is_charging() => {
                 if data.percentage < 25 {
-                    let top_right = target.bounding_box().anchor_point(AnchorPoint::TopRight);
+                    let top_right = bounds.anchor_point(AnchorPoint::TopRight);
                     let box_top_left = self.draw_low_battery(target, top_right)?;
 
                     (top_right.x - box_top_left.x + 1) as u32
@@ -211,7 +214,7 @@ impl BatteryStyle {
             BatteryStyle::Icon | BatteryStyle::LowIndicator => {
                 let bars = (data.percentage.saturating_sub(1)) / 25;
 
-                let top_right = target.bounding_box().anchor_point(AnchorPoint::TopRight);
+                let top_right = bounds.anchor_point(AnchorPoint::TopRight);
                 let box_top_left = self.draw_battery_outline(target, top_right)?;
 
                 let mut top_left = box_top_left + Point::new(1, 3);
@@ -229,10 +232,8 @@ impl BatteryStyle {
 
         ChargingIndicator {
             state: data.charging_state,
-            top_right: Point::new(
-                (target.bounding_box().size.width - battery_data_width) as i32,
-                0,
-            ),
+            top_right: bounds.anchor_point(AnchorPoint::TopRight)
+                - Point::new(battery_data_width as i32, 0),
         }
         .draw(target)?;
 
@@ -289,8 +290,7 @@ impl Drawable for Battery {
         D: DrawTarget<Color = Self::Color>,
     {
         if let Some(data) = self.data {
-            let mut cropped = target.cropped(&self.bounds());
-            self.style.draw(&mut cropped, data)?;
+            self.style.draw(target, data, &self.bounds())?;
         }
 
         Ok(())
