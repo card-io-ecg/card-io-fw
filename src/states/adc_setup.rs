@@ -1,4 +1,4 @@
-use crate::{board::initialized::Board, states::display_message, AppState};
+use crate::{board::initialized::Board, AppState};
 
 /// Ensures that the ADC does not keep the touch detector circuit disabled.
 /// This state is expected to go away once the ADC can be properly placed into powerdown mode.
@@ -20,7 +20,7 @@ async fn adc_setup_impl(mut board: Board) -> (AppState, Board) {
         Err((fe, _err)) => {
             board.frontend = fe;
 
-            display_message(&mut board, "ADC error").await;
+            board.display_message("ADC error").await;
             AppState::Shutdown
         }
     };
