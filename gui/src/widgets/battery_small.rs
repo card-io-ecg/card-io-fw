@@ -3,7 +3,7 @@ use embedded_graphics::{
     image::{Image, ImageRaw},
     pixelcolor::BinaryColor,
     prelude::{DrawTarget, DrawTargetExt, OriginDimensions, Point, Size},
-    primitives::{Line, Primitive, PrimitiveStyle, Rectangle},
+    primitives::{Primitive, PrimitiveStyle, Rectangle},
     text::{renderer::TextRenderer, Alignment, Baseline, Text, TextStyleBuilder},
     Drawable,
 };
@@ -90,6 +90,40 @@ pub enum BatteryStyle {
 }
 
 impl BatteryStyle {
+    #[rustfmt::skip]
+    #[allow(clippy::unusual_byte_groupings)]
+    const BATTERY_OUTLINE: ImageRaw<'_, BinaryColor> = ImageRaw::new(
+        &[
+            0b00000000, 0b00000_000,
+            0b11111111, 0b11110_000,
+            0b10000000, 0b00010_000,
+            0b10000000, 0b00011_000,
+            0b10000000, 0b00011_000,
+            0b10000000, 0b00011_000,
+            0b10000000, 0b00010_000,
+            0b11111111, 0b11110_000,
+            0b00000000, 0b00000_000,
+        ],
+        13
+    );
+
+    #[rustfmt::skip]
+    #[allow(clippy::unusual_byte_groupings)]
+    const LOW_BATTERY: ImageRaw<'_, BinaryColor> = ImageRaw::new(
+        &[
+            0b00000000, 0b00000_000,
+            0b11111111, 0b11110_000,
+            0b10000000, 0b00010_000,
+            0b10100000, 0b00011_000,
+            0b10100000, 0b00011_000,
+            0b10100000, 0b00011_000,
+            0b10000000, 0b00010_000,
+            0b11111111, 0b11110_000,
+            0b00000000, 0b00000_000,
+        ],
+        13
+    );
+
     fn size(&self) -> Size {
         match self {
             BatteryStyle::MilliVolts => {
@@ -113,24 +147,15 @@ impl BatteryStyle {
         target: &mut D,
         top_right: Point,
     ) -> Result<Point, D::Error> {
-        #[rustfmt::skip]
-        #[allow(clippy::unusual_byte_groupings)]
-        const BATTERY_OUTLINE: ImageRaw<'_, BinaryColor> = ImageRaw::new(
-            &[
-                0b00000000, 0b00000_000,
-                0b11111111, 0b11110_000,
-                0b10000000, 0b00010_000,
-                0b10000000, 0b00011_000,
-                0b10000000, 0b00011_000,
-                0b10000000, 0b00011_000,
-                0b10000000, 0b00010_000,
-                0b11111111, 0b11110_000,
-                0b00000000, 0b00000_000,
-            ],
-            13
-        );
+        draw_image_right_aligned(target, &Self::BATTERY_OUTLINE, top_right)
+    }
 
-        draw_image_right_aligned(target, &BATTERY_OUTLINE, top_right)
+    fn draw_low_battery<D: DrawTarget<Color = BinaryColor>>(
+        &self,
+        target: &mut D,
+        top_right: Point,
+    ) -> Result<Point, D::Error> {
+        draw_image_right_aligned(target, &Self::LOW_BATTERY, top_right)
     }
 
     fn draw_text<D: DrawTarget<Color = BinaryColor>>(
@@ -162,30 +187,21 @@ impl BatteryStyle {
         data: BatteryInfo,
     ) -> Result<(), D::Error> {
         let battery_data_width = match self {
-            BatteryStyle::MilliVolts => {
+            BatteryStyle::MilliVolts | BatteryStyle::Percentage => {
                 let mut string = heapless::String::<8>::new();
-                unwrap!(uwrite!(&mut string, "{}mV", data.voltage));
 
-                self.draw_text(target, &string)?
-            }
-            BatteryStyle::Percentage => {
-                let mut string = heapless::String::<4>::new();
-
-                unwrap!(uwrite!(&mut string, "{}%", data.percentage));
+                if matches!(self, BatteryStyle::MilliVolts) {
+                    _ = uwrite!(&mut string, "{}mV", data.voltage);
+                } else {
+                    _ = uwrite!(&mut string, "{}%", data.percentage);
+                }
 
                 self.draw_text(target, &string)?
             }
             BatteryStyle::LowIndicator if !data.is_charging() => {
                 if data.percentage < 25 {
                     let top_right = target.bounding_box().anchor_point(AnchorPoint::TopRight);
-                    let box_top_left = self.draw_battery_outline(target, top_right)?;
-
-                    Line::new(
-                        box_top_left + Point::new(2, 3),
-                        box_top_left + Point::new(2, 5),
-                    )
-                    .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
-                    .draw(target)?;
+                    let box_top_left = self.draw_low_battery(target, top_right)?;
 
                     (top_right.x - box_top_left.x + 1) as u32
                 } else {
