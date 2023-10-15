@@ -26,10 +26,7 @@ use crate::{
         initialized::{Board, StaMode},
     },
     human_readable::BinarySize,
-    states::{
-        display_message,
-        menu::{AppMenuBuilder, MenuScreen},
-    },
+    states::menu::{AppMenuBuilder, MenuScreen},
     timeout::Timeout,
     uformat, AppState, SerialNumber,
 };
@@ -63,11 +60,13 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     if sample_count < 20 * SAMPLE_RATE {
         // We don't want to store too-short measurements.
         debug!("Measurement is too short to upload or store.");
-        display_message(board, "Measurement too short, discarding").await;
+        board
+            .display_message("Measurement too short, discarding")
+            .await;
         return next_state;
     }
 
-    let (can_upload, can_store) = match board.config.measurement_action {
+    let (can_upload, can_store) = match board.inner.config.measurement_action {
         MeasurementAction::Ask => ask_for_measurement_action(board).await,
         MeasurementAction::Auto => (true, true),
         MeasurementAction::Store => (false, true),
@@ -87,7 +86,7 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
         let store_result = try_store_measurement(board, samples).await;
 
         if let Err(e) = store_result {
-            display_message(board, "Could not store measurement").await;
+            board.display_message("Could not store measurement").await;
             error!("Failed to store measurement: {:?}", e);
         }
     }
@@ -97,7 +96,7 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
         // Drop to free up 90kB of memory.
         mem::drop(buffer);
 
-        if board.sta_has_work().await {
+        if board.inner.sta_has_work().await {
             upload_stored(board).await;
         }
     }
@@ -107,9 +106,9 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
 
 async fn ask_for_measurement_action(board: &mut Board) -> (bool, bool) {
     let network_configured =
-        !board.config.backend_url.is_empty() && !board.config.known_networks.is_empty();
+        !board.inner.config.backend_url.is_empty() && !board.inner.config.known_networks.is_empty();
 
-    let can_store = board.storage.is_some();
+    let can_store = board.inner.storage.is_some();
 
     if !network_configured && !can_store {
         return (false, false);
@@ -134,10 +133,10 @@ impl MenuScreen for AskForMeasurementActionMenu {
             unwrap!(items.push(NavigationItem::new(label, value)).ok());
         };
 
-        let network_configured =
-            !board.config.backend_url.is_empty() && !board.config.known_networks.is_empty();
+        let network_configured = !board.inner.config.backend_url.is_empty()
+            && !board.inner.config.known_networks.is_empty();
 
-        let can_store = board.storage.is_some();
+        let can_store = board.inner.storage.is_some();
 
         if network_configured {
             if can_store {
@@ -165,12 +164,12 @@ impl MenuScreen for AskForMeasurementActionMenu {
 }
 
 async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
-    if board.config.backend_url.is_empty() {
+    if board.inner.config.backend_url.is_empty() {
         debug!("No backend URL configured, not uploading.");
         return StoreMeasurement::Store;
     }
 
-    let sta = if let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await {
+    let sta = if let Some(sta) = board.inner.enable_wifi_sta(StaMode::Enable).await {
         if sta.wait_for_connection(board).await {
             sta
         } else {
@@ -186,16 +185,16 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
     debug!("Trying to upload measurement");
 
     let uploading_msg = uformat!(32, "Uploading measurement: {}", BinarySize(buffer.len()));
-    display_message(board, uploading_msg.as_str()).await;
+    board.display_message(uploading_msg.as_str()).await;
 
     let Ok(mut client_resources) = sta.https_client_resources() else {
-        display_message(board, "Out of memory").await;
+        board.display_message("Out of memory").await;
         return StoreMeasurement::Store;
     };
     let mut client = client_resources.client();
 
     match upload_measurement(
-        &board.config.backend_url,
+        &board.inner.config.backend_url,
         &mut client,
         0,
         MeasurementRef { version: 0, buffer },
@@ -204,46 +203,48 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
     {
         Ok(_) => {
             // Upload successful, do not store in file.
-            display_message(board, "Upload successful").await;
+            board.display_message("Upload successful").await;
             StoreMeasurement::DontStore
         }
         Err(_) => {
             warn!("Failed to upload measurement");
-            display_message(board, "Upload failed").await;
+            board.display_message("Upload failed").await;
             StoreMeasurement::Store
         }
     }
 }
 
 async fn upload_stored(board: &mut Board) {
-    let sta = if let Some(sta) = board.enable_wifi_sta(StaMode::OnDemand).await {
+    let sta = if let Some(sta) = board.inner.enable_wifi_sta(StaMode::OnDemand).await {
         if sta.wait_for_connection(board).await {
             sta
         } else {
-            display_message(board, "Failed to connect to WiFi").await;
+            board.display_message("Failed to connect to WiFi").await;
             return;
         }
     } else {
-        display_message(board, "Nothing to upload").await;
+        board.display_message("Nothing to upload").await;
         return;
     };
 
-    display_message(board, "Uploading stored measurements...").await;
+    board
+        .display_message("Uploading stored measurements...")
+        .await;
 
-    let Some(storage) = board.storage.as_mut() else {
-        display_message(board, "Storage not available").await;
+    let Some(storage) = board.inner.storage.as_mut() else {
+        board.display_message("Storage not available").await;
         return;
     };
 
     let Ok(mut dir) = storage.read_dir().await else {
-        display_message(board, "Could not read storage").await;
+        board.display_message("Could not read storage").await;
         return;
     };
 
     let mut fn_buffer = [0; 64];
 
     let Ok(mut client_resources) = sta.https_client_resources() else {
-        display_message(board, "Out of memory").await;
+        board.display_message("Out of memory").await;
         return;
     };
     let mut client = client_resources.client();
@@ -265,7 +266,7 @@ async fn upload_stored(board: &mut Board) {
                         };
 
                         if let Err(e) = upload_measurement(
-                            &board.config.backend_url,
+                            &board.inner.config.backend_url,
                             &mut client,
                             0,
                             buffer.as_ref(),
@@ -305,9 +306,9 @@ async fn upload_stored(board: &mut Board) {
     } else {
         "Failed to upload measurements"
     };
-    display_message(board, message).await;
+    board.display_message(message).await;
 
-    board.signal_sta_work_available(!success);
+    board.inner.signal_sta_work_available(!success);
 }
 
 struct Measurement {
@@ -477,8 +478,8 @@ async fn try_store_measurement(board: &mut Board, measurement: &[u8]) -> Result<
     debug!("Trying to store measurement");
 
     let saving_msg = uformat!(32, "Saving measurement: {}", BinarySize(measurement.len()));
-    display_message(board, &saving_msg).await;
-    let Some(storage) = board.storage.as_mut() else {
+    board.display_message(&saving_msg).await;
+    let Some(storage) = board.inner.storage.as_mut() else {
         return Ok(());
     };
 
@@ -497,7 +498,7 @@ async fn try_store_measurement(board: &mut Board, measurement: &[u8]) -> Result<
 
     info!("Measurement saved to {}", filename);
 
-    board.signal_sta_work_available(true);
+    board.inner.signal_sta_work_available(true);
 
     Ok(())
 }

@@ -18,7 +18,7 @@ pub enum WifiStaMenuEvents {
 }
 
 pub async fn wifi_sta(board: &mut Board) -> AppState {
-    let Some(sta) = board.enable_wifi_sta_for_scan().await else {
+    let Some(sta) = board.inner.enable_wifi_sta_for_scan().await else {
         // FIXME: Show error screen
         return AppState::Menu(AppMenu::Main);
     };
@@ -59,7 +59,7 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
         }
 
         #[cfg(feature = "battery_max17055")]
-        if board.battery_monitor.is_low() {
+        if board.inner.battery_monitor.is_low() {
             return AppState::Shutdown;
         }
 
@@ -69,7 +69,7 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
                 .add_item(NavigationItem::new("Back", WifiStaMenuEvents::Back))
                 .build_with_state(menu_state),
 
-            status_bar: board.status_bar(),
+            status_bar: board.inner.status_bar(),
         };
 
         if let Some(WifiStaMenuEvents::Back) = menu_screen.content.interact(is_touched) {

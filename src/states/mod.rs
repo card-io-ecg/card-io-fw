@@ -9,17 +9,8 @@ pub mod menu;
 pub mod throughput;
 pub mod upload_or_store_measurement;
 
-use crate::board::{initialized::Board, wifi::GenericConnectionState, EcgFrontend};
-use embassy_time::{Duration, Instant, Timer};
-use embedded_graphics::Drawable;
-use gui::{
-    screens::{message::MessageScreen, screen::Screen},
-    widgets::{
-        battery_small::Battery,
-        status_bar::StatusBar,
-        wifi::{WifiState, WifiStateView},
-    },
-};
+use crate::board::EcgFrontend;
+use embassy_time::Duration;
 use signal_processing::lerp::interpolate;
 
 pub const TARGET_FPS: u32 = 100;
@@ -89,42 +80,4 @@ fn to_progress(elapsed: Duration, max_duration: Duration) -> u32 {
         0,
         255,
     )
-}
-
-pub async fn display_message(board: &mut Board, message: &str) {
-    info!("Displaying message: {}", message);
-
-    if let Some(previous) = board.message_displayed_at.take() {
-        Timer::at(previous + MESSAGE_MIN_DURATION).await;
-    }
-
-    board.message_displayed_at = Some(Instant::now());
-
-    let status_bar = board.status_bar();
-    board
-        .display
-        .frame(|display| {
-            Screen {
-                content: MessageScreen { message },
-                status_bar,
-            }
-            .draw(display)
-        })
-        .await;
-}
-
-impl Board {
-    pub fn status_bar(&mut self) -> StatusBar {
-        let battery_data = self.battery_monitor.battery_data();
-        let connection_state = match self.wifi.connection_state() {
-            GenericConnectionState::Sta(state) => Some(WifiState::from(state)),
-            GenericConnectionState::Ap(state) => Some(WifiState::from(state)),
-            GenericConnectionState::Disabled => None,
-        };
-
-        StatusBar {
-            battery: Battery::with_style(battery_data, self.config.battery_style()),
-            wifi: WifiStateView::new(connection_state),
-        }
-    }
 }

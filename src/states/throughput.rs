@@ -7,7 +7,7 @@ use ufmt::{uwrite, uwriteln};
 use crate::{
     board::initialized::{Board, StaMode},
     human_readable::{BinarySize, Throughput},
-    states::{display_message, menu::AppMenu},
+    states::menu::AppMenu,
     timeout::Timeout,
     AppState, SerialNumber,
 };
@@ -60,13 +60,13 @@ pub async fn throughput(board: &mut Board) -> AppState {
         },
     };
 
-    display_message(board, message).await;
+    board.display_message(message).await;
 
     AppState::Menu(AppMenu::Main)
 }
 
 async fn run_test(board: &mut Board) -> TestResult {
-    let sta = if let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await {
+    let sta = if let Some(sta) = board.inner.enable_wifi_sta(StaMode::Enable).await {
         if sta.wait_for_connection(board).await {
             sta
         } else {
@@ -85,7 +85,7 @@ async fn run_test(board: &mut Board) -> TestResult {
     if uwrite!(
         &mut url,
         "{}/firmware/{}/{}/0000000",
-        board.config.backend_url.as_str(),
+        board.inner.config.backend_url.as_str(),
         env!("HW_VERSION"),
         SerialNumber
     )
@@ -101,7 +101,7 @@ async fn run_test(board: &mut Board) -> TestResult {
         let futures = select(client.request(Method::GET, &url), async {
             loop {
                 // A message is displayed for at least 300ms so we don't need to wait here.
-                display_message(board, "Connecting to server...").await;
+                board.display_message("Connecting to server...").await;
             }
         });
         match futures.await {
@@ -198,5 +198,5 @@ async fn print_progress(
     unwrap!(uwriteln!(message, "Current: {}", current_tp));
     unwrap!(uwrite!(message, "Average: {}", average_tp));
 
-    display_message(board, message.as_str()).await;
+    board.display_message(message.as_str()).await;
 }

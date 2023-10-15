@@ -4,14 +4,24 @@ use crate::{
         drivers::battery_monitor::BatteryMonitor,
         hal::clock::Clocks,
         storage::FileSystem,
-        wifi::{ap::Ap, sta::Sta, WifiDriver},
+        wifi::{ap::Ap, sta::Sta, GenericConnectionState, WifiDriver},
         ChargerStatus, EcgFrontend, PoweredDisplay, VbusDetect,
     },
     saved_measurement_exists,
+    states::MESSAGE_MIN_DURATION,
 };
 use embassy_executor::SendSpawner;
 use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
-use embassy_time::Instant;
+use embassy_time::{Duration, Instant, Timer};
+use embedded_graphics::Drawable;
+use gui::{
+    screens::{message::MessageScreen, screen::Screen},
+    widgets::{
+        battery_small::Battery,
+        status_bar::StatusBar,
+        wifi::{WifiState, WifiStateView},
+    },
+};
 use norfs::OnCollision;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -20,9 +30,7 @@ pub enum StaMode {
     OnDemand,
 }
 
-pub struct Board {
-    pub display: PoweredDisplay,
-    pub frontend: EcgFrontend,
+pub struct Inner {
     pub clocks: Clocks<'static>,
     pub high_prio_spawner: SendSpawner,
     pub battery_monitor: BatteryMonitor<VbusDetect, ChargerStatus>,
@@ -34,7 +42,52 @@ pub struct Board {
     pub message_displayed_at: Option<Instant>,
 }
 
+pub struct Board {
+    pub display: PoweredDisplay,
+    pub frontend: EcgFrontend,
+    pub inner: Inner,
+}
 impl Board {
+    pub async fn display_message(&mut self, message: &str) {
+        self.inner.display_message(message, &mut self.display).await
+    }
+
+    pub async fn apply_hw_config_changes(&mut self) {
+        let _ = self
+            .display
+            .update_brightness_async(self.inner.config.display_brightness())
+            .await;
+    }
+}
+
+impl Inner {
+    pub async fn display_message(&mut self, message: &str, display: &mut PoweredDisplay) {
+        info!("Displaying message: {}", message);
+
+        if let Some(previous) = self.message_displayed_at.take() {
+            Timer::at(previous + MESSAGE_MIN_DURATION).await;
+        }
+
+        self.message_displayed_at = Some(Instant::now());
+
+        let status_bar = self.status_bar();
+        display
+            .frame(|display| {
+                Screen {
+                    content: MessageScreen { message },
+                    status_bar,
+                }
+                .draw(display)
+            })
+            .await;
+    }
+
+    pub async fn wait_for_message(&mut self, duration: Duration) {
+        if let Some(message_at) = self.message_displayed_at.take() {
+            Timer::at(message_at + duration).await;
+        }
+    }
+
     pub async fn save_config(&mut self) {
         if !self.config_changed {
             return;
@@ -145,13 +198,6 @@ impl Board {
         self.sta_work_available = Some(available);
     }
 
-    pub async fn apply_hw_config_changes(&mut self) {
-        let _ = self
-            .display
-            .update_brightness_async(self.config.display_brightness())
-            .await;
-    }
-
     pub fn update_config(&mut self, cb: impl FnOnce(&mut Config)) {
         struct ConfigWriter<'a> {
             config: &'a mut Config,
@@ -180,5 +226,19 @@ impl Board {
         cb(&mut wrapper);
 
         self.config_changed |= wrapper.changed;
+    }
+
+    pub fn status_bar(&mut self) -> StatusBar {
+        let battery_data = self.battery_monitor.battery_data();
+        let connection_state = match self.wifi.connection_state() {
+            GenericConnectionState::Sta(state) => Some(WifiState::from(state)),
+            GenericConnectionState::Ap(state) => Some(WifiState::from(state)),
+            GenericConnectionState::Disabled => None,
+        };
+
+        StatusBar {
+            battery: Battery::with_style(battery_data, self.config.battery_style()),
+            wifi: WifiStateView::new(connection_state),
+        }
     }
 }

@@ -5,10 +5,7 @@ use crate::{
         storage::FileSystem,
     },
     human_readable::BinarySize,
-    states::{
-        display_message,
-        menu::{AppMenu, MenuScreen},
-    },
+    states::menu::{AppMenu, MenuScreen},
     uformat, AppState,
 };
 use embedded_menu::items::{NavigationItem, Select};
@@ -31,7 +28,7 @@ pub async fn storage_menu(board: &mut Board) -> AppState {
         .await
         .unwrap_or(AppState::Shutdown);
 
-    board.save_config().await;
+    board.inner.save_config().await;
 
     result
 }
@@ -45,7 +42,7 @@ impl MenuScreen for StorageMenu {
     async fn menu(&mut self, board: &mut Board) -> impl AppMenuBuilder<Self::Event> {
         // needs to be separate because the item is of a different type
         let mut used_item = heapless::Vec::<_, 1>::new();
-        if let Some(storage) = board.storage.as_mut() {
+        if let Some(storage) = board.inner.storage.as_mut() {
             if let Ok(used) = storage.used_bytes().await {
                 let used_str = uformat!(
                     32,
@@ -71,10 +68,10 @@ impl MenuScreen for StorageMenu {
             ))
             .ok());
 
-        if board.can_enable_wifi()
-            && !board.config.known_networks.is_empty()
-            && !board.config.backend_url.is_empty()
-            && board.sta_has_work().await
+        if board.inner.can_enable_wifi()
+            && !board.inner.config.known_networks.is_empty()
+            && !board.inner.config.backend_url.is_empty()
+            && board.inner.sta_has_work().await
         {
             unwrap!(items
                 .push(NavigationItem::new(
@@ -86,7 +83,7 @@ impl MenuScreen for StorageMenu {
 
         create_menu("Storage")
             .add_item(
-                Select::new("New EKG", board.config.measurement_action)
+                Select::new("New EKG", board.inner.config.measurement_action)
                     .with_value_converter(StorageMenuEvents::ChangeMeasurementAction)
                     .with_detail_text("What to do with new measurements"),
             )
@@ -104,19 +101,23 @@ impl MenuScreen for StorageMenu {
             StorageMenuEvents::ChangeMeasurementAction(action) => {
                 debug!("Settings changed");
 
-                board.update_config(|config| config.measurement_action = action);
+                board
+                    .inner
+                    .update_config(|config| config.measurement_action = action);
             }
             StorageMenuEvents::Format => {
                 info!("Format requested");
-                display_message(board, "Formatting storage...").await;
-                core::mem::drop(board.storage.take());
+                board.display_message("Formatting storage...").await;
+                core::mem::drop(board.inner.storage.take());
                 FileSystem::format().await;
-                board.storage = FileSystem::mount().await;
+                board.inner.storage = FileSystem::mount().await;
 
-                board.update_config(|config| *config = Config::default());
+                board
+                    .inner
+                    .update_config(|config| *config = Config::default());
                 board.apply_hw_config_changes().await;
                 // Prevent saving config changes
-                board.config_changed = false;
+                board.inner.config_changed = false;
 
                 return Some(AppState::Menu(AppMenu::Main));
             }

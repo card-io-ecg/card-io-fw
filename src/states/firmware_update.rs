@@ -9,7 +9,7 @@ use crate::{
         ota::{Ota0Partition, Ota1Partition, OtaClient, OtaDataPartition},
     },
     human_readable::Throughput,
-    states::{display_message, menu::AppMenu},
+    states::menu::AppMenu,
     timeout::Timeout,
     AppState, SerialNumber,
 };
@@ -62,7 +62,7 @@ pub async fn firmware_update(board: &mut Board) -> AppState {
         },
     };
 
-    display_message(board, message).await;
+    board.display_message(message).await;
 
     if let UpdateResult::Success = update_result {
         AppState::Shutdown
@@ -72,7 +72,7 @@ pub async fn firmware_update(board: &mut Board) -> AppState {
 }
 
 async fn do_update(board: &mut Board) -> UpdateResult {
-    let sta = if let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await {
+    let sta = if let Some(sta) = board.inner.enable_wifi_sta(StaMode::Enable).await {
         if sta.wait_for_connection(board).await {
             sta
         } else {
@@ -82,7 +82,7 @@ async fn do_update(board: &mut Board) -> UpdateResult {
         return UpdateResult::Failed(UpdateError::WifiNotEnabled);
     };
 
-    display_message(board, "Looking for updates").await;
+    board.display_message("Looking for updates").await;
 
     let Ok(mut client_resources) = sta.https_client_resources() else {
         return UpdateResult::Failed(UpdateError::InternalError);
@@ -93,7 +93,7 @@ async fn do_update(board: &mut Board) -> UpdateResult {
     if uwrite!(
         &mut url,
         "{}/firmware/{}/{}/{}",
-        board.config.backend_url.as_str(),
+        board.inner.config.backend_url.as_str(),
         env!("HW_VERSION"),
         SerialNumber,
         env!("COMMIT_HASH")
@@ -228,5 +228,5 @@ async fn print_progress(
         unwrap!(uwrite!(message, "\n{}", speed));
     }
 
-    display_message(board, message.as_str()).await;
+    board.display_message(message.as_str()).await;
 }

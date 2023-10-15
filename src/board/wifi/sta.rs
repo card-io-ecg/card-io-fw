@@ -6,7 +6,6 @@ use crate::{
         initialized::Board,
         wifi::{net_task, StackWrapper},
     },
-    states::display_message,
     task_control::{TaskControlToken, TaskController},
     timeout::Timeout,
     Shared,
@@ -174,7 +173,7 @@ impl Sta {
                 async {
                     loop {
                         // A message is displayed for at least 300ms so we don't need to wait here.
-                        display_message(board, "Connecting...").await;
+                        board.display_message("Connecting...").await;
                     }
                 },
             )

@@ -107,7 +107,7 @@ pub trait MenuScreen {
     async fn display(&mut self, board: &mut Board) -> Option<Self::Result> {
         let mut screen = Screen {
             content: self.menu(board).await.build(),
-            status_bar: board.status_bar(),
+            status_bar: board.inner.status_bar(),
         };
 
         let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
@@ -116,7 +116,7 @@ pub trait MenuScreen {
 
         let mut refresh = Self::REFRESH_PERIOD.map(Timeout::new);
 
-        while !exit_timer.is_elapsed() && !board.battery_monitor.is_low() {
+        while !exit_timer.is_elapsed() && !board.inner.battery_monitor.is_low() {
             input.update(&mut board.frontend);
 
             let is_touched = input.is_touched();
@@ -139,7 +139,7 @@ pub trait MenuScreen {
                 }
             }
 
-            screen.status_bar = board.status_bar();
+            screen.status_bar = board.inner.status_bar();
 
             board
                 .display

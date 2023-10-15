@@ -21,7 +21,7 @@ pub async fn initialize(board: &mut Board) -> AppState {
             return AppState::Shutdown;
         }
 
-        if board.battery_monitor.is_low() {
+        if board.inner.battery_monitor.is_low() {
             return AppState::Shutdown;
         }
 
@@ -32,7 +32,7 @@ pub async fn initialize(board: &mut Board) -> AppState {
                 progress: to_progress(elapsed, INIT_TIME),
             },
 
-            status_bar: board.status_bar(),
+            status_bar: board.inner.status_bar(),
         };
 
         board

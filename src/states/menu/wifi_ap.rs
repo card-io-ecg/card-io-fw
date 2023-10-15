@@ -27,7 +27,7 @@ use crate::{
 };
 
 pub async fn wifi_ap(board: &mut Board) -> AppState {
-    let Some(ap) = board.enable_wifi_ap().await else {
+    let Some(ap) = board.inner.enable_wifi_ap().await else {
         // FIXME: Show error screen
         return AppState::Menu(AppMenu::Main);
     };
@@ -35,8 +35,8 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     let spawner = Spawner::for_current_executor().await;
 
     let context = Rc::new(SharedWebContext::new(WebContext {
-        known_networks: board.config.known_networks.clone(),
-        backend_url: board.config.backend_url.clone(),
+        known_networks: board.inner.config.known_networks.clone(),
+        backend_url: board.inner.config.backend_url.clone(),
     }));
 
     let webserver_task_control = [(); WEBSERVER_TASKS].map(|_| TaskController::new());
@@ -47,25 +47,25 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     let mut screen = Screen {
         content: WifiApScreen::new(),
 
-        status_bar: board.status_bar(),
+        status_bar: board.inner.status_bar(),
     };
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     let mut input = TouchInputShaper::new();
 
-    while board.wifi.ap_running() {
+    while board.inner.wifi.ap_running() {
         input.update(&mut board.frontend);
         let is_touched = input.is_touched();
 
         #[cfg(feature = "battery_max17055")]
         // We only enable this check for fuel gauges because enabling wifi modifies ADC readings
         // and the board would shut down immediately.
-        if board.battery_monitor.is_low() {
+        if board.inner.battery_monitor.is_low() {
             break;
         }
 
-        screen.status_bar = board.status_bar();
+        screen.status_bar = board.inner.status_bar();
 
         let connection_state: WifiState = ap.connection_state().into();
         if connection_state != WifiState::Connected {
@@ -98,11 +98,11 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         let _ = control.stop().await;
     }
 
-    board.disable_wifi().await;
+    board.inner.disable_wifi().await;
 
     {
         let context = context.lock().await;
-        board.update_config(|config| {
+        board.inner.update_config(|config| {
             if context.known_networks != config.known_networks {
                 config.known_networks.clone_from(&context.known_networks);
             }
@@ -112,7 +112,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         });
     }
 
-    board.save_config().await;
+    board.inner.save_config().await;
 
     AppState::Menu(AppMenu::Main)
 }

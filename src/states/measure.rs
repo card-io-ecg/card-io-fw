@@ -5,9 +5,7 @@ use crate::{
         initialized::Board,
         PoweredEcgFrontend,
     },
-    states::{
-        display_message, menu::AppMenu, to_progress, INIT_MENU_THRESHOLD, INIT_TIME, MIN_FRAME_TIME,
-    },
+    states::{menu::AppMenu, to_progress, INIT_MENU_THRESHOLD, INIT_TIME, MIN_FRAME_TIME},
     task_control::{TaskControlToken, TaskController},
     timeout::Timeout,
     AppState,
@@ -18,10 +16,7 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channe
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
 use embedded_hal_bus::spi::DeviceError;
-use gui::{
-    screens::{init::StartupScreen, measure::EcgScreen, screen::Screen},
-    widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
-};
+use gui::screens::{init::StartupScreen, measure::EcgScreen, screen::Screen};
 use macros as cardio;
 use object_chain::{chain, Chain, ChainElement, Link};
 use signal_processing::{
@@ -94,7 +89,7 @@ impl EcgObjects {
 }
 
 pub async fn measure(board: &mut Board) -> AppState {
-    let filter = match board.config.filter_strength() {
+    let filter = match board.inner.config.filter_strength() {
         FilterStrength::None => ALL_PASS,
         #[rustfmt::skip]
         FilterStrength::Weak => macros::designfilt!(
@@ -137,7 +132,7 @@ async fn measure_impl(
         Ok(frontend) => frontend,
         Err((fe, _err)) => {
             board.frontend = fe;
-            display_message(&mut board, "ADC error").await;
+            board.display_message("ADC error").await;
 
             return (AppState::Shutdown, board);
         }
@@ -148,12 +143,12 @@ async fn measure_impl(
             frontend
                 .spi_mut()
                 .bus_mut()
-                .change_bus_frequency(4u32.MHz(), &board.clocks);
+                .change_bus_frequency(4u32.MHz(), &board.inner.clocks);
         }
 
         Err(_e) => {
             board.frontend = frontend.shut_down().await;
-            display_message(&mut board, "ADC error").await;
+            board.display_message("ADC error").await;
 
             return (AppState::Shutdown, board);
         }
@@ -166,6 +161,7 @@ async fn measure_impl(
     let task_control = TaskController::from_resources(frontend);
 
     board
+        .inner
         .high_prio_spawner
         .must_spawn(reader_task(EcgTaskParams {
             token: task_control.token(),
@@ -177,13 +173,7 @@ async fn measure_impl(
     let mut screen = Screen {
         content: EcgScreen::new(),
 
-        status_bar: StatusBar {
-            battery: Battery::with_style(
-                board.battery_monitor.battery_data(),
-                board.config.battery_style(),
-            ),
-            wifi: WifiStateView::disabled(),
-        },
+        status_bar: board.inner.status_bar(),
     };
 
     let mut samples = 0; // Counter and 1s timer to debug perf issues
@@ -194,7 +184,7 @@ async fn measure_impl(
     let mut entered = Instant::now();
     let exit_timer = Timeout::new_with_start(INIT_TIME, entered - INIT_MENU_THRESHOLD);
 
-    while !task_control.has_exited() && !board.battery_monitor.is_low() {
+    while !task_control.has_exited() && !board.inner.battery_monitor.is_low() {
         let display_full = screen.content.buffer_full();
         while let Ok(sample) = queue.try_recv() {
             samples += 1;
@@ -236,13 +226,7 @@ async fn measure_impl(
             debug_print_timer.reset();
         }
 
-        let status_bar = StatusBar {
-            battery: Battery::with_style(
-                board.battery_monitor.battery_data(),
-                board.config.battery_style(),
-            ),
-            wifi: WifiStateView::disabled(),
-        };
+        let status_bar = board.inner.status_bar();
 
         board
             .display

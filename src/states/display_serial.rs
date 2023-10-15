@@ -21,7 +21,7 @@ pub async fn display_serial(board: &mut Board) -> AppState {
             shutdown_timer.reset();
         }
 
-        if board.battery_monitor.is_low() {
+        if board.inner.battery_monitor.is_low() {
             return AppState::Shutdown;
         }
 
@@ -32,7 +32,7 @@ pub async fn display_serial(board: &mut Board) -> AppState {
                 invert: false,
             },
 
-            status_bar: board.status_bar(),
+            status_bar: board.inner.status_bar(),
         };
 
         board
