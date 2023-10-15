@@ -2,8 +2,8 @@ use crate::{
     board::{
         config::types::FilterStrength,
         hal::{prelude::*, spi::Error as SpiError},
-        initialized::Board,
-        PoweredEcgFrontend,
+        initialized::{Board, Inner},
+        EcgFrontend, PoweredEcgFrontend,
     },
     states::{menu::AppMenu, to_progress, INIT_MENU_THRESHOLD, INIT_TIME, MIN_FRAME_TIME},
     task_control::{TaskControlToken, TaskController},
@@ -116,25 +116,28 @@ pub async fn measure(board: &mut Board) -> AppState {
     }
 
     unsafe {
-        let read_board = core::ptr::read(board);
-        let (next_state, new_board) = measure_impl(read_board, &mut ecg, ecg_buffer).await;
-        core::ptr::write(board, new_board);
+        let frontend = core::ptr::read(&mut board.frontend);
+
+        let (next_state, frontend) =
+            measure_impl(&mut board.inner, frontend, &mut ecg, ecg_buffer).await;
+
+        core::ptr::write(&mut board.frontend, frontend);
         next_state
     }
 }
 
 async fn measure_impl(
-    mut board: Board,
+    context: &mut Inner,
+    frontend: EcgFrontend,
     ecg: &mut EcgObjects,
     mut ecg_buffer: Option<Box<CompressingBuffer<ECG_BUFFER_SIZE>>>,
-) -> (AppState, Board) {
-    let mut frontend = match board.frontend.enable_async().await {
+) -> (AppState, EcgFrontend) {
+    let mut frontend = match frontend.enable_async().await {
         Ok(frontend) => frontend,
         Err((fe, _err)) => {
-            board.frontend = fe;
-            board.display_message("ADC error").await;
+            context.display_message("ADC error").await;
 
-            return (AppState::Shutdown, board);
+            return (AppState::Shutdown, fe);
         }
     };
 
@@ -143,14 +146,13 @@ async fn measure_impl(
             frontend
                 .spi_mut()
                 .bus_mut()
-                .change_bus_frequency(4u32.MHz(), &board.inner.clocks);
+                .change_bus_frequency(4u32.MHz(), &context.clocks);
         }
 
         Err(_e) => {
-            board.frontend = frontend.shut_down().await;
-            board.display_message("ADC error").await;
+            context.display_message("ADC error").await;
 
-            return (AppState::Shutdown, board);
+            return (AppState::Shutdown, frontend.shut_down().await);
         }
 
         _ => {}
@@ -160,8 +162,7 @@ async fn measure_impl(
 
     let task_control = TaskController::from_resources(frontend);
 
-    board
-        .inner
+    context
         .high_prio_spawner
         .must_spawn(reader_task(EcgTaskParams {
             token: task_control.token(),
@@ -180,7 +181,7 @@ async fn measure_impl(
     let mut entered = Instant::now();
     let exit_timer = Timeout::new_with_start(INIT_TIME, entered - INIT_MENU_THRESHOLD);
 
-    while !task_control.has_exited() && !board.inner.battery_monitor.is_low() {
+    while !task_control.has_exited() && !context.battery_monitor.is_low() {
         let display_full = screen.buffer_full();
         while let Ok(sample) = queue.try_recv() {
             samples += 1;
@@ -222,8 +223,7 @@ async fn measure_impl(
             debug_print_timer.reset();
         }
 
-        board
-            .inner
+        context
             .with_status_bar(|display| {
                 if !exit_timer.is_elapsed() {
                     StartupScreen {
@@ -265,9 +265,8 @@ async fn measure_impl(
     };
 
     let frontend = task_control.unwrap();
-    board.frontend = frontend.shut_down().await;
 
-    (next_state, board)
+    (next_state, frontend.shut_down().await)
 }
 
 #[cardio::task]
