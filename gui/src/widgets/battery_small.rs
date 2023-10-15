@@ -59,16 +59,16 @@ impl Drawable for ChargingIndicator {
         #[allow(clippy::unusual_byte_groupings)]
         const CHARGING_IMAGE: ImageRaw<'_, BinaryColor> = ImageRaw::new(
             &[
-                0b000000_00,
-                0b000100_00,
-                0b001000_00,
-                0b011000_00,
-                0b001100_00,
-                0b001000_00,
-                0b010000_00,
-                0b000000_00,
+                0b00000_000,
+                0b00010_000,
+                0b00100_000,
+                0b01100_000,
+                0b00110_000,
+                0b00011_000,
+                0b00010_000,
+                0b00100_000,
             ],
-            6,
+            5,
         );
 
         let raw_image = match self.state {
