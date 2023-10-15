@@ -309,6 +309,8 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
         .update_brightness_async(config.display_brightness())
         .await;
 
+    let mut delay = Delay::new(&resources.clocks);
+
     let mut board = Box::pin(async {
         Box::new(Board {
             // If the device is awake, the display should be enabled.
@@ -395,7 +397,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
     setup_wakeup_pins(&mut wakeup_pins, &mut touch, &mut charger_pin, is_charging);
     let rtcio = RtcioWakeupSource::new(&mut wakeup_pins);
 
-    rtc.sleep_deep(&[&rtcio], &mut Delay::new(&board.inner.clocks));
+    rtc.sleep_deep(&[&rtcio], &mut delay);
 
     // Shouldn't reach this. If we do, we just exit the task, which means the executor
     // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
