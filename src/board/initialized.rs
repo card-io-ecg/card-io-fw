@@ -16,7 +16,7 @@ use display_interface::DisplayError;
 use embassy_executor::SendSpawner;
 use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
 use embassy_time::{Duration, Instant, Timer};
-use embedded_graphics::Drawable;
+use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
 use gui::{
     screens::message::MessageScreen,
     widgets::{
@@ -137,13 +137,13 @@ impl Inner {
         &mut self,
         draw: impl FnOnce(&mut PoweredDisplay) -> Result<(), DisplayError>,
     ) {
+        unwrap!(self.display.clear(BinaryColor::Off).ok());
+
         let status_bar = self.status_bar();
-        self.display
-            .frame(|display| {
-                status_bar.draw(display)?;
-                draw(display)
-            })
-            .await;
+        unwrap!(status_bar.draw(&mut self.display).ok());
+        unwrap!(draw(&mut self.display).ok());
+
+        unwrap!(self.display.flush().await.ok());
     }
 
     pub async fn wait_for_message(&mut self, duration: Duration) {
