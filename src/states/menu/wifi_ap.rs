@@ -8,10 +8,7 @@ use embassy_net::tcp::TcpSocket;
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
 use gui::{
-    screens::{
-        screen::Screen,
-        wifi_ap::{ApMenuEvents, WifiApScreen},
-    },
+    screens::wifi_ap::{ApMenuEvents, WifiApScreen},
     widgets::wifi::WifiState,
 };
 use macros as cardio;
@@ -44,11 +41,7 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         spawner.must_spawn(webserver_task(ap.clone(), context.clone(), control.token()));
     }
 
-    let mut screen = Screen {
-        content: WifiApScreen::new(),
-
-        status_bar: board.status_bar(),
-    };
+    let mut screen = WifiApScreen::new();
 
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
@@ -65,31 +58,29 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
             break;
         }
 
-        screen.status_bar = board.status_bar();
-
         let connection_state: WifiState = ap.connection_state().into();
         if connection_state != WifiState::Connected {
             // We start counting when the last client disconnects, and we reset on interaction.
-            if screen.content.state == WifiState::Connected || is_touched {
+            if screen.state == WifiState::Connected || is_touched {
                 exit_timer.reset();
             }
 
             if exit_timer.is_elapsed() {
                 break;
             }
-            screen.content.timeout = Some(exit_timer.remaining().as_secs() as u8);
+            screen.timeout = Some(exit_timer.remaining().as_secs() as u8);
         } else {
-            screen.content.timeout = None;
+            screen.timeout = None;
         }
 
-        screen.content.state = connection_state;
+        screen.state = connection_state;
 
         #[allow(irrefutable_let_patterns)]
-        if let Some(ApMenuEvents::Exit) = screen.content.menu.interact(is_touched) {
+        if let Some(ApMenuEvents::Exit) = screen.menu.interact(is_touched) {
             break;
         }
 
-        board.display.frame(|display| screen.draw(display)).await;
+        board.with_status_bar(|display| screen.draw(display)).await;
 
         ticker.next().await;
     }

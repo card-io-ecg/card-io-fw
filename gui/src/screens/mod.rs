@@ -22,7 +22,6 @@ pub mod init;
 pub mod measure;
 pub mod message;
 pub mod qr;
-pub mod screen;
 pub mod wifi_ap;
 
 pub const fn menu_style<R>(

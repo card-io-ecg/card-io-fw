@@ -2,7 +2,7 @@ use alloc::{string::String, vec::Vec};
 use embassy_time::{Duration, Ticker};
 use embedded_graphics::Drawable;
 use embedded_menu::items::NavigationItem;
-use gui::screens::{create_menu, screen::Screen};
+use gui::screens::create_menu;
 
 use crate::{
     board::initialized::Board,
@@ -63,28 +63,23 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
             return AppState::Shutdown;
         }
 
-        let mut menu_screen = Screen {
-            content: create_menu("Access points")
-                .add_items(&mut ssids)
-                .add_item(NavigationItem::new("Back", WifiStaMenuEvents::Back))
-                .build_with_state(menu_state),
+        let mut menu_screen = create_menu("Access points")
+            .add_items(&mut ssids)
+            .add_item(NavigationItem::new("Back", WifiStaMenuEvents::Back))
+            .build_with_state(menu_state);
 
-            status_bar: board.status_bar(),
-        };
-
-        if let Some(WifiStaMenuEvents::Back) = menu_screen.content.interact(is_touched) {
+        if let Some(WifiStaMenuEvents::Back) = menu_screen.interact(is_touched) {
             return AppState::Menu(AppMenu::Main);
         }
 
         board
-            .display
-            .frame(|display| {
-                menu_screen.content.update(display);
+            .with_status_bar(|display| {
+                menu_screen.update(display);
                 menu_screen.draw(display)
             })
             .await;
 
-        menu_state = menu_screen.content.state();
+        menu_state = menu_screen.state();
 
         ticker.next().await;
     }

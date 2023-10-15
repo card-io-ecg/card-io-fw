@@ -16,7 +16,7 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channe
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
 use embedded_hal_bus::spi::DeviceError;
-use gui::screens::{init::StartupScreen, measure::EcgScreen, screen::Screen};
+use gui::screens::{init::StartupScreen, measure::EcgScreen};
 use macros as cardio;
 use object_chain::{chain, Chain, ChainElement, Link};
 use signal_processing::{
@@ -170,11 +170,7 @@ async fn measure_impl(
 
     ecg.heart_rate_calculator.clear();
 
-    let mut screen = Screen {
-        content: EcgScreen::new(),
-
-        status_bar: board.inner.status_bar(),
-    };
+    let mut screen = EcgScreen::new();
 
     let mut samples = 0; // Counter and 1s timer to debug perf issues
     let mut debug_print_timer = Timeout::new(Duration::from_secs(1));
@@ -185,7 +181,7 @@ async fn measure_impl(
     let exit_timer = Timeout::new_with_start(INIT_TIME, entered - INIT_MENU_THRESHOLD);
 
     while !task_control.has_exited() && !board.inner.battery_monitor.is_low() {
-        let display_full = screen.content.buffer_full();
+        let display_full = screen.buffer_full();
         while let Ok(sample) = queue.try_recv() {
             samples += 1;
 
@@ -199,7 +195,7 @@ async fn measure_impl(
                     }
 
                     if let Some(downsampled) = ecg.downsampler.update(filtered) {
-                        screen.content.push(downsampled);
+                        screen.push(downsampled);
                     }
                 }
             } else {
@@ -208,7 +204,7 @@ async fn measure_impl(
         }
 
         if !display_full {
-            if screen.content.buffer_full() {
+            if screen.buffer_full() {
                 entered = Instant::now();
             }
             if let Some(ecg_buffer) = ecg_buffer.as_deref_mut() {
@@ -226,28 +222,21 @@ async fn measure_impl(
             debug_print_timer.reset();
         }
 
-        let status_bar = board.inner.status_bar();
-
         board
             .display
             .frame(|display| {
-                if !exit_timer.is_elapsed() {
-                    Screen {
-                        content: StartupScreen {
-                            label: "Release to menu",
-                            progress: to_progress(exit_timer.elapsed(), INIT_TIME),
-                        },
+                board.inner.status_bar().draw(display)?;
 
-                        status_bar,
+                if !exit_timer.is_elapsed() {
+                    StartupScreen {
+                        label: "Release to menu",
+                        progress: to_progress(exit_timer.elapsed(), INIT_TIME),
                     }
                     .draw(display)
                 } else {
-                    screen
-                        .content
-                        .update_heart_rate(ecg.heart_rate_calculator.current_hr());
-                    screen.content.elapsed_secs = entered.elapsed().as_secs() as usize;
+                    screen.update_heart_rate(ecg.heart_rate_calculator.current_hr());
+                    screen.elapsed_secs = entered.elapsed().as_secs() as usize;
 
-                    screen.status_bar = status_bar;
                     screen.draw(display)
                 }
             })

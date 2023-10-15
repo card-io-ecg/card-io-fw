@@ -81,11 +81,8 @@ impl Board {
     ) {
         self.display
             .frame(|display| {
-                let status_bar = self.inner.status_bar();
-                status_bar.draw(display)?;
-                draw(display)?;
-
-                Ok(())
+                self.inner.status_bar().draw(display)?;
+                draw(display)
             })
             .await;
     }
@@ -106,11 +103,8 @@ impl Inner {
     ) {
         display
             .frame(|display| {
-                let status_bar = self.status_bar();
-                status_bar.draw(display)?;
-                draw(display)?;
-
-                Ok(())
+                self.status_bar().draw(display)?;
+                draw(display)
             })
             .await;
     }
