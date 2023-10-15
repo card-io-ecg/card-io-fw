@@ -143,6 +143,7 @@ crc = "3.0.1"
 
 [patch.crates-io]
 esp32s3-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "44e968f7a83f80be43d60cdc01c10eccab4b39cf" }
+# embedded-text = { git = "https://github.com/embedded-graphics/embedded-text.git" }
 # esp32s3-hal = { path = "../../esp-hal/esp32s3-hal" }
 # esp-hal-common = { path = "../../esp-hal/esp-hal-common" }
 
