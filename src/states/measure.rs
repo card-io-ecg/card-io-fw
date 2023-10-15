@@ -223,10 +223,8 @@ async fn measure_impl(
         }
 
         board
-            .display
-            .frame(|display| {
-                board.inner.status_bar().draw(display)?;
-
+            .inner
+            .with_status_bar(|display| {
                 if !exit_timer.is_elapsed() {
                     StartupScreen {
                         label: "Release to menu",

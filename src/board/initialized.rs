@@ -34,20 +34,20 @@ pub enum StaMode {
 }
 
 pub struct Inner {
+    pub display: PoweredDisplay,
     pub clocks: Clocks<'static>,
     pub high_prio_spawner: SendSpawner,
     pub battery_monitor: BatteryMonitor<VbusDetect, ChargerStatus>,
     pub wifi: &'static mut WifiDriver,
     pub config: &'static mut Config,
     pub config_changed: bool,
-    pub storage: Option<FileSystem>,
     pub sta_work_available: Option<bool>,
     pub message_displayed_at: Option<Instant>,
 }
 
 pub struct Board {
-    pub display: PoweredDisplay,
     pub frontend: EcgFrontend,
+    pub storage: Option<FileSystem>,
     pub inner: Inner,
 }
 
@@ -66,55 +66,6 @@ impl DerefMut for Board {
 }
 
 impl Board {
-    pub async fn display_message(&mut self, message: &str) {
-        self.inner.wait_for_message(MESSAGE_MIN_DURATION).await;
-        self.inner.message_displayed_at = Some(Instant::now());
-
-        info!("Displaying message: {}", message);
-        self.with_status_bar(|display| MessageScreen { message }.draw(display))
-            .await;
-    }
-
-    pub async fn with_status_bar(
-        &mut self,
-        draw: impl FnOnce(&mut PoweredDisplay) -> Result<(), DisplayError>,
-    ) {
-        self.display
-            .frame(|display| {
-                self.inner.status_bar().draw(display)?;
-                draw(display)
-            })
-            .await;
-    }
-
-    pub async fn apply_hw_config_changes(&mut self) {
-        let _ = self
-            .display
-            .update_brightness_async(self.inner.config.display_brightness())
-            .await;
-    }
-}
-
-impl Inner {
-    pub async fn with_status_bar(
-        &mut self,
-        display: &mut PoweredDisplay,
-        draw: impl FnOnce(&mut PoweredDisplay) -> Result<(), DisplayError>,
-    ) {
-        display
-            .frame(|display| {
-                self.status_bar().draw(display)?;
-                draw(display)
-            })
-            .await;
-    }
-
-    pub async fn wait_for_message(&mut self, duration: Duration) {
-        if let Some(message_at) = self.message_displayed_at.take() {
-            Timer::at(message_at + duration).await;
-        }
-    }
-
     pub async fn save_config(&mut self) {
         if !self.config_changed {
             return;
@@ -125,7 +76,7 @@ impl Inner {
 
         if let Some(storage) = self.storage.as_mut() {
             if let Err(e) = storage
-                .store_writer("config", self.config, OnCollision::Overwrite)
+                .store_writer("config", self.inner.config, OnCollision::Overwrite)
                 .await
             {
                 error!("Failed to save config: {:?}", e);
@@ -135,21 +86,21 @@ impl Inner {
         }
     }
 
-    async fn enable_sta(&mut self, can_enable: bool) -> Option<Sta> {
-        if !can_enable {
-            warn!("Not enabling STA");
-            self.wifi.stop_if().await;
-            return None;
+    pub async fn sta_has_work(&mut self) -> bool {
+        // TODO: we can do a flag that is true on boot, so that entering the menu will always
+        // connect and look for update, etc. We can also use a flag to see if we have ongoing
+        // communication, so we can keep wifi on. Question is: when/how do we disable wifi if
+        // it is in on-demand mode?
+
+        if self.inner.sta_work_available.is_none() {
+            if let Some(storage) = self.storage.as_mut() {
+                if saved_measurement_exists(storage).await {
+                    self.inner.sta_work_available = Some(true);
+                }
+            }
         }
 
-        let sta = self
-            .wifi
-            .configure_sta(NetConfig::dhcpv4(Default::default()), &self.clocks)
-            .await;
-
-        sta.update_known_networks(&self.config.known_networks).await;
-
-        Some(sta)
+        self.inner.sta_work_available.unwrap_or(false)
     }
 
     pub async fn enable_wifi_sta(&mut self, mode: StaMode) -> Option<Sta> {
@@ -169,6 +120,62 @@ impl Inner {
         let can_enable = self.can_enable_wifi();
 
         self.enable_sta(can_enable).await
+    }
+}
+
+impl Inner {
+    pub async fn apply_hw_config_changes(&mut self) {
+        if !self.config_changed {
+            return;
+        }
+
+        let brightness = self.config.display_brightness();
+        let _ = self.display.update_brightness_async(brightness).await;
+    }
+
+    pub async fn with_status_bar(
+        &mut self,
+        draw: impl FnOnce(&mut PoweredDisplay) -> Result<(), DisplayError>,
+    ) {
+        let status_bar = self.status_bar();
+        self.display
+            .frame(|display| {
+                status_bar.draw(display)?;
+                draw(display)
+            })
+            .await;
+    }
+
+    pub async fn wait_for_message(&mut self, duration: Duration) {
+        if let Some(message_at) = self.message_displayed_at.take() {
+            Timer::at(message_at + duration).await;
+        }
+    }
+
+    pub async fn display_message(&mut self, message: &str) {
+        self.wait_for_message(MESSAGE_MIN_DURATION).await;
+        self.message_displayed_at = Some(Instant::now());
+
+        info!("Displaying message: {}", message);
+        self.with_status_bar(|display| MessageScreen { message }.draw(display))
+            .await;
+    }
+
+    async fn enable_sta(&mut self, can_enable: bool) -> Option<Sta> {
+        if !can_enable {
+            warn!("Not enabling STA");
+            self.wifi.stop_if().await;
+            return None;
+        }
+
+        let sta = self
+            .wifi
+            .configure_sta(NetConfig::dhcpv4(Default::default()), &self.clocks)
+            .await;
+
+        sta.update_known_networks(&self.config.known_networks).await;
+
+        Some(sta)
     }
 
     pub async fn enable_wifi_ap(&mut self) -> Option<Ap> {
@@ -202,23 +209,6 @@ impl Inner {
             .battery_data()
             .map(|battery| battery.percentage > 50 || battery.is_charging())
             .unwrap_or(false)
-    }
-
-    pub async fn sta_has_work(&mut self) -> bool {
-        // TODO: we can do a flag that is true on boot, so that entering the menu will always
-        // connect and look for update, etc. We can also use a flag to see if we have ongoing
-        // communication, so we can keep wifi on. Question is: when/how do we disable wifi if
-        // it is in on-demand mode?
-
-        if self.sta_work_available.is_none() {
-            if let Some(storage) = self.storage.as_mut() {
-                if saved_measurement_exists(storage).await {
-                    self.sta_work_available = Some(true);
-                }
-            }
-        }
-
-        self.sta_work_available.unwrap_or(false)
     }
 
     pub fn signal_sta_work_available(&mut self, available: bool) {

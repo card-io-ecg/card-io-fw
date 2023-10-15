@@ -231,7 +231,7 @@ async fn upload_stored(board: &mut Board) {
         .display_message("Uploading stored measurements...")
         .await;
 
-    let Some(storage) = board.inner.storage.as_mut() else {
+    let Some(storage) = board.storage.as_mut() else {
         board.display_message("Storage not available").await;
         return;
     };

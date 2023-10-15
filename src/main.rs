@@ -314,16 +314,16 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
     let mut board = Box::pin(async {
         Box::new(Board {
             // If the device is awake, the display should be enabled.
-            display,
             frontend: resources.frontend,
+            storage,
             inner: Inner {
+                display,
                 clocks: resources.clocks,
                 high_prio_spawner: INT_EXECUTOR.start(Priority::Priority3),
                 battery_monitor,
                 wifi: resources.wifi,
                 config,
                 config_changed: false,
-                storage,
                 sta_work_available: None,
                 message_displayed_at: None,
             },
@@ -375,7 +375,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
         board.wait_for_message(MESSAGE_DURATION).await;
     }
 
-    let _ = board.display.shut_down();
+    let _ = board.inner.display.shut_down();
 
     board.frontend.wait_for_release().await;
     Timer::after(Duration::from_millis(100)).await;
