@@ -10,12 +10,13 @@ use crate::{
     saved_measurement_exists,
     states::MESSAGE_MIN_DURATION,
 };
+use display_interface::DisplayError;
 use embassy_executor::SendSpawner;
 use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
 use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::Drawable;
 use gui::{
-    screens::{message::MessageScreen, screen::Screen},
+    screens::message::MessageScreen,
     widgets::{
         battery_small::Battery,
         status_bar::StatusBar,
@@ -49,7 +50,27 @@ pub struct Board {
 }
 impl Board {
     pub async fn display_message(&mut self, message: &str) {
-        self.inner.display_message(message, &mut self.display).await
+        self.inner.wait_for_message(MESSAGE_MIN_DURATION).await;
+        self.inner.message_displayed_at = Some(Instant::now());
+
+        info!("Displaying message: {}", message);
+        self.with_status_bar(|display| MessageScreen { message }.draw(display))
+            .await;
+    }
+
+    pub async fn with_status_bar(
+        &mut self,
+        draw: impl FnOnce(&mut PoweredDisplay) -> Result<(), DisplayError>,
+    ) {
+        self.display
+            .frame(|display| {
+                let status_bar = self.inner.status_bar();
+                status_bar.draw(display)?;
+                draw(display)?;
+
+                Ok(())
+            })
+            .await;
     }
 
     pub async fn apply_hw_config_changes(&mut self) {
@@ -61,27 +82,6 @@ impl Board {
 }
 
 impl Inner {
-    pub async fn display_message(&mut self, message: &str, display: &mut PoweredDisplay) {
-        info!("Displaying message: {}", message);
-
-        if let Some(previous) = self.message_displayed_at.take() {
-            Timer::at(previous + MESSAGE_MIN_DURATION).await;
-        }
-
-        self.message_displayed_at = Some(Instant::now());
-
-        let status_bar = self.status_bar();
-        display
-            .frame(|display| {
-                Screen {
-                    content: MessageScreen { message },
-                    status_bar,
-                }
-                .draw(display)
-            })
-            .await;
-    }
-
     pub async fn wait_for_message(&mut self, duration: Duration) {
         if let Some(message_at) = self.message_displayed_at.take() {
             Timer::at(message_at + duration).await;

@@ -7,7 +7,7 @@ use embedded_menu::{
     selection_indicator::{style::AnimatedTriangle, AnimatedPosition},
     Menu, MenuState,
 };
-use gui::{embedded_layout::view_group::ViewGroup, screens::screen::Screen};
+use gui::embedded_layout::view_group::ViewGroup;
 
 use crate::{
     board::initialized::Board,
@@ -105,10 +105,7 @@ pub trait MenuScreen {
         -> Option<Self::Result>;
 
     async fn display(&mut self, board: &mut Board) -> Option<Self::Result> {
-        let mut screen = Screen {
-            content: self.menu(board).await.build(),
-            status_bar: board.inner.status_bar(),
-        };
+        let mut menu_screen = self.menu(board).await.build();
 
         let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
         let mut ticker = Ticker::every(MIN_FRAME_TIME);
@@ -128,24 +125,21 @@ pub trait MenuScreen {
                 if refresh.is_elapsed() {
                     refresh.reset();
 
-                    let state = screen.content.state();
-                    screen.content = self.menu(board).await.build_with_state(state);
+                    let state = menu_screen.state();
+                    menu_screen = self.menu(board).await.build_with_state(state);
                 }
             }
 
-            if let Some(event) = screen.content.interact(is_touched) {
+            if let Some(event) = menu_screen.interact(is_touched) {
                 if let Some(result) = self.handle_event(event, board).await {
                     return Some(result);
                 }
             }
 
-            screen.status_bar = board.inner.status_bar();
-
             board
-                .display
-                .frame(|display| {
-                    screen.content.update(display);
-                    screen.draw(display)
+                .with_status_bar(|display| {
+                    menu_screen.update(display);
+                    menu_screen.draw(display)
                 })
                 .await;
 
