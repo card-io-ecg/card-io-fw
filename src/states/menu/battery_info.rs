@@ -48,11 +48,7 @@ impl MenuScreen for BatteryInfoMenu {
         }
 
         if let Ok(current) = sensor.fg.read_current().await {
-            list_item(uformat!(
-                20,
-                "Current {}mA",
-                LeftPad(10, current as i32 / 1000)
-            ));
+            list_item(uformat!(20, "Current {}mA", LeftPad(10, current / 1000)));
         }
 
         if let Ok(cap) = sensor.fg.read_design_capacity().await {

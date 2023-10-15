@@ -116,7 +116,7 @@ pub async fn measure(board: &mut Board) -> AppState {
     }
 
     unsafe {
-        let frontend = core::ptr::read(&mut board.frontend);
+        let frontend = core::ptr::read(&board.frontend);
 
         let (next_state, frontend) =
             measure_impl(&mut board.inner, frontend, &mut ecg, ecg_buffer).await;
