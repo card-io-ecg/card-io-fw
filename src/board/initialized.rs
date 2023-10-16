@@ -144,4 +144,34 @@ impl Board {
     pub fn signal_sta_work_available(&mut self, available: bool) {
         self.sta_work_available = Some(available);
     }
+
+    pub fn update_config(&mut self, cb: impl FnOnce(&mut Config)) {
+        struct ConfigWriter<'a> {
+            config: &'a mut Config,
+            changed: bool,
+        }
+        impl core::ops::Deref for ConfigWriter<'_> {
+            type Target = Config;
+
+            fn deref(&self) -> &Self::Target {
+                &self.config
+            }
+        }
+
+        impl core::ops::DerefMut for ConfigWriter<'_> {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                self.changed = true;
+                &mut self.config
+            }
+        }
+
+        let mut wrapper = ConfigWriter {
+            config: self.config,
+            changed: false,
+        };
+
+        cb(&mut wrapper);
+
+        self.config_changed |= wrapper.changed;
+    }
 }

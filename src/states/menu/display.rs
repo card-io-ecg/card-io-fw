@@ -58,20 +58,17 @@ impl MenuScreen for DisplayMenu {
     ) -> Option<Self::Result> {
         match event {
             DisplayMenuEvents::ChangeBrigtness(brightness) => {
-                board.config_changed = true;
-                board.config.display_brightness = brightness;
+                board.update_config(|config| config.display_brightness = brightness);
                 let _ = board
                     .display
                     .update_brightness_async(board.config.display_brightness())
                     .await;
             }
             DisplayMenuEvents::ChangeBatteryStyle(style) => {
-                board.config_changed = true;
-                board.config.battery_display_style = style;
+                board.update_config(|config| config.battery_display_style = style);
             }
             DisplayMenuEvents::ChangeFilterStrength(strength) => {
-                board.config_changed = true;
-                board.config.filter_strength = strength;
+                board.update_config(|config| config.filter_strength = strength);
             }
             DisplayMenuEvents::Back => return Some(AppState::Menu(AppMenu::Main)),
         }
