@@ -2,10 +2,10 @@ use alloc::{string::String, vec::Vec};
 use embassy_time::{Duration, Ticker};
 use embedded_graphics::Drawable;
 use embedded_menu::items::NavigationItem;
-use gui::screens::{create_menu, screen::Screen};
+use gui::screens::create_menu;
 
 use crate::{
-    board::initialized::Board,
+    board::initialized::Context,
     states::{TouchInputShaper, MIN_FRAME_TIME},
     timeout::Timeout,
     AppMenu, AppState,
@@ -17,8 +17,8 @@ pub enum WifiStaMenuEvents {
     Back,
 }
 
-pub async fn wifi_sta(board: &mut Board) -> AppState {
-    let Some(sta) = board.enable_wifi_sta_for_scan().await else {
+pub async fn wifi_sta(context: &mut Context) -> AppState {
+    let Some(sta) = context.enable_wifi_sta_for_scan().await else {
         // FIXME: Show error screen
         return AppState::Menu(AppMenu::Main);
     };
@@ -40,7 +40,7 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
 
     let mut input = TouchInputShaper::new();
     while !exit_timer.is_elapsed() {
-        input.update(&mut board.frontend);
+        input.update(&mut context.frontend);
         let is_touched = input.is_touched();
 
         if scan_idle_timer.is_elapsed() {
@@ -59,32 +59,27 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
         }
 
         #[cfg(feature = "battery_max17055")]
-        if board.battery_monitor.is_low() {
+        if context.battery_monitor.is_low() {
             return AppState::Shutdown;
         }
 
-        let mut menu_screen = Screen {
-            content: create_menu("Access points")
-                .add_items(&mut ssids)
-                .add_item(NavigationItem::new("Back", WifiStaMenuEvents::Back))
-                .build_with_state(menu_state),
+        let mut menu_screen = create_menu("Access points")
+            .add_items(&mut ssids)
+            .add_item(NavigationItem::new("Back", WifiStaMenuEvents::Back))
+            .build_with_state(menu_state);
 
-            status_bar: board.status_bar(),
-        };
-
-        if let Some(WifiStaMenuEvents::Back) = menu_screen.content.interact(is_touched) {
+        if let Some(WifiStaMenuEvents::Back) = menu_screen.interact(is_touched) {
             return AppState::Menu(AppMenu::Main);
         }
 
-        board
-            .display
-            .frame(|display| {
-                menu_screen.content.update(display);
+        context
+            .with_status_bar(|display| {
+                menu_screen.update(display);
                 menu_screen.draw(display)
             })
             .await;
 
-        menu_state = menu_screen.content.state();
+        menu_state = menu_screen.state();
 
         ticker.next().await;
     }

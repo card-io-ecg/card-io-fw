@@ -59,7 +59,7 @@ use crate::{
             rtc_cntl::sleep::{RtcioWakeupSource, WakeupLevel},
             Delay,
         },
-        initialized::Board,
+        initialized::{Context, InnerContext},
         startup::StartupResources,
         storage::FileSystem,
         TouchDetect,
@@ -309,20 +309,24 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
         .update_brightness_async(config.display_brightness())
         .await;
 
+    let mut delay = Delay::new(&resources.clocks);
+
     let mut board = Box::pin(async {
-        Box::new(Board {
+        Box::new(Context {
             // If the device is awake, the display should be enabled.
-            display,
             frontend: resources.frontend,
-            clocks: resources.clocks,
-            high_prio_spawner: INT_EXECUTOR.start(Priority::Priority3),
-            battery_monitor,
-            wifi: resources.wifi,
-            config,
-            config_changed: false,
             storage,
-            sta_work_available: None,
-            message_displayed_at: None,
+            inner: InnerContext {
+                display,
+                clocks: resources.clocks,
+                high_prio_spawner: INT_EXECUTOR.start(Priority::Priority3),
+                battery_monitor,
+                wifi: resources.wifi,
+                config,
+                config_changed: false,
+                sta_work_available: None,
+                message_displayed_at: None,
+            },
         })
     })
     .await;
@@ -368,23 +372,23 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
             AppState::Shutdown => break,
         };
 
-        if let Some(message_at) = board.message_displayed_at.take() {
-            Timer::at(message_at + MESSAGE_DURATION).await;
-        }
+        board.wait_for_message(MESSAGE_DURATION).await;
     }
 
-    let _ = board.display.shut_down();
+    let _ = board.inner.display.shut_down();
 
     board.frontend.wait_for_release().await;
     Timer::after(Duration::from_millis(100)).await;
 
-    let is_charging = board.battery_monitor.is_plugged();
+    let battery_monitor = board.inner.battery_monitor;
+
+    let is_charging = battery_monitor.is_plugged();
 
     #[cfg(feature = "hw_v1")]
-    let (_, mut charger_pin) = board.battery_monitor.stop().await;
+    let (_, mut charger_pin) = battery_monitor.stop().await;
 
     #[cfg(any(feature = "hw_v2", feature = "hw_v4"))]
-    let (mut charger_pin, _) = board.battery_monitor.stop().await;
+    let (mut charger_pin, _) = battery_monitor.stop().await;
 
     let (_, _, _, mut touch) = board.frontend.split();
     let mut rtc = resources.rtc;
@@ -393,7 +397,7 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
     setup_wakeup_pins(&mut wakeup_pins, &mut touch, &mut charger_pin, is_charging);
     let rtcio = RtcioWakeupSource::new(&mut wakeup_pins);
 
-    rtc.sleep_deep(&[&rtcio], &mut Delay::new(&board.clocks));
+    rtc.sleep_deep(&[&rtcio], &mut delay);
 
     // Shouldn't reach this. If we do, we just exit the task, which means the executor
     // will have nothing else to do. Not ideal, but again, we shouldn't reach this.

@@ -23,13 +23,10 @@ use ufmt::uwrite;
 use crate::{
     board::{
         config::types::MeasurementAction,
-        initialized::{Board, StaMode},
+        initialized::{Context, StaMode},
     },
     human_readable::BinarySize,
-    states::{
-        display_message,
-        menu::{AppMenuBuilder, MenuScreen},
-    },
+    states::menu::{AppMenuBuilder, MenuScreen},
     timeout::Timeout,
     uformat, AppState, SerialNumber,
 };
@@ -42,14 +39,14 @@ enum StoreMeasurement {
     DontStore,
 }
 
-pub async fn upload_stored_measurements(board: &mut Board, next_state: AppState) -> AppState {
-    upload_stored(board).await;
+pub async fn upload_stored_measurements(context: &mut Context, next_state: AppState) -> AppState {
+    upload_stored(context).await;
 
     next_state
 }
 
 pub async fn upload_or_store_measurement<const SIZE: usize>(
-    board: &mut Board,
+    context: &mut Context,
     mut buffer: Box<CompressingBuffer<SIZE>>,
     next_state: AppState,
 ) -> AppState {
@@ -63,12 +60,14 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     if sample_count < 20 * SAMPLE_RATE {
         // We don't want to store too-short measurements.
         debug!("Measurement is too short to upload or store.");
-        display_message(board, "Measurement too short, discarding").await;
+        context
+            .display_message("Measurement too short, discarding")
+            .await;
         return next_state;
     }
 
-    let (can_upload, can_store) = match board.config.measurement_action {
-        MeasurementAction::Ask => ask_for_measurement_action(board).await,
+    let (can_upload, can_store) = match context.config.measurement_action {
+        MeasurementAction::Ask => ask_for_measurement_action(context).await,
         MeasurementAction::Auto => (true, true),
         MeasurementAction::Store => (false, true),
         MeasurementAction::Upload => (true, false),
@@ -76,7 +75,7 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     };
 
     let store_after_upload = if can_upload {
-        let upload_result = try_to_upload(board, samples).await;
+        let upload_result = try_to_upload(context, samples).await;
         debug!("Upload result: {:?}", upload_result);
         upload_result == StoreMeasurement::Store
     } else {
@@ -84,10 +83,10 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     };
 
     if can_store && store_after_upload {
-        let store_result = try_store_measurement(board, samples).await;
+        let store_result = try_store_measurement(context, samples).await;
 
         if let Err(e) = store_result {
-            display_message(board, "Could not store measurement").await;
+            context.display_message("Could not store measurement").await;
             error!("Failed to store measurement: {:?}", e);
         }
     }
@@ -97,26 +96,26 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
         // Drop to free up 90kB of memory.
         mem::drop(buffer);
 
-        if board.sta_has_work().await {
-            upload_stored(board).await;
+        if context.sta_has_work().await {
+            upload_stored(context).await;
         }
     }
 
     next_state
 }
 
-async fn ask_for_measurement_action(board: &mut Board) -> (bool, bool) {
+async fn ask_for_measurement_action(context: &mut Context) -> (bool, bool) {
     let network_configured =
-        !board.config.backend_url.is_empty() && !board.config.known_networks.is_empty();
+        !context.config.backend_url.is_empty() && !context.config.known_networks.is_empty();
 
-    let can_store = board.storage.is_some();
+    let can_store = context.storage.is_some();
 
     if !network_configured && !can_store {
         return (false, false);
     }
 
     AskForMeasurementActionMenu
-        .display(board)
+        .display(context)
         .await
         .unwrap_or((false, false))
 }
@@ -127,7 +126,7 @@ impl MenuScreen for AskForMeasurementActionMenu {
     type Event = (bool, bool);
     type Result = (bool, bool);
 
-    async fn menu(&mut self, board: &mut Board) -> impl AppMenuBuilder<Self::Event> {
+    async fn menu(&mut self, context: &mut Context) -> impl AppMenuBuilder<Self::Event> {
         let mut items = heapless::Vec::<_, 3>::new();
 
         let mut add_item = |label, value| {
@@ -135,9 +134,9 @@ impl MenuScreen for AskForMeasurementActionMenu {
         };
 
         let network_configured =
-            !board.config.backend_url.is_empty() && !board.config.known_networks.is_empty();
+            !context.config.backend_url.is_empty() && !context.config.known_networks.is_empty();
 
-        let can_store = board.storage.is_some();
+        let can_store = context.storage.is_some();
 
         if network_configured {
             if can_store {
@@ -158,20 +157,20 @@ impl MenuScreen for AskForMeasurementActionMenu {
     async fn handle_event(
         &mut self,
         event: Self::Event,
-        _board: &mut Board,
+        _board: &mut Context,
     ) -> Option<Self::Result> {
         Some(event)
     }
 }
 
-async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
-    if board.config.backend_url.is_empty() {
+async fn try_to_upload(context: &mut Context, buffer: &[u8]) -> StoreMeasurement {
+    if context.config.backend_url.is_empty() {
         debug!("No backend URL configured, not uploading.");
         return StoreMeasurement::Store;
     }
 
-    let sta = if let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await {
-        if sta.wait_for_connection(board).await {
+    let sta = if let Some(sta) = context.enable_wifi_sta(StaMode::Enable).await {
+        if sta.wait_for_connection(context).await {
             sta
         } else {
             // If we do not have a network connection, save to file.
@@ -186,16 +185,16 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
     debug!("Trying to upload measurement");
 
     let uploading_msg = uformat!(32, "Uploading measurement: {}", BinarySize(buffer.len()));
-    display_message(board, uploading_msg.as_str()).await;
+    context.display_message(uploading_msg.as_str()).await;
 
     let Ok(mut client_resources) = sta.https_client_resources() else {
-        display_message(board, "Out of memory").await;
+        context.display_message("Out of memory").await;
         return StoreMeasurement::Store;
     };
     let mut client = client_resources.client();
 
     match upload_measurement(
-        &board.config.backend_url,
+        &context.config.backend_url,
         &mut client,
         0,
         MeasurementRef { version: 0, buffer },
@@ -204,46 +203,48 @@ async fn try_to_upload(board: &mut Board, buffer: &[u8]) -> StoreMeasurement {
     {
         Ok(_) => {
             // Upload successful, do not store in file.
-            display_message(board, "Upload successful").await;
+            context.display_message("Upload successful").await;
             StoreMeasurement::DontStore
         }
         Err(_) => {
             warn!("Failed to upload measurement");
-            display_message(board, "Upload failed").await;
+            context.display_message("Upload failed").await;
             StoreMeasurement::Store
         }
     }
 }
 
-async fn upload_stored(board: &mut Board) {
-    let sta = if let Some(sta) = board.enable_wifi_sta(StaMode::OnDemand).await {
-        if sta.wait_for_connection(board).await {
+async fn upload_stored(context: &mut Context) {
+    let sta = if let Some(sta) = context.enable_wifi_sta(StaMode::OnDemand).await {
+        if sta.wait_for_connection(context).await {
             sta
         } else {
-            display_message(board, "Failed to connect to WiFi").await;
+            context.display_message("Failed to connect to WiFi").await;
             return;
         }
     } else {
-        display_message(board, "Nothing to upload").await;
+        context.display_message("Nothing to upload").await;
         return;
     };
 
-    display_message(board, "Uploading stored measurements...").await;
+    context
+        .display_message("Uploading stored measurements...")
+        .await;
 
-    let Some(storage) = board.storage.as_mut() else {
-        display_message(board, "Storage not available").await;
+    let Some(storage) = context.storage.as_mut() else {
+        context.display_message("Storage not available").await;
         return;
     };
 
     let Ok(mut dir) = storage.read_dir().await else {
-        display_message(board, "Could not read storage").await;
+        context.display_message("Could not read storage").await;
         return;
     };
 
     let mut fn_buffer = [0; 64];
 
     let Ok(mut client_resources) = sta.https_client_resources() else {
-        display_message(board, "Out of memory").await;
+        context.display_message("Out of memory").await;
         return;
     };
     let mut client = client_resources.client();
@@ -265,7 +266,7 @@ async fn upload_stored(board: &mut Board) {
                         };
 
                         if let Err(e) = upload_measurement(
-                            &board.config.backend_url,
+                            &context.inner.config.backend_url,
                             &mut client,
                             0,
                             buffer.as_ref(),
@@ -305,9 +306,9 @@ async fn upload_stored(board: &mut Board) {
     } else {
         "Failed to upload measurements"
     };
-    display_message(board, message).await;
+    context.display_message(message).await;
 
-    board.signal_sta_work_available(!success);
+    context.signal_sta_work_available(!success);
 }
 
 struct Measurement {
@@ -473,12 +474,15 @@ where
     }
 }
 
-async fn try_store_measurement(board: &mut Board, measurement: &[u8]) -> Result<(), StorageError> {
+async fn try_store_measurement(
+    context: &mut Context,
+    measurement: &[u8],
+) -> Result<(), StorageError> {
     debug!("Trying to store measurement");
 
     let saving_msg = uformat!(32, "Saving measurement: {}", BinarySize(measurement.len()));
-    display_message(board, &saving_msg).await;
-    let Some(storage) = board.storage.as_mut() else {
+    context.display_message(&saving_msg).await;
+    let Some(storage) = context.storage.as_mut() else {
         return Ok(());
     };
 
@@ -497,7 +501,7 @@ async fn try_store_measurement(board: &mut Board, measurement: &[u8]) -> Result<
 
     info!("Measurement saved to {}", filename);
 
-    board.signal_sta_work_available(true);
+    context.signal_sta_work_available(true);
 
     Ok(())
 }

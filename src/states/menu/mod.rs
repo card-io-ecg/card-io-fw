@@ -7,10 +7,10 @@ use embedded_menu::{
     selection_indicator::{style::AnimatedTriangle, AnimatedPosition},
     Menu, MenuState,
 };
-use gui::{embedded_layout::view_group::ViewGroup, screens::screen::Screen};
+use gui::embedded_layout::view_group::ViewGroup;
 
 use crate::{
-    board::initialized::Board,
+    board::initialized::Context,
     states::{TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
     timeout::Timeout,
 };
@@ -99,16 +99,16 @@ pub trait MenuScreen {
 
     const REFRESH_PERIOD: Option<Duration> = None;
 
-    async fn menu(&mut self, board: &mut Board) -> impl AppMenuBuilder<Self::Event>;
+    async fn menu(&mut self, context: &mut Context) -> impl AppMenuBuilder<Self::Event>;
 
-    async fn handle_event(&mut self, event: Self::Event, board: &mut Board)
-        -> Option<Self::Result>;
+    async fn handle_event(
+        &mut self,
+        event: Self::Event,
+        context: &mut Context,
+    ) -> Option<Self::Result>;
 
-    async fn display(&mut self, board: &mut Board) -> Option<Self::Result> {
-        let mut screen = Screen {
-            content: self.menu(board).await.build(),
-            status_bar: board.status_bar(),
-        };
+    async fn display(&mut self, context: &mut Context) -> Option<Self::Result> {
+        let mut menu_screen = self.menu(context).await.build();
 
         let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
         let mut ticker = Ticker::every(MIN_FRAME_TIME);
@@ -116,8 +116,8 @@ pub trait MenuScreen {
 
         let mut refresh = Self::REFRESH_PERIOD.map(Timeout::new);
 
-        while !exit_timer.is_elapsed() && !board.battery_monitor.is_low() {
-            input.update(&mut board.frontend);
+        while !exit_timer.is_elapsed() && !context.battery_monitor.is_low() {
+            input.update(&mut context.frontend);
 
             let is_touched = input.is_touched();
             if is_touched {
@@ -128,24 +128,21 @@ pub trait MenuScreen {
                 if refresh.is_elapsed() {
                     refresh.reset();
 
-                    let state = screen.content.state();
-                    screen.content = self.menu(board).await.build_with_state(state);
+                    let state = menu_screen.state();
+                    menu_screen = self.menu(context).await.build_with_state(state);
                 }
             }
 
-            if let Some(event) = screen.content.interact(is_touched) {
-                if let Some(result) = self.handle_event(event, board).await {
+            if let Some(event) = menu_screen.interact(is_touched) {
+                if let Some(result) = self.handle_event(event, context).await {
                     return Some(result);
                 }
             }
 
-            screen.status_bar = board.status_bar();
-
-            board
-                .display
-                .frame(|display| {
-                    screen.content.update(display);
-                    screen.draw(display)
+            context
+                .with_status_bar(|display| {
+                    menu_screen.update(display);
+                    menu_screen.draw(display)
                 })
                 .await;
 

@@ -1,5 +1,5 @@
 use crate::{
-    board::initialized::Board,
+    board::initialized::Context,
     human_readable::LeftPad,
     states::menu::{AppMenu, AppMenuBuilder, MenuScreen},
     uformat, AppState,
@@ -14,9 +14,9 @@ pub enum BatteryEvents {
     Back,
 }
 
-pub async fn battery_info_menu(board: &mut Board) -> AppState {
+pub async fn battery_info_menu(context: &mut Context) -> AppState {
     BatteryInfoMenu
-        .display(board)
+        .display(context)
         .await
         .unwrap_or(AppState::Shutdown)
 }
@@ -28,7 +28,7 @@ impl MenuScreen for BatteryInfoMenu {
 
     const REFRESH_PERIOD: Option<Duration> = Some(Duration::from_secs(1));
 
-    async fn menu(&mut self, board: &mut Board) -> impl AppMenuBuilder<Self::Event> {
+    async fn menu(&mut self, context: &mut Context) -> impl AppMenuBuilder<Self::Event> {
         let mut items = heapless::Vec::<_, 6>::new();
 
         let mut list_item = |label| {
@@ -37,7 +37,7 @@ impl MenuScreen for BatteryInfoMenu {
                 .ok())
         };
 
-        let mut sensor = board.battery_monitor.sensor().await;
+        let mut sensor = context.battery_monitor.sensor().await;
 
         if let Ok(voltage) = sensor.fg.read_vcell().await {
             list_item(uformat!(
@@ -48,11 +48,7 @@ impl MenuScreen for BatteryInfoMenu {
         }
 
         if let Ok(current) = sensor.fg.read_current().await {
-            list_item(uformat!(
-                20,
-                "Current {}mA",
-                LeftPad(10, current as i32 / 1000)
-            ));
+            list_item(uformat!(20, "Current {}mA", LeftPad(10, current / 1000)));
         }
 
         if let Ok(cap) = sensor.fg.read_design_capacity().await {
@@ -83,7 +79,7 @@ impl MenuScreen for BatteryInfoMenu {
     async fn handle_event(
         &mut self,
         event: Self::Event,
-        _board: &mut Board,
+        _context: &mut Context,
     ) -> Option<Self::Result> {
         match event {
             BatteryEvents::None => None,

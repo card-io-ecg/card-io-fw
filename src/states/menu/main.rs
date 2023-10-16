@@ -1,5 +1,5 @@
 use crate::{
-    board::initialized::Board,
+    board::initialized::Context,
     heap::ALLOCATOR,
     states::menu::{AppMenu, MenuScreen},
     AppState,
@@ -22,10 +22,13 @@ pub enum MainMenuEvents {
     Shutdown,
 }
 
-pub async fn main_menu(board: &mut Board) -> AppState {
+pub async fn main_menu(context: &mut Context) -> AppState {
     info!("Free heap: {} bytes", ALLOCATOR.free());
 
-    MainMenu.display(board).await.unwrap_or(AppState::Shutdown)
+    MainMenu
+        .display(context)
+        .await
+        .unwrap_or(AppState::Shutdown)
 }
 
 struct MainMenu;
@@ -34,18 +37,18 @@ impl MenuScreen for MainMenu {
     type Event = MainMenuEvents;
     type Result = AppState;
 
-    async fn menu(&mut self, board: &mut Board) -> impl AppMenuBuilder<Self::Event> {
+    async fn menu(&mut self, context: &mut Context) -> impl AppMenuBuilder<Self::Event> {
         let mut optional_items = heapless::Vec::<_, 4>::new();
 
         let mut optional_item =
             |label, event| unwrap!(optional_items.push(NavigationItem::new(label, event)).ok());
 
-        if board.can_enable_wifi() {
+        if context.can_enable_wifi() {
             optional_item("Wifi setup", MainMenuEvents::WifiSetup);
             optional_item("Wifi networks", MainMenuEvents::WifiListVisible);
 
             let network_configured =
-                !board.config.backend_url.is_empty() && !board.config.known_networks.is_empty();
+                !context.config.backend_url.is_empty() && !context.config.known_networks.is_empty();
 
             if network_configured {
                 optional_item("Firmware update", MainMenuEvents::FirmwareUpdate);
@@ -65,7 +68,7 @@ impl MenuScreen for MainMenu {
     async fn handle_event(
         &mut self,
         event: Self::Event,
-        _board: &mut Board,
+        _board: &mut Context,
     ) -> Option<Self::Result> {
         let event = match event {
             MainMenuEvents::Measure => AppState::Initialize,

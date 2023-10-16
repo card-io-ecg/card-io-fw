@@ -1,7 +1,7 @@
 use crate::{
     board::{
         config::types::{DisplayBrightness, FilterStrength},
-        initialized::Board,
+        initialized::Context,
     },
     states::menu::{AppMenu, MenuScreen},
     AppState,
@@ -9,13 +9,13 @@ use crate::{
 use embedded_menu::items::{NavigationItem, Select};
 use gui::{screens::create_menu, widgets::battery_small::BatteryStyle};
 
-pub async fn display_menu(board: &mut Board) -> AppState {
+pub async fn display_menu(context: &mut Context) -> AppState {
     let result = DisplayMenu
-        .display(board)
+        .display(context)
         .await
         .unwrap_or(AppState::Shutdown);
 
-    board.save_config().await;
+    context.save_config().await;
 
     result
 }
@@ -34,18 +34,18 @@ impl MenuScreen for DisplayMenu {
     type Event = DisplayMenuEvents;
     type Result = AppState;
 
-    async fn menu(&mut self, board: &mut Board) -> impl super::AppMenuBuilder<Self::Event> {
+    async fn menu(&mut self, context: &mut Context) -> impl super::AppMenuBuilder<Self::Event> {
         create_menu("Display")
             .add_item(
-                Select::new("Brightness", board.config.display_brightness)
+                Select::new("Brightness", context.config.display_brightness)
                     .with_value_converter(DisplayMenuEvents::ChangeBrigtness),
             )
             .add_item(
-                Select::new("Battery", board.config.battery_display_style)
+                Select::new("Battery", context.config.battery_display_style)
                     .with_value_converter(DisplayMenuEvents::ChangeBatteryStyle),
             )
             .add_item(
-                Select::new("EKG Filter", board.config.filter_strength)
+                Select::new("EKG Filter", context.config.filter_strength)
                     .with_value_converter(DisplayMenuEvents::ChangeFilterStrength),
             )
             .add_item(NavigationItem::new("Back", DisplayMenuEvents::Back))
@@ -54,18 +54,18 @@ impl MenuScreen for DisplayMenu {
     async fn handle_event(
         &mut self,
         event: Self::Event,
-        board: &mut Board,
+        context: &mut Context,
     ) -> Option<Self::Result> {
         match event {
             DisplayMenuEvents::ChangeBrigtness(brightness) => {
-                board.update_config(|config| config.display_brightness = brightness);
-                board.apply_hw_config_changes().await;
+                context.update_config(|config| config.display_brightness = brightness);
+                context.apply_hw_config_changes().await;
             }
             DisplayMenuEvents::ChangeBatteryStyle(style) => {
-                board.update_config(|config| config.battery_display_style = style);
+                context.update_config(|config| config.battery_display_style = style);
             }
             DisplayMenuEvents::ChangeFilterStrength(strength) => {
-                board.update_config(|config| config.filter_strength = strength);
+                context.update_config(|config| config.filter_strength = strength);
             }
             DisplayMenuEvents::Back => return Some(AppState::Menu(AppMenu::Main)),
         }

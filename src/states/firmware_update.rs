@@ -5,11 +5,11 @@ use ufmt::uwrite;
 
 use crate::{
     board::{
-        initialized::{Board, StaMode},
+        initialized::{Context, StaMode},
         ota::{Ota0Partition, Ota1Partition, OtaClient, OtaDataPartition},
     },
     human_readable::Throughput,
-    states::{display_message, menu::AppMenu},
+    states::menu::AppMenu,
     timeout::Timeout,
     AppState, SerialNumber,
 };
@@ -40,8 +40,8 @@ enum UpdateResult {
     Failed(UpdateError),
 }
 
-pub async fn firmware_update(board: &mut Board) -> AppState {
-    let update_result = do_update(board).await;
+pub async fn firmware_update(context: &mut Context) -> AppState {
+    let update_result = do_update(context).await;
 
     let message = match update_result {
         UpdateResult::Success => "Update complete",
@@ -62,7 +62,7 @@ pub async fn firmware_update(board: &mut Board) -> AppState {
         },
     };
 
-    display_message(board, message).await;
+    context.display_message(message).await;
 
     if let UpdateResult::Success = update_result {
         AppState::Shutdown
@@ -71,9 +71,9 @@ pub async fn firmware_update(board: &mut Board) -> AppState {
     }
 }
 
-async fn do_update(board: &mut Board) -> UpdateResult {
-    let sta = if let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await {
-        if sta.wait_for_connection(board).await {
+async fn do_update(context: &mut Context) -> UpdateResult {
+    let sta = if let Some(sta) = context.enable_wifi_sta(StaMode::Enable).await {
+        if sta.wait_for_connection(context).await {
             sta
         } else {
             return UpdateResult::Failed(UpdateError::WifiNotConnected);
@@ -82,7 +82,7 @@ async fn do_update(board: &mut Board) -> UpdateResult {
         return UpdateResult::Failed(UpdateError::WifiNotEnabled);
     };
 
-    display_message(board, "Looking for updates").await;
+    context.display_message("Looking for updates").await;
 
     let Ok(mut client_resources) = sta.https_client_resources() else {
         return UpdateResult::Failed(UpdateError::InternalError);
@@ -93,7 +93,7 @@ async fn do_update(board: &mut Board) -> UpdateResult {
     if uwrite!(
         &mut url,
         "{}/firmware/{}/{}/{}",
-        board.config.backend_url.as_str(),
+        context.config.backend_url.as_str(),
         env!("HW_VERSION"),
         SerialNumber,
         env!("COMMIT_HASH")
@@ -150,7 +150,7 @@ async fn do_update(board: &mut Board) -> UpdateResult {
     let mut total = 0;
     let mut buffer = [0; 512];
 
-    print_progress(board, &mut buffer, total, size, None).await;
+    print_progress(context, &mut buffer, total, size, None).await;
 
     if let Err(e) = ota.erase().await {
         warn!("Failed to erase OTA: {}", e);
@@ -197,7 +197,7 @@ async fn do_update(board: &mut Board) -> UpdateResult {
             last_print = Instant::now();
             received_1s = 0;
 
-            print_progress(board, &mut buffer, total, size, Some(avg_speed)).await;
+            print_progress(context, &mut buffer, total, size, Some(avg_speed)).await;
         }
     }
 
@@ -210,7 +210,7 @@ async fn do_update(board: &mut Board) -> UpdateResult {
 }
 
 async fn print_progress(
-    board: &mut Board,
+    context: &mut Context,
     message: &mut [u8],
     current: usize,
     size: Option<usize>,
@@ -228,5 +228,5 @@ async fn print_progress(
         unwrap!(uwrite!(message, "\n{}", speed));
     }
 
-    display_message(board, message.as_str()).await;
+    context.display_message(message.as_str()).await;
 }

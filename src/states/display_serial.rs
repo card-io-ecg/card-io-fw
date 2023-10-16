@@ -1,15 +1,15 @@
 use crate::{
-    board::initialized::Board,
+    board::initialized::Context,
     states::{menu::AppMenu, MIN_FRAME_TIME},
     timeout::Timeout,
     AppState, SerialNumber,
 };
 use embassy_time::{Duration, Ticker};
 use embedded_graphics::Drawable;
-use gui::screens::{qr::QrCodeScreen, screen::Screen};
+use gui::screens::qr::QrCodeScreen;
 use ufmt::uwrite;
 
-pub async fn display_serial(board: &mut Board) -> AppState {
+pub async fn display_serial(context: &mut Context) -> AppState {
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let mut shutdown_timer = Timeout::new(Duration::from_secs(30));
 
@@ -17,27 +17,23 @@ pub async fn display_serial(board: &mut Board) -> AppState {
     unwrap!(uwrite!(&mut serial, "Card/IO:{}", SerialNumber));
 
     while !shutdown_timer.is_elapsed() {
-        if board.frontend.is_touched() {
+        if context.frontend.is_touched() {
             shutdown_timer.reset();
         }
 
-        if board.battery_monitor.is_low() {
+        if context.battery_monitor.is_low() {
             return AppState::Shutdown;
         }
 
-        let init_screen = Screen {
-            content: QrCodeScreen {
-                message: serial.as_str(),
-                countdown: Some(shutdown_timer.remaining().as_secs() as usize),
-                invert: false,
-            },
-
-            status_bar: board.status_bar(),
-        };
-
-        board
-            .display
-            .frame(|display| init_screen.draw(display))
+        context
+            .with_status_bar(|display| {
+                QrCodeScreen {
+                    message: serial.as_str(),
+                    countdown: Some(shutdown_timer.remaining().as_secs() as usize),
+                    invert: false,
+                }
+                .draw(display)
+            })
             .await;
 
         ticker.next().await;

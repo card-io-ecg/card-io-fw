@@ -9,7 +9,7 @@ use embedded_graphics_simulator::{
     BinaryColorTheme, OutputSettingsBuilder, SimulatorDisplay, SimulatorEvent, Window,
 };
 use gui::{
-    screens::{init::StartupScreen, screen::Screen, BatteryInfo, ChargingState},
+    screens::{init::StartupScreen, BatteryInfo, ChargingState},
     widgets::{
         battery_small::{Battery, BatteryStyle},
         status_bar::StatusBar,
@@ -31,27 +31,28 @@ fn main() -> Result<(), Infallible> {
     'running: loop {
         display.clear(BinaryColor::Off).unwrap();
 
-        Screen {
-            content: StartupScreen {
-                label: "Release to shutdown",
-                progress: if progress > 255 {
-                    510 - progress
-                } else {
-                    progress
-                },
+        StartupScreen {
+            label: "Release to shutdown",
+            progress: if progress > 255 {
+                510 - progress
+            } else {
+                progress
             },
-            status_bar: StatusBar {
-                battery: Battery::with_style(
-                    Some(BatteryInfo {
-                        voltage: 4100,
-                        percentage: 90,
-                        charging_state: ChargingState::Charging,
-                        is_low: false,
-                    }),
-                    BatteryStyle::Percentage,
-                ),
-                wifi: WifiStateView::enabled(WifiState::Connected),
-            },
+        }
+        .draw(&mut display)
+        .unwrap();
+
+        StatusBar {
+            battery: Battery::with_style(
+                Some(BatteryInfo {
+                    voltage: 4100,
+                    percentage: 90,
+                    charging_state: ChargingState::Charging,
+                    is_low: false,
+                }),
+                BatteryStyle::Percentage,
+            ),
+            wifi: WifiStateView::enabled(WifiState::Connected),
         }
         .draw(&mut display)
         .unwrap();

@@ -1,29 +1,33 @@
-use crate::{board::initialized::Board, states::display_message, AppState};
+use crate::{
+    board::{
+        initialized::{Context, InnerContext},
+        EcgFrontend,
+    },
+    AppState,
+};
 
 /// Ensures that the ADC does not keep the touch detector circuit disabled.
 /// This state is expected to go away once the ADC can be properly placed into powerdown mode.
-pub async fn adc_setup(board: &mut Board) -> AppState {
+pub async fn adc_setup(context: &mut Context) -> AppState {
     unsafe {
-        let read_board = core::ptr::read(board);
-        let (next_state, new_board) = adc_setup_impl(read_board).await;
-        core::ptr::write(board, new_board);
+        let frontend = core::ptr::read(&context.frontend);
+
+        let (next_state, frontend) = adc_setup_impl(&mut context.inner, frontend).await;
+
+        core::ptr::write(&mut context.frontend, frontend);
         next_state
     }
 }
 
-async fn adc_setup_impl(mut board: Board) -> (AppState, Board) {
-    let next_state = match board.frontend.enable_async().await {
-        Ok(frontend) => {
-            board.frontend = frontend.shut_down().await;
-            AppState::PreInitialize
+async fn adc_setup_impl(
+    context: &mut InnerContext,
+    frontend: EcgFrontend,
+) -> (AppState, EcgFrontend) {
+    match frontend.enable_async().await {
+        Ok(frontend) => (AppState::PreInitialize, frontend.shut_down().await),
+        Err((frontend, _err)) => {
+            context.display_message("ADC error").await;
+            (AppState::Shutdown, frontend)
         }
-        Err((fe, _err)) => {
-            board.frontend = fe;
-
-            display_message(&mut board, "ADC error").await;
-            AppState::Shutdown
-        }
-    };
-
-    (next_state, board)
+    }
 }

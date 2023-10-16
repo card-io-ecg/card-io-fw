@@ -2,12 +2,10 @@ use crate::{
     board::{
         config::types::FilterStrength,
         hal::{prelude::*, spi::Error as SpiError},
-        initialized::Board,
-        PoweredEcgFrontend,
+        initialized::{Context, InnerContext},
+        EcgFrontend, PoweredEcgFrontend,
     },
-    states::{
-        display_message, menu::AppMenu, to_progress, INIT_MENU_THRESHOLD, INIT_TIME, MIN_FRAME_TIME,
-    },
+    states::{menu::AppMenu, to_progress, INIT_MENU_THRESHOLD, INIT_TIME, MIN_FRAME_TIME},
     task_control::{TaskControlToken, TaskController},
     timeout::Timeout,
     AppState,
@@ -18,10 +16,7 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channe
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
 use embedded_hal_bus::spi::DeviceError;
-use gui::{
-    screens::{init::StartupScreen, measure::EcgScreen, screen::Screen},
-    widgets::{battery_small::Battery, status_bar::StatusBar, wifi::WifiStateView},
-};
+use gui::screens::{init::StartupScreen, measure::EcgScreen};
 use macros as cardio;
 use object_chain::{chain, Chain, ChainElement, Link};
 use signal_processing::{
@@ -93,8 +88,8 @@ impl EcgObjects {
     }
 }
 
-pub async fn measure(board: &mut Board) -> AppState {
-    let filter = match board.config.filter_strength() {
+pub async fn measure(context: &mut Context) -> AppState {
+    let filter = match context.config.filter_strength() {
         FilterStrength::None => ALL_PASS,
         #[rustfmt::skip]
         FilterStrength::Weak => macros::designfilt!(
@@ -121,25 +116,28 @@ pub async fn measure(board: &mut Board) -> AppState {
     }
 
     unsafe {
-        let read_board = core::ptr::read(board);
-        let (next_state, new_board) = measure_impl(read_board, &mut ecg, ecg_buffer).await;
-        core::ptr::write(board, new_board);
+        let frontend = core::ptr::read(&context.frontend);
+
+        let (next_state, frontend) =
+            measure_impl(&mut context.inner, frontend, &mut ecg, ecg_buffer).await;
+
+        core::ptr::write(&mut context.frontend, frontend);
         next_state
     }
 }
 
 async fn measure_impl(
-    mut board: Board,
+    context: &mut InnerContext,
+    frontend: EcgFrontend,
     ecg: &mut EcgObjects,
     mut ecg_buffer: Option<Box<CompressingBuffer<ECG_BUFFER_SIZE>>>,
-) -> (AppState, Board) {
-    let mut frontend = match board.frontend.enable_async().await {
+) -> (AppState, EcgFrontend) {
+    let mut frontend = match frontend.enable_async().await {
         Ok(frontend) => frontend,
         Err((fe, _err)) => {
-            board.frontend = fe;
-            display_message(&mut board, "ADC error").await;
+            context.display_message("ADC error").await;
 
-            return (AppState::Shutdown, board);
+            return (AppState::Shutdown, fe);
         }
     };
 
@@ -148,14 +146,13 @@ async fn measure_impl(
             frontend
                 .spi_mut()
                 .bus_mut()
-                .change_bus_frequency(4u32.MHz(), &board.clocks);
+                .change_bus_frequency(4u32.MHz(), &context.clocks);
         }
 
         Err(_e) => {
-            board.frontend = frontend.shut_down().await;
-            display_message(&mut board, "ADC error").await;
+            context.display_message("ADC error").await;
 
-            return (AppState::Shutdown, board);
+            return (AppState::Shutdown, frontend.shut_down().await);
         }
 
         _ => {}
@@ -165,7 +162,7 @@ async fn measure_impl(
 
     let task_control = TaskController::from_resources(frontend);
 
-    board
+    context
         .high_prio_spawner
         .must_spawn(reader_task(EcgTaskParams {
             token: task_control.token(),
@@ -174,17 +171,7 @@ async fn measure_impl(
 
     ecg.heart_rate_calculator.clear();
 
-    let mut screen = Screen {
-        content: EcgScreen::new(),
-
-        status_bar: StatusBar {
-            battery: Battery::with_style(
-                board.battery_monitor.battery_data(),
-                board.config.battery_style(),
-            ),
-            wifi: WifiStateView::disabled(),
-        },
-    };
+    let mut screen = EcgScreen::new();
 
     let mut samples = 0; // Counter and 1s timer to debug perf issues
     let mut debug_print_timer = Timeout::new(Duration::from_secs(1));
@@ -194,8 +181,8 @@ async fn measure_impl(
     let mut entered = Instant::now();
     let exit_timer = Timeout::new_with_start(INIT_TIME, entered - INIT_MENU_THRESHOLD);
 
-    while !task_control.has_exited() && !board.battery_monitor.is_low() {
-        let display_full = screen.content.buffer_full();
+    while !task_control.has_exited() && !context.battery_monitor.is_low() {
+        let display_full = screen.buffer_full();
         while let Ok(sample) = queue.try_recv() {
             samples += 1;
 
@@ -209,7 +196,7 @@ async fn measure_impl(
                     }
 
                     if let Some(downsampled) = ecg.downsampler.update(filtered) {
-                        screen.content.push(downsampled);
+                        screen.push(downsampled);
                     }
                 }
             } else {
@@ -218,7 +205,7 @@ async fn measure_impl(
         }
 
         if !display_full {
-            if screen.content.buffer_full() {
+            if screen.buffer_full() {
                 entered = Instant::now();
             }
             if let Some(ecg_buffer) = ecg_buffer.as_deref_mut() {
@@ -236,34 +223,18 @@ async fn measure_impl(
             debug_print_timer.reset();
         }
 
-        let status_bar = StatusBar {
-            battery: Battery::with_style(
-                board.battery_monitor.battery_data(),
-                board.config.battery_style(),
-            ),
-            wifi: WifiStateView::disabled(),
-        };
-
-        board
-            .display
-            .frame(|display| {
+        context
+            .with_status_bar(|display| {
                 if !exit_timer.is_elapsed() {
-                    Screen {
-                        content: StartupScreen {
-                            label: "Release to menu",
-                            progress: to_progress(exit_timer.elapsed(), INIT_TIME),
-                        },
-
-                        status_bar,
+                    StartupScreen {
+                        label: "Release to menu",
+                        progress: to_progress(exit_timer.elapsed(), INIT_TIME),
                     }
                     .draw(display)
                 } else {
-                    screen
-                        .content
-                        .update_heart_rate(ecg.heart_rate_calculator.current_hr());
-                    screen.content.elapsed_secs = entered.elapsed().as_secs() as usize;
+                    screen.update_heart_rate(ecg.heart_rate_calculator.current_hr());
+                    screen.elapsed_secs = entered.elapsed().as_secs() as usize;
 
-                    screen.status_bar = status_bar;
                     screen.draw(display)
                 }
             })
@@ -294,9 +265,8 @@ async fn measure_impl(
     };
 
     let frontend = task_control.unwrap();
-    board.frontend = frontend.shut_down().await;
 
-    (next_state, board)
+    (next_state, frontend.shut_down().await)
 }
 
 #[cardio::task]

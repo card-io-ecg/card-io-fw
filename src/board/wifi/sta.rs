@@ -3,10 +3,9 @@ use core::{alloc::AllocError, ptr::addr_of, sync::atomic::Ordering};
 use crate::{
     board::{
         hal::{radio::Wifi, Rng},
-        initialized::Board,
+        initialized::Context,
         wifi::{net_task, StackWrapper},
     },
-    states::display_message,
     task_control::{TaskControlToken, TaskController},
     timeout::Timeout,
     Shared,
@@ -151,7 +150,7 @@ impl Sta {
         self.state.wait().await.into()
     }
 
-    pub async fn wait_for_connection(&self, board: &mut Board) -> bool {
+    pub async fn wait_for_connection(&self, context: &mut Context) -> bool {
         if self.connection_state() != ConnectionState::Connected {
             debug!("Waiting for network connection");
 
@@ -174,7 +173,7 @@ impl Sta {
                 async {
                     loop {
                         // A message is displayed for at least 300ms so we don't need to wait here.
-                        display_message(board, "Connecting...").await;
+                        context.display_message("Connecting...").await;
                     }
                 },
             )
