@@ -145,6 +145,13 @@ impl Board {
         self.sta_work_available = Some(available);
     }
 
+    pub async fn apply_hw_config_changes(&mut self) {
+        let _ = self
+            .display
+            .update_brightness_async(self.config.display_brightness())
+            .await;
+    }
+
     pub fn update_config(&mut self, cb: impl FnOnce(&mut Config)) {
         struct ConfigWriter<'a> {
             config: &'a mut Config,

@@ -59,10 +59,7 @@ impl MenuScreen for DisplayMenu {
         match event {
             DisplayMenuEvents::ChangeBrigtness(brightness) => {
                 board.update_config(|config| config.display_brightness = brightness);
-                let _ = board
-                    .display
-                    .update_brightness_async(board.config.display_brightness())
-                    .await;
+                board.apply_hw_config_changes().await;
             }
             DisplayMenuEvents::ChangeBatteryStyle(style) => {
                 board.update_config(|config| config.battery_display_style = style);
