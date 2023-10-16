@@ -33,7 +33,7 @@ pub enum StaMode {
     OnDemand,
 }
 
-pub struct Inner {
+pub struct InnerContext {
     pub display: PoweredDisplay,
     pub clocks: Clocks<'static>,
     pub high_prio_spawner: SendSpawner,
@@ -45,27 +45,27 @@ pub struct Inner {
     pub message_displayed_at: Option<Instant>,
 }
 
-pub struct Board {
+pub struct Context {
     pub frontend: EcgFrontend,
     pub storage: Option<FileSystem>,
-    pub inner: Inner,
+    pub inner: InnerContext,
 }
 
-impl Deref for Board {
-    type Target = Inner;
+impl Deref for Context {
+    type Target = InnerContext;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-impl DerefMut for Board {
+impl DerefMut for Context {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
-impl Board {
+impl Context {
     pub async fn save_config(&mut self) {
         if !self.config_changed {
             return;
@@ -123,7 +123,7 @@ impl Board {
     }
 }
 
-impl Inner {
+impl InnerContext {
     pub async fn apply_hw_config_changes(&mut self) {
         if !self.config_changed {
             return;

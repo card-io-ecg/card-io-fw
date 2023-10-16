@@ -1,7 +1,7 @@
 use crate::{
     board::{
         config::{types::MeasurementAction, Config},
-        initialized::Board,
+        initialized::Context,
         storage::FileSystem,
     },
     human_readable::BinarySize,
@@ -22,13 +22,13 @@ pub enum StorageMenuEvents {
     Back,
 }
 
-pub async fn storage_menu(board: &mut Board) -> AppState {
+pub async fn storage_menu(context: &mut Context) -> AppState {
     let result = StorageMenu
-        .display(board)
+        .display(context)
         .await
         .unwrap_or(AppState::Shutdown);
 
-    board.save_config().await;
+    context.save_config().await;
 
     result
 }
@@ -39,10 +39,10 @@ impl MenuScreen for StorageMenu {
     type Event = StorageMenuEvents;
     type Result = AppState;
 
-    async fn menu(&mut self, board: &mut Board) -> impl AppMenuBuilder<Self::Event> {
+    async fn menu(&mut self, context: &mut Context) -> impl AppMenuBuilder<Self::Event> {
         // needs to be separate because the item is of a different type
         let mut used_item = heapless::Vec::<_, 1>::new();
-        if let Some(storage) = board.storage.as_mut() {
+        if let Some(storage) = context.storage.as_mut() {
             if let Ok(used) = storage.used_bytes().await {
                 let used_str = uformat!(
                     32,
@@ -68,10 +68,10 @@ impl MenuScreen for StorageMenu {
             ))
             .ok());
 
-        if board.can_enable_wifi()
-            && !board.config.known_networks.is_empty()
-            && !board.config.backend_url.is_empty()
-            && board.sta_has_work().await
+        if context.can_enable_wifi()
+            && !context.config.known_networks.is_empty()
+            && !context.config.backend_url.is_empty()
+            && context.sta_has_work().await
         {
             unwrap!(items
                 .push(NavigationItem::new(
@@ -83,7 +83,7 @@ impl MenuScreen for StorageMenu {
 
         create_menu("Storage")
             .add_item(
-                Select::new("New EKG", board.config.measurement_action)
+                Select::new("New EKG", context.config.measurement_action)
                     .with_value_converter(StorageMenuEvents::ChangeMeasurementAction)
                     .with_detail_text("What to do with new measurements"),
             )
@@ -95,25 +95,25 @@ impl MenuScreen for StorageMenu {
     async fn handle_event(
         &mut self,
         event: Self::Event,
-        board: &mut Board,
+        context: &mut Context,
     ) -> Option<Self::Result> {
         match event {
             StorageMenuEvents::ChangeMeasurementAction(action) => {
                 debug!("Settings changed");
 
-                board.update_config(|config| config.measurement_action = action);
+                context.update_config(|config| config.measurement_action = action);
             }
             StorageMenuEvents::Format => {
                 info!("Format requested");
-                board.display_message("Formatting storage...").await;
-                core::mem::drop(board.storage.take());
+                context.display_message("Formatting storage...").await;
+                core::mem::drop(context.storage.take());
                 FileSystem::format().await;
-                board.storage = FileSystem::mount().await;
+                context.storage = FileSystem::mount().await;
 
-                board.update_config(|config| *config = Config::default());
-                board.apply_hw_config_changes().await;
+                context.update_config(|config| *config = Config::default());
+                context.apply_hw_config_changes().await;
                 // Prevent saving config changes
-                board.config_changed = false;
+                context.config_changed = false;
 
                 return Some(AppState::Menu(AppMenu::Main));
             }

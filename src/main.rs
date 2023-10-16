@@ -59,7 +59,7 @@ use crate::{
             rtc_cntl::sleep::{RtcioWakeupSource, WakeupLevel},
             Delay,
         },
-        initialized::{Board, Inner},
+        initialized::{Context, InnerContext},
         startup::StartupResources,
         storage::FileSystem,
         TouchDetect,
@@ -312,11 +312,11 @@ async fn main_task(_spawner: Spawner, resources: StartupResources) {
     let mut delay = Delay::new(&resources.clocks);
 
     let mut board = Box::pin(async {
-        Box::new(Board {
+        Box::new(Context {
             // If the device is awake, the display should be enabled.
             frontend: resources.frontend,
             storage,
-            inner: Inner {
+            inner: InnerContext {
                 display,
                 clocks: resources.clocks,
                 high_prio_spawner: INT_EXECUTOR.start(Priority::Priority3),

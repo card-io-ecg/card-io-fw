@@ -2,7 +2,7 @@ use crate::{
     board::{
         config::types::FilterStrength,
         hal::{prelude::*, spi::Error as SpiError},
-        initialized::{Board, Inner},
+        initialized::{Context, InnerContext},
         EcgFrontend, PoweredEcgFrontend,
     },
     states::{menu::AppMenu, to_progress, INIT_MENU_THRESHOLD, INIT_TIME, MIN_FRAME_TIME},
@@ -88,8 +88,8 @@ impl EcgObjects {
     }
 }
 
-pub async fn measure(board: &mut Board) -> AppState {
-    let filter = match board.config.filter_strength() {
+pub async fn measure(context: &mut Context) -> AppState {
+    let filter = match context.config.filter_strength() {
         FilterStrength::None => ALL_PASS,
         #[rustfmt::skip]
         FilterStrength::Weak => macros::designfilt!(
@@ -116,18 +116,18 @@ pub async fn measure(board: &mut Board) -> AppState {
     }
 
     unsafe {
-        let frontend = core::ptr::read(&board.frontend);
+        let frontend = core::ptr::read(&context.frontend);
 
         let (next_state, frontend) =
-            measure_impl(&mut board.inner, frontend, &mut ecg, ecg_buffer).await;
+            measure_impl(&mut context.inner, frontend, &mut ecg, ecg_buffer).await;
 
-        core::ptr::write(&mut board.frontend, frontend);
+        core::ptr::write(&mut context.frontend, frontend);
         next_state
     }
 }
 
 async fn measure_impl(
-    context: &mut Inner,
+    context: &mut InnerContext,
     frontend: EcgFrontend,
     ecg: &mut EcgObjects,
     mut ecg_buffer: Option<Box<CompressingBuffer<ECG_BUFFER_SIZE>>>,

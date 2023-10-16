@@ -14,7 +14,7 @@ use gui::{
 use macros as cardio;
 
 use crate::{
-    board::{initialized::Board, wifi::ap::Ap},
+    board::{initialized::Context, wifi::ap::Ap},
     states::{
         menu::AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME, WEBSERVER_TASKS,
     },
@@ -23,22 +23,26 @@ use crate::{
     AppState,
 };
 
-pub async fn wifi_ap(board: &mut Board) -> AppState {
-    let Some(ap) = board.enable_wifi_ap().await else {
+pub async fn wifi_ap(context: &mut Context) -> AppState {
+    let Some(ap) = context.enable_wifi_ap().await else {
         // FIXME: Show error screen
         return AppState::Menu(AppMenu::Main);
     };
 
     let spawner = Spawner::for_current_executor().await;
 
-    let context = Rc::new(SharedWebContext::new(WebContext {
-        known_networks: board.config.known_networks.clone(),
-        backend_url: board.config.backend_url.clone(),
+    let web_context = Rc::new(SharedWebContext::new(WebContext {
+        known_networks: context.config.known_networks.clone(),
+        backend_url: context.config.backend_url.clone(),
     }));
 
     let webserver_task_control = [(); WEBSERVER_TASKS].map(|_| TaskController::new());
     for control in webserver_task_control.iter() {
-        spawner.must_spawn(webserver_task(ap.clone(), context.clone(), control.token()));
+        spawner.must_spawn(webserver_task(
+            ap.clone(),
+            web_context.clone(),
+            control.token(),
+        ));
     }
 
     let mut screen = WifiApScreen::new();
@@ -47,14 +51,14 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     let mut input = TouchInputShaper::new();
 
-    while board.wifi.ap_running() {
-        input.update(&mut board.frontend);
+    while context.wifi.ap_running() {
+        input.update(&mut context.frontend);
         let is_touched = input.is_touched();
 
         #[cfg(feature = "battery_max17055")]
         // We only enable this check for fuel gauges because enabling wifi modifies ADC readings
         // and the board would shut down immediately.
-        if board.battery_monitor.is_low() {
+        if context.battery_monitor.is_low() {
             break;
         }
 
@@ -80,7 +84,9 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
             break;
         }
 
-        board.with_status_bar(|display| screen.draw(display)).await;
+        context
+            .with_status_bar(|display| screen.draw(display))
+            .await;
 
         ticker.next().await;
     }
@@ -89,21 +95,23 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
         let _ = control.stop().await;
     }
 
-    board.disable_wifi().await;
+    context.disable_wifi().await;
 
     {
-        let context = context.lock().await;
-        board.update_config(|config| {
-            if context.known_networks != config.known_networks {
-                config.known_networks.clone_from(&context.known_networks);
+        let web_context = web_context.lock().await;
+        context.update_config(|config| {
+            if web_context.known_networks != config.known_networks {
+                config
+                    .known_networks
+                    .clone_from(&web_context.known_networks);
             }
-            if context.backend_url != config.backend_url {
-                config.backend_url.clone_from(&context.backend_url);
+            if web_context.backend_url != config.backend_url {
+                config.backend_url.clone_from(&web_context.backend_url);
             }
         });
     }
 
-    board.save_config().await;
+    context.save_config().await;
 
     AppState::Menu(AppMenu::Main)
 }

@@ -5,7 +5,7 @@ use embedded_menu::items::NavigationItem;
 use gui::screens::create_menu;
 
 use crate::{
-    board::initialized::Board,
+    board::initialized::Context,
     states::{TouchInputShaper, MIN_FRAME_TIME},
     timeout::Timeout,
     AppMenu, AppState,
@@ -17,8 +17,8 @@ pub enum WifiStaMenuEvents {
     Back,
 }
 
-pub async fn wifi_sta(board: &mut Board) -> AppState {
-    let Some(sta) = board.enable_wifi_sta_for_scan().await else {
+pub async fn wifi_sta(context: &mut Context) -> AppState {
+    let Some(sta) = context.enable_wifi_sta_for_scan().await else {
         // FIXME: Show error screen
         return AppState::Menu(AppMenu::Main);
     };
@@ -40,7 +40,7 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
 
     let mut input = TouchInputShaper::new();
     while !exit_timer.is_elapsed() {
-        input.update(&mut board.frontend);
+        input.update(&mut context.frontend);
         let is_touched = input.is_touched();
 
         if scan_idle_timer.is_elapsed() {
@@ -59,7 +59,7 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
         }
 
         #[cfg(feature = "battery_max17055")]
-        if board.battery_monitor.is_low() {
+        if context.battery_monitor.is_low() {
             return AppState::Shutdown;
         }
 
@@ -72,7 +72,7 @@ pub async fn wifi_sta(board: &mut Board) -> AppState {
             return AppState::Menu(AppMenu::Main);
         }
 
-        board
+        context
             .with_status_bar(|display| {
                 menu_screen.update(display);
                 menu_screen.draw(display)

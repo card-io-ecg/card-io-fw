@@ -1,5 +1,5 @@
 use crate::{
-    board::initialized::Board,
+    board::initialized::Context,
     states::{menu::AppMenu, MIN_FRAME_TIME},
     timeout::Timeout,
     AppState, SerialNumber,
@@ -9,7 +9,7 @@ use embedded_graphics::Drawable;
 use gui::screens::qr::QrCodeScreen;
 use ufmt::uwrite;
 
-pub async fn display_serial(board: &mut Board) -> AppState {
+pub async fn display_serial(context: &mut Context) -> AppState {
     let mut ticker = Ticker::every(MIN_FRAME_TIME);
     let mut shutdown_timer = Timeout::new(Duration::from_secs(30));
 
@@ -17,15 +17,15 @@ pub async fn display_serial(board: &mut Board) -> AppState {
     unwrap!(uwrite!(&mut serial, "Card/IO:{}", SerialNumber));
 
     while !shutdown_timer.is_elapsed() {
-        if board.frontend.is_touched() {
+        if context.frontend.is_touched() {
             shutdown_timer.reset();
         }
 
-        if board.battery_monitor.is_low() {
+        if context.battery_monitor.is_low() {
             return AppState::Shutdown;
         }
 
-        board
+        context
             .with_status_bar(|display| {
                 QrCodeScreen {
                     message: serial.as_str(),

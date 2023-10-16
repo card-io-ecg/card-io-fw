@@ -5,7 +5,7 @@ use reqwless::{request::Method, response::Status};
 use ufmt::{uwrite, uwriteln};
 
 use crate::{
-    board::initialized::{Board, StaMode},
+    board::initialized::{Context, StaMode},
     human_readable::{BinarySize, Throughput},
     states::menu::AppMenu,
     timeout::Timeout,
@@ -34,8 +34,8 @@ enum TestResult {
     Failed(TestError),
 }
 
-pub async fn throughput(board: &mut Board) -> AppState {
-    let update_result = run_test(board).await;
+pub async fn throughput(context: &mut Context) -> AppState {
+    let update_result = run_test(context).await;
 
     let mut message = heapless::String::<64>::new();
     let message = match update_result {
@@ -60,14 +60,14 @@ pub async fn throughput(board: &mut Board) -> AppState {
         },
     };
 
-    board.display_message(message).await;
+    context.display_message(message).await;
 
     AppState::Menu(AppMenu::Main)
 }
 
-async fn run_test(board: &mut Board) -> TestResult {
-    let sta = if let Some(sta) = board.enable_wifi_sta(StaMode::Enable).await {
-        if sta.wait_for_connection(board).await {
+async fn run_test(context: &mut Context) -> TestResult {
+    let sta = if let Some(sta) = context.enable_wifi_sta(StaMode::Enable).await {
+        if sta.wait_for_connection(context).await {
             sta
         } else {
             return TestResult::Failed(TestError::WifiNotConnected);
@@ -85,7 +85,7 @@ async fn run_test(board: &mut Board) -> TestResult {
     if uwrite!(
         &mut url,
         "{}/firmware/{}/{}/0000000",
-        board.config.backend_url.as_str(),
+        context.config.backend_url.as_str(),
         env!("HW_VERSION"),
         SerialNumber
     )
@@ -101,7 +101,7 @@ async fn run_test(board: &mut Board) -> TestResult {
         let futures = select(client.request(Method::GET, &url), async {
             loop {
                 // A message is displayed for at least 300ms so we don't need to wait here.
-                board.display_message("Connecting to server...").await;
+                context.display_message("Connecting to server...").await;
             }
         });
         match futures.await {
@@ -173,7 +173,7 @@ async fn run_test(board: &mut Board) -> TestResult {
             received_1s = 0;
             last_print = Instant::now();
 
-            print_progress(board, &mut buffer, received_total, size, speed, avg_speed).await;
+            print_progress(context, &mut buffer, received_total, size, speed, avg_speed).await;
         }
     }
 
@@ -181,7 +181,7 @@ async fn run_test(board: &mut Board) -> TestResult {
 }
 
 async fn print_progress(
-    board: &mut Board,
+    context: &mut Context,
     message: &mut [u8],
     current: usize,
     size: Option<usize>,
@@ -198,5 +198,5 @@ async fn print_progress(
     unwrap!(uwriteln!(message, "Current: {}", current_tp));
     unwrap!(uwrite!(message, "Average: {}", average_tp));
 
-    board.display_message(message.as_str()).await;
+    context.display_message(message.as_str()).await;
 }

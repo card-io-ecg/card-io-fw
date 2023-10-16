@@ -1,5 +1,5 @@
 use crate::{
-    board::initialized::Board,
+    board::initialized::Context,
     human_readable::LeftPadAny,
     states::menu::{AppMenu, AppMenuBuilder, MenuScreen},
     uformat, AppState, SerialNumber,
@@ -17,9 +17,9 @@ pub enum AboutMenuEvents {
     Back,
 }
 
-pub async fn about_menu(board: &mut Board) -> AppState {
+pub async fn about_menu(context: &mut Context) -> AppState {
     AboutAppMenu
-        .display(board)
+        .display(context)
         .await
         .unwrap_or(AppState::Shutdown)
 }
@@ -30,7 +30,7 @@ impl MenuScreen for AboutAppMenu {
     type Event = AboutMenuEvents;
     type Result = AppState;
 
-    async fn menu(&mut self, board: &mut Board) -> impl AppMenuBuilder<Self::Event> {
+    async fn menu(&mut self, context: &mut Context) -> impl AppMenuBuilder<Self::Event> {
         let list_item = |label| NavigationItem::new(label, AboutMenuEvents::None);
 
         let mut items = heapless::Vec::<_, 5>::new();
@@ -41,7 +41,7 @@ impl MenuScreen for AboutAppMenu {
                 uformat!(20, "Serial  {}", SerialNumber),
                 AboutMenuEvents::ToSerial,
             ),
-            list_item(match board.frontend.device_id() {
+            list_item(match context.frontend.device_id() {
                 Some(id) => uformat!(20, "ADC {:?}", LeftPadAny(16, id)),
                 None => uformat!(20, "ADC          Unknown"),
             }),
@@ -65,7 +65,7 @@ impl MenuScreen for AboutAppMenu {
     async fn handle_event(
         &mut self,
         event: Self::Event,
-        _board: &mut Board,
+        _board: &mut Context,
     ) -> Option<Self::Result> {
         match event {
             AboutMenuEvents::None => None,
