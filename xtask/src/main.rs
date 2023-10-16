@@ -107,7 +107,7 @@ fn cargo(args: &[&str]) -> Expression {
     cmd("rustup", args_vec)
 }
 
-fn build(hw: HardwareVersion, opt: Option<BuildVariant>) -> AnyResult<()> {
+fn build(hw: HardwareVersion, opt: Option<BuildVariant>, timings: bool) -> AnyResult<()> {
     if let Some(option) = opt {
         match option {
             BuildVariant::StackSizes => {
@@ -127,6 +127,19 @@ fn build(hw: HardwareVersion, opt: Option<BuildVariant>) -> AnyResult<()> {
                 return Ok(());
             }
         }
+    }
+
+    if timings {
+        cargo(&[
+            "build",
+            "--release",
+            "--target=xtensa-esp32s3-none-elf",
+            &format!("--features={}", hw.feature()),
+            "-Zbuild-std=core,alloc",
+            "-Zbuild-std-features=panic_immediate_abort",
+            "--timings",
+        ])
+        .run()?;
     }
 
     cargo(&[
@@ -293,10 +306,10 @@ fn main() -> AnyResult<()> {
     env::set_var("DEFMT_LOG", "card_io_fw=debug,info");
 
     match cli.subcommand {
-        Subcommands::Build { hw, variant: opt } => build(hw.unwrap_or_default(), opt),
+        Subcommands::Build { hw, variant: opt } => build(hw.unwrap_or_default(), opt, false),
         Subcommands::Test => test(),
         Subcommands::Asm { hw } => {
-            build(hw.unwrap_or_default(), None)?;
+            build(hw.unwrap_or_default(), None, true)?;
             asm()
         }
         Subcommands::Monitor => monitor(),
