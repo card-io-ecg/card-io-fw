@@ -25,7 +25,7 @@ use crate::board::{
         interrupt,
         peripherals::{self, Peripherals},
         prelude::*,
-        spi::{dma::SpiDma, FullDuplexMode},
+        spi::{master::dma::SpiDma, FullDuplexMode},
         systimer::SystemTimer,
         Rtc, IO,
     },

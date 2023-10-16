@@ -1,6 +1,7 @@
 use display_interface_spi::SPIInterface;
 use embassy_executor::_export::StaticCell;
 use embassy_time::Delay;
+use embedded_hal::digital::OutputPin;
 use embedded_hal_bus::spi::ExclusiveDevice;
 
 #[cfg(feature = "battery_adc")]
@@ -14,10 +15,16 @@ use crate::{
         hal::{
             clock::Clocks,
             dma::DmaPriority,
+            gpio::OutputPin as _,
             interrupt, peripherals,
-            prelude::*,
-            spi::{dma::WithDmaSpi3, SpiMode},
-            Rtc, Spi,
+            spi::{
+                master::{
+                    dma::{WithDmaSpi2, WithDmaSpi3},
+                    Instance, Spi,
+                },
+                SpiMode,
+            },
+            Rtc,
         },
         utils::DummyOutputPin,
         wifi::WifiDriver,
@@ -30,6 +37,7 @@ use crate::{
 };
 #[cfg(feature = "log")]
 use esp_println::logger::init_logger;
+use fugit::RateExtU32;
 
 pub static WIFI_DRIVER: StaticCell<WifiDriver> = StaticCell::new();
 
