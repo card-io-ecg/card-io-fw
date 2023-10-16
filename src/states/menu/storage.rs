@@ -104,8 +104,7 @@ impl MenuScreen for StorageMenu {
             StorageMenuEvents::ChangeMeasurementAction(action) => {
                 debug!("Settings changed");
 
-                board.config_changed = true;
-                board.config.measurement_action = action;
+                board.update_config(|config| config.measurement_action = action);
             }
             StorageMenuEvents::Format => {
                 info!("Format requested");
@@ -114,9 +113,9 @@ impl MenuScreen for StorageMenu {
                 FileSystem::format().await;
                 board.storage = FileSystem::mount().await;
 
+                board.update_config(|config| *config = Config::default());
+                board.apply_hw_config_changes().await;
                 // Prevent saving config changes
-                // TODO: this doesn't reset the currently active display parameters
-                *board.config = Config::default();
                 board.config_changed = false;
 
                 return Some(AppState::Menu(AppMenu::Main));

@@ -102,17 +102,14 @@ pub async fn wifi_ap(board: &mut Board) -> AppState {
 
     {
         let context = context.lock().await;
-        if context.known_networks != board.config.known_networks {
-            board
-                .config
-                .known_networks
-                .clone_from(&context.known_networks);
-            board.config_changed = true;
-        }
-        if context.backend_url != board.config.backend_url {
-            board.config.backend_url.clone_from(&context.backend_url);
-            board.config_changed = true;
-        }
+        board.update_config(|config| {
+            if context.known_networks != config.known_networks {
+                config.known_networks.clone_from(&context.known_networks);
+            }
+            if context.backend_url != config.backend_url {
+                config.backend_url.clone_from(&context.backend_url);
+            }
+        });
     }
 
     board.save_config().await;
