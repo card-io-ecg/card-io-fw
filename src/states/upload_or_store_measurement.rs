@@ -23,7 +23,7 @@ use ufmt::uwrite;
 use crate::{
     board::{
         config::types::MeasurementAction,
-        initialized::{Context, StaMode},
+        initialized::{Context, InnerContext, StaMode},
     },
     human_readable::BinarySize,
     states::menu::{AppMenuBuilder, MenuScreen},
@@ -184,9 +184,6 @@ async fn try_to_upload(context: &mut Context, buffer: &[u8]) -> StoreMeasurement
     // TODO: only try to upload if we are registered.
     debug!("Trying to upload measurement");
 
-    let uploading_msg = uformat!(32, "Uploading measurement: {}", BinarySize(buffer.len()));
-    context.display_message(uploading_msg.as_str()).await;
-
     let Ok(mut client_resources) = sta.https_client_resources() else {
         context.display_message("Out of memory").await;
         return StoreMeasurement::Store;
@@ -194,10 +191,10 @@ async fn try_to_upload(context: &mut Context, buffer: &[u8]) -> StoreMeasurement
     let mut client = client_resources.client();
 
     match upload_measurement(
-        &context.config.backend_url,
         &mut client,
         0,
         MeasurementRef { version: 0, buffer },
+        &mut context.inner,
     )
     .await
     {
@@ -265,13 +262,9 @@ async fn upload_stored(context: &mut Context) {
                             continue;
                         };
 
-                        if let Err(e) = upload_measurement(
-                            &context.inner.config.backend_url,
-                            &mut client,
-                            0,
-                            buffer.as_ref(),
-                        )
-                        .await
+                        if let Err(e) =
+                            upload_measurement(&mut client, 0, buffer.as_ref(), &mut context.inner)
+                                .await
                         {
                             warn!("Failed to upload {}: {:?}", name, e);
                             success = false;
@@ -403,20 +396,34 @@ fn buffer_with_capacity<T: Copy>(size: usize, init_val: T) -> Result<Box<[T]>, (
 }
 
 async fn upload_measurement<T, DNS>(
-    url: &str,
     client: &mut HttpClient<'_, T, DNS>,
     meas_timestamp: u64,
     samples: MeasurementRef<'_>,
+    context: &mut InnerContext,
 ) -> Result<(), ()>
 where
     T: TcpConnect,
     DNS: Dns,
 {
+    let uploading_msg = uformat!(
+        32,
+        "Uploading measurement: {}",
+        BinarySize(samples.buffer.len())
+    );
+    context.display_message(uploading_msg.as_str()).await;
+
     const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
     const UPLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
     let mut upload_url = heapless::String::<128>::new();
-    if uwrite!(&mut upload_url, "{}/upload_data/{}", url, SerialNumber).is_err() {
+    if uwrite!(
+        &mut upload_url,
+        "{}/upload_data/{}",
+        context.config.backend_url.as_str(),
+        SerialNumber
+    )
+    .is_err()
+    {
         warn!("URL too long");
         return Err(());
     }
@@ -430,9 +437,7 @@ where
 
     let mut request =
         match Timeout::with(CONNECT_TIMEOUT, client.request(Method::POST, &upload_url)).await {
-            Some(Ok(request)) => request
-                .headers(&headers) // TODO
-                .body(samples),
+            Some(Ok(request)) => request.headers(&headers).body(samples),
             Some(Err(e)) => {
                 warn!("HTTP connect error: {}", e);
                 return Err(());
@@ -447,31 +452,24 @@ where
     match Timeout::with(UPLOAD_TIMEOUT, request.send(&mut rx_buffer)).await {
         Some(Ok(response)) => {
             if [Status::Ok, Status::Created].contains(&response.status) {
-                Ok(())
-            } else {
-                warn!("HTTP upload failed: {}", response.status);
-                for header in response.headers() {
-                    if header.0.is_empty() {
-                        continue;
-                    }
+                return Ok(());
+            }
+
+            warn!("HTTP upload failed: {}", response.status);
+            for header in response.headers() {
+                if !header.0.is_empty() {
                     debug!(
                         "Header {}: {}",
                         header.0,
                         str::from_utf8(header.1).unwrap_or("not a string")
                     );
                 }
-                Err(())
             }
         }
-        Some(Err(e)) => {
-            warn!("HTTP upload error: {}", e);
-            Err(())
-        }
-        _ => {
-            warn!("Timeout");
-            Err(())
-        }
+        Some(Err(e)) => warn!("HTTP upload error: {}", e),
+        _ => warn!("Timeout"),
     }
+    Err(())
 }
 
 async fn try_store_measurement(
