@@ -1,4 +1,7 @@
-use embassy_time::{Duration, Instant};
+use core::cell::Cell;
+
+use embassy_futures::select::{select, Either};
+use embassy_time::{Duration, Instant, Timer};
 use embedded_io::asynch::Read;
 use reqwless::{request::Method, response::Status};
 use ufmt::uwrite;
@@ -147,10 +150,9 @@ async fn do_update(context: &mut Context) -> UpdateResult {
     };
 
     let size = response.content_length;
-    let mut total = 0;
     let mut buffer = [0; 512];
 
-    print_progress(context, &mut buffer, total, size, None).await;
+    print_progress(context, &mut buffer, 0, size, None).await;
 
     if let Err(e) = ota.erase().await {
         warn!("Failed to erase OTA: {}", e);
@@ -160,53 +162,59 @@ async fn do_update(context: &mut Context) -> UpdateResult {
     let mut reader = response.body().reader();
 
     let started = Instant::now();
-    let mut last_print = Instant::now();
-    let mut received_1s = 0;
-    loop {
-        let received_buffer = match Timeout::with(READ_TIMEOUT, reader.read(&mut buffer)).await {
-            Some(result) => match result {
-                Ok(0) => break,
-                Ok(read) => &buffer[..read],
-                Err(e) => {
-                    warn!("HTTP read error: {}", e);
-                    return UpdateResult::Failed(UpdateError::DownloadFailed);
+    let received_since = Cell::new(0);
+    let mut received_total = 0;
+    let result = select(
+        async {
+            loop {
+                let received_buffer =
+                    match Timeout::with(READ_TIMEOUT, reader.read(&mut buffer)).await {
+                        Some(result) => match result {
+                            Ok(0) => break None,
+                            Ok(read) => &buffer[..read],
+                            Err(e) => {
+                                warn!("HTTP read error: {}", e);
+                                break Some(UpdateError::DownloadFailed);
+                            }
+                        },
+                        _ => break Some(UpdateError::DownloadTimeout),
+                    };
+
+                if let Err(e) = ota.write(received_buffer).await {
+                    warn!("Failed to write OTA: {}", e);
+                    break Some(UpdateError::WriteError);
                 }
-            },
-            _ => return UpdateResult::Failed(UpdateError::DownloadTimeout),
-        };
 
-        if let Err(e) = ota.write(received_buffer).await {
-            warn!("Failed to write OTA: {}", e);
-            return UpdateResult::Failed(UpdateError::WriteError);
+                received_since.set(received_since.get() + received_buffer.len())
+            }
+        },
+        async {
+            let mut buffer = [0; 128];
+            loop {
+                Timer::after(Duration::from_millis(500)).await;
+                let received = received_since.take();
+                received_total += received;
+
+                let avg_speed = Throughput(received_total, started.elapsed());
+
+                print_progress(context, &mut buffer, received_total, size, Some(avg_speed)).await;
+            }
+        },
+    )
+    .await;
+
+    match result {
+        Either::First(Some(error)) => UpdateResult::Failed(error),
+        Either::First(None) => {
+            if let Err(e) = ota.activate().await {
+                warn!("Failed to activate OTA: {}", e);
+                UpdateResult::Failed(UpdateError::ActivateFailed)
+            } else {
+                UpdateResult::Success
+            }
         }
-
-        total += received_buffer.len();
-        received_1s += received_buffer.len();
-
-        let elapsed = last_print.elapsed();
-        if elapsed.as_millis() > 500 {
-            let speed = Throughput(received_1s, elapsed);
-            let avg_speed = Throughput(total, started.elapsed());
-
-            debug!(
-                "got {}B in {}ms {}",
-                received_1s,
-                elapsed.as_millis(),
-                speed
-            );
-            last_print = Instant::now();
-            received_1s = 0;
-
-            print_progress(context, &mut buffer, total, size, Some(avg_speed)).await;
-        }
+        Either::Second(_) => unreachable!(),
     }
-
-    if let Err(e) = ota.activate().await {
-        warn!("Failed to activate OTA: {}", e);
-        return UpdateResult::Failed(UpdateError::ActivateFailed);
-    }
-
-    UpdateResult::Success
 }
 
 async fn print_progress(

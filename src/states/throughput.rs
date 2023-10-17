@@ -1,5 +1,7 @@
+use core::cell::Cell;
+
 use embassy_futures::select::{select, Either};
-use embassy_time::{Duration, Instant};
+use embassy_time::{Duration, Instant, Timer};
 use embedded_io::asynch::Read;
 use reqwless::{request::Method, response::Status};
 use ufmt::{uwrite, uwriteln};
@@ -42,7 +44,7 @@ pub async fn throughput(context: &mut Context) -> AppState {
         TestResult::Success(speed) => {
             unwrap!(uwrite!(
                 &mut message,
-                "Test complete. Average speed: {} KiB/s",
+                "Test complete. Average speed: {}",
                 speed
             ));
             &message
@@ -146,38 +148,50 @@ async fn run_test(context: &mut Context) -> TestResult {
     let mut reader = response.body().reader();
 
     let started = Instant::now();
-    let mut last_print = Instant::now();
-    let mut received_1s = 0;
-    loop {
-        let received_len = match Timeout::with(READ_TIMEOUT, reader.read(&mut buffer)).await {
-            Some(result) => match result {
-                Ok(0) => break,
-                Ok(read) => read,
-                Err(e) => {
-                    warn!("HTTP read error: {}", e);
-                    return TestResult::Failed(TestError::DownloadFailed);
-                }
-            },
-            _ => return TestResult::Failed(TestError::DownloadTimeout),
-        };
+    let received_since = Cell::new(0);
+    let result = select(
+        async {
+            loop {
+                match Timeout::with(READ_TIMEOUT, reader.read(&mut buffer)).await {
+                    Some(result) => match result {
+                        Ok(0) => break None,
+                        Ok(read) => received_since.set(received_since.get() + read),
+                        Err(e) => {
+                            warn!("HTTP read error: {}", e);
+                            break Some(TestError::DownloadFailed);
+                        }
+                    },
+                    _ => break Some(TestError::DownloadTimeout),
+                };
+            }
+        },
+        async {
+            let mut last_print = Instant::now();
+            let mut buffer = [0; 128];
+            loop {
+                Timer::after(Duration::from_millis(500)).await;
+                let received = received_since.take();
+                received_total += received;
 
-        received_1s += received_len;
+                let speed = Throughput(received, last_print.elapsed());
+                let avg_speed = Throughput(received_total, started.elapsed());
 
-        let elapsed = last_print.elapsed();
-        if elapsed.as_millis() > 500 {
-            received_total += received_1s;
+                last_print = Instant::now();
 
-            let speed = Throughput(received_1s, elapsed);
-            let avg_speed = Throughput(received_total, started.elapsed());
+                print_progress(context, &mut buffer, received_total, size, speed, avg_speed).await;
+            }
+        },
+    )
+    .await;
 
-            received_1s = 0;
-            last_print = Instant::now();
-
-            print_progress(context, &mut buffer, received_total, size, speed, avg_speed).await;
-        }
+    match result {
+        Either::First(Some(error)) => TestResult::Failed(error),
+        Either::First(None) => TestResult::Success(Throughput(
+            received_total + received_since.get(),
+            started.elapsed(),
+        )),
+        Either::Second(_) => unreachable!(),
     }
-
-    TestResult::Success(Throughput(received_total, started.elapsed()))
 }
 
 async fn print_progress(
