@@ -241,8 +241,8 @@ members = [
 
 [profile.dev]
 opt-level = 3
-codegen-units = 1
-lto = "off"
+codegen-units = 16
+lto = "thin"
 
 [profile.release]
 debug = true

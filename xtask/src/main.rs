@@ -166,7 +166,6 @@ fn run(hw: HardwareVersion) -> AnyResult<()> {
         "flash",
         "-M",
         "--erase-parts=otadata",
-        "--release",
         "--target=xtensa-esp32s3-none-elf",
         "-Zbuild-std=core,alloc",
         "-Zbuild-std-features=panic_immediate_abort",
