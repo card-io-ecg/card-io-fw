@@ -191,11 +191,7 @@ impl Sta {
     /// Allocates resources for an HTTPS capable [`HttpClient`].
     pub fn https_client_resources(&self) -> Result<HttpsClientResources<'_>, AllocError> {
         // The client state must be heap allocated, because we take a reference to it.
-        let resources = Box::try_new(TlsClientState {
-            tcp_state: TcpClientState::new(),
-            tls_read_buffer: [0; TLS_READ_BUFFER],
-            tls_write_buffer: [0; TLS_WRITE_BUFFER],
-        })?;
+        let resources = Box::try_new(TlsClientState::EMPTY)?;
         let client_state = unsafe { unwrap!(addr_of!(resources.tcp_state).as_ref()) };
 
         Ok(HttpsClientResources {
@@ -208,8 +204,8 @@ impl Sta {
 }
 
 const SOCKET_COUNT: usize = 1;
-const SOCKET_TX_BUFFER: usize = 4096;
-const SOCKET_RX_BUFFER: usize = 4096;
+const SOCKET_TX_BUFFER: usize = 4 * 1024;
+const SOCKET_RX_BUFFER: usize = 8 * 1024;
 
 const TLS_READ_BUFFER: usize = 16 * 1024 + 256;
 const TLS_WRITE_BUFFER: usize = 4096;
@@ -228,6 +224,14 @@ struct TlsClientState {
     tcp_state: TcpClientState,
     tls_read_buffer: [u8; TLS_READ_BUFFER], // must be 16K
     tls_write_buffer: [u8; TLS_WRITE_BUFFER],
+}
+
+impl TlsClientState {
+    pub const EMPTY: Self = Self {
+        tcp_state: TcpClientState::new(),
+        tls_read_buffer: [0; TLS_READ_BUFFER],
+        tls_write_buffer: [0; TLS_WRITE_BUFFER],
+    };
 }
 
 pub struct HttpsClientResources<'a> {

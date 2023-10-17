@@ -119,7 +119,7 @@ async fn do_update(context: &mut Context) -> UpdateResult {
         None => return UpdateResult::Failed(UpdateError::HttpConnectionTimeout),
     };
 
-    let mut rx_buffer = [0; 512];
+    let mut rx_buffer = [0; 4096];
     let result = match Timeout::with(READ_TIMEOUT, request.send(&mut rx_buffer)).await {
         Some(result) => result,
         _ => return UpdateResult::Failed(UpdateError::HttpRequestTimeout),
@@ -150,7 +150,7 @@ async fn do_update(context: &mut Context) -> UpdateResult {
     };
 
     let size = response.content_length;
-    let mut buffer = [0; 512];
+    let mut buffer = [0; 1024];
 
     print_progress(context, &mut buffer, 0, size, None).await;
 

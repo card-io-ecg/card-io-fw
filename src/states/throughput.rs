@@ -121,7 +121,7 @@ async fn run_test(context: &mut Context) -> TestResult {
         _ => return TestResult::Failed(TestError::HttpConnectionTimeout),
     };
 
-    let mut rx_buffer = [0; 512];
+    let mut rx_buffer = [0; 4096];
     let result = match Timeout::with(READ_TIMEOUT, request.send(&mut rx_buffer)).await {
         Some(result) => result,
         _ => return TestResult::Failed(TestError::HttpRequestTimeout),
@@ -143,7 +143,7 @@ async fn run_test(context: &mut Context) -> TestResult {
 
     let size = response.content_length;
     let mut received_total = 0;
-    let mut buffer = [0; 512];
+    let mut buffer = [0; 1024];
 
     let mut reader = response.body().reader();
 
