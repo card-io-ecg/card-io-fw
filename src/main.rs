@@ -29,7 +29,7 @@ use embassy_sync::{
 use embassy_time::{Duration, Timer};
 use norfs::{medium::StorageMedium, Storage, StorageError};
 use signal_processing::compressing_buffer::CompressingBuffer;
-use static_cell::{make_static, StaticCell};
+use static_cell::StaticCell;
 
 #[cfg(feature = "hw_v1")]
 use crate::{
@@ -51,11 +51,11 @@ use crate::{
         drivers::battery_monitor::BatteryMonitor,
         hal::{
             self,
-            embassy::executor::{Executor, FromCpu1, InterruptExecutor},
+            embassy::executor::{FromCpu1, InterruptExecutor},
             entry,
             gpio::RTCPin,
             interrupt::Priority,
-            prelude::interrupt,
+            prelude::{interrupt, main},
             rtc_cntl::sleep::{RtcioWakeupSource, WakeupLevel},
             Delay,
         },
@@ -188,28 +188,6 @@ extern "C" {
     static mut _stack_end_cpu0: u8;
 }
 
-#[entry]
-fn main() -> ! {
-    // Board::initialize initialized embassy so it must be called first.
-    let resources = StartupResources::initialize();
-
-    // We only use a single core for now, so we can write both stack regions.
-    let stack_start = unsafe { addr_of!(_stack_start_cpu0) as usize };
-    let stack_end = unsafe { addr_of!(_stack_end_cpu0) as usize };
-    let _stack_protection = stack_protection::StackMonitor::protect((stack_start + 4)..stack_end);
-
-    #[cfg(feature = "hw_v1")]
-    info!("Hardware version: v1");
-
-    #[cfg(feature = "hw_v2")]
-    info!("Hardware version: v2");
-
-    let executor = make_static!(Executor::new());
-    executor.run(move |spawner| {
-        spawner.spawn(main_task(spawner, resources)).ok();
-    })
-}
-
 async fn load_config<M: StorageMedium>(storage: Option<&mut Storage<M>>) -> &'static mut Config
 where
     [(); M::BLOCK_COUNT]:,
@@ -284,8 +262,22 @@ where
     }
 }
 
-#[embassy_executor::task]
-async fn main_task(_spawner: Spawner, resources: StartupResources) {
+#[main]
+async fn main(_spawner: Spawner) {
+    // Board::initialize initialized embassy so it must be called first.
+    let resources = StartupResources::initialize();
+
+    // We only use a single core for now, so we can write both stack regions.
+    let stack_start = unsafe { addr_of!(_stack_start_cpu0) as usize };
+    let stack_end = unsafe { addr_of!(_stack_end_cpu0) as usize };
+    let _stack_protection = stack_protection::StackMonitor::protect((stack_start + 4)..stack_end);
+
+    #[cfg(feature = "hw_v1")]
+    info!("Hardware version: v1");
+
+    #[cfg(feature = "hw_v2")]
+    info!("Hardware version: v2");
+
     let battery_monitor = BatteryMonitor::start(
         resources.misc_pins.vbus_detect,
         resources.misc_pins.chg_status,
