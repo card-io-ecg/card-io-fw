@@ -149,7 +149,7 @@ fn build(hw: HardwareVersion, opt: Option<BuildVariant>, timings: bool) -> AnyRe
         "--chip",
         "esp32s3",
         "--target=xtensa-esp32s3-none-elf",
-        "-s4mb",
+        "-s2mb",
         &format!("--features={}", hw.feature()),
         "-Zbuild-std=core,alloc",
         "-Zbuild-std-features=panic_immediate_abort",
