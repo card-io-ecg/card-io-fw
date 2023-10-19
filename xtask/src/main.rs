@@ -181,7 +181,7 @@ fn monitor() -> AnyResult<()> {
         "espflash",
         "monitor",
         "-e",
-        "./target/xtensa-esp32s3-none-elf/release/card_io_fw",
+        "./target/xtensa-esp32s3-none-elf/debug/card_io_fw",
     ])
     .run()?;
 
