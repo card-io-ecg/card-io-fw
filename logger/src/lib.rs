@@ -113,6 +113,20 @@ macro_rules! panic {
 }
 
 #[macro_export]
+macro_rules! println {
+    ($s:literal $(, $x:expr)* $(,)?) => {
+        {
+            #[cfg(feature = "log")]
+            ::log::info!($s $(, $x)*); // fall back to info! as log has no println
+            #[cfg(feature = "defmt")]
+            ::defmt::println!($s $(, $x)*);
+            #[cfg(not(any(feature = "log", feature="defmt")))]
+            let _ = ($( & $x ),*);
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! trace {
     ($s:literal $(, $x:expr)* $(,)?) => {
         {
