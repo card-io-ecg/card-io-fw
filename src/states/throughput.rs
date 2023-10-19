@@ -141,6 +141,16 @@ async fn run_test(context: &mut Context) -> TestResult {
         }
     };
 
+    for header in response.headers() {
+        if !header.0.is_empty() {
+            debug!(
+                "Header {}: {}",
+                header.0,
+                core::str::from_utf8(header.1).unwrap_or("not a string")
+            );
+        }
+    }
+
     let size = response.content_length;
     let mut received_total = 0;
     let mut buffer = [0; 1024];
