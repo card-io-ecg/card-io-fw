@@ -11,7 +11,7 @@ use crate::{
         initialized::{Context, StaMode},
         ota::{Ota0Partition, Ota1Partition, OtaClient, OtaDataPartition},
     },
-    human_readable::Throughput,
+    human_readable::{BinarySize, Throughput},
     states::menu::AppMenu,
     timeout::Timeout,
     AppState, SerialNumber,
@@ -229,7 +229,11 @@ async fn print_progress(
         let progress = current * 100 / size;
         unwrap!(uwrite!(message, "Downloading update: {}%", progress));
     } else {
-        unwrap!(uwrite!(message, "Downloading update: {} bytes", current));
+        unwrap!(uwrite!(
+            message,
+            "Downloading update: {}",
+            BinarySize(current)
+        ));
     }
 
     if let Some(speed) = speed {
