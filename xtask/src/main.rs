@@ -24,7 +24,7 @@ pub enum Subcommands {
     Test,
 
     /// Connects to the Card/IO device to display serial output.
-    Monitor,
+    Monitor { variant: Option<MonitorVariant> },
 
     /// Builds, flashes and runs the firmware on a connected device.
     Run {
@@ -89,6 +89,12 @@ impl HardwareVersion {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum BuildVariant {
     StackSizes,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum MonitorVariant {
+    Debug,
+    Release,
 }
 
 #[derive(Debug, Parser)]
@@ -176,12 +182,17 @@ fn run(hw: HardwareVersion) -> AnyResult<()> {
     Ok(())
 }
 
-fn monitor() -> AnyResult<()> {
+fn monitor(variant: MonitorVariant) -> AnyResult<()> {
+    let variant = match variant {
+        MonitorVariant::Debug => "debug",
+        MonitorVariant::Release => "release",
+    };
+
     cargo(&[
         "espflash",
         "monitor",
         "-e",
-        "./target/xtensa-esp32s3-none-elf/debug/card_io_fw",
+        &format!("./target/xtensa-esp32s3-none-elf/{variant}/card_io_fw"),
     ])
     .run()?;
 
@@ -311,7 +322,7 @@ fn main() -> AnyResult<()> {
             build(hw.unwrap_or_default(), None, true)?;
             asm()
         }
-        Subcommands::Monitor => monitor(),
+        Subcommands::Monitor { variant } => monitor(variant.unwrap_or(MonitorVariant::Debug)),
         Subcommands::Run { hw } => run(hw.unwrap_or_default()),
         Subcommands::Check { hw } => checks(hw.unwrap_or_default()),
         Subcommands::Doc { open, hw } => docs(open, hw.unwrap_or_default()),
