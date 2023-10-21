@@ -1,7 +1,9 @@
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(stable_features)]
 #![feature(async_fn_in_trait)]
 #![feature(impl_trait_projections)]
 #![allow(incomplete_features)]
+#![allow(async_fn_in_trait)]
 
 #[macro_use]
 extern crate logger;
