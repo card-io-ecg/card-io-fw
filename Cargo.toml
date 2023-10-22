@@ -84,8 +84,8 @@ esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "887eb22", de
     "embassy-net"
 ] }
 
-display-interface = { git = "https://github.com/therealprof/display-interface.git", branch = "master" }
-display-interface-spi = { git = "https://github.com/therealprof/display-interface.git", branch = "master" }
+display-interface = { git = "https://github.com/therealprof/display-interface.git" }
+display-interface-spi = { git = "https://github.com/therealprof/display-interface.git" }
 ssd1306 = { git = "https://github.com/bugadani/ssd1306.git", branch = "ehal1", features = [
     "async",
     "graphics",
