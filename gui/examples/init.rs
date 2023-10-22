@@ -13,7 +13,8 @@ use gui::{
     widgets::{
         battery_small::{Battery, BatteryStyle},
         status_bar::StatusBar,
-        wifi::{WifiState, WifiStateView},
+        wifi_access_point::{WifiAccessPointState, WifiAccessPointStateView},
+        wifi_client::{WifiClientState, WifiClientStateView},
     },
 };
 
@@ -52,7 +53,8 @@ fn main() -> Result<(), Infallible> {
                 }),
                 BatteryStyle::Percentage,
             ),
-            wifi: WifiStateView::enabled(WifiState::Connected),
+            wifi_sta: WifiClientStateView::enabled(WifiClientState::Connected),
+            wifi_ap: WifiAccessPointStateView::enabled(WifiAccessPointState::NotConnected),
         }
         .draw(&mut display)
         .unwrap();

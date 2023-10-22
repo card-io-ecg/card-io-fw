@@ -29,7 +29,7 @@ use esp_wifi::{
     wifi::{WifiController, WifiDevice, WifiEvent, WifiMode},
     EspWifiInitialization,
 };
-use gui::widgets::wifi::WifiState;
+use gui::widgets::wifi_client::WifiClientState;
 use macros as cardio;
 use reqwless::client::{HttpClient, TlsConfig, TlsVerify};
 
@@ -74,23 +74,6 @@ pub enum NetworkPreference {
 type KnownNetwork = (WifiNetwork, NetworkPreference);
 
 #[derive(PartialEq)]
-pub enum ConnectionState {
-    NotConnected,
-    Connecting,
-    Connected,
-}
-
-impl From<ConnectionState> for WifiState {
-    fn from(state: ConnectionState) -> Self {
-        match state {
-            ConnectionState::NotConnected => WifiState::NotConnected,
-            ConnectionState::Connecting => WifiState::Connecting,
-            ConnectionState::Connected => WifiState::Connected,
-        }
-    }
-}
-
-#[derive(PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[atomic_enum::atomic_enum]
 enum InternalConnectionState {
@@ -101,16 +84,16 @@ enum InternalConnectionState {
     Disconnected,
 }
 
-impl From<InternalConnectionState> for ConnectionState {
+impl From<InternalConnectionState> for WifiClientState {
     fn from(value: InternalConnectionState) -> Self {
         match value {
             InternalConnectionState::NotConnected | InternalConnectionState::Disconnected => {
-                ConnectionState::NotConnected
+                WifiClientState::NotConnected
             }
             InternalConnectionState::Connecting | InternalConnectionState::WaitingForIp => {
-                ConnectionState::Connecting
+                WifiClientState::Connecting
             }
-            InternalConnectionState::Connected => ConnectionState::Connected,
+            InternalConnectionState::Connected => WifiClientState::Connected,
         }
     }
 }
@@ -125,7 +108,7 @@ pub struct Sta {
 }
 
 impl Sta {
-    pub fn connection_state(&self) -> ConnectionState {
+    pub fn connection_state(&self) -> WifiClientState {
         self.state.read().into()
     }
 
@@ -146,12 +129,12 @@ impl Sta {
         }
     }
 
-    pub async fn wait_for_state_change(&self) -> ConnectionState {
+    pub async fn wait_for_state_change(&self) -> WifiClientState {
         self.state.wait().await.into()
     }
 
     pub async fn wait_for_connection(&self, context: &mut Context) -> bool {
-        if self.connection_state() != ConnectionState::Connected {
+        if self.connection_state() != WifiClientState::Connected {
             debug!("Waiting for network connection");
 
             let _ = select(
@@ -161,7 +144,7 @@ impl Sta {
                             Timeout::with(Duration::from_secs(10), self.wait_for_state_change())
                                 .await;
                         match result {
-                            Some(ConnectionState::Connected) => break,
+                            Some(WifiClientState::Connected) => break,
                             Some(_state) => {}
                             _ => {
                                 debug!("State change timeout");
@@ -180,7 +163,7 @@ impl Sta {
             .await;
         }
 
-        if self.connection_state() == ConnectionState::Connected {
+        if self.connection_state() == WifiClientState::Connected {
             true
         } else {
             debug!("No network connection");

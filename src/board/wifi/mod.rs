@@ -23,6 +23,7 @@ use embassy_futures::select::select;
 use embassy_net::{Config, Stack, StackResources};
 use embassy_time::{Duration, Timer as DelayTimer};
 use esp_wifi::{wifi::WifiDevice, EspWifiInitFor, EspWifiInitialization};
+use gui::widgets::{wifi_access_point::WifiAccessPointState, wifi_client::WifiClientState};
 use macros as cardio;
 
 pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
@@ -75,14 +76,6 @@ impl Drop for StackWrapper {
 pub mod ap;
 pub mod sta;
 
-#[derive(Default, PartialEq)]
-pub enum GenericConnectionState {
-    Sta(sta::ConnectionState),
-    Ap(ap::ApConnectionState),
-    #[default]
-    Disabled,
-}
-
 pub struct WifiDriver {
     wifi: Wifi,
     rng: Rng,
@@ -98,15 +91,6 @@ struct WifiInitResources {
 pub enum WifiHandle {
     Ap(Ap),
     Sta(Sta),
-}
-
-impl WifiHandle {
-    fn connection_state(&self) -> GenericConnectionState {
-        match self {
-            WifiHandle::Ap(ap) => GenericConnectionState::Ap(ap.connection_state()),
-            WifiHandle::Sta(sta) => GenericConnectionState::Sta(sta.connection_state()),
-        }
-    }
 }
 
 enum WifiDriverState {
@@ -237,14 +221,18 @@ impl WifiDriver {
         self.state.uninit().await;
     }
 
-    pub fn handle(&self) -> Option<WifiHandle> {
-        self.state.handle()
+    pub fn ap_state(&self) -> Option<WifiAccessPointState> {
+        self.state.handle().and_then(|handle| match handle {
+            WifiHandle::Ap(ap) => Some(ap.connection_state()),
+            _ => None,
+        })
     }
 
-    pub fn connection_state(&self) -> GenericConnectionState {
-        self.handle()
-            .map(|handle| handle.connection_state())
-            .unwrap_or_default()
+    pub fn sta_state(&self) -> Option<WifiClientState> {
+        self.state.handle().and_then(|handle| match handle {
+            WifiHandle::Sta(sta) => Some(sta.connection_state()),
+            _ => None,
+        })
     }
 }
 

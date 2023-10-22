@@ -1,6 +1,6 @@
 use alloc::rc::Rc;
 use core::sync::atomic::{AtomicU32, Ordering};
-use gui::widgets::wifi::WifiState;
+use gui::widgets::wifi_access_point::WifiAccessPointState;
 
 use crate::{
     board::{
@@ -18,21 +18,6 @@ use esp_wifi::{
     EspWifiInitialization,
 };
 use macros as cardio;
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ApConnectionState {
-    NotConnected,
-    Connected,
-}
-
-impl From<ApConnectionState> for WifiState {
-    fn from(state: ApConnectionState) -> Self {
-        match state {
-            ApConnectionState::NotConnected => WifiState::NotConnected,
-            ApConnectionState::Connected => WifiState::Connected,
-        }
-    }
-}
 
 #[derive(Clone)]
 pub struct Ap {
@@ -53,11 +38,11 @@ impl Ap {
         self.client_count.load(Ordering::Acquire)
     }
 
-    pub fn connection_state(&self) -> ApConnectionState {
+    pub fn connection_state(&self) -> WifiAccessPointState {
         if self.client_count() > 0 {
-            ApConnectionState::Connected
+            WifiAccessPointState::Connected
         } else {
-            ApConnectionState::NotConnected
+            WifiAccessPointState::NotConnected
         }
     }
 }
@@ -126,18 +111,6 @@ impl ApState {
         info!("Stopped AP");
 
         self.init
-    }
-
-    pub(super) fn is_running(&self) -> bool {
-        if self.net_task_control.has_exited() {
-            return false;
-        }
-
-        if self.connection_task_control.has_exited() {
-            return false;
-        }
-
-        true
     }
 
     pub(crate) fn handle(&self) -> Ap {
