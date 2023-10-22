@@ -104,31 +104,37 @@ pub struct Cli {
     pub subcommand: Subcommands,
 }
 
-fn cargo(args: &[&str]) -> Expression {
-    println!("🛠️  Running command: cargo +esp {}", args.join(" "));
+fn cargo(command: &[&str]) -> Expression {
+    println!("🛠️  Running command: cargo +esp {}", command.join(" "));
 
     let mut args_vec = vec!["run", "esp", "cargo"];
-    args_vec.extend(args);
+    args_vec.extend(command);
 
     cmd("rustup", args_vec)
 }
 
 fn build(hw: HardwareVersion, opt: Option<BuildVariant>, timings: bool) -> AnyResult<()> {
+    let build_flags = [
+        "--target=xtensa-esp32s3-none-elf",
+        &format!("--features={}", hw.feature()),
+        "-Zbuild-std=core,alloc",
+        "-Zbuild-std-features=panic_immediate_abort",
+    ];
+
     if let Some(option) = opt {
         match option {
             BuildVariant::StackSizes => {
-                cargo(&[
-                    "rustc",
-                    "--target=xtensa-esp32s3-none-elf",
-                    "-Zbuild-std=core,alloc",
-                    "-Zbuild-std-features=panic_immediate_abort",
-                    &format!("--features={}", hw.feature()),
+                let mut command = vec!["rustc"];
+
+                command.extend_from_slice(&build_flags);
+                command.extend_from_slice(&[
                     "--profile=lto",
                     "--",
                     "-Zemit-stack-sizes",
                     "--emit=llvm-bc",
-                ])
-                .run()?;
+                ]);
+
+                cargo(&command).run()?;
 
                 return Ok(());
             }
@@ -136,32 +142,25 @@ fn build(hw: HardwareVersion, opt: Option<BuildVariant>, timings: bool) -> AnyRe
     }
 
     if timings {
-        cargo(&[
-            "build",
-            "--release",
-            "--target=xtensa-esp32s3-none-elf",
-            &format!("--features={}", hw.feature()),
-            "-Zbuild-std=core,alloc",
-            "-Zbuild-std-features=panic_immediate_abort",
-            "--timings",
-        ])
-        .run()?;
+        let mut command = vec!["build", "--release", "--timings"];
+
+        command.extend_from_slice(&build_flags);
+
+        cargo(&command).run()?;
     }
 
-    cargo(&[
+    let mut command = vec![
         "espflash",
         "save-image",
         "--release",
         "--chip",
         "esp32s3",
-        "--target=xtensa-esp32s3-none-elf",
         "-s2mb",
-        &format!("--features={}", hw.feature()),
-        "-Zbuild-std=core,alloc",
-        "-Zbuild-std-features=panic_immediate_abort",
         "target/card_io_fw.bin",
-    ])
-    .run()?;
+    ];
+    command.extend_from_slice(&build_flags);
+
+    cargo(&command).run()?;
 
     Ok(())
 }
