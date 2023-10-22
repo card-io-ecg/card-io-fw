@@ -173,7 +173,6 @@ fn run(hw: HardwareVersion) -> AnyResult<()> {
         "--erase-parts=otadata",
         "--target=xtensa-esp32s3-none-elf",
         "-Zbuild-std=core,alloc",
-        "-Zbuild-std-features=panic_immediate_abort",
         &format!("--features={}", hw.feature()),
     ])
     .run()?;
