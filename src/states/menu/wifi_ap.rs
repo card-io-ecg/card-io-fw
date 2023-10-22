@@ -51,7 +51,7 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     let mut input = TouchInputShaper::new();
 
-    while context.wifi.ap_running() {
+    loop {
         input.update(&mut context.frontend);
         let is_touched = input.is_touched();
 

@@ -237,14 +237,6 @@ impl WifiDriver {
         self.state.uninit().await;
     }
 
-    pub fn ap_running(&self) -> bool {
-        if let WifiDriverState::Ap(ap) = &self.state {
-            ap.is_running()
-        } else {
-            false
-        }
-    }
-
     pub fn handle(&self) -> Option<WifiHandle> {
         self.state.handle()
     }
