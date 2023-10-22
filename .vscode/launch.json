@@ -10,7 +10,7 @@
             "type": "cortex-debug",
             "request": "attach", // attach instead of launch, because otherwise flash write is attempted, but fails
             "cwd": "${workspaceRoot}",
-            "executable": "target/xtensa-esp32s3-none-elf/release/card_io_fw",
+            "executable": "target/xtensa-esp32s3-none-elf/debug/card_io_fw",
             "servertype": "openocd",
             "interface": "jtag",
             "svdFile": ".vscode/esp32s3.base.svd",
@@ -39,7 +39,7 @@
             "type": "cortex-debug",
             "request": "attach", // attach instead of launch, because otherwise flash write is attempted, but fails
             "cwd": "${workspaceRoot}",
-            "executable": "target/xtensa-esp32s3-none-elf/release/card_io_fw",
+            "executable": "target/xtensa-esp32s3-none-elf/debug/card_io_fw",
             "servertype": "openocd",
             "interface": "jtag",
             "svdFile": ".vscode/esp32s3.base.svd",
