@@ -24,7 +24,7 @@ use crate::{
 };
 
 pub async fn wifi_ap(context: &mut Context) -> AppState {
-    let Some(ap) = context.enable_wifi_ap().await else {
+    let Some((ap, sta)) = context.enable_wifi_ap_sta().await else {
         // FIXME: Show error screen
         return AppState::Menu(AppMenu::Main);
     };
