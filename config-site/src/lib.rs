@@ -32,7 +32,7 @@ pub fn create<'a, CON>(
     context: &'a SharedWebContext,
     fw_version: &'a str,
 ) -> BadServer<
-    impl Handler<Connection = CON> + 'a,
+    impl Handler<Connection = CON> + 'a + object_chain::ChainElement,
     impl ErrorHandler<Connection = CON>,
     [u8; 1024],
     32,

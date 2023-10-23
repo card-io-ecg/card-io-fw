@@ -85,34 +85,15 @@ where
     }
 }
 
-impl<H, EH, RB: RequestBuffer, const MAX_HEADERS: usize> BadServer<Chain<H>, EH, RB, MAX_HEADERS>
+impl<H, EH, RB: RequestBuffer, const MAX_HEADERS: usize> BadServer<H, EH, RB, MAX_HEADERS>
 where
-    H: Handler,
+    H: Handler + ChainElement,
     EH: ErrorHandler,
 {
     pub fn with_handler<H2: Handler<Connection = H::Connection>>(
         self,
         handler: H2,
-    ) -> BadServer<Link<H2, Chain<H>>, EH, RB, MAX_HEADERS> {
-        BadServer {
-            handler: self.handler.append(handler),
-            error_handler: self.error_handler,
-            buffer: self.buffer,
-        }
-    }
-}
-
-impl<H, EH, P, RB: RequestBuffer, const MAX_HEADERS: usize>
-    BadServer<Link<H, P>, EH, RB, MAX_HEADERS>
-where
-    H: Handler,
-    P: ChainElement + Handler<Connection = H::Connection>,
-    EH: ErrorHandler<Connection = H::Connection>,
-{
-    pub fn with_handler<H2: Handler<Connection = H::Connection>>(
-        self,
-        handler: H2,
-    ) -> BadServer<Link<H2, Link<H, P>>, EH, RB, MAX_HEADERS> {
+    ) -> BadServer<Link<H2, H>, EH, RB, MAX_HEADERS> {
         BadServer {
             handler: self.handler.append(handler),
             error_handler: self.error_handler,

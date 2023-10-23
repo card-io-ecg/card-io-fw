@@ -1,4 +1,8 @@
 use alloc::{boxed::Box, rc::Rc};
+use bad_server::{
+    connector::Connection, handler::RequestHandler, request::Request, response::ResponseStatus,
+    HandleError,
+};
 use config_site::{
     self,
     data::{SharedWebContext, WebContext},
@@ -14,7 +18,13 @@ use gui::{
 use macros as cardio;
 
 use crate::{
-    board::{initialized::Context, wifi::ap::Ap},
+    board::{
+        initialized::Context,
+        wifi::{
+            ap::Ap,
+            sta::{Sta, StaCommand},
+        },
+    },
     states::{
         menu::AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME, WEBSERVER_TASKS,
     },
@@ -40,6 +50,7 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
     for control in webserver_task_control.iter() {
         spawner.must_spawn(webserver_task(
             ap.clone(),
+            sta.clone(),
             web_context.clone(),
             control.token(),
         ));
@@ -126,6 +137,7 @@ struct WebserverResources {
 #[cardio::task(pool_size = WEBSERVER_TASKS)]
 async fn webserver_task(
     ap: Ap,
+    sta: Sta,
     context: Rc<SharedWebContext>,
     mut task_control: TaskControlToken<()>,
 ) {
@@ -150,6 +162,7 @@ async fn webserver_task(
             socket.set_timeout(Some(Duration::from_secs(10)));
 
             config_site::create(&context, env!("FW_VERSION"))
+                .with_handler(RequestHandler::get("/vn", VisibleNetworks { sta }))
                 .with_request_buffer(&mut resources.request_buffer[..])
                 .with_header_count::<24>()
                 .listen(&mut socket, 8080)
@@ -157,4 +170,25 @@ async fn webserver_task(
         })
         .await;
     info!("Stopped webserver task");
+}
+
+struct VisibleNetworks {
+    sta: Sta,
+}
+
+impl<C: Connection> RequestHandler<C> for VisibleNetworks {
+    async fn handle(&self, request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
+        self.sta.send_command(StaCommand::ScanOnce).await;
+
+        let response = request.start_response(ResponseStatus::Ok).await?;
+        let mut response = response.start_chunked_body().await?;
+
+        let networks = self.sta.visible_networks().await;
+        for network in networks.iter() {
+            response.write(&network.ssid).await?;
+            response.write("\n").await?;
+        }
+
+        response.end_chunked_response().await
+    }
 }
