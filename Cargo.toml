@@ -240,9 +240,9 @@ members = [
 ]
 
 [profile.dev]
-opt-level = 2
-codegen-units = 8
-lto = false
+opt-level = 3
+codegen-units = 1
+lto = "thin"
 
 [profile.release]
 debug = true
