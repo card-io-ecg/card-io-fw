@@ -1,9 +1,6 @@
 use core::cell::Cell;
 
-use alloc::{
-    string::String,
-    vec::{self, Vec},
-};
+use alloc::{string::String, vec};
 use embassy_futures::select::{select, Either};
 use embassy_time::{Duration, Instant, Ticker, Timer};
 use embedded_graphics::Drawable;

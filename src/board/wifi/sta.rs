@@ -354,25 +354,25 @@ struct StaTaskResources {
 }
 
 pub(super) enum InitialStaControllerState {
-    Scan,
+    Idle,
     ScanAndConnect,
 }
 
 impl From<InitialStaControllerState> for StaControllerState {
     fn from(value: InitialStaControllerState) -> Self {
         match value {
-            InitialStaControllerState::Scan => Self::Scan,
+            InitialStaControllerState::Idle => Self::Idle,
             InitialStaControllerState::ScanAndConnect => Self::ScanAndConnect,
         }
     }
 }
 
 enum StaControllerState {
-    Scan,
+    Idle,
     ScanAndConnect,
-    Connect(u8), // select network, start connection
-    Connecting,  // waiting for IP
-    Connected,   // wait for disconnection
+    Connect(u8),    // select network, start connection
+    AutoConnecting, // waiting for IP
+    AutoConnected,  // wait for disconnection
 }
 
 const NO_TIMEOUT: Duration = Duration::MAX;
@@ -489,8 +489,6 @@ impl StaController {
     ) -> Result<(), NetworkConfigureError> {
         // Select known visible network
         let Some(connect_to) = self.select_network().await else {
-            info!("No visible, known network found");
-            self.controller_state = StaControllerState::Scan;
             return Err(NetworkConfigureError);
         };
 
@@ -548,10 +546,10 @@ impl StaController {
 
     pub fn events(&self) -> EnumSet<WifiEvent> {
         match self.controller_state {
-            StaControllerState::Connecting | StaControllerState::Connected => {
+            StaControllerState::AutoConnecting | StaControllerState::AutoConnected => {
                 enumset::enum_set! { WifiEvent::StaStop | WifiEvent::StaDisconnected }
             }
-            StaControllerState::Scan
+            StaControllerState::Idle
             | StaControllerState::ScanAndConnect
             | StaControllerState::Connect(_) => {
                 enumset::enum_set! { WifiEvent::StaStop }
@@ -565,13 +563,13 @@ impl StaController {
         }
 
         match self.controller_state {
-            StaControllerState::Connecting | StaControllerState::Connected => {
+            StaControllerState::AutoConnecting | StaControllerState::AutoConnected => {
                 if events.contains(WifiEvent::StaDisconnected) {
                     self.state.update(InternalConnectionState::Disconnected);
-                    self.controller_state = StaControllerState::Scan;
+                    self.controller_state = StaControllerState::ScanAndConnect;
                 }
             }
-            StaControllerState::Scan
+            StaControllerState::Idle
             | StaControllerState::ScanAndConnect
             | StaControllerState::Connect(_) => {}
         }
@@ -591,10 +589,7 @@ impl StaController {
 
     pub async fn update(&mut self, controller: &mut WifiController<'_>) -> Duration {
         match self.controller_state {
-            StaControllerState::Scan => {
-                self.do_scan(controller).await;
-                SCAN_PERIOD
-            }
+            StaControllerState::Idle => NO_TIMEOUT,
 
             StaControllerState::ScanAndConnect => {
                 self.do_scan(controller).await;
@@ -617,7 +612,7 @@ impl StaController {
                 match self.do_connect(controller).await {
                     Ok(_) => {
                         info!("Waiting to get IP address...");
-                        self.controller_state = StaControllerState::Connecting;
+                        self.controller_state = StaControllerState::AutoConnecting;
                         CONTINUE
                     }
                     Err(ConnectError) => {
@@ -627,7 +622,7 @@ impl StaController {
                             return CONNECT_RETRY_PERIOD;
                         }
 
-                        self.controller_state = StaControllerState::Scan;
+                        self.controller_state = StaControllerState::ScanAndConnect;
                         self.deprioritize_current(controller).await;
 
                         SCAN_PERIOD
@@ -635,18 +630,18 @@ impl StaController {
                 }
             }
 
-            StaControllerState::Connecting => {
+            StaControllerState::AutoConnecting => {
                 let Some(config) = self.stack.config_v4() else {
                     return Duration::from_millis(500);
                 };
 
                 info!("Got IP: {}", config.address);
                 self.state.update(InternalConnectionState::Connected);
-                self.controller_state = StaControllerState::Connected;
+                self.controller_state = StaControllerState::AutoConnected;
                 CONTINUE
             }
 
-            StaControllerState::Connected => NO_TIMEOUT,
+            StaControllerState::AutoConnected => NO_TIMEOUT,
         }
     }
 
