@@ -144,6 +144,7 @@ crc = "3.0.1"
 
 [patch.crates-io]
 esp32s3-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "0c8dd59163472133870a62b6248f50953f02defc" }
+esp-println = { git = "https://github.com/bugadani/esp-println.git", branch = "serial_jtag" }
 # embedded-text = { git = "https://github.com/embedded-graphics/embedded-text.git" }
 # esp32s3-hal = { path = "../../esp-hal/esp32s3-hal" }
 # esp-hal-common = { path = "../../esp-hal/esp-hal-common" }
@@ -168,7 +169,7 @@ esp32s3 = [
     "dep:norfs-esp32s3",
     "esp-backtrace/esp32s3",
     "esp-println/esp32s3",
-    "uart",                  # print via uart, serial_jtag seems to lose bytes
+    "jtag_serial",                  # print via uart, jtag_serial seems to lose bytes
     "esp-wifi/esp32s3",
 ]
 
