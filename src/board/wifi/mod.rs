@@ -88,11 +88,6 @@ struct WifiInitResources {
     rcc: RadioClockControl,
 }
 
-pub enum WifiHandle {
-    Ap(Ap),
-    Sta(Sta),
-}
-
 enum WifiDriverState {
     Uninitialized(WifiInitResources),
     Initialized(EspWifiInitialization),
@@ -139,14 +134,6 @@ impl WifiDriverState {
             core::ptr::write(self, new);
         }
     }
-
-    fn handle(&self) -> Option<WifiHandle> {
-        match self {
-            WifiDriverState::Sta(sta) => Some(WifiHandle::Sta(sta.handle())),
-            WifiDriverState::Ap(ap) => Some(WifiHandle::Ap(ap.handle())),
-            _ => None,
-        }
-    }
 }
 
 impl WifiDriver {
@@ -187,13 +174,13 @@ impl WifiDriver {
         };
 
         if let WifiDriverState::Ap(ap) = &self.state {
-            ap.handle()
+            ap.handle().clone()
         } else {
             unsafe { unreachable_unchecked() }
         }
     }
 
-    pub async fn configure_sta(&mut self, config: Config, clocks: &Clocks<'_>) -> Sta {
+    pub async fn configure_sta(&mut self, sta_config: Config, clocks: &Clocks<'_>) -> Sta {
         // Prepare, stop AP if running
         if !matches!(self.state, WifiDriverState::Sta(_)) {
             let spawner = Spawner::for_current_executor().await;
@@ -201,7 +188,7 @@ impl WifiDriver {
                 .initialize(clocks, |init| {
                     WifiDriverState::Sta(StaState::init(
                         init,
-                        config,
+                        sta_config,
                         unsafe { as_static_mut(&mut self.wifi) },
                         self.rng,
                         spawner,
@@ -211,20 +198,20 @@ impl WifiDriver {
         };
 
         if let WifiDriverState::Sta(sta) = &self.state {
-            sta.handle()
+            sta.handle().clone()
         } else {
             unsafe { unreachable_unchecked() }
         }
     }
 
-    pub fn ap_handle(&self) -> Option<Ap> {
+    pub fn ap_handle(&self) -> Option<&Ap> {
         match &self.state {
             WifiDriverState::Ap(ap) => Some(ap.handle()),
             _ => None,
         }
     }
 
-    pub fn sta_handle(&self) -> Option<Sta> {
+    pub fn sta_handle(&self) -> Option<&Sta> {
         match &self.state {
             WifiDriverState::Sta(sta) => Some(sta.handle()),
             _ => None,
@@ -236,17 +223,11 @@ impl WifiDriver {
     }
 
     pub fn ap_state(&self) -> Option<WifiAccessPointState> {
-        self.state.handle().and_then(|handle| match handle {
-            WifiHandle::Ap(ap) => Some(ap.connection_state()),
-            _ => None,
-        })
+        self.ap_handle().map(|ap| ap.connection_state())
     }
 
     pub fn sta_state(&self) -> Option<WifiClientState> {
-        self.state.handle().and_then(|handle| match handle {
-            WifiHandle::Sta(sta) => Some(sta.connection_state()),
-            _ => None,
-        })
+        self.sta_handle().map(|sta| sta.connection_state())
     }
 }
 

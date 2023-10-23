@@ -344,8 +344,8 @@ impl StaState {
         self.init
     }
 
-    pub(crate) fn handle(&self) -> Sta {
-        self.handle.clone()
+    pub(crate) fn handle(&self) -> &Sta {
+        &self.handle
     }
 }
 

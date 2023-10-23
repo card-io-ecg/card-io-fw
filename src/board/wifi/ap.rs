@@ -124,8 +124,8 @@ impl ApState {
         self.init
     }
 
-    pub(crate) fn handle(&self) -> Ap {
-        self.handle.clone()
+    pub(crate) fn handle(&self) -> &Ap {
+        &self.handle
     }
 }
 
