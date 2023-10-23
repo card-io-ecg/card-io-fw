@@ -152,8 +152,11 @@
 
         <fieldset>
             <legend>Known networks</legend>
-            <div class="kn"></div>
+            <ul class="kn"></ul>
             <button onclick="$fe.nn();">Add network</button>
+            <hr />
+            <legend>Visible networks</legend>
+            <ul class="vn"></ul>
             <hr />
             <div>Backend URL: <span class="bu"></span></div>
             <button onclick="$fe.buc();">Change URL</button>
@@ -184,7 +187,12 @@
 
     <!-- list item templates -->
     <div id="network" class="tpl">
-        SSID #<span class="index"></span>: <span class="data"></span><button onclick="$fe.dn(this)">Delete</button>
+        <li>
+            SSID #<span class="index"></span>: <span class="data"></span><button onclick="$fe.dn(this)">Delete</button>
+        </li>
+    </div>
+    <div id="visible" class="tpl">
+        <li><span class="data"></span></li>
     </div>
 </body>
 
@@ -347,10 +355,12 @@
                 let system_info = await $load('/si');
                 let backend_url = await $load('/bu');
                 let known_networks = await $load('/kn');
+                let visible_networks = await $load('/vn');
 
                 tpl.set("fw", await system_info.text());
                 tpl.set("bu", await backend_url.text());
                 tpl.set_list("kn", "network", await known_networks.text());
+                tpl.set_list("vn", "visible", await visible_networks.text());
             }),
 
             nn: () => $page('nn'),

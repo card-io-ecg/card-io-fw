@@ -28,6 +28,7 @@ required-features = ["bad-server/std", "bad-server/log"]
 [dev-dependencies]
 simple_logger = "4.1"
 smol = "1"
+smoltcp = { workspace = true, features = ["proto-ipv4"] }
 
 [features]
 default = []
