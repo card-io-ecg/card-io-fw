@@ -35,6 +35,35 @@
         },
         {
             // more info at: https://github.com/Marus/cortex-debug/blob/master/package.json
+            "name": "Attach (USB JTAG, release)",
+            "type": "cortex-debug",
+            "request": "attach", // attach instead of launch, because otherwise flash write is attempted, but fails
+            "cwd": "${workspaceRoot}",
+            "executable": "target/xtensa-esp32s3-none-elf/release/card_io_fw",
+            "servertype": "openocd",
+            "interface": "jtag",
+            "svdFile": ".vscode/esp32s3.base.svd",
+            "toolchainPrefix": "xtensa-esp32s3-elf",
+            "openOCDPreConfigLaunchCommands": [
+                "set ESP_RTOS none"
+            ],
+            "serverpath": "${userHome}/openocd-esp32/bin/openocd.exe",
+            "configFiles": [
+                "board/esp32s3-builtin.cfg"
+            ],
+            "overrideAttachCommands": [
+                "set remote hardware-watchpoint-limit 2",
+                "mon halt",
+                "flushregs"
+            ],
+            "overrideRestartCommands": [
+                "mon reset halt",
+                "flushregs",
+                "c"
+            ]
+        },
+        {
+            // more info at: https://github.com/Marus/cortex-debug/blob/master/package.json
             "name": "Attach (esp-prog JTAG)",
             "type": "cortex-debug",
             "request": "attach", // attach instead of launch, because otherwise flash write is attempted, but fails

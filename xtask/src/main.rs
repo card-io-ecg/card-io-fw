@@ -30,6 +30,9 @@ pub enum Subcommands {
     Run {
         /// Which hardware version to run on.
         hw: Option<HardwareVersion>,
+
+        #[arg(long)]
+        release: bool,
     },
 
     /// Checks the project for errors.
@@ -165,17 +168,24 @@ fn build(hw: HardwareVersion, opt: Option<BuildVariant>, timings: bool) -> AnyRe
     Ok(())
 }
 
-fn run(hw: HardwareVersion) -> AnyResult<()> {
-    cargo(&[
-        "espflash",
-        "flash",
-        "-M",
-        "--erase-parts=otadata",
+fn run(hw: HardwareVersion, release: bool) -> AnyResult<()> {
+    let hw = format!("--features={}", hw.feature());
+    let mut build_flags = vec![
         "--target=xtensa-esp32s3-none-elf",
+        &hw,
         "-Zbuild-std=core,alloc",
-        &format!("--features={}", hw.feature()),
-    ])
-    .run()?;
+        "-Zbuild-std-features=panic_immediate_abort",
+    ];
+
+    if release {
+        build_flags.push("--release");
+    }
+
+    let mut args = vec!["espflash", "flash", "-M"];
+
+    args.extend_from_slice(&build_flags);
+
+    cargo(&args).run()?;
 
     Ok(())
 }
@@ -321,7 +331,7 @@ fn main() -> AnyResult<()> {
             asm()
         }
         Subcommands::Monitor { variant } => monitor(variant.unwrap_or(MonitorVariant::Debug)),
-        Subcommands::Run { hw } => run(hw.unwrap_or_default()),
+        Subcommands::Run { hw, release } => run(hw.unwrap_or_default(), release),
         Subcommands::Check { hw } => checks(hw.unwrap_or_default()),
         Subcommands::Doc { open, hw } => docs(open, hw.unwrap_or_default()),
         Subcommands::ExtraCheck { hw } => extra_checks(hw.unwrap_or_default()),

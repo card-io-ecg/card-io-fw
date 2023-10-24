@@ -1,4 +1,5 @@
 {
     "rust-analyzer.check.allTargets": false,
-    "rust-analyzer.showUnlinkedFileNotification": false
+    "rust-analyzer.showUnlinkedFileNotification": false,
+    "cortex-debug.variableUseNaturalFormat": false
 }
