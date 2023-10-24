@@ -169,7 +169,7 @@ esp32s3 = [
     "dep:norfs-esp32s3",
     "esp-backtrace/esp32s3",
     "esp-println/esp32s3",
-    "jtag_serial",                  # print via uart, jtag_serial seems to lose bytes
+    "jtag_serial",
     "esp-wifi/esp32s3",
 ]
 
