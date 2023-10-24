@@ -174,10 +174,7 @@ async fn ap_task(
             info!("Wifi started!");
 
             loop {
-                if let WifiStackState::ApStart
-                | WifiStackState::ApStaConnected
-                | WifiStackState::ApStaDisconnected = esp_wifi::wifi::get_wifi_state()
-                {
+                if let WifiStackState::ApStarted = esp_wifi::wifi::get_wifi_state() {
                     let events = controller
                         .wait_for_events(
                             WifiEvent::ApStop
