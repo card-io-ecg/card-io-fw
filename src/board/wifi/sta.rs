@@ -279,6 +279,7 @@ impl StaState {
                 networks.clone(),
                 known_networks.clone(),
                 sta_stack.clone(),
+                InitialStaControllerState::ScanAndConnect,
             ),
             connection_task_control.token(),
         ));
@@ -328,8 +329,23 @@ struct StaTaskResources {
     controller: WifiController<'static>,
 }
 
+pub(super) enum InitialStaControllerState {
+    Scan,
+    ScanAndConnect,
+}
+
+impl From<InitialStaControllerState> for StaControllerState {
+    fn from(value: InitialStaControllerState) -> Self {
+        match value {
+            InitialStaControllerState::Scan => Self::Scan,
+            InitialStaControllerState::ScanAndConnect => Self::ScanAndConnect,
+        }
+    }
+}
+
 enum StaControllerState {
     Scan,
+    ScanAndConnect,
     Connect(u8), // select network, start connection
     Connecting,  // waiting for IP
     Connected,   // wait for disconnection
@@ -356,10 +372,11 @@ impl StaController {
         networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
         known_networks: Shared<Vec<KnownNetwork>>,
         stack: Rc<StackWrapper>,
+        initial_state: InitialStaControllerState,
     ) -> Self {
         Self {
             state,
-            controller_state: StaControllerState::Scan,
+            controller_state: initial_state.into(),
             networks,
             known_networks,
             stack,
@@ -436,7 +453,9 @@ impl StaController {
             StaControllerState::Connecting | StaControllerState::Connected => {
                 enumset::enum_set! { WifiEvent::StaStop | WifiEvent::StaDisconnected }
             }
-            StaControllerState::Scan | StaControllerState::Connect(_) => {
+            StaControllerState::Scan
+            | StaControllerState::ScanAndConnect
+            | StaControllerState::Connect(_) => {
                 enumset::enum_set! { WifiEvent::StaStop }
             }
         }
@@ -454,7 +473,9 @@ impl StaController {
                     self.controller_state = StaControllerState::Scan;
                 }
             }
-            StaControllerState::Scan | StaControllerState::Connect(_) => {}
+            StaControllerState::Scan
+            | StaControllerState::ScanAndConnect
+            | StaControllerState::Connect(_) => {}
         }
 
         true
@@ -463,6 +484,11 @@ impl StaController {
     pub async fn update(&mut self, controller: &mut WifiController<'_>) -> Duration {
         match self.controller_state {
             StaControllerState::Scan => {
+                self.do_scan(controller).await;
+                SCAN_PERIOD
+            }
+
+            StaControllerState::ScanAndConnect => {
                 self.do_scan(controller).await;
                 self.controller_state = StaControllerState::Connect(CONNECT_RETRY_COUNT);
                 CONTINUE
