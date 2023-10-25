@@ -175,6 +175,7 @@ fn run(hw: HardwareVersion, release: bool) -> AnyResult<()> {
         &hw,
         "-Zbuild-std=core,alloc",
         "-Zbuild-std-features=panic_immediate_abort",
+        "--erase-parts=otadata",
     ];
 
     if release {
