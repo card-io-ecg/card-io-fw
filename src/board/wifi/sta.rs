@@ -243,13 +243,9 @@ impl<'a> HttpsClientResources<'a> {
 
 pub(super) struct StaState {
     init: EspWifiInitialization,
-    sta_stack: Rc<StackWrapper>,
-    networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
-    known_networks: Shared<Vec<KnownNetwork>>,
-    state: Rc<StaConnectionState>,
     connection_task_control: TaskController<(), StaTaskResources>,
     net_task_control: TaskController<!>,
-    rng: Rng,
+    handle: Sta,
 }
 
 impl StaState {
@@ -292,13 +288,15 @@ impl StaState {
 
         Self {
             init,
-            sta_stack,
-            networks,
-            known_networks,
-            state,
             net_task_control,
-            rng,
             connection_task_control,
+            handle: Sta {
+                sta_stack,
+                networks,
+                known_networks,
+                state,
+                rng,
+            },
         }
     }
 
@@ -322,13 +320,7 @@ impl StaState {
     }
 
     pub(crate) fn handle(&self) -> Sta {
-        Sta {
-            sta_stack: self.sta_stack.clone(),
-            networks: self.networks.clone(),
-            known_networks: self.known_networks.clone(),
-            state: self.state.clone(),
-            rng: self.rng,
-        }
+        self.handle.clone()
     }
 }
 
@@ -349,7 +341,7 @@ const CONTINUE: Duration = Duration::from_millis(0);
 const CONNECT_RETRY_PERIOD: Duration = Duration::from_millis(100);
 const CONNECT_RETRY_COUNT: u8 = 5;
 
-struct StaController {
+pub(super) struct StaController {
     state: Rc<StaConnectionState>,
     controller_state: StaControllerState,
 

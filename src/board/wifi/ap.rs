@@ -62,10 +62,9 @@ impl Ap {
 
 pub(super) struct ApState {
     init: EspWifiInitialization,
-    ap_stack: Rc<StackWrapper>,
     connection_task_control: TaskController<(), ApTaskResources>,
     net_task_control: TaskController<!>,
-    state: Rc<ApConnectionState>,
+    handle: Ap,
 }
 
 impl ApState {
@@ -101,10 +100,9 @@ impl ApState {
 
         Self {
             init,
-            ap_stack,
             net_task_control,
-            state,
             connection_task_control,
+            handle: Ap { ap_stack, state },
         }
     }
 
@@ -127,10 +125,7 @@ impl ApState {
     }
 
     pub(crate) fn handle(&self) -> Ap {
-        Ap {
-            ap_stack: self.ap_stack.clone(),
-            state: self.state.clone(),
-        }
+        self.handle.clone()
     }
 }
 
@@ -138,7 +133,7 @@ struct ApTaskResources {
     controller: WifiController<'static>,
 }
 
-struct ApController {
+pub(super) struct ApController {
     state: Rc<ApConnectionState>,
 }
 
@@ -193,18 +188,16 @@ async fn ap_task(
 ) {
     task_control
         .run_cancellable(|resources| async {
-            let controller = &mut resources.controller;
-
-            ap_controller.setup(controller).await;
+            ap_controller.setup(&mut resources.controller).await;
 
             info!("Starting wifi");
-            unwrap!(controller.start().await);
+            unwrap!(resources.controller.start().await);
             info!("Wifi started!");
 
             loop {
                 let events = ap_controller.events();
 
-                let events = controller.wait_for_events(events, false).await;
+                let events = resources.controller.wait_for_events(events, false).await;
 
                 if !ap_controller.handle_events(events) {
                     return;
