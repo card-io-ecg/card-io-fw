@@ -33,15 +33,15 @@ use gui::widgets::wifi_client::WifiClientState;
 use macros as cardio;
 use reqwless::client::{HttpClient, TlsConfig, TlsVerify};
 
-const SCAN_RESULTS: usize = 20;
+pub(super) const SCAN_RESULTS: usize = 20;
 
-struct State {
+pub(super) struct StaConnectionState {
     signal: Signal<NoopRawMutex, ()>,
     value: AtomicInternalConnectionState,
 }
 
-impl State {
-    fn new(state: InternalConnectionState) -> State {
+impl StaConnectionState {
+    pub fn new(state: InternalConnectionState) -> StaConnectionState {
         Self {
             signal: Signal::new(),
             value: AtomicInternalConnectionState::new(state),
@@ -71,12 +71,12 @@ pub enum NetworkPreference {
 }
 
 /// A network SSID and password, with an object used to deprioritize unstable networks.
-type KnownNetwork = (WifiNetwork, NetworkPreference);
+pub type KnownNetwork = (WifiNetwork, NetworkPreference);
 
 #[derive(PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[atomic_enum::atomic_enum]
-enum InternalConnectionState {
+pub(super) enum InternalConnectionState {
     NotConnected,
     Connecting,
     WaitingForIp,
@@ -100,11 +100,11 @@ impl From<InternalConnectionState> for WifiClientState {
 
 #[derive(Clone)]
 pub struct Sta {
-    sta_stack: Rc<StackWrapper>,
-    networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
-    known_networks: Shared<Vec<KnownNetwork>>,
-    state: Rc<State>,
-    rng: Rng,
+    pub(super) sta_stack: Rc<StackWrapper>,
+    pub(super) networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
+    pub(super) known_networks: Shared<Vec<KnownNetwork>>,
+    pub(super) state: Rc<StaConnectionState>,
+    pub(super) rng: Rng,
 }
 
 impl Sta {
@@ -248,7 +248,7 @@ pub(super) struct StaState {
     sta_stack: Rc<StackWrapper>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
-    state: Rc<State>,
+    state: Rc<StaConnectionState>,
     connection_task_control: TaskController<(), StaTaskResources>,
     net_task_control: TaskController<!>,
     rng: Rng,
@@ -272,7 +272,9 @@ impl StaState {
         let sta_stack = StackWrapper::new(sta_device, config, rng);
         let networks = Rc::new(Mutex::new(heapless::Vec::new()));
         let known_networks = Rc::new(Mutex::new(Vec::new()));
-        let state = Rc::new(State::new(InternalConnectionState::NotConnected));
+        let state = Rc::new(StaConnectionState::new(
+            InternalConnectionState::NotConnected,
+        ));
         let net_task_control = TaskController::new();
 
         let connection_task_control =
@@ -340,7 +342,7 @@ struct StaTaskResources {
 async fn sta_task(
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
-    state: Rc<State>,
+    state: Rc<StaConnectionState>,
     stack: Rc<StackWrapper>,
     mut task_control: TaskControlToken<(), StaTaskResources>,
 ) {

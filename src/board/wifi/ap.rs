@@ -21,8 +21,8 @@ use macros as cardio;
 
 #[derive(Clone)]
 pub struct Ap {
-    ap_stack: Rc<StackWrapper>,
-    client_count: Rc<AtomicU32>,
+    pub(super) ap_stack: Rc<StackWrapper>,
+    pub(super) client_count: Rc<AtomicU32>,
 }
 
 impl Ap {
