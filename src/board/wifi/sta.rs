@@ -278,10 +278,12 @@ impl StaState {
 
         info!("Starting STA task");
         spawner.must_spawn(sta_task(
-            networks.clone(),
-            known_networks.clone(),
-            state.clone(),
-            sta_stack.clone(),
+            StaController::new(
+                state.clone(),
+                networks.clone(),
+                known_networks.clone(),
+                sta_stack.clone(),
+            ),
             connection_task_control.token(),
         ));
 
@@ -545,16 +547,11 @@ impl StaController {
 
 #[cardio::task]
 async fn sta_task(
-    networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
-    known_networks: Shared<Vec<KnownNetwork>>,
-    state: Rc<StaConnectionState>,
-    stack: Rc<StackWrapper>,
+    mut sta_controller: StaController,
     mut task_control: TaskControlToken<(), StaTaskResources>,
 ) {
     task_control
         .run_cancellable(|resources| async {
-            let mut sta_controller = StaController::new(state, networks, known_networks, stack);
-
             info!("Starting wifi");
             unwrap!(resources.controller.start().await);
             info!("Wifi started!");

@@ -91,7 +91,10 @@ impl ApState {
             TaskController::from_resources(ApTaskResources { controller });
 
         info!("Starting AP task");
-        spawner.must_spawn(ap_task(connection_task_control.token(), state.clone()));
+        spawner.must_spawn(ap_task(
+            ApController::new(state.clone()),
+            connection_task_control.token(),
+        ));
 
         info!("Starting NET task");
         spawner.must_spawn(net_task(ap_stack.clone(), net_task_control.token()));
@@ -185,14 +188,12 @@ impl ApController {
 
 #[cardio::task]
 async fn ap_task(
+    mut ap_controller: ApController,
     mut task_control: TaskControlToken<(), ApTaskResources>,
-    state: Rc<ApConnectionState>,
 ) {
     task_control
         .run_cancellable(|resources| async {
             let controller = &mut resources.controller;
-
-            let mut ap_controller = ApController::new(state);
 
             ap_controller.setup(controller).await;
 
