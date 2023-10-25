@@ -117,7 +117,7 @@ impl From<InternalConnectionState> for ConnectionState {
 
 #[derive(Clone)]
 pub struct Sta {
-    stack: Rc<StackWrapper>,
+    sta_stack: Rc<StackWrapper>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
     state: Rc<State>,
@@ -196,8 +196,8 @@ impl Sta {
 
         Ok(HttpsClientResources {
             resources,
-            tcp_client: TcpClient::new(&self.stack, client_state),
-            dns_client: DnsSocket::new(&self.stack),
+            tcp_client: TcpClient::new(&self.sta_stack, client_state),
+            dns_client: DnsSocket::new(&self.sta_stack),
             rng: self.rng,
         })
     }
@@ -262,7 +262,7 @@ impl<'a> HttpsClientResources<'a> {
 
 pub(super) struct StaState {
     init: EspWifiInitialization,
-    stack: Rc<StackWrapper>,
+    sta_stack: Rc<StackWrapper>,
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
     state: Rc<State>,
@@ -281,12 +281,12 @@ impl StaState {
     ) -> Self {
         info!("Configuring STA");
 
-        let (wifi_interface, controller) =
+        let (sta_device, controller) =
             unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Sta));
 
         info!("Starting STA");
 
-        let stack = StackWrapper::new(wifi_interface, config, rng);
+        let sta_stack = StackWrapper::new(sta_device, config, rng);
         let networks = Rc::new(Mutex::new(heapless::Vec::new()));
         let known_networks = Rc::new(Mutex::new(Vec::new()));
         let state = Rc::new(State::new(InternalConnectionState::NotConnected));
@@ -300,16 +300,16 @@ impl StaState {
             networks.clone(),
             known_networks.clone(),
             state.clone(),
-            stack.clone(),
+            sta_stack.clone(),
             connection_task_control.token(),
         ));
 
         info!("Starting NET task");
-        spawner.must_spawn(net_task(stack.clone(), net_task_control.token()));
+        spawner.must_spawn(net_task(sta_stack.clone(), net_task_control.token()));
 
         Self {
             init,
-            stack,
+            sta_stack,
             networks,
             known_networks,
             state,
@@ -340,7 +340,7 @@ impl StaState {
 
     pub(crate) fn handle(&self) -> Sta {
         Sta {
-            stack: self.stack.clone(),
+            sta_stack: self.sta_stack.clone(),
             networks: self.networks.clone(),
             known_networks: self.known_networks.clone(),
             state: self.state.clone(),

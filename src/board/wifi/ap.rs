@@ -36,17 +36,17 @@ impl From<ApConnectionState> for WifiState {
 
 #[derive(Clone)]
 pub struct Ap {
-    stack: Rc<StackWrapper>,
+    ap_stack: Rc<StackWrapper>,
     client_count: Rc<AtomicU32>,
 }
 
 impl Ap {
     pub fn is_active(&self) -> bool {
-        self.stack.is_link_up()
+        self.ap_stack.is_link_up()
     }
 
     pub fn stack(&self) -> &Stack<WifiDevice<'static>> {
-        &self.stack
+        &self.ap_stack
     }
 
     pub fn client_count(&self) -> u32 {
@@ -64,7 +64,7 @@ impl Ap {
 
 pub(super) struct ApState {
     init: EspWifiInitialization,
-    stack: Rc<StackWrapper>,
+    ap_stack: Rc<StackWrapper>,
     connection_task_control: TaskController<(), ApTaskResources>,
     net_task_control: TaskController<!>,
     client_count: Rc<AtomicU32>,
@@ -80,12 +80,12 @@ impl ApState {
     ) -> Self {
         info!("Configuring AP");
 
-        let (wifi_interface, controller) =
+        let (ap_device, controller) =
             unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap));
 
         info!("Starting AP");
 
-        let stack = StackWrapper::new(wifi_interface, config, rng);
+        let ap_stack = StackWrapper::new(ap_device, config, rng);
         let net_task_control = TaskController::new();
         let client_count = Rc::new(AtomicU32::new(0));
 
@@ -99,11 +99,11 @@ impl ApState {
         ));
 
         info!("Starting NET task");
-        spawner.must_spawn(net_task(stack.clone(), net_task_control.token()));
+        spawner.must_spawn(net_task(ap_stack.clone(), net_task_control.token()));
 
         Self {
             init,
-            stack,
+            ap_stack,
             net_task_control,
             client_count,
             connection_task_control,
@@ -142,7 +142,7 @@ impl ApState {
 
     pub(crate) fn handle(&self) -> Ap {
         Ap {
-            stack: self.stack.clone(),
+            ap_stack: self.ap_stack.clone(),
             client_count: self.client_count.clone(),
         }
     }
