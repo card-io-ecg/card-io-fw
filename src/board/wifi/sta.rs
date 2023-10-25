@@ -13,10 +13,14 @@ use crate::{
 use alloc::{boxed::Box, rc::Rc, vec::Vec};
 use config_site::data::network::WifiNetwork;
 use embassy_executor::Spawner;
-use embassy_futures::{join::join, select::select};
+use embassy_futures::{
+    join::join,
+    select::{select, Either},
+};
 use embassy_net::{dns::DnsSocket, Config};
 use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
+    channel::Channel,
     mutex::{Mutex, MutexGuard},
     signal::Signal,
 };
@@ -71,6 +75,8 @@ pub enum NetworkPreference {
 /// A network SSID and password, with an object used to deprioritize unstable networks.
 pub type KnownNetwork = (WifiNetwork, NetworkPreference);
 
+pub type CommandQueue = Channel<NoopRawMutex, StaCommand, 4>;
+
 #[derive(PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[atomic_enum::atomic_enum]
@@ -102,6 +108,7 @@ pub struct Sta {
     pub(super) networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     pub(super) known_networks: Shared<Vec<KnownNetwork>>,
     pub(super) state: Rc<StaConnectionState>,
+    pub(super) command_queue: Rc<CommandQueue>,
     pub(super) rng: Rng,
 }
 
@@ -181,6 +188,10 @@ impl Sta {
             dns_client: DnsSocket::new(&self.sta_stack),
             rng: self.rng,
         })
+    }
+
+    pub fn send_command(&self, command: StaCommand) -> bool {
+        self.command_queue.try_send(command).is_ok()
     }
 }
 
@@ -268,6 +279,7 @@ impl StaState {
         let known_networks = Rc::new(Mutex::new(Vec::new()));
         let state = Rc::new(StaConnectionState::new());
         let net_task_control = TaskController::new();
+        let command_queue = Rc::new(CommandQueue::new());
 
         let connection_task_control =
             TaskController::from_resources(StaTaskResources { controller });
@@ -279,6 +291,7 @@ impl StaState {
                 networks.clone(),
                 known_networks.clone(),
                 sta_stack.clone(),
+                command_queue.clone(),
                 InitialStaControllerState::ScanAndConnect,
             ),
             connection_task_control.token(),
@@ -296,6 +309,7 @@ impl StaState {
                 networks,
                 known_networks,
                 state,
+                command_queue,
                 rng,
             },
         }
@@ -357,6 +371,8 @@ const CONTINUE: Duration = Duration::from_millis(0);
 const CONNECT_RETRY_PERIOD: Duration = Duration::from_millis(100);
 const CONNECT_RETRY_COUNT: u8 = 5;
 
+pub struct StaCommand {}
+
 pub(super) struct StaController {
     state: Rc<StaConnectionState>,
     controller_state: StaControllerState,
@@ -364,6 +380,8 @@ pub(super) struct StaController {
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
     stack: Rc<StackWrapper>,
+
+    command_queue: Rc<CommandQueue>,
 }
 
 impl StaController {
@@ -372,14 +390,16 @@ impl StaController {
         networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
         known_networks: Shared<Vec<KnownNetwork>>,
         stack: Rc<StackWrapper>,
+        command_queue: Rc<CommandQueue>,
         initial_state: InitialStaControllerState,
     ) -> Self {
         Self {
             state,
-            controller_state: initial_state.into(),
             networks,
             known_networks,
             stack,
+            command_queue,
+            controller_state: initial_state.into(),
         }
     }
 
@@ -481,6 +501,13 @@ impl StaController {
         true
     }
 
+    pub async fn handle_command(
+        &mut self,
+        command: StaCommand,
+        controller: &mut WifiController<'_>,
+    ) {
+    }
+
     pub async fn update(&mut self, controller: &mut WifiController<'_>) -> Duration {
         match self.controller_state {
             StaControllerState::Scan => {
@@ -561,6 +588,10 @@ impl StaController {
             StaControllerState::Connected => NO_TIMEOUT,
         }
     }
+
+    pub(super) async fn wait_for_command(&self) -> StaCommand {
+        self.command_queue.recv().await
+    }
 }
 
 #[cardio::task]
@@ -579,17 +610,35 @@ async fn sta_task(
 
                 let timeout = sta_controller.update(&mut resources.controller).await;
 
-                let events = if timeout == NO_TIMEOUT {
-                    Some(resources.controller.wait_for_events(events, false).await)
-                } else {
-                    Timeout::with(timeout, resources.controller.wait_for_events(events, false))
-                        .await
-                };
+                let event_or_command = select(
+                    async {
+                        if timeout == NO_TIMEOUT {
+                            Some(resources.controller.wait_for_events(events, false).await)
+                        } else {
+                            Timeout::with(
+                                timeout,
+                                resources.controller.wait_for_events(events, false),
+                            )
+                            .await
+                        }
+                    },
+                    sta_controller.wait_for_command(),
+                )
+                .await;
 
-                if let Some(events) = events {
-                    if !sta_controller.handle_events(events) {
-                        return;
+                match event_or_command {
+                    Either::First(Some(events)) => {
+                        if !sta_controller.handle_events(events) {
+                            return;
+                        }
                     }
+                    Either::Second(command) => {
+                        sta_controller
+                            .handle_command(command, &mut resources.controller)
+                            .await;
+                    }
+
+                    _ => {}
                 }
             }
         })
