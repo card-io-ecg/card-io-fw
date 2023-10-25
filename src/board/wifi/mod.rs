@@ -217,6 +217,20 @@ impl WifiDriver {
         }
     }
 
+    pub fn ap_handle(&self) -> Option<Ap> {
+        match &self.state {
+            WifiDriverState::Ap(ap) => Some(ap.handle()),
+            _ => None,
+        }
+    }
+
+    pub fn sta_handle(&self) -> Option<Sta> {
+        match &self.state {
+            WifiDriverState::Sta(sta) => Some(sta.handle()),
+            _ => None,
+        }
+    }
+
     pub async fn stop_if(&mut self) {
         self.state.uninit().await;
     }
