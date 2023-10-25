@@ -34,11 +34,9 @@ impl Timeout {
     }
 
     pub async fn with<R>(duration: Duration, f: impl Future<Output = R>) -> Option<R> {
-        let result = select(f, Timer::after(duration)).await;
-
-        match result {
-            Either::First(result) => Some(result),
-            Either::Second(_) => None,
+        match select(Timer::after(duration), f).await {
+            Either::First(_) => None,
+            Either::Second(result) => Some(result),
         }
     }
 }
