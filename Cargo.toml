@@ -74,7 +74,7 @@ esp-println = { version = "0.6.0", default-features = false, features = [
     "critical-section",
 ] }
 esp-alloc = { version = "0.3.0" }
-esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "5578266", default-features = false, features = [
+esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "6783f2f", default-features = false, features = [
     "phy-enable-usb",
     "ps-max-modem",
     "wifi",
