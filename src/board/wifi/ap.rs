@@ -1,5 +1,6 @@
 use alloc::rc::Rc;
 use core::sync::atomic::{AtomicU32, Ordering};
+use enumset::EnumSet;
 use gui::widgets::wifi_access_point::WifiAccessPointState;
 
 use crate::{
@@ -14,7 +15,7 @@ use embassy_futures::join::join;
 use embassy_net::{Config, Stack};
 use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi as _};
 use esp_wifi::{
-    wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState as WifiStackState},
+    wifi::{WifiController, WifiDevice, WifiEvent, WifiMode},
     EspWifiInitialization,
 };
 use macros as cardio;
@@ -134,6 +135,54 @@ struct ApTaskResources {
     controller: WifiController<'static>,
 }
 
+struct ApController {
+    state: Rc<ApConnectionState>,
+}
+
+impl ApController {
+    pub fn new(state: Rc<ApConnectionState>) -> Self {
+        Self { state }
+    }
+
+    pub fn events(&self) -> EnumSet<WifiEvent> {
+        WifiEvent::ApStart
+            | WifiEvent::ApStop
+            | WifiEvent::ApStaconnected
+            | WifiEvent::ApStadisconnected
+    }
+
+    pub async fn setup(&mut self, controller: &mut WifiController<'static>) {
+        info!("Configuring AP");
+
+        let client_config = Configuration::AccessPoint(AccessPointConfiguration {
+            ssid: "Card/IO".into(),
+            max_connections: 1,
+            ..Default::default()
+        });
+        unwrap!(controller.set_configuration(&client_config));
+    }
+
+    pub fn handle_events(&mut self, events: EnumSet<WifiEvent>) -> bool {
+        if events.contains(WifiEvent::ApStaconnected) {
+            let old_count = self.state.client_count.fetch_add(1, Ordering::Release);
+            info!("Client connected, {} total", old_count + 1);
+        }
+
+        if events.contains(WifiEvent::ApStadisconnected) {
+            let old_count = self.state.client_count.fetch_sub(1, Ordering::Release);
+            info!("Client disconnected, {} left", old_count - 1);
+        }
+
+        if events.contains(WifiEvent::ApStop) {
+            info!("AP stopped");
+            self.state.client_count.store(0, Ordering::Relaxed);
+            return false;
+        }
+
+        true
+    }
+}
+
 #[cardio::task]
 async fn ap_task(
     mut task_control: TaskControlToken<(), ApTaskResources>,
@@ -142,45 +191,22 @@ async fn ap_task(
     task_control
         .run_cancellable(|resources| async {
             let controller = &mut resources.controller;
-            info!("Start connection task");
 
-            let client_config = Configuration::AccessPoint(AccessPointConfiguration {
-                ssid: "Card/IO".into(),
-                max_connections: 1,
-                ..Default::default()
-            });
-            unwrap!(controller.set_configuration(&client_config));
+            let mut ap_controller = ApController::new(state);
+
+            ap_controller.setup(controller).await;
+
             info!("Starting wifi");
-
             unwrap!(controller.start().await);
             info!("Wifi started!");
 
             loop {
-                if let WifiStackState::ApStarted = esp_wifi::wifi::get_wifi_state() {
-                    let events = controller
-                        .wait_for_events(
-                            WifiEvent::ApStop
-                                | WifiEvent::ApStaconnected
-                                | WifiEvent::ApStadisconnected,
-                            false,
-                        )
-                        .await;
+                let events = ap_controller.events();
 
-                    if events.contains(WifiEvent::ApStaconnected) {
-                        let old_count = state.client_count.fetch_add(1, Ordering::Release);
-                        info!("Client connected, {} total", old_count + 1);
-                    }
-                    if events.contains(WifiEvent::ApStadisconnected) {
-                        let old_count = state.client_count.fetch_sub(1, Ordering::Release);
-                        info!("Client disconnected, {} left", old_count - 1);
-                    }
-                    if events.contains(WifiEvent::ApStop) {
-                        info!("AP stopped");
-                        state.client_count.store(0, Ordering::Relaxed);
-                        return;
-                    }
+                let events = controller.wait_for_events(events, false).await;
 
-                    info!("Event processing done");
+                if !ap_controller.handle_events(events) {
+                    return;
                 }
             }
         })
