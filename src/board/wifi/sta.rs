@@ -41,10 +41,10 @@ pub(super) struct StaConnectionState {
 }
 
 impl StaConnectionState {
-    pub fn new(state: InternalConnectionState) -> StaConnectionState {
+    pub fn new() -> StaConnectionState {
         Self {
             signal: Signal::new(),
-            value: AtomicInternalConnectionState::new(state),
+            value: AtomicInternalConnectionState::new(InternalConnectionState::NotConnected),
         }
     }
 
@@ -272,9 +272,7 @@ impl StaState {
         let sta_stack = StackWrapper::new(sta_device, config, rng);
         let networks = Rc::new(Mutex::new(heapless::Vec::new()));
         let known_networks = Rc::new(Mutex::new(Vec::new()));
-        let state = Rc::new(StaConnectionState::new(
-            InternalConnectionState::NotConnected,
-        ));
+        let state = Rc::new(StaConnectionState::new());
         let net_task_control = TaskController::new();
 
         let connection_task_control =

@@ -19,10 +19,22 @@ use esp_wifi::{
 };
 use macros as cardio;
 
+pub(super) struct ApConnectionState {
+    client_count: AtomicU32,
+}
+
+impl ApConnectionState {
+    pub(super) fn new() -> Self {
+        Self {
+            client_count: AtomicU32::new(0),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Ap {
     pub(super) ap_stack: Rc<StackWrapper>,
-    pub(super) client_count: Rc<AtomicU32>,
+    pub(super) state: Rc<ApConnectionState>,
 }
 
 impl Ap {
@@ -35,7 +47,7 @@ impl Ap {
     }
 
     pub fn client_count(&self) -> u32 {
-        self.client_count.load(Ordering::Acquire)
+        self.state.client_count.load(Ordering::Acquire)
     }
 
     pub fn connection_state(&self) -> WifiAccessPointState {
@@ -52,7 +64,7 @@ pub(super) struct ApState {
     ap_stack: Rc<StackWrapper>,
     connection_task_control: TaskController<(), ApTaskResources>,
     net_task_control: TaskController<!>,
-    client_count: Rc<AtomicU32>,
+    state: Rc<ApConnectionState>,
 }
 
 impl ApState {
@@ -72,16 +84,13 @@ impl ApState {
 
         let ap_stack = StackWrapper::new(ap_device, config, rng);
         let net_task_control = TaskController::new();
-        let client_count = Rc::new(AtomicU32::new(0));
+        let state = Rc::new(ApConnectionState::new());
 
         let connection_task_control =
             TaskController::from_resources(ApTaskResources { controller });
 
         info!("Starting AP task");
-        spawner.must_spawn(ap_task(
-            connection_task_control.token(),
-            client_count.clone(),
-        ));
+        spawner.must_spawn(ap_task(connection_task_control.token(), state.clone()));
 
         info!("Starting NET task");
         spawner.must_spawn(net_task(ap_stack.clone(), net_task_control.token()));
@@ -90,7 +99,7 @@ impl ApState {
             init,
             ap_stack,
             net_task_control,
-            client_count,
+            state,
             connection_task_control,
         }
     }
@@ -116,7 +125,7 @@ impl ApState {
     pub(crate) fn handle(&self) -> Ap {
         Ap {
             ap_stack: self.ap_stack.clone(),
-            client_count: self.client_count.clone(),
+            state: self.state.clone(),
         }
     }
 }
@@ -128,7 +137,7 @@ struct ApTaskResources {
 #[cardio::task]
 async fn ap_task(
     mut task_control: TaskControlToken<(), ApTaskResources>,
-    client_count: Rc<AtomicU32>,
+    state: Rc<ApConnectionState>,
 ) {
     task_control
         .run_cancellable(|resources| async {
@@ -158,16 +167,16 @@ async fn ap_task(
                         .await;
 
                     if events.contains(WifiEvent::ApStaconnected) {
-                        let old_count = client_count.fetch_add(1, Ordering::Release);
+                        let old_count = state.client_count.fetch_add(1, Ordering::Release);
                         info!("Client connected, {} total", old_count + 1);
                     }
                     if events.contains(WifiEvent::ApStadisconnected) {
-                        let old_count = client_count.fetch_sub(1, Ordering::Release);
+                        let old_count = state.client_count.fetch_sub(1, Ordering::Release);
                         info!("Client disconnected, {} left", old_count - 1);
                     }
                     if events.contains(WifiEvent::ApStop) {
                         info!("AP stopped");
-                        client_count.store(0, Ordering::Relaxed);
+                        state.client_count.store(0, Ordering::Relaxed);
                         return;
                     }
 
