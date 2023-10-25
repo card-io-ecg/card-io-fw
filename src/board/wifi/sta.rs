@@ -20,31 +20,33 @@ use embassy_futures::{
 use embassy_net::{dns::DnsSocket, Config};
 use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
+    channel::Channel,
     mutex::{Mutex, MutexGuard},
     signal::Signal,
 };
-use embassy_time::{Duration, Timer};
+use embassy_time::Duration;
 use embedded_svc::wifi::{AccessPointInfo, ClientConfiguration, Configuration, Wifi as _};
+use enumset::EnumSet;
 use esp_wifi::{
     wifi::{WifiController, WifiDevice, WifiEvent, WifiMode},
     EspWifiInitialization,
 };
-use gui::widgets::wifi::WifiState;
+use gui::widgets::wifi_client::WifiClientState;
 use macros as cardio;
 use reqwless::client::{HttpClient, TlsConfig, TlsVerify};
 
-const SCAN_RESULTS: usize = 20;
+pub(super) const SCAN_RESULTS: usize = 20;
 
-struct State {
+pub(super) struct StaConnectionState {
     signal: Signal<NoopRawMutex, ()>,
     value: AtomicInternalConnectionState,
 }
 
-impl State {
-    fn new(state: InternalConnectionState) -> State {
+impl StaConnectionState {
+    pub fn new() -> StaConnectionState {
         Self {
             signal: Signal::new(),
-            value: AtomicInternalConnectionState::new(state),
+            value: AtomicInternalConnectionState::new(InternalConnectionState::NotConnected),
         }
     }
 
@@ -71,29 +73,14 @@ pub enum NetworkPreference {
 }
 
 /// A network SSID and password, with an object used to deprioritize unstable networks.
-type KnownNetwork = (WifiNetwork, NetworkPreference);
-
-#[derive(PartialEq)]
-pub enum ConnectionState {
-    NotConnected,
-    Connecting,
-    Connected,
-}
-
-impl From<ConnectionState> for WifiState {
-    fn from(state: ConnectionState) -> Self {
-        match state {
-            ConnectionState::NotConnected => WifiState::NotConnected,
-            ConnectionState::Connecting => WifiState::Connecting,
-            ConnectionState::Connected => WifiState::Connected,
-        }
-    }
-}
+pub type KnownNetwork = (WifiNetwork, NetworkPreference);
+type Command = (StaCommand, Rc<Signal<NoopRawMutex, ()>>);
+pub type CommandQueue = Channel<NoopRawMutex, Command, 1>;
 
 #[derive(PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[atomic_enum::atomic_enum]
-enum InternalConnectionState {
+pub(super) enum InternalConnectionState {
     NotConnected,
     Connecting,
     WaitingForIp,
@@ -101,31 +88,32 @@ enum InternalConnectionState {
     Disconnected,
 }
 
-impl From<InternalConnectionState> for ConnectionState {
+impl From<InternalConnectionState> for WifiClientState {
     fn from(value: InternalConnectionState) -> Self {
         match value {
             InternalConnectionState::NotConnected | InternalConnectionState::Disconnected => {
-                ConnectionState::NotConnected
+                WifiClientState::NotConnected
             }
             InternalConnectionState::Connecting | InternalConnectionState::WaitingForIp => {
-                ConnectionState::Connecting
+                WifiClientState::Connecting
             }
-            InternalConnectionState::Connected => ConnectionState::Connected,
+            InternalConnectionState::Connected => WifiClientState::Connected,
         }
     }
 }
 
 #[derive(Clone)]
 pub struct Sta {
-    stack: Rc<StackWrapper>,
-    networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
-    known_networks: Shared<Vec<KnownNetwork>>,
-    state: Rc<State>,
-    rng: Rng,
+    pub(super) sta_stack: Rc<StackWrapper>,
+    pub(super) networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
+    pub(super) known_networks: Shared<Vec<KnownNetwork>>,
+    pub(super) state: Rc<StaConnectionState>,
+    pub(super) command_queue: Rc<CommandQueue>,
+    pub(super) rng: Rng,
 }
 
 impl Sta {
-    pub fn connection_state(&self) -> ConnectionState {
+    pub fn connection_state(&self) -> WifiClientState {
         self.state.read().into()
     }
 
@@ -146,12 +134,12 @@ impl Sta {
         }
     }
 
-    pub async fn wait_for_state_change(&self) -> ConnectionState {
+    pub async fn wait_for_state_change(&self) -> WifiClientState {
         self.state.wait().await.into()
     }
 
     pub async fn wait_for_connection(&self, context: &mut Context) -> bool {
-        if self.connection_state() != ConnectionState::Connected {
+        if self.connection_state() != WifiClientState::Connected {
             debug!("Waiting for network connection");
 
             let _ = select(
@@ -161,7 +149,7 @@ impl Sta {
                             Timeout::with(Duration::from_secs(10), self.wait_for_state_change())
                                 .await;
                         match result {
-                            Some(ConnectionState::Connected) => break,
+                            Some(WifiClientState::Connected) => break,
                             Some(_state) => {}
                             _ => {
                                 debug!("State change timeout");
@@ -180,7 +168,7 @@ impl Sta {
             .await;
         }
 
-        if self.connection_state() == ConnectionState::Connected {
+        if self.connection_state() == WifiClientState::Connected {
             true
         } else {
             debug!("No network connection");
@@ -196,10 +184,24 @@ impl Sta {
 
         Ok(HttpsClientResources {
             resources,
-            tcp_client: TcpClient::new(&self.stack, client_state),
-            dns_client: DnsSocket::new(&self.stack),
+            tcp_client: TcpClient::new(&self.sta_stack, client_state),
+            dns_client: DnsSocket::new(&self.sta_stack),
             rng: self.rng,
         })
+    }
+
+    pub async fn send_command(&self, command: StaCommand) -> bool {
+        let processed = Rc::new(Signal::new());
+        if !self
+            .command_queue
+            .try_send((command, processed.clone()))
+            .is_ok()
+        {
+            return false;
+        }
+
+        processed.wait().await;
+        true
     }
 }
 
@@ -262,13 +264,9 @@ impl<'a> HttpsClientResources<'a> {
 
 pub(super) struct StaState {
     init: EspWifiInitialization,
-    stack: Rc<StackWrapper>,
-    networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
-    known_networks: Shared<Vec<KnownNetwork>>,
-    state: Rc<State>,
     connection_task_control: TaskController<(), StaTaskResources>,
     net_task_control: TaskController<!>,
-    rng: Rng,
+    handle: Sta,
 }
 
 impl StaState {
@@ -281,41 +279,49 @@ impl StaState {
     ) -> Self {
         info!("Configuring STA");
 
-        let (wifi_interface, controller) =
+        let (sta_device, controller) =
             unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Sta));
 
         info!("Starting STA");
 
-        let stack = StackWrapper::new(wifi_interface, config, rng);
+        let sta_stack = StackWrapper::new(sta_device, config, rng);
         let networks = Rc::new(Mutex::new(heapless::Vec::new()));
         let known_networks = Rc::new(Mutex::new(Vec::new()));
-        let state = Rc::new(State::new(InternalConnectionState::NotConnected));
+        let state = Rc::new(StaConnectionState::new());
         let net_task_control = TaskController::new();
+        let command_queue = Rc::new(CommandQueue::new());
 
         let connection_task_control =
             TaskController::from_resources(StaTaskResources { controller });
 
         info!("Starting STA task");
         spawner.must_spawn(sta_task(
-            networks.clone(),
-            known_networks.clone(),
-            state.clone(),
-            stack.clone(),
+            StaController::new(
+                state.clone(),
+                networks.clone(),
+                known_networks.clone(),
+                sta_stack.clone(),
+                command_queue.clone(),
+                InitialStaControllerState::ScanAndConnect,
+            ),
             connection_task_control.token(),
         ));
 
         info!("Starting NET task");
-        spawner.must_spawn(net_task(stack.clone(), net_task_control.token()));
+        spawner.must_spawn(net_task(sta_stack.clone(), net_task_control.token()));
 
         Self {
             init,
-            stack,
-            networks,
-            known_networks,
-            state,
             net_task_control,
-            rng,
             connection_task_control,
+            handle: Sta {
+                sta_stack,
+                networks,
+                known_networks,
+                state,
+                command_queue,
+                rng,
+            },
         }
     }
 
@@ -338,14 +344,8 @@ impl StaState {
         self.init
     }
 
-    pub(crate) fn handle(&self) -> Sta {
-        Sta {
-            stack: self.stack.clone(),
-            networks: self.networks.clone(),
-            known_networks: self.known_networks.clone(),
-            state: self.state.clone(),
-            rng: self.rng,
-        }
+    pub(crate) fn handle(&self) -> &Sta {
+        &self.handle
     }
 }
 
@@ -353,162 +353,350 @@ struct StaTaskResources {
     controller: WifiController<'static>,
 }
 
-#[cardio::task]
-async fn sta_task(
+pub(super) enum InitialStaControllerState {
+    Idle,
+    ScanAndConnect,
+}
+
+impl From<InitialStaControllerState> for StaControllerState {
+    fn from(value: InitialStaControllerState) -> Self {
+        match value {
+            InitialStaControllerState::Idle => Self::Idle,
+            InitialStaControllerState::ScanAndConnect => Self::ScanAndConnect,
+        }
+    }
+}
+
+enum StaControllerState {
+    Idle,
+    ScanAndConnect,
+    Connect(u8),    // select network, start connection
+    AutoConnecting, // waiting for IP
+    AutoConnected,  // wait for disconnection
+}
+
+const NO_TIMEOUT: Duration = Duration::MAX;
+const SCAN_PERIOD: Duration = Duration::from_secs(5);
+const CONTINUE: Duration = Duration::from_millis(0);
+const CONNECT_RETRY_PERIOD: Duration = Duration::from_millis(100);
+const CONNECT_RETRY_COUNT: u8 = 5;
+
+pub enum StaCommand {
+    ScanOnce,
+}
+
+struct ConnectError;
+struct NetworkConfigureError;
+
+pub(super) struct StaController {
+    state: Rc<StaConnectionState>,
+    controller_state: StaControllerState,
+
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
-    state: Rc<State>,
     stack: Rc<StackWrapper>,
-    mut task_control: TaskControlToken<(), StaTaskResources>,
-) {
-    const SCAN_PERIOD: Duration = Duration::from_secs(5);
-    const CONNECT_RETRY_PERIOD: Duration = Duration::from_millis(100);
-    const CONNECT_RETRY_COUNT: usize = 5;
 
-    task_control
-        .run_cancellable(|resources| async {
-            let controller = &mut resources.controller;
+    command_queue: Rc<CommandQueue>,
+}
 
-            'scan_and_connect: loop {
-                if !matches!(controller.is_started(), Ok(true)) {
-                    info!("Starting wifi");
-                    unwrap!(controller.start().await);
-                    info!("Wifi started!");
+impl StaController {
+    pub fn new(
+        state: Rc<StaConnectionState>,
+        networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
+        known_networks: Shared<Vec<KnownNetwork>>,
+        stack: Rc<StackWrapper>,
+        command_queue: Rc<CommandQueue>,
+        initial_state: InitialStaControllerState,
+    ) -> Self {
+        Self {
+            state,
+            networks,
+            known_networks,
+            stack,
+            command_queue,
+            controller_state: initial_state.into(),
+        }
+    }
+
+    async fn do_scan(&mut self, controller: &mut WifiController<'_>) {
+        info!("Scanning...");
+        let mut scan_results = Box::new(controller.scan_n::<SCAN_RESULTS>().await);
+
+        match scan_results.as_mut() {
+            Ok((ref mut visible_networks, network_count)) => {
+                info!("Found {} access points", network_count);
+
+                // Sort by signal strength, descending
+                visible_networks.sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
+
+                self.networks.lock().await.clone_from(visible_networks);
+            }
+
+            Err(err) => warn!("Scan failed: {:?}", err),
+        }
+    }
+
+    async fn select_network(&self) -> Option<WifiNetwork> {
+        fn select_visible_known_network<'a>(
+            known_networks: &'a [KnownNetwork],
+            visible_networks: &[AccessPointInfo],
+            preference: NetworkPreference,
+        ) -> Option<&'a WifiNetwork> {
+            for network in visible_networks {
+                if let Some((known_network, _)) = known_networks
+                    .iter()
+                    .find(|(kn, pref)| kn.ssid == network.ssid && *pref == preference)
+                {
+                    return Some(known_network);
+                }
+            }
+
+            None
+        }
+
+        let visible_networks = self.networks.lock().await;
+        let mut known_networks = self.known_networks.lock().await;
+
+        // Try to find a preferred network.
+        if let Some(connect_to) = select_visible_known_network(
+            &known_networks,
+            visible_networks.as_slice(),
+            NetworkPreference::Preferred,
+        ) {
+            return Some(connect_to.clone());
+        }
+
+        // No preferred networks in range. Try the naughty list.
+        if let Some(connect_to) = select_visible_known_network(
+            &known_networks,
+            visible_networks.as_slice(),
+            NetworkPreference::Deprioritized,
+        ) {
+            return Some(connect_to.clone());
+        }
+
+        // No visible known networks. Reset deprioritized networks.
+        for (_, preference) in known_networks.iter_mut() {
+            *preference = NetworkPreference::Preferred;
+        }
+
+        None
+    }
+
+    async fn configure_for_visible_network(
+        &mut self,
+        controller: &mut WifiController<'_>,
+    ) -> Result<(), NetworkConfigureError> {
+        // Select known visible network
+        let Some(connect_to) = self.select_network().await else {
+            return Err(NetworkConfigureError);
+        };
+
+        // Set up configuration
+        info!("Connecting to {}...", connect_to.ssid);
+        self.state.update(InternalConnectionState::Connecting);
+
+        unwrap!(
+            controller.set_configuration(&Configuration::Client(ClientConfiguration {
+                ssid: connect_to.ssid.clone(),
+                password: connect_to.pass,
+                ..Default::default()
+            }))
+        );
+
+        Ok(())
+    }
+
+    async fn do_connect(
+        &mut self,
+        controller: &mut WifiController<'_>,
+    ) -> Result<(), ConnectError> {
+        self.state.update(InternalConnectionState::Connecting);
+        match controller.connect().await {
+            Ok(_) => {
+                self.state.update(InternalConnectionState::WaitingForIp);
+                Ok(())
+            }
+            Err(e) => {
+                warn!("Failed to connect to wifi: {:?}", e);
+
+                Err(ConnectError)
+            }
+        }
+    }
+
+    async fn deprioritize_current(&self, controller: &mut WifiController<'_>) {
+        match controller.get_configuration() {
+            Ok(config) => match &config {
+                Configuration::Client(config) | Configuration::Mixed(config, _) => {
+                    let mut known_networks = self.known_networks.lock().await;
+                    if let Some((_, preference)) =
+                        known_networks.iter_mut().find(|(kn, preference)| {
+                            kn.ssid == config.ssid && *preference == NetworkPreference::Preferred
+                        })
+                    {
+                        *preference = NetworkPreference::Deprioritized;
+                    }
+                }
+                Configuration::AccessPoint(_) | Configuration::None => unreachable!(),
+            },
+            Err(_) => unreachable!(),
+        }
+    }
+
+    pub fn events(&self) -> EnumSet<WifiEvent> {
+        match self.controller_state {
+            StaControllerState::AutoConnecting | StaControllerState::AutoConnected => {
+                enumset::enum_set! { WifiEvent::StaStop | WifiEvent::StaDisconnected }
+            }
+            StaControllerState::Idle
+            | StaControllerState::ScanAndConnect
+            | StaControllerState::Connect(_) => {
+                enumset::enum_set! { WifiEvent::StaStop }
+            }
+        }
+    }
+
+    pub fn handle_events(&mut self, events: EnumSet<WifiEvent>) -> bool {
+        if events.contains(WifiEvent::StaStop) {
+            return false;
+        }
+
+        match self.controller_state {
+            StaControllerState::AutoConnecting | StaControllerState::AutoConnected => {
+                if events.contains(WifiEvent::StaDisconnected) {
+                    self.state.update(InternalConnectionState::Disconnected);
+                    self.controller_state = StaControllerState::ScanAndConnect;
+                }
+            }
+            StaControllerState::Idle
+            | StaControllerState::ScanAndConnect
+            | StaControllerState::Connect(_) => {}
+        }
+
+        true
+    }
+
+    pub async fn handle_command(&mut self, command: Command, controller: &mut WifiController<'_>) {
+        let (command, signal) = command;
+
+        match command {
+            StaCommand::ScanOnce => self.do_scan(controller).await,
+        }
+
+        signal.signal(());
+    }
+
+    pub async fn update(&mut self, controller: &mut WifiController<'_>) -> Duration {
+        match self.controller_state {
+            StaControllerState::Idle => NO_TIMEOUT,
+
+            StaControllerState::ScanAndConnect => {
+                self.do_scan(controller).await;
+                self.controller_state = StaControllerState::Connect(CONNECT_RETRY_COUNT);
+                CONTINUE
+            }
+
+            StaControllerState::Connect(retry) => {
+                if retry == CONNECT_RETRY_COUNT {
+                    match self.configure_for_visible_network(controller).await {
+                        Ok(()) => {}
+                        Err(NetworkConfigureError) => {
+                            self.controller_state = StaControllerState::ScanAndConnect;
+                            self.state.update(InternalConnectionState::NotConnected);
+                            return SCAN_PERIOD;
+                        }
+                    }
                 }
 
-                let connect_to = 'select: loop {
-                    info!("Scanning...");
-
-                    let mut scan_results = Box::new(controller.scan_n::<SCAN_RESULTS>().await);
-
-                    match scan_results.as_mut() {
-                        Ok((ref mut visible_networks, network_count)) => {
-                            info!("Found {} access points", network_count);
-
-                            // Sort by signal strength, descending
-                            visible_networks
-                                .sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
-
-                            networks.lock().await.clone_from(visible_networks);
-
-                            let mut known_networks = known_networks.lock().await;
-
-                            // Try to find a preferred network.
-                            if let Some(connect_to) = select_visible_known_network(
-                                &known_networks,
-                                visible_networks.as_slice(),
-                                NetworkPreference::Preferred,
-                            ) {
-                                break 'select connect_to.clone();
-                            }
-
-                            // No preferred networks in range. Try the naughty list.
-                            if let Some(connect_to) = select_visible_known_network(
-                                &known_networks,
-                                visible_networks.as_slice(),
-                                NetworkPreference::Deprioritized,
-                            ) {
-                                break 'select connect_to.clone();
-                            }
-
-                            // No visible known networks. Reset deprioritized networks.
-                            for (_, preference) in known_networks.iter_mut() {
-                                *preference = NetworkPreference::Preferred;
-                            }
-                        }
-                        Err(err) => warn!("Scan failed: {:?}", err),
+                match self.do_connect(controller).await {
+                    Ok(_) => {
+                        info!("Waiting to get IP address...");
+                        self.controller_state = StaControllerState::AutoConnecting;
+                        CONTINUE
                     }
+                    Err(ConnectError) => {
+                        if retry != 0 {
+                            info!("Retrying...");
+                            self.controller_state = StaControllerState::Connect(retry - 1);
+                            return CONNECT_RETRY_PERIOD;
+                        }
 
-                    Timer::after(SCAN_PERIOD).await;
+                        self.controller_state = StaControllerState::ScanAndConnect;
+                        self.deprioritize_current(controller).await;
+
+                        SCAN_PERIOD
+                    }
+                }
+            }
+
+            StaControllerState::AutoConnecting => {
+                let Some(config) = self.stack.config_v4() else {
+                    return Duration::from_millis(500);
                 };
 
-                info!("Connecting to {}...", connect_to.ssid);
-                state.update(InternalConnectionState::Connecting);
+                info!("Got IP: {}", config.address);
+                self.state.update(InternalConnectionState::Connected);
+                self.controller_state = StaControllerState::AutoConnected;
+                CONTINUE
+            }
 
-                unwrap!(controller.set_configuration(&Configuration::Client(
-                    ClientConfiguration {
-                        ssid: connect_to.ssid.clone(),
-                        password: connect_to.pass,
-                        ..Default::default()
-                    }
-                )));
+            StaControllerState::AutoConnected => NO_TIMEOUT,
+        }
+    }
 
-                for _ in 0..CONNECT_RETRY_COUNT {
-                    match controller.connect().await {
-                        Ok(_) => {
-                            state.update(InternalConnectionState::WaitingForIp);
-                            info!("Waiting to get IP address...");
+    pub(super) async fn wait_for_command(&self) -> Command {
+        self.command_queue.recv().await
+    }
+}
 
-                            let wait_for_ip = async {
-                                loop {
-                                    if let Some(config) = stack.config_v4() {
-                                        info!("Got IP: {}", config.address);
-                                        break;
-                                    }
-                                    Timer::after(Duration::from_millis(500)).await;
-                                }
-                            };
+#[cardio::task]
+async fn sta_task(
+    mut sta_controller: StaController,
+    mut task_control: TaskControlToken<(), StaTaskResources>,
+) {
+    task_control
+        .run_cancellable(|resources| async {
+            info!("Starting wifi");
+            unwrap!(resources.controller.start().await);
+            info!("Wifi started!");
 
-                            let wait_for_disconnect = async {
-                                controller.wait_for_event(WifiEvent::StaDisconnected).await;
-                            };
+            loop {
+                let events = sta_controller.events();
 
-                            match select(wait_for_ip, wait_for_disconnect).await {
-                                Either::First(_) => {
-                                    info!("Wifi connected!");
-                                    state.update(InternalConnectionState::Connected);
+                let timeout = sta_controller.update(&mut resources.controller).await;
 
-                                    // keep pending Disconnected event to avoid a race condition
-                                    controller
-                                        .wait_for_events(WifiEvent::StaDisconnected.into(), false)
-                                        .await;
-
-                                    // TODO: figure out if we should deprioritize, retry or just loop back
-                                    // to the beginning. Maybe we could use a timer?
-                                    info!("Wifi disconnected!");
-                                    state.update(InternalConnectionState::Disconnected);
-                                    continue 'scan_and_connect;
-                                }
-                                Either::Second(_) => {
-                                    info!("Wifi disconnected!");
-                                    state.update(InternalConnectionState::Disconnected);
-                                }
-                            }
+                let event_or_command = select(
+                    async {
+                        if timeout == NO_TIMEOUT {
+                            Some(resources.controller.wait_for_events(events, false).await)
+                        } else {
+                            Timeout::with(
+                                timeout,
+                                resources.controller.wait_for_events(events, false),
+                            )
+                            .await
                         }
-                        Err(e) => {
-                            warn!("Failed to connect to wifi: {:?}", e);
-                            state.update(InternalConnectionState::NotConnected);
-                            Timer::after(CONNECT_RETRY_PERIOD).await;
+                    },
+                    sta_controller.wait_for_command(),
+                )
+                .await;
+
+                match event_or_command {
+                    Either::First(Some(events)) => {
+                        if !sta_controller.handle_events(events) {
+                            return;
                         }
                     }
-                }
+                    Either::Second(command) => {
+                        sta_controller
+                            .handle_command(command, &mut resources.controller)
+                            .await;
+                    }
 
-                // If we get here, we failed to connect to the network. Deprioritize it.
-                let mut known_networks = known_networks.lock().await;
-                if let Some((_, preference)) = known_networks
-                    .iter_mut()
-                    .find(|(kn, _)| kn.ssid == connect_to.ssid)
-                {
-                    *preference = NetworkPreference::Deprioritized;
+                    _ => {}
                 }
             }
         })
         .await;
-}
-
-fn select_visible_known_network<'a>(
-    known_networks: &'a [KnownNetwork],
-    visible_networks: &[AccessPointInfo],
-    preference: NetworkPreference,
-) -> Option<&'a WifiNetwork> {
-    for network in visible_networks {
-        if let Some((known_network, _)) = known_networks
-            .iter()
-            .find(|(kn, pref)| kn.ssid == network.ssid && *pref == preference)
-        {
-            return Some(known_network);
-        }
-    }
-
-    None
 }

@@ -23,6 +23,7 @@ use embassy_futures::select::select;
 use embassy_net::{Config, Stack, StackResources};
 use embassy_time::{Duration, Timer as DelayTimer};
 use esp_wifi::{wifi::WifiDevice, EspWifiInitFor, EspWifiInitialization};
+use gui::widgets::{wifi_access_point::WifiAccessPointState, wifi_client::WifiClientState};
 use macros as cardio;
 
 pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
@@ -75,14 +76,6 @@ impl Drop for StackWrapper {
 pub mod ap;
 pub mod sta;
 
-#[derive(Default, PartialEq)]
-pub enum GenericConnectionState {
-    Sta(sta::ConnectionState),
-    Ap(ap::ApConnectionState),
-    #[default]
-    Disabled,
-}
-
 pub struct WifiDriver {
     wifi: Wifi,
     rng: Rng,
@@ -93,20 +86,6 @@ struct WifiInitResources {
     timer: Timer<Timer0<TIMG1>>,
     rng: Rng,
     rcc: RadioClockControl,
-}
-
-pub enum WifiHandle {
-    Ap(Ap),
-    Sta(Sta),
-}
-
-impl WifiHandle {
-    fn connection_state(&self) -> GenericConnectionState {
-        match self {
-            WifiHandle::Ap(ap) => GenericConnectionState::Ap(ap.connection_state()),
-            WifiHandle::Sta(sta) => GenericConnectionState::Sta(sta.connection_state()),
-        }
-    }
 }
 
 enum WifiDriverState {
@@ -155,14 +134,6 @@ impl WifiDriverState {
             core::ptr::write(self, new);
         }
     }
-
-    fn handle(&self) -> Option<WifiHandle> {
-        match self {
-            WifiDriverState::Sta(sta) => Some(WifiHandle::Sta(sta.handle())),
-            WifiDriverState::Ap(ap) => Some(WifiHandle::Ap(ap.handle())),
-            _ => None,
-        }
-    }
 }
 
 impl WifiDriver {
@@ -203,13 +174,13 @@ impl WifiDriver {
         };
 
         if let WifiDriverState::Ap(ap) = &self.state {
-            ap.handle()
+            ap.handle().clone()
         } else {
             unsafe { unreachable_unchecked() }
         }
     }
 
-    pub async fn configure_sta(&mut self, config: Config, clocks: &Clocks<'_>) -> Sta {
+    pub async fn configure_sta(&mut self, sta_config: Config, clocks: &Clocks<'_>) -> Sta {
         // Prepare, stop AP if running
         if !matches!(self.state, WifiDriverState::Sta(_)) {
             let spawner = Spawner::for_current_executor().await;
@@ -217,7 +188,7 @@ impl WifiDriver {
                 .initialize(clocks, |init| {
                     WifiDriverState::Sta(StaState::init(
                         init,
-                        config,
+                        sta_config,
                         unsafe { as_static_mut(&mut self.wifi) },
                         self.rng,
                         spawner,
@@ -227,9 +198,23 @@ impl WifiDriver {
         };
 
         if let WifiDriverState::Sta(sta) = &self.state {
-            sta.handle()
+            sta.handle().clone()
         } else {
             unsafe { unreachable_unchecked() }
+        }
+    }
+
+    pub fn ap_handle(&self) -> Option<&Ap> {
+        match &self.state {
+            WifiDriverState::Ap(ap) => Some(ap.handle()),
+            _ => None,
+        }
+    }
+
+    pub fn sta_handle(&self) -> Option<&Sta> {
+        match &self.state {
+            WifiDriverState::Sta(sta) => Some(sta.handle()),
+            _ => None,
         }
     }
 
@@ -237,22 +222,12 @@ impl WifiDriver {
         self.state.uninit().await;
     }
 
-    pub fn ap_running(&self) -> bool {
-        if let WifiDriverState::Ap(ap) = &self.state {
-            ap.is_running()
-        } else {
-            false
-        }
+    pub fn ap_state(&self) -> Option<WifiAccessPointState> {
+        self.ap_handle().map(|ap| ap.connection_state())
     }
 
-    pub fn handle(&self) -> Option<WifiHandle> {
-        self.state.handle()
-    }
-
-    pub fn connection_state(&self) -> GenericConnectionState {
-        self.handle()
-            .map(|handle| handle.connection_state())
-            .unwrap_or_default()
+    pub fn sta_state(&self) -> Option<WifiClientState> {
+        self.sta_handle().map(|sta| sta.connection_state())
     }
 }
 

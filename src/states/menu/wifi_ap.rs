@@ -9,7 +9,7 @@ use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
 use gui::{
     screens::wifi_ap::{ApMenuEvents, WifiApScreen},
-    widgets::wifi::WifiState,
+    widgets::wifi_access_point::WifiAccessPointState,
 };
 use macros as cardio;
 
@@ -51,7 +51,7 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     let mut input = TouchInputShaper::new();
 
-    while context.wifi.ap_running() {
+    loop {
         input.update(&mut context.frontend);
         let is_touched = input.is_touched();
 
@@ -62,10 +62,10 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
             break;
         }
 
-        let connection_state: WifiState = ap.connection_state().into();
-        if connection_state != WifiState::Connected {
+        let connection_state: WifiAccessPointState = ap.connection_state().into();
+        if connection_state != WifiAccessPointState::Connected {
             // We start counting when the last client disconnects, and we reset on interaction.
-            if screen.state == WifiState::Connected || is_touched {
+            if screen.state == WifiAccessPointState::Connected || is_touched {
                 exit_timer.reset();
             }
 

@@ -11,14 +11,16 @@ use crate::{
     screens::BatteryInfo,
     widgets::{
         battery_small::{Battery, BatteryStyle},
-        wifi::WifiStateView,
+        wifi_access_point::WifiAccessPointStateView,
+        wifi_client::WifiClientStateView,
     },
 };
 
 #[derive(ViewGroup, Clone, Copy)]
 pub struct StatusBar {
     pub battery: Battery,
-    pub wifi: WifiStateView,
+    pub wifi_sta: WifiClientStateView,
+    pub wifi_ap: WifiAccessPointStateView,
 }
 
 impl StatusBar {
@@ -50,7 +52,8 @@ impl Drawable for StatusBar {
         views.align_to_mut(&display.bounding_box(), horizontal::Right, vertical::Top);
 
         views.battery.draw(display)?;
-        views.wifi.draw(display)?;
+        views.wifi_sta.draw(display)?;
+        views.wifi_ap.draw(display)?;
 
         Ok(())
     }

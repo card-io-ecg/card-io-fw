@@ -9,7 +9,7 @@ use ufmt::uwrite;
 
 use crate::{
     screens::{menu_style, BOTTOM_CENTERED_TEXTBOX, NORMAL_TEXT},
-    widgets::wifi::WifiState,
+    widgets::wifi_access_point::WifiAccessPointState,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -29,7 +29,7 @@ pub struct ApMenu {}
 
 pub struct WifiApScreen {
     pub menu: ApMenuMenuWrapper<SingleTouch, AnimatedPosition, AnimatedTriangle>,
-    pub state: WifiState,
+    pub state: WifiAccessPointState,
     pub timeout: Option<u8>,
 }
 
@@ -37,7 +37,7 @@ impl WifiApScreen {
     pub fn new() -> Self {
         Self {
             menu: ApMenu {}.create_menu_with_style(menu_style()),
-            state: WifiState::NotConnected,
+            state: WifiAccessPointState::NotConnected,
             timeout: None,
         }
     }
@@ -55,7 +55,7 @@ impl Drawable for WifiApScreen {
         let network_name = "Card/IO";
 
         let mut text = heapless::String::<128>::new();
-        if self.state == WifiState::Connected {
+        if self.state == WifiAccessPointState::Connected {
             unwrap!(text.push_str("Connected. Open site at 192.168.2.1"));
         } else {
             unwrap!(text.push_str("No client connected. Look for a network called "));

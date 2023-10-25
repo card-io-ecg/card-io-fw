@@ -6,7 +6,7 @@ use crate::{
         drivers::battery_monitor::BatteryMonitor,
         hal::clock::Clocks,
         storage::FileSystem,
-        wifi::{ap::Ap, sta::Sta, GenericConnectionState, WifiDriver},
+        wifi::{ap::Ap, sta::Sta, WifiDriver},
         ChargerStatus, EcgFrontend, PoweredDisplay, VbusDetect,
     },
     saved_measurement_exists,
@@ -20,9 +20,8 @@ use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
 use gui::{
     screens::message::MessageScreen,
     widgets::{
-        battery_small::Battery,
-        status_bar::StatusBar,
-        wifi::{WifiState, WifiStateView},
+        battery_small::Battery, status_bar::StatusBar, wifi_access_point::WifiAccessPointStateView,
+        wifi_client::WifiClientStateView,
     },
 };
 use norfs::OnCollision;
@@ -247,15 +246,13 @@ impl InnerContext {
 
     pub fn status_bar(&mut self) -> StatusBar {
         let battery_data = self.battery_monitor.battery_data();
-        let connection_state = match self.wifi.connection_state() {
-            GenericConnectionState::Sta(state) => Some(WifiState::from(state)),
-            GenericConnectionState::Ap(state) => Some(WifiState::from(state)),
-            GenericConnectionState::Disabled => None,
-        };
+        let sta_connection_state = self.wifi.sta_state();
+        let ap_connection_state = self.wifi.ap_state();
 
         StatusBar {
             battery: Battery::with_style(battery_data, self.config.battery_style()),
-            wifi: WifiStateView::new(connection_state),
+            wifi_sta: WifiClientStateView::new(sta_connection_state),
+            wifi_ap: WifiAccessPointStateView::new(ap_connection_state),
         }
     }
 }

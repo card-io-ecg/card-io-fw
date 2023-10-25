@@ -1,6 +1,7 @@
 use alloc::rc::Rc;
 use core::sync::atomic::{AtomicU32, Ordering};
-use gui::widgets::wifi::WifiState;
+use enumset::EnumSet;
+use gui::widgets::wifi_access_point::WifiAccessPointState;
 
 use crate::{
     board::{
@@ -14,60 +15,56 @@ use embassy_futures::join::join;
 use embassy_net::{Config, Stack};
 use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi as _};
 use esp_wifi::{
-    wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState as WifiStackState},
+    wifi::{WifiController, WifiDevice, WifiEvent, WifiMode},
     EspWifiInitialization,
 };
 use macros as cardio;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ApConnectionState {
-    NotConnected,
-    Connected,
+pub(super) struct ApConnectionState {
+    client_count: AtomicU32,
 }
 
-impl From<ApConnectionState> for WifiState {
-    fn from(state: ApConnectionState) -> Self {
-        match state {
-            ApConnectionState::NotConnected => WifiState::NotConnected,
-            ApConnectionState::Connected => WifiState::Connected,
+impl ApConnectionState {
+    pub(super) fn new() -> Self {
+        Self {
+            client_count: AtomicU32::new(0),
         }
     }
 }
 
 #[derive(Clone)]
 pub struct Ap {
-    stack: Rc<StackWrapper>,
-    client_count: Rc<AtomicU32>,
+    pub(super) ap_stack: Rc<StackWrapper>,
+    pub(super) state: Rc<ApConnectionState>,
 }
 
 impl Ap {
     pub fn is_active(&self) -> bool {
-        self.stack.is_link_up()
+        self.ap_stack.is_link_up()
     }
 
     pub fn stack(&self) -> &Stack<WifiDevice<'static>> {
-        &self.stack
+        &self.ap_stack
     }
 
     pub fn client_count(&self) -> u32 {
-        self.client_count.load(Ordering::Acquire)
+        self.state.client_count.load(Ordering::Acquire)
     }
 
-    pub fn connection_state(&self) -> ApConnectionState {
+    pub fn connection_state(&self) -> WifiAccessPointState {
         if self.client_count() > 0 {
-            ApConnectionState::Connected
+            WifiAccessPointState::Connected
         } else {
-            ApConnectionState::NotConnected
+            WifiAccessPointState::NotConnected
         }
     }
 }
 
 pub(super) struct ApState {
     init: EspWifiInitialization,
-    stack: Rc<StackWrapper>,
     connection_task_control: TaskController<(), ApTaskResources>,
     net_task_control: TaskController<!>,
-    client_count: Rc<AtomicU32>,
+    handle: Ap,
 }
 
 impl ApState {
@@ -80,33 +77,32 @@ impl ApState {
     ) -> Self {
         info!("Configuring AP");
 
-        let (wifi_interface, controller) =
+        let (ap_device, controller) =
             unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap));
 
         info!("Starting AP");
 
-        let stack = StackWrapper::new(wifi_interface, config, rng);
+        let ap_stack = StackWrapper::new(ap_device, config, rng);
         let net_task_control = TaskController::new();
-        let client_count = Rc::new(AtomicU32::new(0));
+        let state = Rc::new(ApConnectionState::new());
 
         let connection_task_control =
             TaskController::from_resources(ApTaskResources { controller });
 
         info!("Starting AP task");
         spawner.must_spawn(ap_task(
+            ApController::new(state.clone()),
             connection_task_control.token(),
-            client_count.clone(),
         ));
 
         info!("Starting NET task");
-        spawner.must_spawn(net_task(stack.clone(), net_task_control.token()));
+        spawner.must_spawn(net_task(ap_stack.clone(), net_task_control.token()));
 
         Self {
             init,
-            stack,
             net_task_control,
-            client_count,
             connection_task_control,
+            handle: Ap { ap_stack, state },
         }
     }
 
@@ -128,23 +124,8 @@ impl ApState {
         self.init
     }
 
-    pub(super) fn is_running(&self) -> bool {
-        if self.net_task_control.has_exited() {
-            return false;
-        }
-
-        if self.connection_task_control.has_exited() {
-            return false;
-        }
-
-        true
-    }
-
-    pub(crate) fn handle(&self) -> Ap {
-        Ap {
-            stack: self.stack.clone(),
-            client_count: self.client_count.clone(),
-        }
+    pub(crate) fn handle(&self) -> &Ap {
+        &self.handle
     }
 }
 
@@ -152,53 +133,74 @@ struct ApTaskResources {
     controller: WifiController<'static>,
 }
 
+pub(super) struct ApController {
+    state: Rc<ApConnectionState>,
+}
+
+impl ApController {
+    pub fn new(state: Rc<ApConnectionState>) -> Self {
+        Self { state }
+    }
+
+    pub fn events(&self) -> EnumSet<WifiEvent> {
+        WifiEvent::ApStart
+            | WifiEvent::ApStop
+            | WifiEvent::ApStaconnected
+            | WifiEvent::ApStadisconnected
+    }
+
+    pub async fn setup(&mut self, controller: &mut WifiController<'static>) {
+        info!("Configuring AP");
+
+        let client_config = Configuration::AccessPoint(AccessPointConfiguration {
+            ssid: "Card/IO".into(),
+            max_connections: 1,
+            ..Default::default()
+        });
+        unwrap!(controller.set_configuration(&client_config));
+    }
+
+    pub fn handle_events(&mut self, events: EnumSet<WifiEvent>) -> bool {
+        if events.contains(WifiEvent::ApStaconnected) {
+            let old_count = self.state.client_count.fetch_add(1, Ordering::Release);
+            info!("Client connected, {} total", old_count + 1);
+        }
+
+        if events.contains(WifiEvent::ApStadisconnected) {
+            let old_count = self.state.client_count.fetch_sub(1, Ordering::Release);
+            info!("Client disconnected, {} left", old_count - 1);
+        }
+
+        if events.contains(WifiEvent::ApStop) {
+            info!("AP stopped");
+            self.state.client_count.store(0, Ordering::Relaxed);
+            return false;
+        }
+
+        true
+    }
+}
+
 #[cardio::task]
 async fn ap_task(
+    mut ap_controller: ApController,
     mut task_control: TaskControlToken<(), ApTaskResources>,
-    client_count: Rc<AtomicU32>,
 ) {
     task_control
         .run_cancellable(|resources| async {
-            let controller = &mut resources.controller;
-            info!("Start connection task");
+            ap_controller.setup(&mut resources.controller).await;
 
-            let client_config = Configuration::AccessPoint(AccessPointConfiguration {
-                ssid: "Card/IO".into(),
-                max_connections: 1,
-                ..Default::default()
-            });
-            unwrap!(controller.set_configuration(&client_config));
             info!("Starting wifi");
-
-            unwrap!(controller.start().await);
+            unwrap!(resources.controller.start().await);
             info!("Wifi started!");
 
             loop {
-                if let WifiStackState::ApStarted = esp_wifi::wifi::get_wifi_state() {
-                    let events = controller
-                        .wait_for_events(
-                            WifiEvent::ApStop
-                                | WifiEvent::ApStaconnected
-                                | WifiEvent::ApStadisconnected,
-                            false,
-                        )
-                        .await;
+                let events = ap_controller.events();
 
-                    if events.contains(WifiEvent::ApStaconnected) {
-                        let old_count = client_count.fetch_add(1, Ordering::Release);
-                        info!("Client connected, {} total", old_count + 1);
-                    }
-                    if events.contains(WifiEvent::ApStadisconnected) {
-                        let old_count = client_count.fetch_sub(1, Ordering::Release);
-                        info!("Client disconnected, {} left", old_count - 1);
-                    }
-                    if events.contains(WifiEvent::ApStop) {
-                        info!("AP stopped");
-                        client_count.store(0, Ordering::Relaxed);
-                        return;
-                    }
+                let events = resources.controller.wait_for_events(events, false).await;
 
-                    info!("Event processing done");
+                if !ap_controller.handle_events(events) {
+                    return;
                 }
             }
         })
