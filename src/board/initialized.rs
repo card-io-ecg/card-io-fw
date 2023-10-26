@@ -7,7 +7,7 @@ use crate::{
         hal::clock::Clocks,
         storage::FileSystem,
         wifi::{ap::Ap, sta::Sta, WifiDriver},
-        ChargerStatus, EcgFrontend, PoweredDisplay, VbusDetect,
+        ChargerStatus, Display, EcgFrontend, VbusDetect,
     },
     saved_measurement_exists,
     states::MESSAGE_MIN_DURATION,
@@ -33,7 +33,7 @@ pub enum StaMode {
 }
 
 pub struct InnerContext {
-    pub display: PoweredDisplay,
+    pub display: Display,
     pub clocks: Clocks<'static>,
     pub high_prio_spawner: SendSpawner,
     pub battery_monitor: BatteryMonitor<VbusDetect, ChargerStatus>,
@@ -134,7 +134,7 @@ impl InnerContext {
 
     pub async fn with_status_bar(
         &mut self,
-        draw: impl FnOnce(&mut PoweredDisplay) -> Result<(), DisplayError>,
+        draw: impl FnOnce(&mut Display) -> Result<(), DisplayError>,
     ) {
         unwrap!(self.display.clear(BinaryColor::Off).ok());
 

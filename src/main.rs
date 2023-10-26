@@ -48,7 +48,6 @@ use crate::states::adc_setup::adc_setup;
 use crate::{
     board::{
         config::{Config, ConfigFile},
-        drivers::battery_monitor::BatteryMonitor,
         hal::{
             self,
             embassy::executor::{FromCpu1, InterruptExecutor},
@@ -119,6 +118,8 @@ impl core::fmt::Display for SerialNumber {
 pub type Shared<T> = Rc<Mutex<NoopRawMutex, T>>;
 pub type SharedGuard<'a, T> = MutexGuard<'a, NoopRawMutex, T>;
 
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum AppState {
     #[cfg(feature = "hw_v1")]
     AdcSetup,
@@ -135,57 +136,11 @@ pub enum AppState {
     UploadOrStore(Box<CompressingBuffer<ECG_BUFFER_SIZE>>),
 }
 
-impl core::fmt::Debug for AppState {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            #[cfg(feature = "hw_v1")]
-            Self::AdcSetup => write!(f, "AdcSetup"),
-            Self::PreInitialize => write!(f, "PreInitialize"),
-            Self::Initialize => write!(f, "Initialize"),
-            Self::Measure => write!(f, "Measure"),
-            Self::Charging => write!(f, "Charging"),
-            Self::Menu(arg0) => f.debug_tuple("Menu").field(arg0).finish(),
-            Self::DisplaySerial => write!(f, "DisplaySerial"),
-            Self::FirmwareUpdate => write!(f, "FirmwareUpdate"),
-            Self::Throughput => write!(f, "Throughput"),
-            Self::Shutdown => write!(f, "Shutdown"),
-            Self::UploadStored(arg0) => f.debug_tuple("UploadStored").field(arg0).finish(),
-            Self::UploadOrStore(buf) => f.debug_tuple("UploadOrStore").field(&buf.len()).finish(),
-        }
-    }
-}
-
-#[cfg(feature = "defmt")]
-impl defmt::Format for AppState {
-    fn format(&self, f: defmt::Formatter) {
-        match self {
-            #[cfg(feature = "hw_v1")]
-            Self::AdcSetup => defmt::write!(f, "AdcSetup"),
-            Self::PreInitialize => defmt::write!(f, "PreInitialize"),
-            Self::Initialize => defmt::write!(f, "Initialize"),
-            Self::Measure => defmt::write!(f, "Measure"),
-            Self::Charging => defmt::write!(f, "Charging"),
-            Self::Menu(arg0) => defmt::write!(f, "Menu({:?})", arg0),
-            Self::DisplaySerial => defmt::write!(f, "DisplaySerial"),
-            Self::FirmwareUpdate => defmt::write!(f, "FirmwareUpdate"),
-            Self::Throughput => defmt::write!(f, "Throughput"),
-            Self::Shutdown => defmt::write!(f, "Shutdown"),
-            Self::UploadStored(arg0) => defmt::write!(f, "UploadStored({:?})", arg0),
-            Self::UploadOrStore(buf) => defmt::write!(f, "UploadOrStore (len={})", buf.len()),
-        }
-    }
-}
-
 static INT_EXECUTOR: InterruptExecutor<FromCpu1> = InterruptExecutor::new();
 
 #[interrupt]
 fn FROM_CPU_INTR1() {
     unsafe { INT_EXECUTOR.on_interrupt() }
-}
-
-extern "C" {
-    static mut _stack_start_cpu0: u8;
-    static mut _stack_end_cpu0: u8;
 }
 
 async fn load_config<M: StorageMedium>(storage: Option<&mut Storage<M>>) -> &'static mut Config
@@ -262,11 +217,13 @@ where
     }
 }
 
+extern "C" {
+    static mut _stack_start_cpu0: u8;
+    static mut _stack_end_cpu0: u8;
+}
+
 #[main]
 async fn main(_spawner: Spawner) {
-    // Board::initialize initialized embassy so it must be called first.
-    let resources = StartupResources::initialize();
-
     // We only use a single core for now, so we can write both stack regions.
     let stack_start = unsafe { addr_of!(_stack_start_cpu0) as usize };
     let stack_end = unsafe { addr_of!(_stack_end_cpu0) as usize };
@@ -278,50 +235,38 @@ async fn main(_spawner: Spawner) {
     #[cfg(feature = "hw_v2")]
     info!("Hardware version: v2");
 
-    let battery_monitor = BatteryMonitor::start(
-        resources.misc_pins.vbus_detect,
-        resources.misc_pins.chg_status,
-        #[cfg(feature = "battery_adc")]
-        resources.battery_adc,
-        #[cfg(feature = "battery_max17055")]
-        resources.battery_fg,
-    )
-    .await;
+    #[cfg(feature = "hw_v4")]
+    info!("Hardware version: v4");
 
-    unwrap!(hal::interrupt::enable(
-        hal::peripherals::Interrupt::GPIO,
-        hal::interrupt::Priority::Priority3,
-    ));
+    let resources = StartupResources::initialize().await;
 
     let mut storage = FileSystem::mount().await;
     let config = load_config(storage.as_deref_mut()).await;
-    let mut display = unwrap!(resources.display.enable().await.ok());
-
-    let _ = display
-        .update_brightness_async(config.display_brightness())
-        .await;
 
     let mut delay = Delay::new(&resources.clocks);
 
-    let mut board = Box::pin(async {
-        Box::new(Context {
-            // If the device is awake, the display should be enabled.
-            frontend: resources.frontend,
-            storage,
-            inner: InnerContext {
-                display,
-                clocks: resources.clocks,
-                high_prio_spawner: INT_EXECUTOR.start(Priority::Priority3),
-                battery_monitor,
-                wifi: resources.wifi,
-                config,
-                config_changed: false,
-                sta_work_available: None,
-                message_displayed_at: None,
-            },
-        })
-    })
-    .await;
+    // We're boxing Context because we will need to move out of it during shutdown.
+    let mut board = Box::new(Context {
+        // If the device is awake, the display should be enabled.
+        frontend: resources.frontend,
+        storage,
+        inner: InnerContext {
+            display: resources.display,
+            clocks: resources.clocks,
+            high_prio_spawner: INT_EXECUTOR.start(Priority::Priority3),
+            battery_monitor: resources.battery_monitor,
+            wifi: resources.wifi,
+            config,
+            config_changed: true,
+            sta_work_available: None,
+            message_displayed_at: None,
+        },
+    });
+
+    unwrap!(board.inner.display.enable().await.ok());
+
+    board.apply_hw_config_changes().await;
+    board.config_changed = false;
 
     #[cfg(feature = "hw_v1")]
     let mut state = AppState::AdcSetup;
@@ -367,7 +312,7 @@ async fn main(_spawner: Spawner) {
         board.wait_for_message(MESSAGE_DURATION).await;
     }
 
-    let _ = board.inner.display.shut_down();
+    board.inner.display.shut_down();
 
     board.frontend.wait_for_release().await;
     Timer::after(Duration::from_millis(100)).await;

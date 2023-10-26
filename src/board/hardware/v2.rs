@@ -1,19 +1,18 @@
 #[cfg(feature = "battery_adc")]
 use crate::board::{
-    drivers::battery_monitor::battery_adc::BatteryAdc as BatteryAdcType,
+    drivers::battery_monitor::{battery_adc::BatteryAdc as BatteryAdcType, BatteryMonitor},
     hal::{adc::ADC1, gpio::Analog},
 };
 
 #[cfg(feature = "battery_max17055")]
 use crate::board::{
-    drivers::battery_monitor::battery_fg::BatteryFg as BatteryFgType, hal::i2c::I2C,
+    drivers::battery_monitor::battery_fg::BatteryFg as BatteryFgType,
+    hal::{gpio::Unknown, i2c::I2C},
 };
-#[cfg(feature = "battery_max17055")]
-use max17055::{DesignData, Max17055};
 
 use crate::board::{
     drivers::{
-        display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
+        display::Display as DisplayType,
         frontend::{Frontend, PoweredFrontend},
     },
     hal::{
@@ -22,7 +21,6 @@ use crate::board::{
         embassy,
         gdma::*,
         gpio::{Floating, GpioPin, Input, Output, PullUp, PushPull},
-        interrupt,
         peripherals::{self, Peripherals},
         prelude::*,
         spi::{master::dma::SpiDma, FullDuplexMode},
@@ -32,7 +30,6 @@ use crate::board::{
     startup::WIFI_DRIVER,
     utils::DummyOutputPin,
     wifi::WifiDriver,
-    *,
 };
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
@@ -67,13 +64,7 @@ pub type TouchDetect = GpioPin<Input<Floating>, 1>;
 pub type AdcSpi<'d> =
     ExclusiveDevice<SpiDma<'d, AdcSpiInstance, Channel1, FullDuplexMode>, AdcChipSelect, Delay>;
 
-#[cfg(feature = "battery_adc")]
-pub type BatteryAdcInput = GpioPin<Analog, 9>;
-#[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
-pub type BatteryAdcEnable = GpioPin<Output<PushPull>, 8>;
 pub type VbusDetect = GpioPin<Input<Floating>, 17>;
-#[cfg(feature = "battery_adc")]
-pub type ChargeCurrentInput = GpioPin<Analog, 10>;
 pub type ChargerStatus = GpioPin<Input<PullUp>, 47>;
 
 pub type EcgFrontend = Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, AdcClockEnable, TouchDetect>;
@@ -81,18 +72,33 @@ pub type PoweredEcgFrontend =
     PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, AdcClockEnable, TouchDetect>;
 
 pub type Display = DisplayType<DisplayReset>;
-pub type PoweredDisplay = PoweredDisplayType<DisplayReset>;
+
+#[cfg(feature = "battery_max17055")]
+mod battery_monitor_types {
+    use super::*;
+    pub type BatteryFgI2cInstance = hal::peripherals::I2C0;
+    pub type I2cSda = GpioPin<Unknown, 35>;
+    pub type I2cScl = GpioPin<Unknown, 36>;
+    pub type BatteryFgI2c = I2C<'static, BatteryFgI2cInstance>;
+    pub type BatteryAdcEnable = GpioPin<Output<PushPull>, 8>;
+    pub type BatteryFg = BatteryFgType<BatteryFgI2c, BatteryAdcEnable>;
+}
 
 #[cfg(feature = "battery_adc")]
-pub type BatteryAdc = BatteryAdcType<BatteryAdcInput, ChargeCurrentInput, BatteryAdcEnable, ADC1>;
+mod battery_monitor_types {
+    use super::*;
+    pub type ChargeCurrentInput = GpioPin<Analog, 10>;
+    pub type BatteryAdcInput = GpioPin<Analog, 9>;
+    pub type BatteryAdcEnable = GpioPin<Output<PushPull>, 8>;
 
-#[cfg(feature = "battery_max17055")]
-pub type BatteryFgI2c = I2C<'static, hal::peripherals::I2C0>;
-#[cfg(feature = "battery_max17055")]
-pub type BatteryFg = BatteryFgType<BatteryFgI2c, BatteryAdcEnable>;
+    pub type BatteryAdc =
+        BatteryAdcType<BatteryAdcInput, ChargeCurrentInput, BatteryAdcEnable, ADC1>;
+}
+
+pub use battery_monitor_types::*;
 
 impl super::startup::StartupResources {
-    pub fn initialize() -> Self {
+    pub async fn initialize() -> Self {
         Self::common_init();
 
         let peripherals = Peripherals::take();
@@ -135,50 +141,30 @@ impl super::startup::StartupResources {
             &clocks,
         );
 
+        // Battery ADC
         #[cfg(feature = "battery_adc")]
-        let battery_adc = {
-            // Battery ADC
+        let battery_monitor = {
             let analog = peripherals.SENS.split();
-
-            BatteryAdc::new(analog.adc1, io.pins.gpio9, io.pins.gpio10, io.pins.gpio8)
+            BatteryMonitor::start(
+                io.pins.gpio17.into(),
+                io.pins.gpio47.into(),
+                BatteryAdc::new(analog.adc1, io.pins.gpio9, io.pins.gpio10, io.pins.gpio8),
+            )
+            .await
         };
 
         #[cfg(feature = "battery_max17055")]
-        let battery_fg = {
-            let i2c0 = I2C::new(
-                peripherals.I2C0,
-                io.pins.gpio35,
-                io.pins.gpio36,
-                100u32.kHz(),
-                &clocks,
-            );
-
-            unwrap!(interrupt::enable(
-                peripherals::Interrupt::I2C_EXT0,
-                interrupt::Priority::Priority1,
-            ));
-
-            // MCP73832T-2ACI/OT
-            // - ITerm/Ireg = 7.5%
-            // - Vreg = 4.2
-            // R_prog = 4.7k
-            // i_chg = 1000/4.7 = 212mA
-            // i_chg_term = 212 * 0.0075 = 1.59mA
-            // LSB = 1.5625μV/20mOhm = 78.125μA/LSB
-            // 1.59mA / 78.125μA/LSB ~~ 20 LSB
-            let design = DesignData {
-                capacity: 320,
-                i_chg_term: 20,
-                v_empty: 3000,
-                v_recovery: 3880,
-                v_charge: 4200,
-                r_sense: 20,
-            };
-            BatteryFg::new(
-                Max17055::new(i2c0, design),
-                io.pins.gpio8.into_push_pull_output(),
-            )
-        };
+        let battery_monitor = Self::setup_batter_monitor_fg(
+            peripherals.I2C0,
+            peripherals::Interrupt::I2C_EXT0,
+            io.pins.gpio35,
+            io.pins.gpio36,
+            io.pins.gpio17,
+            io.pins.gpio47,
+            io.pins.gpio8,
+            &clocks,
+        )
+        .await;
 
         // Wifi
         let (wifi, _) = peripherals.RADIO.split();
@@ -186,10 +172,7 @@ impl super::startup::StartupResources {
         Self {
             display,
             frontend: adc,
-            #[cfg(feature = "battery_adc")]
-            battery_adc,
-            #[cfg(feature = "battery_max17055")]
-            battery_fg,
+            battery_monitor,
             wifi: WIFI_DRIVER.init_with(|| {
                 WifiDriver::new(
                     wifi,
@@ -201,11 +184,6 @@ impl super::startup::StartupResources {
             }),
             clocks,
             rtc: Rtc::new(peripherals.RTC_CNTL),
-
-            misc_pins: MiscPins {
-                vbus_detect: io.pins.gpio17.into(),
-                chg_status: io.pins.gpio47.into(),
-            },
         }
     }
 }

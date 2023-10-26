@@ -41,7 +41,7 @@ where
         Self { display, reset }
     }
 
-    pub async fn enable(mut self) -> Result<PoweredDisplay<RESET>, DisplayError> {
+    pub async fn enable(&mut self) -> Result<(), DisplayError> {
         unwrap!(self
             .display
             .reset_async::<_, Delay>(&mut self.reset, &mut Delay)
@@ -54,37 +54,9 @@ where
         self.display.clear(BinaryColor::Off)?;
         self.display.flush_async().await?;
 
-        Ok(PoweredDisplay { display: self })
-    }
-}
-
-pub struct PoweredDisplay<RESET> {
-    display: Display<RESET>,
-}
-
-impl<RESET> Dimensions for PoweredDisplay<RESET> {
-    fn bounding_box(&self) -> Rectangle {
-        self.display.display.bounding_box()
-    }
-}
-
-impl<RESET> DrawTarget for PoweredDisplay<RESET> {
-    type Color = BinaryColor;
-    type Error = DisplayError;
-
-    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
-    where
-        I: IntoIterator<Item = Pixel<Self::Color>>,
-    {
-        self.display.display.draw_iter(pixels)
+        Ok(())
     }
 
-    fn clear(&mut self, color: Self::Color) -> Result<(), Self::Error> {
-        self.display.display.clear(color)
-    }
-}
-
-impl<RESET> PoweredDisplay<RESET> {
     async fn frame_impl(
         &mut self,
         render: impl FnOnce(&mut Self) -> Result<(), DisplayError>,
@@ -101,23 +73,39 @@ impl<RESET> PoweredDisplay<RESET> {
     }
 
     pub async fn flush(&mut self) -> Result<(), DisplayError> {
-        self.display.display.flush_async().await
+        self.display.flush_async().await
     }
 
     pub async fn update_brightness_async(
         &mut self,
         brightness: Brightness,
     ) -> Result<(), DisplayError> {
-        self.display.display.set_brightness_async(brightness).await
+        self.display.set_brightness_async(brightness).await
+    }
+
+    pub fn shut_down(&mut self) {
+        unwrap!(self.reset.set_low().ok());
     }
 }
 
-impl<RESET> PoweredDisplay<RESET>
-where
-    RESET: OutputPin,
-{
-    pub fn shut_down(mut self) -> Display<RESET> {
-        unwrap!(self.display.reset.set_low().ok());
-        self.display
+impl<RESET> Dimensions for Display<RESET> {
+    fn bounding_box(&self) -> Rectangle {
+        self.display.bounding_box()
+    }
+}
+
+impl<RESET> DrawTarget for Display<RESET> {
+    type Color = BinaryColor;
+    type Error = DisplayError;
+
+    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = Pixel<Self::Color>>,
+    {
+        self.display.draw_iter(pixels)
+    }
+
+    fn clear(&mut self, color: Self::Color) -> Result<(), Self::Error> {
+        self.display.clear(color)
     }
 }

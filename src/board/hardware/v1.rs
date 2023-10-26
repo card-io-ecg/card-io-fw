@@ -1,7 +1,7 @@
 use crate::board::{
     drivers::{
-        battery_monitor::battery_adc::BatteryAdc as BatteryAdcType,
-        display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
+        battery_monitor::{battery_adc::BatteryAdc as BatteryAdcType, BatteryMonitor},
+        display::Display as DisplayType,
         frontend::{Frontend, PoweredFrontend},
     },
     hal::{
@@ -20,7 +20,6 @@ use crate::board::{
     startup::WIFI_DRIVER,
     utils::DummyOutputPin,
     wifi::WifiDriver,
-    *,
 };
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
@@ -66,12 +65,11 @@ pub type PoweredEcgFrontend =
     PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, AdcClockEnable, TouchDetect>;
 
 pub type Display = DisplayType<DisplayReset>;
-pub type PoweredDisplay = PoweredDisplayType<DisplayReset>;
 
 pub type BatteryAdc = BatteryAdcType<BatteryAdcInput, ChargeCurrentInput, BatteryAdcEnable, ADC2>;
 
 impl super::startup::StartupResources {
-    pub fn initialize() -> Self {
+    pub async fn initialize() -> Self {
         Self::common_init();
 
         let peripherals = Peripherals::take();
@@ -116,9 +114,12 @@ impl super::startup::StartupResources {
 
         // Battery ADC
         let analog = peripherals.SENS.split();
-
-        let battery_adc =
-            BatteryAdc::new(analog.adc2, io.pins.gpio17, io.pins.gpio14, io.pins.gpio8);
+        let battery_monitor = BatteryMonitor::start(
+            io.pins.gpio47.into(),
+            io.pins.gpio21.into(),
+            BatteryAdc::new(analog.adc2, io.pins.gpio17, io.pins.gpio14, io.pins.gpio8),
+        )
+        .await;
 
         // Wifi
         let (wifi, _) = peripherals.RADIO.split();
@@ -126,7 +127,7 @@ impl super::startup::StartupResources {
         Self {
             display,
             frontend: adc,
-            battery_adc,
+            battery_monitor,
             wifi: WIFI_DRIVER.init_with(|| {
                 WifiDriver::new(
                     wifi,
@@ -138,11 +139,6 @@ impl super::startup::StartupResources {
             }),
             clocks,
             rtc: Rtc::new(peripherals.RTC_CNTL),
-
-            misc_pins: MiscPins {
-                vbus_detect: io.pins.gpio47.into(),
-                chg_status: io.pins.gpio21.into(),
-            },
         }
     }
 }
