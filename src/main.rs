@@ -274,6 +274,9 @@ async fn main(_spawner: Spawner) {
     #[cfg(feature = "hw_v2")]
     info!("Hardware version: v2");
 
+    #[cfg(feature = "hw_v4")]
+    info!("Hardware version: v4");
+
     let resources = StartupResources::initialize().await;
 
     let mut storage = FileSystem::mount().await;
