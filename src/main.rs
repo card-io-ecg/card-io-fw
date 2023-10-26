@@ -118,6 +118,8 @@ impl core::fmt::Display for SerialNumber {
 pub type Shared<T> = Rc<Mutex<NoopRawMutex, T>>;
 pub type SharedGuard<'a, T> = MutexGuard<'a, NoopRawMutex, T>;
 
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum AppState {
     #[cfg(feature = "hw_v1")]
     AdcSetup,
@@ -132,47 +134,6 @@ pub enum AppState {
     Shutdown,
     UploadStored(AppMenu),
     UploadOrStore(Box<CompressingBuffer<ECG_BUFFER_SIZE>>),
-}
-
-impl core::fmt::Debug for AppState {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            #[cfg(feature = "hw_v1")]
-            Self::AdcSetup => write!(f, "AdcSetup"),
-            Self::PreInitialize => write!(f, "PreInitialize"),
-            Self::Initialize => write!(f, "Initialize"),
-            Self::Measure => write!(f, "Measure"),
-            Self::Charging => write!(f, "Charging"),
-            Self::Menu(arg0) => f.debug_tuple("Menu").field(arg0).finish(),
-            Self::DisplaySerial => write!(f, "DisplaySerial"),
-            Self::FirmwareUpdate => write!(f, "FirmwareUpdate"),
-            Self::Throughput => write!(f, "Throughput"),
-            Self::Shutdown => write!(f, "Shutdown"),
-            Self::UploadStored(arg0) => f.debug_tuple("UploadStored").field(arg0).finish(),
-            Self::UploadOrStore(buf) => f.debug_tuple("UploadOrStore").field(&buf.len()).finish(),
-        }
-    }
-}
-
-#[cfg(feature = "defmt")]
-impl defmt::Format for AppState {
-    fn format(&self, f: defmt::Formatter) {
-        match self {
-            #[cfg(feature = "hw_v1")]
-            Self::AdcSetup => defmt::write!(f, "AdcSetup"),
-            Self::PreInitialize => defmt::write!(f, "PreInitialize"),
-            Self::Initialize => defmt::write!(f, "Initialize"),
-            Self::Measure => defmt::write!(f, "Measure"),
-            Self::Charging => defmt::write!(f, "Charging"),
-            Self::Menu(arg0) => defmt::write!(f, "Menu({:?})", arg0),
-            Self::DisplaySerial => defmt::write!(f, "DisplaySerial"),
-            Self::FirmwareUpdate => defmt::write!(f, "FirmwareUpdate"),
-            Self::Throughput => defmt::write!(f, "Throughput"),
-            Self::Shutdown => defmt::write!(f, "Shutdown"),
-            Self::UploadStored(arg0) => defmt::write!(f, "UploadStored({:?})", arg0),
-            Self::UploadOrStore(buf) => defmt::write!(f, "UploadOrStore (len={})", buf.len()),
-        }
-    }
 }
 
 static INT_EXECUTOR: InterruptExecutor<FromCpu1> = InterruptExecutor::new();

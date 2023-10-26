@@ -4,7 +4,7 @@
 //! difference from the last. This is useful for storing a sequence of values that are
 //! close to each other, such as a sequence of samples from a sensor.
 
-use core::slice;
+use core::{fmt::Debug, slice};
 
 use embedded_io::blocking::{Read, ReadExactError, Write};
 
@@ -83,6 +83,28 @@ pub struct CompressingBuffer<const N: usize> {
     element_count: usize,
 
     buffer: Buffer<u8, N, true>,
+}
+
+impl<const N: usize> Debug for CompressingBuffer<N> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("CompressingBuffer")
+            .field(&self.element_count)
+            .finish()
+    }
+}
+
+#[cfg(feature = "defmt")]
+impl<const N: usize> defmt::Format for CompressingBuffer<N> {
+    fn format(&self, fmt: defmt::Formatter<'_>) {
+        defmt::write!(fmt, "CompressingBuffer({})", self.element_count)
+    }
+}
+
+#[cfg(all(feature = "defmt", feature = "alloc"))]
+impl<const N: usize> defmt::Format for alloc::boxed::Box<CompressingBuffer<N>> {
+    fn format(&self, fmt: defmt::Formatter<'_>) {
+        self.as_ref().format(fmt)
+    }
 }
 
 impl<const N: usize> CompressingBuffer<N> {
