@@ -278,11 +278,7 @@ async fn main(_spawner: Spawner) {
 
     let mut storage = FileSystem::mount().await;
     let config = load_config(storage.as_deref_mut()).await;
-    let mut display = unwrap!(resources.display.enable().await.ok());
-
-    let _ = display
-        .update_brightness_async(config.display_brightness())
-        .await;
+    let display = unwrap!(resources.display.enable().await.ok());
 
     let mut delay = Delay::new(&resources.clocks);
 
@@ -298,11 +294,14 @@ async fn main(_spawner: Spawner) {
             battery_monitor: resources.battery_monitor,
             wifi: resources.wifi,
             config,
-            config_changed: false,
+            config_changed: true,
             sta_work_available: None,
             message_displayed_at: None,
         },
     });
+
+    board.apply_hw_config_changes().await;
+    board.config_changed = false;
 
     #[cfg(feature = "hw_v1")]
     let mut state = AppState::AdcSetup;
