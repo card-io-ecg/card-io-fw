@@ -175,15 +175,22 @@ fn run(hw: HardwareVersion, release: bool) -> AnyResult<()> {
         &hw,
         "-Zbuild-std=core,alloc",
         "-Zbuild-std-features=panic_immediate_abort",
-        "--erase-parts=otadata",
     ];
 
     if release {
         build_flags.push("--release");
     }
 
-    let mut args = vec!["espflash", "flash", "-M"];
+    // println!("🛠️  Building firmware");
+    //
+    // let mut args = vec!["build"];
+    // args.extend_from_slice(&build_flags);
+    //
+    // cargo(&args).run()?;
 
+    println!("💾  Building and flashing firmware");
+
+    let mut args = vec!["espflash", "flash", "-M", "--erase-parts=otadata"];
     args.extend_from_slice(&build_flags);
 
     cargo(&args).run()?;
