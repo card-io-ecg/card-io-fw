@@ -12,7 +12,7 @@ use crate::board::{
 
 use crate::board::{
     drivers::{
-        display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
+        display::Display as DisplayType,
         frontend::{Frontend, PoweredFrontend},
     },
     hal::{
@@ -72,7 +72,6 @@ pub type PoweredEcgFrontend =
     PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, AdcClockEnable, TouchDetect>;
 
 pub type Display = DisplayType<DisplayReset>;
-pub type PoweredDisplay = PoweredDisplayType<DisplayReset>;
 
 #[cfg(feature = "battery_max17055")]
 mod battery_monitor_types {

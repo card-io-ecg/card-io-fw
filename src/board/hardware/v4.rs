@@ -1,7 +1,7 @@
 use crate::board::{
     drivers::{
         battery_monitor::battery_fg::BatteryFg as BatteryFgType,
-        display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
+        display::Display as DisplayType,
         frontend::{Frontend, PoweredFrontend},
     },
     hal::{
@@ -63,7 +63,6 @@ pub type PoweredEcgFrontend =
     PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, AdcClockEnable, TouchDetect>;
 
 pub type Display = DisplayType<DisplayReset>;
-pub type PoweredDisplay = PoweredDisplayType<DisplayReset>;
 
 pub type BatteryFgI2cInstance = hal::peripherals::I2C0;
 pub type I2cSda = GpioPin<Unknown, 36>;

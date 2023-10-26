@@ -1,7 +1,7 @@
 use crate::board::{
     drivers::{
         battery_monitor::{battery_adc::BatteryAdc as BatteryAdcType, BatteryMonitor},
-        display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
+        display::Display as DisplayType,
         frontend::{Frontend, PoweredFrontend},
     },
     hal::{
@@ -65,7 +65,6 @@ pub type PoweredEcgFrontend =
     PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, AdcClockEnable, TouchDetect>;
 
 pub type Display = DisplayType<DisplayReset>;
-pub type PoweredDisplay = PoweredDisplayType<DisplayReset>;
 
 pub type BatteryAdc = BatteryAdcType<BatteryAdcInput, ChargeCurrentInput, BatteryAdcEnable, ADC2>;
 

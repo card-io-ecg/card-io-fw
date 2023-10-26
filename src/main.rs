@@ -242,7 +242,6 @@ async fn main(_spawner: Spawner) {
 
     let mut storage = FileSystem::mount().await;
     let config = load_config(storage.as_deref_mut()).await;
-    let display = unwrap!(resources.display.enable().await.ok());
 
     let mut delay = Delay::new(&resources.clocks);
 
@@ -252,7 +251,7 @@ async fn main(_spawner: Spawner) {
         frontend: resources.frontend,
         storage,
         inner: InnerContext {
-            display,
+            display: resources.display,
             clocks: resources.clocks,
             high_prio_spawner: INT_EXECUTOR.start(Priority::Priority3),
             battery_monitor: resources.battery_monitor,
@@ -263,6 +262,8 @@ async fn main(_spawner: Spawner) {
             message_displayed_at: None,
         },
     });
+
+    unwrap!(board.inner.display.enable().await.ok());
 
     board.apply_hw_config_changes().await;
     board.config_changed = false;
@@ -311,7 +312,7 @@ async fn main(_spawner: Spawner) {
         board.wait_for_message(MESSAGE_DURATION).await;
     }
 
-    let _ = board.inner.display.shut_down();
+    board.inner.display.shut_down();
 
     board.frontend.wait_for_release().await;
     Timer::after(Duration::from_millis(100)).await;
