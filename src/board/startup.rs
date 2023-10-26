@@ -143,6 +143,12 @@ impl StartupResources {
             interrupt::Priority::Priority1
         ));
 
+        // DRDY
+        unwrap!(interrupt::enable(
+            peripherals::Interrupt::GPIO,
+            interrupt::Priority::Priority3,
+        ));
+
         let mut adc_cs: AdcChipSelect = adc_cs.into();
 
         unwrap!(adc_cs.set_high().ok());

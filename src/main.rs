@@ -269,14 +269,13 @@ async fn main(_spawner: Spawner) {
     let stack_end = unsafe { addr_of!(_stack_end_cpu0) as usize };
     let _stack_protection = stack_protection::StackMonitor::protect((stack_start + 4)..stack_end);
 
-    // Board::initialize initialized embassy so it must be called first.
-    let resources = StartupResources::initialize();
-
     #[cfg(feature = "hw_v1")]
     info!("Hardware version: v1");
 
     #[cfg(feature = "hw_v2")]
     info!("Hardware version: v2");
+
+    let resources = StartupResources::initialize();
 
     let battery_monitor = BatteryMonitor::start(
         resources.misc_pins.vbus_detect,
@@ -287,11 +286,6 @@ async fn main(_spawner: Spawner) {
         resources.battery_fg,
     )
     .await;
-
-    unwrap!(hal::interrupt::enable(
-        hal::peripherals::Interrupt::GPIO,
-        hal::interrupt::Priority::Priority3,
-    ));
 
     let mut storage = FileSystem::mount().await;
     let config = load_config(storage.as_deref_mut()).await;
