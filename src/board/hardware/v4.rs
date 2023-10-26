@@ -2,7 +2,7 @@ use max17055::{DesignData, Max17055};
 
 use crate::board::{
     drivers::{
-        battery_monitor::battery_fg::BatteryFg as BatteryFgType,
+        battery_monitor::{battery_fg::BatteryFg as BatteryFgType, BatteryMonitor},
         display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
         frontend::{Frontend, PoweredFrontend},
     },
@@ -23,7 +23,6 @@ use crate::board::{
     startup::WIFI_DRIVER,
     utils::DummyOutputPin,
     wifi::WifiDriver,
-    *,
 };
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
@@ -73,7 +72,7 @@ pub type BatteryFgI2c = I2C<'static, hal::peripherals::I2C0>;
 pub type BatteryFg = BatteryFgType<BatteryFgI2c, BatteryAdcEnable>;
 
 impl super::startup::StartupResources {
-    pub fn initialize() -> Self {
+    pub async fn initialize() -> Self {
         Self::common_init();
 
         let peripherals = Peripherals::take();
@@ -116,7 +115,7 @@ impl super::startup::StartupResources {
             &clocks,
         );
 
-        let battery_fg = {
+        let battery_monitor = {
             let i2c0 = I2C::new(
                 peripherals.I2C0,
                 io.pins.gpio36,
@@ -146,10 +145,16 @@ impl super::startup::StartupResources {
                 v_charge: 4200,
                 r_sense: 20,
             };
-            BatteryFg::new(
-                Max17055::new(i2c0, design),
-                io.pins.gpio8.into_push_pull_output(),
+
+            BatteryMonitor::start(
+                io.pins.gpio17.into(),
+                io.pins.gpio47.into(),
+                BatteryFg::new(
+                    Max17055::new(i2c0, design),
+                    io.pins.gpio8.into_push_pull_output(),
+                ),
             )
+            .await
         };
 
         // Wifi
@@ -158,7 +163,7 @@ impl super::startup::StartupResources {
         Self {
             display,
             frontend: adc,
-            battery_fg,
+            battery_monitor,
             wifi: WIFI_DRIVER.init_with(|| {
                 WifiDriver::new(
                     wifi,
@@ -170,11 +175,6 @@ impl super::startup::StartupResources {
             }),
             clocks,
             rtc: Rtc::new(peripherals.RTC_CNTL),
-
-            misc_pins: MiscPins {
-                vbus_detect: io.pins.gpio17.into(),
-                chg_status: io.pins.gpio47.into(),
-            },
         }
     }
 }

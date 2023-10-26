@@ -4,14 +4,9 @@ use embassy_time::Delay;
 use embedded_hal::digital::OutputPin;
 use embedded_hal_bus::spi::ExclusiveDevice;
 
-#[cfg(feature = "battery_adc")]
-use crate::board::BatteryAdc;
-#[cfg(feature = "battery_max17055")]
-use crate::board::BatteryFg;
-
 use crate::{
     board::{
-        drivers::frontend::Frontend,
+        drivers::{battery_monitor::BatteryMonitor, frontend::Frontend},
         hal::{
             clock::Clocks,
             dma::DmaPriority,
@@ -29,9 +24,9 @@ use crate::{
         utils::DummyOutputPin,
         wifi::WifiDriver,
         AdcChipSelect, AdcClockEnable, AdcDmaChannel, AdcDrdy, AdcMiso, AdcMosi, AdcReset, AdcSclk,
-        AdcSpiInstance, Display, DisplayChipSelect, DisplayDataCommand, DisplayDmaChannel,
-        DisplayMosi, DisplayReset, DisplaySclk, DisplaySpiInstance, EcgFrontend, MiscPins,
-        TouchDetect,
+        AdcSpiInstance, ChargerStatus, Display, DisplayChipSelect, DisplayDataCommand,
+        DisplayDmaChannel, DisplayMosi, DisplayReset, DisplaySclk, DisplaySpiInstance, EcgFrontend,
+        TouchDetect, VbusDetect,
     },
     heap::init_heap,
 };
@@ -45,13 +40,8 @@ pub struct StartupResources {
     pub display: Display,
     pub frontend: EcgFrontend,
     pub clocks: Clocks<'static>,
-    #[cfg(feature = "battery_adc")]
-    pub battery_adc: BatteryAdc,
+    pub battery_monitor: BatteryMonitor<VbusDetect, ChargerStatus>,
 
-    #[cfg(feature = "battery_max17055")]
-    pub battery_fg: BatteryFg,
-
-    pub misc_pins: MiscPins,
     pub wifi: &'static mut WifiDriver,
     pub rtc: Rtc<'static>,
 }

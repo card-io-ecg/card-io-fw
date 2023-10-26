@@ -48,7 +48,6 @@ use crate::states::adc_setup::adc_setup;
 use crate::{
     board::{
         config::{Config, ConfigFile},
-        drivers::battery_monitor::BatteryMonitor,
         hal::{
             self,
             embassy::executor::{FromCpu1, InterruptExecutor},
@@ -275,17 +274,7 @@ async fn main(_spawner: Spawner) {
     #[cfg(feature = "hw_v2")]
     info!("Hardware version: v2");
 
-    let resources = StartupResources::initialize();
-
-    let battery_monitor = BatteryMonitor::start(
-        resources.misc_pins.vbus_detect,
-        resources.misc_pins.chg_status,
-        #[cfg(feature = "battery_adc")]
-        resources.battery_adc,
-        #[cfg(feature = "battery_max17055")]
-        resources.battery_fg,
-    )
-    .await;
+    let resources = StartupResources::initialize().await;
 
     let mut storage = FileSystem::mount().await;
     let config = load_config(storage.as_deref_mut()).await;
@@ -297,25 +286,23 @@ async fn main(_spawner: Spawner) {
 
     let mut delay = Delay::new(&resources.clocks);
 
-    let mut board = Box::pin(async {
-        Box::new(Context {
-            // If the device is awake, the display should be enabled.
-            frontend: resources.frontend,
-            storage,
-            inner: InnerContext {
-                display,
-                clocks: resources.clocks,
-                high_prio_spawner: INT_EXECUTOR.start(Priority::Priority3),
-                battery_monitor,
-                wifi: resources.wifi,
-                config,
-                config_changed: false,
-                sta_work_available: None,
-                message_displayed_at: None,
-            },
-        })
-    })
-    .await;
+    // We're boxing Context because we will need to move out of it during shutdown.
+    let mut board = Box::new(Context {
+        // If the device is awake, the display should be enabled.
+        frontend: resources.frontend,
+        storage,
+        inner: InnerContext {
+            display,
+            clocks: resources.clocks,
+            high_prio_spawner: INT_EXECUTOR.start(Priority::Priority3),
+            battery_monitor: resources.battery_monitor,
+            wifi: resources.wifi,
+            config,
+            config_changed: false,
+            sta_work_available: None,
+            message_displayed_at: None,
+        },
+    });
 
     #[cfg(feature = "hw_v1")]
     let mut state = AppState::AdcSetup;

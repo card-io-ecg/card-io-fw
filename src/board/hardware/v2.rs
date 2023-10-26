@@ -13,6 +13,7 @@ use max17055::{DesignData, Max17055};
 
 use crate::board::{
     drivers::{
+        battery_monitor::BatteryMonitor,
         display::{Display as DisplayType, PoweredDisplay as PoweredDisplayType},
         frontend::{Frontend, PoweredFrontend},
     },
@@ -32,7 +33,6 @@ use crate::board::{
     startup::WIFI_DRIVER,
     utils::DummyOutputPin,
     wifi::WifiDriver,
-    *,
 };
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
@@ -92,7 +92,7 @@ pub type BatteryFgI2c = I2C<'static, hal::peripherals::I2C0>;
 pub type BatteryFg = BatteryFgType<BatteryFgI2c, BatteryAdcEnable>;
 
 impl super::startup::StartupResources {
-    pub fn initialize() -> Self {
+    pub async fn initialize() -> Self {
         Self::common_init();
 
         let peripherals = Peripherals::take();
@@ -180,16 +180,23 @@ impl super::startup::StartupResources {
             )
         };
 
+        let battery_monitor = BatteryMonitor::start(
+            io.pins.gpio17.into(),
+            io.pins.gpio47.into(),
+            #[cfg(feature = "battery_adc")]
+            battery_adc,
+            #[cfg(feature = "battery_max17055")]
+            battery_fg,
+        )
+        .await;
+
         // Wifi
         let (wifi, _) = peripherals.RADIO.split();
 
         Self {
             display,
             frontend: adc,
-            #[cfg(feature = "battery_adc")]
-            battery_adc,
-            #[cfg(feature = "battery_max17055")]
-            battery_fg,
+            battery_monitor,
             wifi: WIFI_DRIVER.init_with(|| {
                 WifiDriver::new(
                     wifi,
@@ -201,11 +208,6 @@ impl super::startup::StartupResources {
             }),
             clocks,
             rtc: Rtc::new(peripherals.RTC_CNTL),
-
-            misc_pins: MiscPins {
-                vbus_detect: io.pins.gpio17.into(),
-                chg_status: io.pins.gpio47.into(),
-            },
         }
     }
 }

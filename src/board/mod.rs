@@ -27,10 +27,5 @@ pub use esp32s3_hal as hal;
 
 pub use hardware::*;
 
-pub struct MiscPins {
-    pub vbus_detect: VbusDetect,
-    pub chg_status: ChargerStatus,
-}
-
 pub const DEFAULT_BACKEND_URL: &str = "https://stingray-prime-monkey.ngrok-free.app";
 pub const LOW_BATTERY_PERCENTAGE: u8 = 5;
