@@ -156,8 +156,9 @@ esp32s3-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "race"
 # esp-hal-common = { path = "../../esp-hal/esp-hal-common" }
 # esp-hal-procmacros = { path = "../../esp-hal/esp-hal-procmacros" }
 
-# [patch.'https://github.com/esp-rs/esp-wifi.git']
+[patch.'https://github.com/esp-rs/esp-wifi.git']
 # esp-wifi = { path = "../esp-wifi/esp-wifi" }
+# esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git" }
 
 [features]
 default = ["esp32s3", "defmt"]
