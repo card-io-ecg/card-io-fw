@@ -182,11 +182,6 @@ fn FROM_CPU_INTR1() {
     unsafe { INT_EXECUTOR.on_interrupt() }
 }
 
-extern "C" {
-    static mut _stack_start_cpu0: u8;
-    static mut _stack_end_cpu0: u8;
-}
-
 async fn load_config<M: StorageMedium>(storage: Option<&mut Storage<M>>) -> &'static mut Config
 where
     [(); M::BLOCK_COUNT]:,
@@ -259,6 +254,11 @@ where
             }
         }
     }
+}
+
+extern "C" {
+    static mut _stack_start_cpu0: u8;
+    static mut _stack_end_cpu0: u8;
 }
 
 #[main]
