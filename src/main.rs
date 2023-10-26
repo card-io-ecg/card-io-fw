@@ -264,13 +264,13 @@ where
 
 #[main]
 async fn main(_spawner: Spawner) {
-    // Board::initialize initialized embassy so it must be called first.
-    let resources = StartupResources::initialize();
-
     // We only use a single core for now, so we can write both stack regions.
     let stack_start = unsafe { addr_of!(_stack_start_cpu0) as usize };
     let stack_end = unsafe { addr_of!(_stack_end_cpu0) as usize };
     let _stack_protection = stack_protection::StackMonitor::protect((stack_start + 4)..stack_end);
+
+    // Board::initialize initialized embassy so it must be called first.
+    let resources = StartupResources::initialize();
 
     #[cfg(feature = "hw_v1")]
     info!("Hardware version: v1");
