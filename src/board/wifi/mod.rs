@@ -20,7 +20,11 @@ use crate::{
 use alloc::{boxed::Box, rc::Rc};
 use embassy_executor::Spawner;
 use embassy_net::{Config, Stack, StackResources};
-use esp_wifi::{wifi::WifiDevice, EspWifiInitFor, EspWifiInitialization};
+use embassy_time::{Duration, Timer as DelayTimer};
+use esp_wifi::{
+    wifi::{WifiApDevice, WifiDevice, WifiDeviceMode, WifiStaDevice},
+    EspWifiInitFor, EspWifiInitialization,
+};
 use gui::widgets::{wifi_access_point::WifiAccessPointState, wifi_client::WifiClientState};
 use macros as cardio;
 
@@ -30,13 +34,13 @@ pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
 
 const STACK_SOCKET_COUNT: usize = 3;
 
-struct StackWrapper(
+struct StackWrapper<MODE: WifiDeviceMode>(
     NonNull<StackResources<STACK_SOCKET_COUNT>>,
-    Stack<WifiDevice<'static>>,
+    Stack<WifiDevice<'static, MODE>>,
 );
 
-impl StackWrapper {
-    fn new(wifi_interface: WifiDevice<'static>, config: Config, mut rng: Rng) -> Rc<StackWrapper> {
+impl<MODE: WifiDeviceMode + 'static> StackWrapper<MODE> {
+    fn new(wifi_interface: WifiDevice<'static, MODE>, config: Config, mut rng: Rng) -> Rc<Self> {
         const RESOURCES: StackResources<STACK_SOCKET_COUNT> = StackResources::new();
 
         let lower = rng.random() as u64;
@@ -54,8 +58,8 @@ impl StackWrapper {
     }
 }
 
-impl Deref for StackWrapper {
-    type Target = Stack<WifiDevice<'static>>;
+impl<MODE: WifiDeviceMode> Deref for StackWrapper<MODE> {
+    type Target = Stack<WifiDevice<'static, MODE>>;
 
     #[inline(always)]
     fn deref(&self) -> &Self::Target {
@@ -63,7 +67,7 @@ impl Deref for StackWrapper {
     }
 }
 
-impl Drop for StackWrapper {
+impl<MODE: WifiDeviceMode> Drop for StackWrapper<MODE> {
     fn drop(&mut self) {
         unsafe {
             _ = Box::from_raw(self.0.as_mut());
@@ -265,7 +269,15 @@ impl WifiDriver {
     }
 }
 
-#[cardio::task(pool_size = 2)]
-async fn net_task(stack: Rc<StackWrapper>, mut task_control: TaskControlToken<!>) {
+#[cardio::task]
+async fn ap_net_task(stack: Rc<StackWrapper<WifiApDevice>>, mut task_control: TaskControlToken<!>) {
+    task_control.run_cancellable(|_| stack.run()).await;
+}
+
+#[cardio::task]
+async fn sta_net_task(
+    stack: Rc<StackWrapper<WifiStaDevice>>,
+    mut task_control: TaskControlToken<!>,
+) {
     task_control.run_cancellable(|_| stack.run()).await;
 }

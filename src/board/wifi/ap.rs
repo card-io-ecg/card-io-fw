@@ -6,7 +6,7 @@ use gui::widgets::wifi_access_point::WifiAccessPointState;
 use crate::{
     board::{
         hal::{peripherals::WIFI, Rng},
-        wifi::{net_task, StackWrapper},
+        wifi::{ap_net_task, StackWrapper},
     },
     task_control::{TaskControlToken, TaskController},
 };
@@ -15,7 +15,7 @@ use embassy_futures::join::join;
 use embassy_net::{Config, Stack};
 use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi as _};
 use esp_wifi::{
-    wifi::{WifiController, WifiDevice, WifiEvent, WifiMode},
+    wifi::{WifiApDevice, WifiController, WifiDevice, WifiEvent},
     EspWifiInitialization,
 };
 use macros as cardio;
@@ -34,7 +34,7 @@ impl ApConnectionState {
 
 #[derive(Clone)]
 pub struct Ap {
-    pub(super) ap_stack: Rc<StackWrapper>,
+    pub(super) ap_stack: Rc<StackWrapper<WifiApDevice>>,
     pub(super) state: Rc<ApConnectionState>,
 }
 
@@ -43,7 +43,7 @@ impl Ap {
         self.ap_stack.is_link_up()
     }
 
-    pub fn stack(&self) -> &Stack<WifiDevice<'static>> {
+    pub fn stack(&self) -> &Stack<WifiDevice<'static, WifiApDevice>> {
         &self.ap_stack
     }
 
@@ -78,7 +78,7 @@ impl ApState {
         info!("Configuring AP");
 
         let (ap_device, controller) =
-            unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Ap));
+            unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiApDevice));
 
         info!("Starting AP");
 
@@ -96,7 +96,7 @@ impl ApState {
         ));
 
         info!("Starting NET task");
-        spawner.must_spawn(net_task(ap_stack.clone(), net_task_control.token()));
+        spawner.must_spawn(ap_net_task(ap_stack.clone(), net_task_control.token()));
 
         Self {
             init,

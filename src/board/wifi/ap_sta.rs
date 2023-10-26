@@ -7,11 +7,11 @@ use crate::{
         hal::{peripherals::WIFI, Rng},
         wifi::{
             ap::{Ap, ApConnectionState, ApController},
-            net_task,
+            ap_net_task,
             sta::{
                 CommandQueue, InitialStaControllerState, Sta, StaConnectionState, StaController,
             },
-            StackWrapper,
+            sta_net_task, StackWrapper,
         },
     },
     task_control::{TaskControlToken, TaskController},
@@ -79,8 +79,11 @@ impl ApStaState {
         ));
 
         info!("Starting NET tasks");
-        spawner.must_spawn(net_task(ap_stack.clone(), ap_net_task_control.token()));
-        spawner.must_spawn(net_task(sta_stack.clone(), sta_net_task_control.token()));
+        spawner.must_spawn(ap_net_task(ap_stack.clone(), ap_net_task_control.token()));
+        spawner.must_spawn(sta_net_task(
+            sta_stack.clone(),
+            sta_net_task_control.token(),
+        ));
 
         Self {
             init,
