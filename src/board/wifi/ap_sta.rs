@@ -47,12 +47,7 @@ impl ApStaState {
     ) -> Self {
         info!("Configuring AP-STA");
 
-        let (ap_device, sta_device, controller) = unwrap!(esp_wifi::wifi::new_ap_sta(
-            &init,
-            wifi,
-            Default::default(),
-            Default::default()
-        ));
+        let (ap_device, sta_device, controller) = unwrap!(esp_wifi::wifi::new_ap_sta(&init, wifi));
 
         info!("Starting AP-STA");
 
