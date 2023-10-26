@@ -30,8 +30,19 @@ use crate::{
     },
     heap::init_heap,
 };
+
+#[cfg(feature = "battery_max17055")]
+use {
+    crate::{
+        board::{BatteryAdcEnable, BatteryFg, BatteryFgI2cInstance, I2cScl, I2cSda},
+        hal::i2c::I2C,
+    },
+    max17055::{DesignData, Max17055},
+};
+
 #[cfg(feature = "log")]
 use esp_println::logger::init_logger;
+
 use fugit::RateExtU32;
 
 pub static WIFI_DRIVER: StaticCell<WifiDriver> = StaticCell::new();
@@ -170,5 +181,54 @@ impl StartupResources {
             adc_clock_enable.into(),
             touch_detect.into(),
         )
+    }
+
+    #[cfg(feature = "battery_max17055")]
+    #[inline(always)]
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn setup_batter_monitor_fg(
+        i2c: BatteryFgI2cInstance,
+        i2c_interrupt: peripherals::Interrupt,
+        sda: impl Into<I2cSda>,
+        scl: impl Into<I2cScl>,
+        vbus_detect: impl Into<VbusDetect>,
+        charger_status: impl Into<ChargerStatus>,
+        fg_enable: impl Into<BatteryAdcEnable>,
+        clocks: &Clocks<'_>,
+    ) -> BatteryMonitor<VbusDetect, ChargerStatus> {
+        unwrap!(interrupt::enable(
+            i2c_interrupt,
+            interrupt::Priority::Priority1,
+        ));
+
+        // MCP73832T-2ACI/OT
+        // - ITerm/Ireg = 7.5%
+        // - Vreg = 4.2
+        // R_prog = 4.7k
+        // i_chg = 1000/4.7 = 212mA
+        // i_chg_term = 212 * 0.0075 = 1.59mA
+        // LSB = 1.5625μV/20mOhm = 78.125μA/LSB
+        // 1.59mA / 78.125μA/LSB ~~ 20 LSB
+        let design = DesignData {
+            capacity: 320,
+            i_chg_term: 20,
+            v_empty: 3000,
+            v_recovery: 3880,
+            v_charge: 4200,
+            r_sense: 20,
+        };
+
+        BatteryMonitor::start(
+            vbus_detect.into(),
+            charger_status.into(),
+            BatteryFg::new(
+                Max17055::new(
+                    I2C::new(i2c, sda.into(), scl.into(), 100u32.kHz(), clocks),
+                    design,
+                ),
+                fg_enable.into(),
+            ),
+        )
+        .await
     }
 }
