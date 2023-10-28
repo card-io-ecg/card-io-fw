@@ -298,22 +298,14 @@ fn example(package: String, name: String, watch: bool) -> AnyResult<()> {
 }
 
 fn asm() -> AnyResult<()> {
-    cmd!(
-        "xtensa-esp32s3-elf-objdump",
-        "-d",
-        "./target/xtensa-esp32s3-none-elf/release/card_io_fw"
-    )
-    .stdout_path("target/asm.s")
-    .run()?;
+    let elf = "./target/xtensa-esp32s3-none-elf/release/card_io_fw";
+    cmd!("xtensa-esp32s3-elf-objdump", "-d", elf)
+        .stdout_path("target/asm.s")
+        .run()?;
 
-    cmd!(
-        "xtensa-esp32s3-elf-nm",
-        "./target/xtensa-esp32s3-none-elf/release/card_io_fw",
-        "-S",
-        "--size-sort",
-    )
-    .stdout_path("target/syms.txt")
-    .run()?;
+    cmd!("xtensa-esp32s3-elf-nm", elf, "-S", "--size-sort",)
+        .stdout_path("target/syms.txt")
+        .run()?;
 
     std::fs::remove_file("target/asm_filt.s").ok();
     std::fs::remove_file("target/syms_filt.txt").ok();
