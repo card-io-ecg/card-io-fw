@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use embedded_io::Io;
+use embedded_io_async::ErrorType;
 use httparse::Header;
 use ufmt::uwrite;
 
@@ -131,7 +131,7 @@ impl<'s, C: Connection> Response<'s, C, Headers> {
         async fn send<C: Connection>(
             socket: &mut C,
             header: Header<'_>,
-        ) -> Result<(), <C as Io>::Error> {
+        ) -> Result<(), <C as ErrorType>::Error> {
             socket.write_all(header.name.as_bytes()).await?;
             socket.write_all(b": ").await?;
             socket.write_all(header.value).await?;

@@ -7,7 +7,7 @@ use embedded_graphics::{
     text::{renderer::TextRenderer, Alignment, Baseline, Text, TextStyleBuilder},
     Drawable,
 };
-use embedded_io::asynch::{Read, Write};
+use embedded_io_async::{Read, Write};
 use embedded_layout::prelude::*;
 use embedded_menu::items::select::SelectValue;
 use norfs::storable::{LoadError, Loadable, Storable};

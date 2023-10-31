@@ -4,8 +4,7 @@ use crate::{
     board::{
         hal::{
             clock::Clocks,
-            peripherals::{RNG, TIMG1},
-            radio::Wifi,
+            peripherals::{RNG, TIMG1, WIFI},
             system::RadioClockControl,
             timer::{Timer0, TimerGroup},
             Rng, Timer,
@@ -19,9 +18,7 @@ use crate::{
 };
 use alloc::{boxed::Box, rc::Rc};
 use embassy_executor::Spawner;
-use embassy_futures::select::select;
 use embassy_net::{Config, Stack, StackResources};
-use embassy_time::{Duration, Timer as DelayTimer};
 use esp_wifi::{wifi::WifiDevice, EspWifiInitFor, EspWifiInitialization};
 use gui::widgets::{wifi_access_point::WifiAccessPointState, wifi_client::WifiClientState};
 use macros as cardio;
@@ -77,7 +74,7 @@ pub mod ap;
 pub mod sta;
 
 pub struct WifiDriver {
-    wifi: Wifi,
+    wifi: WIFI,
     rng: Rng,
     state: WifiDriverState,
 }
@@ -138,7 +135,7 @@ impl WifiDriverState {
 
 impl WifiDriver {
     pub fn new(
-        wifi: Wifi,
+        wifi: WIFI,
         timer: TIMG1,
         rng: RNG,
         rcc: RadioClockControl,
@@ -233,16 +230,5 @@ impl WifiDriver {
 
 #[cardio::task]
 async fn net_task(stack: Rc<StackWrapper>, mut task_control: TaskControlToken<!>) {
-    task_control
-        .run_cancellable(|_| async {
-            select(stack.run(), async {
-                // HACK: force polling the interface in case some write operation doesn't wake it up
-                loop {
-                    DelayTimer::after(Duration::from_secs(1)).await;
-                }
-            })
-            .await;
-            unreachable!()
-        })
-        .await;
+    task_control.run_cancellable(|_| stack.run()).await;
 }

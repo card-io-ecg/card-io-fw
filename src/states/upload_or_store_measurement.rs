@@ -328,7 +328,7 @@ impl RequestBody for MeasurementRef<'_> {
         Some(self.buffer.len() + 4)
     }
 
-    async fn write<W: embedded_io::asynch::Write>(&self, writer: &mut W) -> Result<(), W::Error> {
+    async fn write<W: embedded_io_async::Write>(&self, writer: &mut W) -> Result<(), W::Error> {
         writer.write_all(&self.version.to_le_bytes()).await?;
         writer.write_all(self.buffer).await?;
 

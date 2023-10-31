@@ -6,7 +6,7 @@
 
 use core::{fmt::Debug, slice};
 
-use embedded_io::blocking::{Read, ReadExactError, Write};
+use embedded_io::{Read, ReadExactError, Write};
 
 use crate::buffer::Buffer;
 

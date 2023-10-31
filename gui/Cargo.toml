@@ -10,6 +10,7 @@ embedded-graphics = { workspace = true }
 embedded-menu = { workspace = true }
 norfs = { workspace = true }
 embedded-io = { workspace = true }
+embedded-io-async = { workspace = true }
 heapless = { workspace = true, features = ["ufmt-impl"] }
 embedded-text = "0.6.6"
 embedded-layout = "0.4.1"

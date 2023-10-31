@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use embedded_io::asynch::Write;
+use embedded_io_async::Write;
 use ufmt::uwrite;
 
 use crate::{

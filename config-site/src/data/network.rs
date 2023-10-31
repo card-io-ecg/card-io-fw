@@ -1,5 +1,5 @@
 #[cfg(feature = "embedded")]
-use embedded_io::asynch::{Read, Write};
+use embedded_io_async::{Read, Write};
 #[cfg(feature = "embedded")]
 use norfs::storable::{LoadError, Loadable, Storable};
 

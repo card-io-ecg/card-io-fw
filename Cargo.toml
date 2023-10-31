@@ -11,19 +11,19 @@ embedded-graphics = "0.8.0"
 embedded-hal = "1.0.0-rc.1"
 embedded-hal-async = "1.0.0-rc.1"
 embedded-hal-bus = { version = "0.1.0-rc.1", features = ["async"] }
-embedded-nal-async = "0.4.0"
-embedded-io = { version = "0.4", features = ["async"] }
+embedded-nal-async = "0.6.0"
+embedded-io = "0.6"
+embedded-io-async = "0.6"
 embedded-menu = "0.5.2"
-embedded-svc = { version = "0.25", default-features = false }
-embassy-net = { version = "0.1.0", features = [
+embedded-svc = { version = "0.26", default-features = false }
+embassy-net = { version = "0.2.1", features = [
     "nightly",
     "tcp",
     "dhcpv4",
     "dns",
-    "unstable-traits",
     "medium-ethernet",
 ] }
-embassy-sync = { version = "0.2.0" }
+embassy-sync = { version = "0.4.0" }
 embassy-executor = { version = "0.3.0", features = [
     "nightly",
 ] }
@@ -35,15 +35,13 @@ log = { version = "0.4.18", default-features = false, features = [
 ] }
 logger = { path = "logger" }
 signal-processing = { path = "signal-processing" }
-norfs = { git = "https://github.com/card-io-ecg/norfs.git", rev = "5ae12a8" }
-norfs-driver = { git = "https://github.com/card-io-ecg/norfs.git", rev = "5ae12a8" }
-norfs-esp32s3 = { git = "https://github.com/card-io-ecg/norfs.git", rev = "5ae12a8" }
+norfs = { git = "https://github.com/card-io-ecg/norfs.git", rev = "62cd6ea" }
+norfs-driver = { git = "https://github.com/card-io-ecg/norfs.git", rev = "62cd6ea" }
+norfs-esp32s3 = { git = "https://github.com/card-io-ecg/norfs.git", rev = "62cd6ea" }
 object-chain = "0.1.3"
 bad-server = { path = "bad-server" }
 defmt = { version = "=0.3.5" }
 ufmt = "0.2.0"
-slice-string = "0.7.0"
-tinyvec = "1.6.0"
 
 smoltcp = { version = "0.10.0", default-features = false, features = [
   "dns-max-server-count-2",
@@ -52,12 +50,12 @@ smoltcp = { version = "0.10.0", default-features = false, features = [
 [dependencies]
 embassy-futures = { version = "0.1.0" }
 embassy-executor = { workspace = true }
-embassy-time = { version = "0.1.4", features = ["nightly", "unstable-traits"] }
+embassy-time = { version = "0.1.5", features = ["nightly", "unstable-traits"] }
 
 embedded-hal-old = { package = "embedded-hal", version = "0.2.7" }
 
 # esp32s2-hal = { version = "0.10.0", optional = true, features = ["rt", "async", "embassy", "embassy-time-systick", "eh1"] }
-esp32s3-hal = { version = "0.12.0", optional = true, features = [
+esp32s3-hal = { version = "0.13.0", optional = true, features = [
     "rt",
     "async",
     "embassy",
@@ -73,8 +71,8 @@ esp-backtrace = { version = "0.9.0", features = [
 esp-println = { version = "0.7.0", default-features = false, features = [
     "critical-section",
 ] }
-esp-alloc = { version = "0.3.0" }
-esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "34b8181", default-features = false, features = [
+esp-alloc = "0.3.0"
+esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "bd5f611", default-features = false, features = [
     "phy-enable-usb",
     "ps-max-modem",
     "wifi",
@@ -110,19 +108,20 @@ replace_with = { version = "0.1", default-features = false, features = [
 ] }
 static_cell = { version = "1.2.0", features = ["nightly"] }
 bad-server = { path = "bad-server", features = ["embassy"] }
-embedded-tls = { version = "0.14.2", default-features = false, features = ["async"] }
-reqwless = "0.6.0"
+embedded-tls = { version = "0.16.0", default-features = false, features = ["async"] }
+reqwless = "0.9.0"
 
-embedded-graphics = { workspace = true }
-embedded-hal = { workspace = true }
-embedded-hal-async = { workspace = true }
-embedded-hal-bus = { workspace = true }
-embedded-nal-async = { workspace = true }
-embedded-io = { workspace = true }
-embedded-menu = { workspace = true }
-embedded-svc = { workspace = true }
-embassy-net = { workspace = true }
-embassy-sync = { workspace = true }
+embedded-graphics.workspace = true
+embedded-hal.workspace = true
+embedded-hal-async.workspace = true
+embedded-hal-bus.workspace = true
+embedded-nal-async.workspace = true
+embedded-io.workspace = true
+embedded-io-async.workspace = true
+embedded-menu.workspace = true
+embedded-svc.workspace = true
+embassy-net.workspace = true
+embassy-sync.workspace = true
 
 norfs = { workspace = true }
 norfs-driver = { workspace = true }
@@ -132,7 +131,6 @@ norfs-esp32s3 = { workspace = true, optional = true, features = [
 heapless = { workspace = true }
 object-chain = { workspace = true }
 ufmt = { workspace = true }
-slice-string = { workspace = true, features = ["ufmt-impl"] }
 
 logger = { workspace = true }
 log = { workspace = true, optional = true }
@@ -144,7 +142,6 @@ enumset = "1.1.3"
 
 [patch.crates-io]
 # esp32s3-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "0c8dd59163472133870a62b6248f50953f02defc" }
-esp32s3-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "race" }
 # esp-println = { git = "https://github.com/esp-rs/esp-println.git" }
 # embedded-text = { git = "https://github.com/embedded-graphics/embedded-text.git" }
 # esp32-hal = { path = "../../esp-hal/esp32-hal" }
@@ -155,10 +152,10 @@ esp32s3-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "race"
 # esp32c6-hal = { path = "../../esp-hal/esp32c6-hal" }
 # esp-hal-common = { path = "../../esp-hal/esp-hal-common" }
 # esp-hal-procmacros = { path = "../../esp-hal/esp-hal-procmacros" }
+embedded-tls = { git = "https://github.com/drogue-iot/embedded-tls.git", branch = "old" }
 
 [patch.'https://github.com/esp-rs/esp-wifi.git']
 # esp-wifi = { path = "../esp-wifi/esp-wifi" }
-# esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git" }
 
 [features]
 default = ["esp32s3", "defmt"]
@@ -209,7 +206,7 @@ log = [
 defmt = [
     "dep:defmt",
     "norfs/defmt",
-    "embedded-io/defmt",
+    "embedded-io/defmt-03",
     "embedded-svc/defmt",
     "embedded-graphics/defmt",
     "esp-println/defmt",

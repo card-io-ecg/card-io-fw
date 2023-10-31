@@ -121,16 +121,13 @@ impl super::startup::StartupResources {
         )
         .await;
 
-        // Wifi
-        let (wifi, _) = peripherals.RADIO.split();
-
         Self {
             display,
             frontend: adc,
             battery_monitor,
             wifi: WIFI_DRIVER.init_with(|| {
                 WifiDriver::new(
-                    wifi,
+                    peripherals.WIFI,
                     peripherals.TIMG1,
                     peripherals.RNG,
                     system.radio_clock_control,

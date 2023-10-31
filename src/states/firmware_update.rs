@@ -2,7 +2,7 @@ use core::cell::Cell;
 
 use embassy_futures::select::{select, Either};
 use embassy_time::{Duration, Instant, Timer};
-use embedded_io::asynch::Read;
+use embedded_io_async::BufRead;
 use reqwless::{request::Method, response::Status};
 use ufmt::uwrite;
 
@@ -150,9 +150,7 @@ async fn do_update(context: &mut Context) -> UpdateResult {
     };
 
     let size = response.content_length;
-    let mut buffer = [0; 1024];
-
-    print_progress(context, &mut buffer, 0, size, None).await;
+    print_progress(context, 0, size, None).await;
 
     if let Err(e) = ota.erase().await {
         warn!("Failed to erase OTA: {}", e);
@@ -167,29 +165,29 @@ async fn do_update(context: &mut Context) -> UpdateResult {
     let result = select(
         async {
             loop {
-                let received_buffer =
-                    match Timeout::with(READ_TIMEOUT, reader.read(&mut buffer)).await {
-                        Some(result) => match result {
-                            Ok(0) => break None,
-                            Ok(read) => &buffer[..read],
-                            Err(e) => {
-                                warn!("HTTP read error: {}", e);
-                                break Some(UpdateError::DownloadFailed);
-                            }
-                        },
-                        _ => break Some(UpdateError::DownloadTimeout),
-                    };
+                let received_buffer = match Timeout::with(READ_TIMEOUT, reader.fill_buf()).await {
+                    Some(result) => match result {
+                        Ok(&[]) => break None,
+                        Ok(read) => read,
+                        Err(e) => {
+                            warn!("HTTP read error: {}", e);
+                            break Some(UpdateError::DownloadFailed);
+                        }
+                    },
+                    _ => break Some(UpdateError::DownloadTimeout),
+                };
 
                 if let Err(e) = ota.write(received_buffer).await {
                     warn!("Failed to write OTA: {}", e);
                     break Some(UpdateError::WriteError);
                 }
 
-                received_since.set(received_since.get() + received_buffer.len())
+                let received_len = received_buffer.len();
+                received_since.set(received_since.get() + received_len);
+                reader.consume(received_len);
             }
         },
         async {
-            let mut buffer = [0; 128];
             loop {
                 Timer::after(Duration::from_millis(500)).await;
                 let received = received_since.take();
@@ -197,7 +195,7 @@ async fn do_update(context: &mut Context) -> UpdateResult {
 
                 let avg_speed = Throughput(received_total, started.elapsed());
 
-                print_progress(context, &mut buffer, received_total, size, Some(avg_speed)).await;
+                print_progress(context, received_total, size, Some(avg_speed)).await;
             }
         },
     )
@@ -219,12 +217,11 @@ async fn do_update(context: &mut Context) -> UpdateResult {
 
 async fn print_progress(
     context: &mut Context,
-    message: &mut [u8],
     current: usize,
     size: Option<usize>,
     speed: Option<Throughput>,
 ) {
-    let mut message = slice_string::SliceString::new(message);
+    let mut message = heapless::String::<128>::new();
     if let Some(size) = size {
         let progress = current * 100 / size;
         unwrap!(uwrite!(message, "Downloading update: {}%", progress));

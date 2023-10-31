@@ -9,10 +9,7 @@ extern crate logger;
 
 use core::{fmt::Debug, marker::PhantomData};
 
-use embedded_io::{
-    asynch::{Read, Write as _},
-    Io,
-};
+use embedded_io_async::{ErrorType, Read, Write as _};
 use httparse::Status;
 use object_chain::{Chain, ChainElement, Link};
 
@@ -124,7 +121,7 @@ where
     }
 }
 
-pub enum HandleError<C: Io> {
+pub enum HandleError<C: ErrorType> {
     Read(ReadError<C>),
     Write(C::Error),
     TooManyHeaders,
@@ -132,7 +129,7 @@ pub enum HandleError<C: Io> {
     RequestParse(httparse::Error),
 }
 
-impl<C: Io> From<ReadError<C>> for HandleError<C> {
+impl<C: ErrorType> From<ReadError<C>> for HandleError<C> {
     fn from(value: ReadError<C>) -> Self {
         HandleError::Read(value)
     }
@@ -140,7 +137,7 @@ impl<C: Io> From<ReadError<C>> for HandleError<C> {
 
 impl<C> Debug for HandleError<C>
 where
-    C: Io,
+    C: ErrorType,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
@@ -156,7 +153,7 @@ where
 #[cfg(feature = "defmt")]
 impl<C> defmt::Format for HandleError<C>
 where
-    C: Io,
+    C: ErrorType,
     C::Error: defmt::Format,
 {
     fn format(&self, f: defmt::Formatter) {
