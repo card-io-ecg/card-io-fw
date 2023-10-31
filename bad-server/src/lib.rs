@@ -3,7 +3,7 @@
 #![feature(async_fn_in_trait)]
 #![feature(impl_trait_projections)]
 #![allow(incomplete_features)]
-#![allow(async_fn_in_trait)]
+#![allow(unknown_lints, async_fn_in_trait)]
 
 #[macro_use]
 extern crate logger;
