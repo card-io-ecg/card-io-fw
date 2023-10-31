@@ -4,8 +4,7 @@ use crate::{
     board::{
         hal::{
             clock::Clocks,
-            peripherals::{RNG, TIMG1},
-            radio::Wifi,
+            peripherals::{RNG, TIMG1, WIFI},
             system::RadioClockControl,
             timer::{Timer0, TimerGroup},
             Rng, Timer,
@@ -77,7 +76,7 @@ pub mod ap;
 pub mod sta;
 
 pub struct WifiDriver {
-    wifi: Wifi,
+    wifi: WIFI,
     rng: Rng,
     state: WifiDriverState,
 }
@@ -138,7 +137,7 @@ impl WifiDriverState {
 
 impl WifiDriver {
     pub fn new(
-        wifi: Wifi,
+        wifi: WIFI,
         timer: TIMG1,
         rng: RNG,
         rcc: RadioClockControl,

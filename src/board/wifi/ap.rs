@@ -5,7 +5,7 @@ use gui::widgets::wifi_access_point::WifiAccessPointState;
 
 use crate::{
     board::{
-        hal::{radio::Wifi, Rng},
+        hal::{peripherals::WIFI, Rng},
         wifi::{net_task, StackWrapper},
     },
     task_control::{TaskControlToken, TaskController},
@@ -71,7 +71,7 @@ impl ApState {
     pub(super) fn init(
         init: EspWifiInitialization,
         config: Config,
-        wifi: &'static mut Wifi,
+        wifi: &'static mut WIFI,
         rng: Rng,
         spawner: Spawner,
     ) -> Self {
