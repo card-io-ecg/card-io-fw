@@ -2,7 +2,6 @@
 #![allow(stable_features)]
 #![feature(async_fn_in_trait)]
 #![feature(impl_trait_projections)]
-#![allow(incomplete_features)]
 #![allow(unknown_lints, async_fn_in_trait)]
 
 #[macro_use]

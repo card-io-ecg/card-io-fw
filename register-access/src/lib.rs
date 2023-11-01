@@ -1,7 +1,6 @@
 #![no_std]
 #![allow(stable_features)]
 #![feature(async_fn_in_trait)]
-#![allow(incomplete_features)]
 #![allow(unknown_lints, async_fn_in_trait)]
 
 use device_descriptor::{ReadOnlyRegister, Register, RegisterWidthType};

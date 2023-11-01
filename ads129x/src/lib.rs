@@ -1,6 +1,6 @@
 #![no_std]
 #![feature(async_fn_in_trait)]
-#![allow(incomplete_features)]
+#![allow(unknown_lints, stable_features, async_fn_in_trait)]
 
 #[macro_use]
 extern crate logger;

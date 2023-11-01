@@ -1,5 +1,4 @@
 #![feature(async_fn_in_trait)]
-#![allow(incomplete_features)]
 
 use bad_server::{
     connector::{std_compat::StdTcpSocket, Connection},

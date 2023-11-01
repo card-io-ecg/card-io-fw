@@ -1,8 +1,8 @@
 #![no_std]
 #![allow(stable_features)]
 #![feature(async_fn_in_trait)]
-#![allow(unknown_lints, async_fn_in_trait)]
 #![feature(generic_const_exprs)]
+#![allow(unknown_lints, async_fn_in_trait)]
 #![allow(incomplete_features)] // generic_const_exprs
 
 use bad_server::{
