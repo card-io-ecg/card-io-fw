@@ -273,7 +273,7 @@ async fn upload_stored(context: &mut Context) {
 
                         info!("Uploaded {}", name);
                         if let Err(e) = file.delete(storage).await {
-                            warn!("Failed to delete file: {}", e);
+                            warn!("Failed to delete file: {:?}", e);
                         }
                     }
                     Ok(_) | Err(StorageError::InsufficientBuffer) => {
@@ -439,7 +439,7 @@ where
         match Timeout::with(CONNECT_TIMEOUT, client.request(Method::POST, &upload_url)).await {
             Some(Ok(request)) => request.headers(&headers).body(samples),
             Some(Err(e)) => {
-                warn!("HTTP connect error: {}", e);
+                warn!("HTTP connect error: {:?}", e);
                 return Err(());
             }
             _ => {
@@ -455,7 +455,7 @@ where
                 return Ok(());
             }
 
-            warn!("HTTP upload failed: {}", response.status);
+            warn!("HTTP upload failed: {:?}", response.status);
             for header in response.headers() {
                 if !header.0.is_empty() {
                     debug!(
@@ -466,7 +466,7 @@ where
                 }
             }
         }
-        Some(Err(e)) => warn!("HTTP upload error: {}", e),
+        Some(Err(e)) => warn!("HTTP upload error: {:?}", e),
         _ => warn!("Timeout"),
     }
     Err(())

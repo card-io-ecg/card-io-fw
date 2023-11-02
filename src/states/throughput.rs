@@ -115,7 +115,7 @@ async fn run_test(context: &mut Context) -> TestResult {
     let mut request = match connect.await {
         Some(Ok(request)) => request,
         Some(Err(e)) => {
-            warn!("HTTP connect error: {}", e);
+            warn!("HTTP connect error: {:?}", e);
             return TestResult::Failed(TestError::HttpConnectionFailed);
         }
         _ => return TestResult::Failed(TestError::HttpConnectionTimeout),
@@ -131,12 +131,12 @@ async fn run_test(context: &mut Context) -> TestResult {
         Ok(response) => match response.status {
             Status::Ok => response,
             _ => {
-                warn!("HTTP response error: {}", response.status);
+                warn!("HTTP response error: {:?}", response.status);
                 return TestResult::Failed(TestError::HttpRequestFailed);
             }
         },
         Err(e) => {
-            warn!("HTTP response error: {}", e);
+            warn!("HTTP response error: {:?}", e);
             return TestResult::Failed(TestError::HttpRequestFailed);
         }
     };
@@ -170,7 +170,7 @@ async fn run_test(context: &mut Context) -> TestResult {
                             reader.consume(read_len);
                         }
                         Err(e) => {
-                            warn!("HTTP read error: {}", e);
+                            warn!("HTTP read error: {:?}", e);
                             break Some(TestError::DownloadFailed);
                         }
                     },

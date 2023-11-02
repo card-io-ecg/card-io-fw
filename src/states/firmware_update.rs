@@ -113,7 +113,7 @@ async fn do_update(context: &mut Context) -> UpdateResult {
     {
         Some(Ok(request)) => request,
         Some(Err(e)) => {
-            warn!("HTTP connect error: {}", e);
+            warn!("HTTP connect error: {:?}", e);
             return UpdateResult::Failed(UpdateError::HttpConnectionFailed);
         }
         None => return UpdateResult::Failed(UpdateError::HttpConnectionTimeout),
@@ -130,12 +130,12 @@ async fn do_update(context: &mut Context) -> UpdateResult {
             Status::Ok => response,
             Status::NotModified => return UpdateResult::AlreadyUpToDate,
             _ => {
-                warn!("HTTP response error: {}", response.status);
+                warn!("HTTP response error: {:?}", response.status);
                 return UpdateResult::Failed(UpdateError::HttpRequestFailed);
             }
         },
         Err(e) => {
-            warn!("HTTP response error: {}", e);
+            warn!("HTTP response error: {:?}", e);
             return UpdateResult::Failed(UpdateError::HttpRequestFailed);
         }
     };
@@ -144,7 +144,7 @@ async fn do_update(context: &mut Context) -> UpdateResult {
     {
         Ok(ota) => ota,
         Err(e) => {
-            warn!("Failed to initialize OTA: {}", e);
+            warn!("Failed to initialize OTA: {:?}", e);
             return UpdateResult::Failed(UpdateError::InternalError);
         }
     };
@@ -153,7 +153,7 @@ async fn do_update(context: &mut Context) -> UpdateResult {
     print_progress(context, 0, size, None).await;
 
     if let Err(e) = ota.erase().await {
-        warn!("Failed to erase OTA: {}", e);
+        warn!("Failed to erase OTA: {:?}", e);
         return UpdateResult::Failed(UpdateError::EraseFailed);
     };
 
@@ -170,7 +170,7 @@ async fn do_update(context: &mut Context) -> UpdateResult {
                         Ok(&[]) => break None,
                         Ok(read) => read,
                         Err(e) => {
-                            warn!("HTTP read error: {}", e);
+                            warn!("HTTP read error: {:?}", e);
                             break Some(UpdateError::DownloadFailed);
                         }
                     },
@@ -178,7 +178,7 @@ async fn do_update(context: &mut Context) -> UpdateResult {
                 };
 
                 if let Err(e) = ota.write(received_buffer).await {
-                    warn!("Failed to write OTA: {}", e);
+                    warn!("Failed to write OTA: {:?}", e);
                     break Some(UpdateError::WriteError);
                 }
 
@@ -205,7 +205,7 @@ async fn do_update(context: &mut Context) -> UpdateResult {
         Either::First(Some(error)) => UpdateResult::Failed(error),
         Either::First(None) => {
             if let Err(e) = ota.activate().await {
-                warn!("Failed to activate OTA: {}", e);
+                warn!("Failed to activate OTA: {:?}", e);
                 UpdateResult::Failed(UpdateError::ActivateFailed)
             } else {
                 UpdateResult::Success

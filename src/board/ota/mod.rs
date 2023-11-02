@@ -274,7 +274,7 @@ where
             residue: 0,
         };
 
-        debug!("Activating {}", self.update_slot);
+        debug!("Activating {:?}", self.update_slot);
 
         self.ota_data.erase(self.update_slot).await?;
 

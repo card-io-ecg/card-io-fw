@@ -1,4 +1,3 @@
-use defmt::Format;
 use embassy_time::Duration;
 use ufmt::{uDebug, uDisplay, uwrite};
 
@@ -55,7 +54,8 @@ impl uDisplay for Throughput {
     }
 }
 
-impl Format for Throughput {
+#[cfg(feature = "defmt")]
+impl defmt::Format for Throughput {
     fn format(&self, fmt: defmt::Formatter) {
         let bytes_per_sec = self.bytes_per_sec();
         if let Some((int, frac, suffix)) = find_suffix(bytes_per_sec) {
