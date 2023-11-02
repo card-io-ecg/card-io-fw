@@ -108,7 +108,7 @@ replace_with = { version = "0.1", default-features = false, features = [
 ] }
 static_cell = { version = "1.2.0", features = ["nightly"] }
 bad-server = { path = "bad-server", features = ["embassy"] }
-embedded-tls = { version = "0.16.0", default-features = false, features = ["async"] }
+embedded-tls = { version = "0.16.2", default-features = false, features = ["async"] }
 reqwless = "0.9.0"
 
 embedded-graphics.workspace = true
@@ -152,7 +152,6 @@ enumset = "1.1.3"
 # esp32c6-hal = { path = "../../esp-hal/esp32c6-hal" }
 # esp-hal-common = { path = "../../esp-hal/esp-hal-common" }
 # esp-hal-procmacros = { path = "../../esp-hal/esp-hal-procmacros" }
-embedded-tls = { git = "https://github.com/drogue-iot/embedded-tls.git", branch = "old" }
 
 [patch.'https://github.com/esp-rs/esp-wifi.git']
 # esp-wifi = { path = "../esp-wifi/esp-wifi" }
