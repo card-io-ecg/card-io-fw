@@ -1,6 +1,6 @@
 use core::fmt::Debug;
 
-use embedded_io::asynch::{Read, Write};
+use embedded_io_async::{Read, Write};
 
 pub trait Connection: Read + Write {
     #[cfg(feature = "defmt")]
@@ -18,8 +18,10 @@ pub trait Connection: Read + Write {
 pub mod embassy_net_compat {
 
     use super::*;
-    use embassy_net::tcp::{AcceptError, TcpSocket};
-    use smoltcp::wire::IpListenEndpoint;
+    use embassy_net::{
+        tcp::{AcceptError, TcpSocket},
+        IpListenEndpoint,
+    };
 
     impl<'a> Connection for TcpSocket<'a> {
         type AcceptError = AcceptError;

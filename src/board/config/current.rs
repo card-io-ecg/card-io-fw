@@ -1,5 +1,5 @@
 use config_site::data::network::WifiNetwork;
-use embedded_io::asynch::{Read, Write};
+use embedded_io_async::{Read, Write};
 use gui::widgets::battery_small::BatteryStyle;
 use norfs::storable::{LoadError, Loadable, Storable};
 use ssd1306::prelude::Brightness;

@@ -2,7 +2,7 @@ use core::cell::Cell;
 
 use embassy_futures::select::{select, Either};
 use embassy_time::{Duration, Instant, Timer};
-use embedded_io::asynch::Read;
+use embedded_io_async::BufRead;
 use reqwless::{request::Method, response::Status};
 use ufmt::{uwrite, uwriteln};
 
@@ -153,7 +153,6 @@ async fn run_test(context: &mut Context) -> TestResult {
 
     let size = response.content_length;
     let mut received_total = 0;
-    let mut buffer = [0; 1024];
 
     let mut reader = response.body().reader();
 
@@ -162,10 +161,14 @@ async fn run_test(context: &mut Context) -> TestResult {
     let result = select(
         async {
             loop {
-                match Timeout::with(READ_TIMEOUT, reader.read(&mut buffer)).await {
+                match Timeout::with(READ_TIMEOUT, reader.fill_buf()).await {
                     Some(result) => match result {
-                        Ok(0) => break None,
-                        Ok(read) => received_since.set(received_since.get() + read),
+                        Ok(&[]) => break None,
+                        Ok(read) => {
+                            let read_len = read.len();
+                            received_since.set(received_since.get() + read_len);
+                            reader.consume(read_len);
+                        }
                         Err(e) => {
                             warn!("HTTP read error: {}", e);
                             break Some(TestError::DownloadFailed);
@@ -177,7 +180,6 @@ async fn run_test(context: &mut Context) -> TestResult {
         },
         async {
             let mut last_print = Instant::now();
-            let mut buffer = [0; 128];
             loop {
                 Timer::after(Duration::from_millis(500)).await;
                 let received = received_since.take();
@@ -188,7 +190,7 @@ async fn run_test(context: &mut Context) -> TestResult {
 
                 last_print = Instant::now();
 
-                print_progress(context, &mut buffer, received_total, size, speed, avg_speed).await;
+                print_progress(context, received_total, size, speed, avg_speed).await;
             }
         },
     )
@@ -206,13 +208,12 @@ async fn run_test(context: &mut Context) -> TestResult {
 
 async fn print_progress(
     context: &mut Context,
-    message: &mut [u8],
     current: usize,
     size: Option<usize>,
     current_tp: Throughput,
     average_tp: Throughput,
 ) {
-    let mut message = slice_string::SliceString::new(message);
+    let mut message = heapless::String::<128>::new();
     if let Some(size) = size {
         let progress = current * 100 / size;
         unwrap!(uwriteln!(message, "Testing: {}%", progress));

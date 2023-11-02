@@ -1,6 +1,6 @@
 use core::{convert::Infallible, mem::MaybeUninit, ops::Range};
 
-use embedded_io::{blocking::Read, Io};
+use embedded_io::{ErrorType, Read};
 
 pub struct Buffer<T: Copy, const N: usize, const POP: bool> {
     write_idx: usize,
@@ -202,7 +202,7 @@ impl<T: Copy, const N: usize> Buffer<T, N, true> {
     }
 }
 
-impl<T: Copy, const N: usize> Io for Buffer<T, N, true> {
+impl<T: Copy, const N: usize> ErrorType for Buffer<T, N, true> {
     type Error = Infallible;
 }
 

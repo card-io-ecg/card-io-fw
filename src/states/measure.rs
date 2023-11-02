@@ -183,7 +183,7 @@ async fn measure_impl(
 
     while !task_control.has_exited() && !context.battery_monitor.is_low() {
         let display_full = screen.buffer_full();
-        while let Ok(sample) = queue.try_recv() {
+        while let Ok(sample) = queue.try_receive() {
             samples += 1;
 
             if drop_samples == 0 {

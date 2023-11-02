@@ -2,7 +2,7 @@ use core::{alloc::AllocError, ptr::addr_of, sync::atomic::Ordering};
 
 use crate::{
     board::{
-        hal::{radio::Wifi, Rng},
+        hal::{peripherals::WIFI, Rng},
         initialized::Context,
         wifi::{net_task, StackWrapper},
     },
@@ -273,7 +273,7 @@ impl StaState {
     pub(super) fn init(
         init: EspWifiInitialization,
         config: Config,
-        wifi: &'static mut Wifi,
+        wifi: &'static mut WIFI,
         rng: Rng,
         spawner: Spawner,
     ) -> Self {
@@ -646,7 +646,7 @@ impl StaController {
     }
 
     pub(super) async fn wait_for_command(&self) -> Command {
-        self.command_queue.recv().await
+        self.command_queue.receive().await
     }
 }
 

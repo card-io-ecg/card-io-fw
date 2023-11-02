@@ -8,7 +8,7 @@ pub mod types;
 
 pub use current::Config;
 
-use embedded_io::asynch::Read;
+use embedded_io_async::Read;
 use norfs::storable::{LoadError, Loadable};
 
 const CURRENT_VERSION: u8 = 4;

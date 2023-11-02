@@ -9,7 +9,7 @@ edition = "2021"
 bad-server = { workspace = true }
 defmt = { workspace = true, optional = true }
 embassy-sync = { workspace = true, optional = true }
-embedded-io = { workspace = true, optional = true }
+embedded-io-async = { workspace = true, optional = true }
 heapless = { workspace = true }
 logger = { workspace = true }
 log = { workspace = true, optional = true }
@@ -30,7 +30,7 @@ smol = "1"
 
 [features]
 default = []
-embedded = ["dep:norfs", "dep:embassy-sync", "dep:embedded-io", "bad-server/embassy"]
+embedded = ["dep:norfs", "dep:embassy-sync", "dep:embedded-io-async", "bad-server/embassy"]
 std = ["dep:smol", "bad-server/std"]
 log = ["dep:log", "bad-server/log"]
 defmt = ["dep:defmt", "bad-server/defmt"]

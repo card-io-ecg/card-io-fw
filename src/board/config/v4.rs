@@ -1,5 +1,5 @@
 use config_site::data::network::WifiNetwork;
-use embedded_io::asynch::Read;
+use embedded_io_async::Read;
 use gui::widgets::battery_small::BatteryStyle;
 use norfs::storable::{LoadError, Loadable};
 
