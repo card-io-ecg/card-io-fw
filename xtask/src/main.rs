@@ -174,11 +174,11 @@ fn run(hw: HardwareVersion, release: bool) -> AnyResult<()> {
         "--target=xtensa-esp32s3-none-elf",
         &hw,
         "-Zbuild-std=core,alloc",
-        "-Zbuild-std-features=panic_immediate_abort",
     ];
 
     if release {
         build_flags.push("--release");
+        build_flags.push("-Zbuild-std-features=panic_immediate_abort");
     }
 
     // println!("🛠️  Building firmware");
