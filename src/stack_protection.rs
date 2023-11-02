@@ -33,19 +33,20 @@ impl StackMonitor {
         );
         let mut assist = conjure();
 
-        const CANARY_WORDS: u32 = 1;
+        const CANARY_UNITS: u32 = 1;
+        const CANARY_GRANULARITY: u32 = 16;
 
         // We watch writes to the last word in the stack.
         match get_core() {
             Cpu::ProCpu => assist.enable_region0_monitor(
-                stack.start as u32,
-                stack.start as u32 + CANARY_WORDS * 4,
+                stack.start as u32 + CANARY_GRANULARITY,
+                stack.start as u32 + CANARY_GRANULARITY + CANARY_UNITS * CANARY_GRANULARITY,
                 true,
                 true,
             ),
             Cpu::AppCpu => assist.enable_core1_region0_monitor(
-                stack.start as u32,
-                stack.start as u32 + CANARY_WORDS * 4,
+                stack.start as u32 + CANARY_GRANULARITY,
+                stack.start as u32 + CANARY_GRANULARITY + CANARY_UNITS * CANARY_GRANULARITY,
                 true,
                 true,
             ),

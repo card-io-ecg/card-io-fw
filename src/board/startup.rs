@@ -3,6 +3,7 @@ use embassy_executor::_export::StaticCell;
 use embassy_time::Delay;
 use embedded_hal::digital::OutputPin;
 use embedded_hal_bus::spi::ExclusiveDevice;
+use static_cell::make_static;
 
 use crate::{
     board::{
@@ -62,6 +63,20 @@ impl StartupResources {
         #[cfg(feature = "log")]
         init_logger(log::LevelFilter::Trace); // we let the compile-time log level filter do the work
         init_heap();
+
+        use core::ptr::addr_of;
+
+        extern "C" {
+            static mut _stack_start_cpu0: u8;
+            static mut _stack_end_cpu0: u8;
+        }
+
+        // We only use a single core for now, so we can write both stack regions.
+        let stack_start = unsafe { addr_of!(_stack_start_cpu0) as usize };
+        let stack_end = unsafe { addr_of!(_stack_end_cpu0) as usize };
+        let _stack_protection = make_static!(crate::stack_protection::StackMonitor::protect(
+            stack_start..stack_end
+        ));
     }
 
     #[inline(always)]

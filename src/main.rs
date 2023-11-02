@@ -16,8 +16,6 @@ extern crate alloc;
 #[macro_use]
 extern crate logger;
 
-use core::ptr::addr_of;
-
 use esp_println as _;
 
 use alloc::{boxed::Box, rc::Rc};
@@ -217,17 +215,9 @@ where
     }
 }
 
-extern "C" {
-    static mut _stack_start_cpu0: u8;
-    static mut _stack_end_cpu0: u8;
-}
-
 #[main]
 async fn main(_spawner: Spawner) {
-    // We only use a single core for now, so we can write both stack regions.
-    let stack_start = unsafe { addr_of!(_stack_start_cpu0) as usize };
-    let stack_end = unsafe { addr_of!(_stack_end_cpu0) as usize };
-    let _stack_protection = stack_protection::StackMonitor::protect((stack_start + 4)..stack_end);
+    let resources = StartupResources::initialize().await;
 
     #[cfg(feature = "hw_v1")]
     info!("Hardware version: v1");
@@ -237,8 +227,6 @@ async fn main(_spawner: Spawner) {
 
     #[cfg(feature = "hw_v4")]
     info!("Hardware version: v4");
-
-    let resources = StartupResources::initialize().await;
 
     let mut storage = FileSystem::mount().await;
     let config = load_config(storage.as_deref_mut()).await;
