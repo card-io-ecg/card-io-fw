@@ -206,8 +206,8 @@ impl Sta {
 }
 
 const SOCKET_COUNT: usize = 1;
-const SOCKET_TX_BUFFER: usize = 4 * 1024;
-const SOCKET_RX_BUFFER: usize = 8 * 1024;
+const SOCKET_TX_BUFFER: usize = 8 * 1024;
+const SOCKET_RX_BUFFER: usize = 16 * 1024;
 
 const TLS_READ_BUFFER: usize = 16 * 1024 + 256;
 const TLS_WRITE_BUFFER: usize = 4096;
