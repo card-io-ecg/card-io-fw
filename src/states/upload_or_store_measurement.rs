@@ -5,7 +5,7 @@ use core::{
 
 use alloc::{boxed::Box, vec::Vec};
 use embassy_time::Duration;
-use embedded_menu::items::NavigationItem;
+use embedded_menu::items::menu_item::{MenuItem, SelectValue};
 use embedded_nal_async::{Dns, TcpConnect};
 use gui::screens::create_menu;
 use norfs::{
@@ -122,6 +122,14 @@ async fn ask_for_measurement_action(context: &mut Context) -> (bool, bool) {
 
 struct AskForMeasurementActionMenu;
 
+#[derive(Clone, Copy, PartialEq)]
+struct UploadOrStore(bool, bool);
+impl SelectValue for UploadOrStore {
+    fn marker(&self) -> &'static str {
+        ""
+    }
+}
+
 impl MenuScreen for AskForMeasurementActionMenu {
     type Event = (bool, bool);
     type Result = (bool, bool);
@@ -129,8 +137,13 @@ impl MenuScreen for AskForMeasurementActionMenu {
     async fn menu(&mut self, context: &mut Context) -> impl AppMenuBuilder<Self::Event> {
         let mut items = heapless::Vec::<_, 3>::new();
 
-        let mut add_item = |label, value| {
-            unwrap!(items.push(NavigationItem::new(label, value)).ok());
+        let mut add_item = |label, can_upload, can_store| {
+            unwrap!(items
+                .push(
+                    MenuItem::new(label, UploadOrStore(can_upload, can_store))
+                        .with_value_converter(|x| (x.0, x.1))
+                )
+                .ok());
         };
 
         let network_configured =
@@ -140,18 +153,20 @@ impl MenuScreen for AskForMeasurementActionMenu {
 
         if network_configured {
             if can_store {
-                add_item("Upload or store", (true, true));
+                add_item("Upload or store", true, true);
             }
-            add_item("Upload", (true, false));
+            add_item("Upload", true, false);
         }
 
         if can_store {
-            add_item("Store", (false, true));
+            add_item("Store", false, true);
         }
 
-        create_menu("EKG action")
-            .add_items(items)
-            .add_item(NavigationItem::new("Discard", (false, false)))
+        create_menu("EKG action").add_menu_items(items).add_item(
+            "Discard",
+            UploadOrStore(false, false),
+            |x| (x.0, x.1),
+        )
     }
 
     async fn handle_event(

@@ -25,10 +25,9 @@ pub mod qr;
 pub mod wifi_ap;
 
 pub const fn menu_style<R>(
-) -> MenuStyle<BinaryColor, AnimatedTriangle, SingleTouch, AnimatedPosition, R> {
+) -> MenuStyle<AnimatedTriangle, SingleTouch, AnimatedPosition, R, BinaryColor> {
     MenuStyle::new(BinaryColor::On)
         .with_animated_selection_indicator(10)
-        .with_details_delay(300)
         .with_selection_indicator(AnimatedTriangle::new(200))
         .with_input_adapter(SingleTouch {
             debounce_time: 1,
@@ -40,7 +39,7 @@ pub const fn menu_style<R>(
 
 pub fn create_menu<T: AsRef<str>, R>(
     title: T,
-) -> MenuBuilder<T, SingleTouch, NoItems, R, BinaryColor, AnimatedPosition, AnimatedTriangle> {
+) -> MenuBuilder<T, SingleTouch, NoItems, R, AnimatedPosition, AnimatedTriangle, BinaryColor> {
     Menu::with_style(title, menu_style())
 }
 

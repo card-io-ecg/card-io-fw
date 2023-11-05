@@ -5,7 +5,7 @@ use crate::{
     uformat, AppState,
 };
 use embassy_time::Duration;
-use embedded_menu::items::NavigationItem;
+use embedded_menu::items::menu_item::MenuItem;
 use gui::screens::create_menu;
 
 #[derive(Clone, Copy)]
@@ -33,7 +33,7 @@ impl MenuScreen for BatteryInfoMenu {
 
         let mut list_item = |label| {
             unwrap!(items
-                .push(NavigationItem::new(label, BatteryEvents::None))
+                .push(MenuItem::new(label, "").with_value_converter(|_| BatteryEvents::None))
                 .ok())
         };
 
@@ -72,8 +72,8 @@ impl MenuScreen for BatteryInfoMenu {
         }
 
         create_menu("Battery info")
-            .add_items(items)
-            .add_item(NavigationItem::new("Back", BatteryEvents::Back))
+            .add_menu_items(items)
+            .add_item("Back", "<-", |_| BatteryEvents::Back)
     }
 
     async fn handle_event(

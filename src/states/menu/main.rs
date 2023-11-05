@@ -4,12 +4,12 @@ use crate::{
     states::menu::{AppMenu, MenuScreen},
     AppState,
 };
-use embedded_menu::items::NavigationItem;
+use embedded_menu::items::menu_item::{MenuItem, SelectValue};
 use gui::screens::create_menu;
 
 use super::AppMenuBuilder;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum MainMenuEvents {
     Measure,
     Display,
@@ -20,6 +20,12 @@ pub enum MainMenuEvents {
     Throughput,
     Storage,
     Shutdown,
+}
+
+impl SelectValue for MainMenuEvents {
+    fn marker(&self) -> &'static str {
+        ""
+    }
 }
 
 pub async fn main_menu(context: &mut Context) -> AppState {
@@ -40,15 +46,17 @@ impl MenuScreen for MainMenu {
     async fn menu(&mut self, context: &mut Context) -> impl AppMenuBuilder<Self::Event> {
         let mut optional_items = heapless::Vec::<_, 4>::new();
 
-        let mut optional_item =
-            |label, event| unwrap!(optional_items.push(NavigationItem::new(label, event)).ok());
-
         if context.can_enable_wifi() {
-            optional_item("Wifi setup", MainMenuEvents::WifiSetup);
-            optional_item("Wifi networks", MainMenuEvents::WifiListVisible);
-
+            let mut optional_item = |label, event| {
+                unwrap!(optional_items
+                    .push(MenuItem::new(label, event).with_value_converter(|evt| evt))
+                    .ok())
+            };
             let network_configured =
                 !context.config.backend_url.is_empty() && !context.config.known_networks.is_empty();
+
+            optional_item("Wifi setup", MainMenuEvents::WifiSetup);
+            optional_item("Wifi networks", MainMenuEvents::WifiListVisible);
 
             if network_configured {
                 optional_item("Firmware update", MainMenuEvents::FirmwareUpdate);
@@ -57,12 +65,12 @@ impl MenuScreen for MainMenu {
         }
 
         create_menu("Main menu")
-            .add_item(NavigationItem::new("Measure", MainMenuEvents::Measure))
-            .add_item(NavigationItem::new("Display", MainMenuEvents::Display))
-            .add_item(NavigationItem::new("Storage", MainMenuEvents::Storage))
-            .add_item(NavigationItem::new("Device info", MainMenuEvents::About))
-            .add_items(optional_items)
-            .add_item(NavigationItem::new("Shutdown", MainMenuEvents::Shutdown))
+            .add_item("Measure", MainMenuEvents::Measure, |evt| evt)
+            .add_item("Display", MainMenuEvents::Display, |evt| evt)
+            .add_item("Storage", MainMenuEvents::Storage, |evt| evt)
+            .add_item("Device info", MainMenuEvents::About, |evt| evt)
+            .add_menu_items(optional_items)
+            .add_item("Shutdown", MainMenuEvents::Shutdown, |evt| evt)
     }
 
     async fn handle_event(

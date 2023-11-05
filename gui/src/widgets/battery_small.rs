@@ -9,7 +9,7 @@ use embedded_graphics::{
 };
 use embedded_io_async::{Read, Write};
 use embedded_layout::prelude::*;
-use embedded_menu::items::select::SelectValue;
+use embedded_menu::items::menu_item::SelectValue;
 use norfs::storable::{LoadError, Loadable, Storable};
 use ufmt::uwrite;
 
@@ -298,15 +298,16 @@ impl Drawable for Battery {
 }
 
 impl SelectValue for BatteryStyle {
-    fn next(&self) -> Self {
-        match self {
+    fn next(&mut self) {
+        *self = match self {
             Self::MilliVolts => Self::Percentage,
             Self::Percentage => Self::Icon,
             Self::Icon => Self::LowIndicator,
             Self::LowIndicator => Self::MilliVolts,
-        }
+        };
     }
-    fn name(&self) -> &'static str {
+
+    fn marker(&self) -> &str {
         match self {
             Self::MilliVolts => "MilliVolts",
             Self::Percentage => "Percentage",

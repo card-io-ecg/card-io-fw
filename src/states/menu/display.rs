@@ -6,7 +6,6 @@ use crate::{
     states::menu::{AppMenu, MenuScreen},
     AppState,
 };
-use embedded_menu::items::{NavigationItem, Select};
 use gui::{screens::create_menu, widgets::battery_small::BatteryStyle};
 
 pub async fn display_menu(context: &mut Context) -> AppState {
@@ -37,18 +36,21 @@ impl MenuScreen for DisplayMenu {
     async fn menu(&mut self, context: &mut Context) -> impl super::AppMenuBuilder<Self::Event> {
         create_menu("Display")
             .add_item(
-                Select::new("Brightness", context.config.display_brightness)
-                    .with_value_converter(DisplayMenuEvents::ChangeBrigtness),
+                "Brightness",
+                context.config.display_brightness,
+                DisplayMenuEvents::ChangeBrigtness,
             )
             .add_item(
-                Select::new("Battery", context.config.battery_display_style)
-                    .with_value_converter(DisplayMenuEvents::ChangeBatteryStyle),
+                "Battery",
+                context.config.battery_display_style,
+                DisplayMenuEvents::ChangeBatteryStyle,
             )
             .add_item(
-                Select::new("EKG Filter", context.config.filter_strength)
-                    .with_value_converter(DisplayMenuEvents::ChangeFilterStrength),
+                "EKG Filter",
+                context.config.filter_strength,
+                DisplayMenuEvents::ChangeFilterStrength,
             )
-            .add_item(NavigationItem::new("Back", DisplayMenuEvents::Back))
+            .add_item("Back", "<-", |_| DisplayMenuEvents::Back)
     }
 
     async fn handle_event(
