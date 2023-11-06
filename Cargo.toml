@@ -178,6 +178,9 @@ esp32s3 = [
     "esp-wifi/esp32s3",
 ]
 
+# Signal processing
+downsampler-light = [] # uses IIR-based filtering and less memory
+
 # Print options
 uart = ["esp-backtrace/print-uart", "esp-println/uart"]
 jtag_serial = ["esp-backtrace/print-jtag-serial", "esp-println/jtag_serial"]

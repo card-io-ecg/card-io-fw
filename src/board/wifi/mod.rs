@@ -20,7 +20,6 @@ use crate::{
 use alloc::{boxed::Box, rc::Rc};
 use embassy_executor::Spawner;
 use embassy_net::{Config, Stack, StackResources};
-use embassy_time::{Duration, Timer as DelayTimer};
 use esp_wifi::{
     wifi::{WifiApDevice, WifiDevice, WifiDeviceMode, WifiStaDevice},
     EspWifiInitFor, EspWifiInitialization,

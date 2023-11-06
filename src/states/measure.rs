@@ -22,7 +22,6 @@ use object_chain::{chain, Chain, ChainElement, Link};
 use signal_processing::{
     compressing_buffer::CompressingBuffer,
     filter::{
-        downsample::DownSampler,
         iir::{precomputed::ALL_PASS, HighPass, Iir, LowPass},
         pli::{adaptation_blocking::AdaptationBlocking, PowerLineFilter},
         Filter,
@@ -30,6 +29,9 @@ use signal_processing::{
     heart_rate::HeartRateCalculator,
     moving::sum::EstimatedSum,
 };
+
+#[cfg(not(feature = "downsampler-light"))]
+use signal_processing::filter::downsample::DownSampler;
 
 type MessageQueue = Channel<CriticalSectionRawMutex, Sample, 32>;
 
@@ -48,12 +50,65 @@ pub type EcgFilter = chain! {
     Iir<'static, HighPass, 2>
 };
 
+#[cfg(feature = "downsampler-light")]
+pub struct DownsamplerLight {
+    filter: Iir<'static, LowPass, 2>,
+    counter: u8,
+}
+
+#[cfg(feature = "downsampler-light")]
+impl Filter for DownsamplerLight {
+    fn clear(&mut self) {
+        self.filter.clear();
+        self.counter = 0;
+    }
+
+    fn update(&mut self, sample: f32) -> Option<f32> {
+        let filtered = self.filter.update(sample)?;
+        if self.counter == 0 {
+            self.counter = 7;
+            Some(filtered)
+        } else {
+            self.counter -= 1;
+            None
+        }
+    }
+}
+
 // Downsample by 8 to display around 1 second
-pub type EcgDownsampler = chain! {
+#[cfg(not(feature = "downsampler-light"))]
+pub type DownsamplerChain = chain! {
     DownSampler,
     DownSampler,
     DownSampler
 };
+
+#[cfg(not(feature = "downsampler-light"))]
+type EcgDownsampler = DownsamplerChain;
+
+#[cfg(not(feature = "downsampler-light"))]
+fn create_downsampler() -> DownsamplerChain {
+    Chain::new(DownSampler::new())
+        .append(DownSampler::new())
+        .append(DownSampler::new())
+}
+
+#[cfg(feature = "downsampler-light")]
+type EcgDownsampler = DownsamplerLight;
+
+#[cfg(feature = "downsampler-light")]
+fn create_downsampler() -> DownsamplerLight {
+    DownsamplerLight {
+        #[rustfmt::skip]
+        filter: macros::designfilt!(
+            "lowpassiir",
+            "FilterOrder", 2,
+            "HalfPowerFrequency", 35,
+            "SampleRate", 1000
+        ),
+        counter: 7,
+    }
+}
 
 pub const ECG_BUFFER_SIZE: usize = 90_000;
 
@@ -72,9 +127,7 @@ impl EcgObjects {
     fn new(hpf: Iir<'static, HighPass, 2>) -> Self {
         Self {
             filter: Chain::new(PowerLineFilter::new_1ksps([50.0])).append(hpf),
-            downsampler: Chain::new(DownSampler::new())
-                .append(DownSampler::new())
-                .append(DownSampler::new()),
+            downsampler: create_downsampler(),
             heart_rate_calculator: HeartRateCalculator::new(1000.0),
 
             #[rustfmt::skip]
