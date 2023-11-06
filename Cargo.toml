@@ -72,7 +72,7 @@ esp-println = { version = "0.7.0", default-features = false, features = [
     "critical-section",
 ] }
 esp-alloc = "0.3.0"
-esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "bd5f611", default-features = false, features = [
+esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "5166089", default-features = false, features = [
     "phy-enable-usb",
     "ps-max-modem",
     "wifi",
@@ -155,7 +155,7 @@ enumset = "1.1.3"
 
 [patch.'https://github.com/esp-rs/esp-wifi.git']
 # esp-wifi = { path = "../esp-wifi/esp-wifi" }
-esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git", branch = "apsta" }
+# esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git" }
 
 [features]
 default = ["esp32s3", "defmt"]
