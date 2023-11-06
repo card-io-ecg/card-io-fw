@@ -4,7 +4,7 @@ use crate::{
     board::{
         hal::{peripherals::WIFI, Rng},
         initialized::Context,
-        wifi::{net_task, StackWrapper},
+        wifi::{sta_net_task, StackWrapper},
     },
     task_control::{TaskControlToken, TaskController},
     timeout::Timeout,
@@ -28,7 +28,7 @@ use embassy_time::Duration;
 use embedded_svc::wifi::{AccessPointInfo, ClientConfiguration, Configuration, Wifi as _};
 use enumset::EnumSet;
 use esp_wifi::{
-    wifi::{WifiController, WifiDevice, WifiEvent, WifiMode},
+    wifi::{WifiController, WifiDevice, WifiEvent, WifiStaDevice},
     EspWifiInitialization,
 };
 use gui::widgets::wifi_client::WifiClientState;
@@ -104,7 +104,7 @@ impl From<InternalConnectionState> for WifiClientState {
 
 #[derive(Clone)]
 pub struct Sta {
-    pub(super) sta_stack: Rc<StackWrapper>,
+    pub(super) sta_stack: Rc<StackWrapper<WifiStaDevice>>,
     pub(super) networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     pub(super) known_networks: Shared<Vec<KnownNetwork>>,
     pub(super) state: Rc<StaConnectionState>,
@@ -216,7 +216,7 @@ type TcpClientState =
     embassy_net::tcp::client::TcpClientState<SOCKET_COUNT, SOCKET_TX_BUFFER, SOCKET_RX_BUFFER>;
 type TcpClient<'a> = embassy_net::tcp::client::TcpClient<
     'a,
-    WifiDevice<'static>,
+    WifiDevice<'static, WifiStaDevice>,
     SOCKET_COUNT,
     SOCKET_TX_BUFFER,
     SOCKET_RX_BUFFER,
@@ -239,12 +239,14 @@ impl TlsClientState {
 pub struct HttpsClientResources<'a> {
     resources: Box<TlsClientState>,
     tcp_client: TcpClient<'a>,
-    dns_client: DnsSocket<'a, WifiDevice<'static>>,
+    dns_client: DnsSocket<'a, WifiDevice<'static, WifiStaDevice>>,
     rng: Rng,
 }
 
 impl<'a> HttpsClientResources<'a> {
-    pub fn client(&mut self) -> HttpClient<'_, TcpClient<'a>, DnsSocket<'a, WifiDevice<'static>>> {
+    pub fn client(
+        &mut self,
+    ) -> HttpClient<'_, TcpClient<'a>, DnsSocket<'a, WifiDevice<'static, WifiStaDevice>>> {
         let upper = self.rng.random() as u64;
         let lower = self.rng.random() as u64;
         let seed = (upper << 32) | lower;
@@ -280,7 +282,7 @@ impl StaState {
         info!("Configuring STA");
 
         let (sta_device, controller) =
-            unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Sta));
+            unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiStaDevice));
 
         info!("Starting STA");
 
@@ -308,7 +310,7 @@ impl StaState {
         ));
 
         info!("Starting NET task");
-        spawner.must_spawn(net_task(sta_stack.clone(), net_task_control.token()));
+        spawner.must_spawn(sta_net_task(sta_stack.clone(), net_task_control.token()));
 
         Self {
             init,
@@ -394,7 +396,7 @@ pub(super) struct StaController {
 
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
-    stack: Rc<StackWrapper>,
+    stack: Rc<StackWrapper<WifiStaDevice>>,
 
     command_queue: Rc<CommandQueue>,
 }
@@ -404,7 +406,7 @@ impl StaController {
         state: Rc<StaConnectionState>,
         networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
         known_networks: Shared<Vec<KnownNetwork>>,
-        stack: Rc<StackWrapper>,
+        stack: Rc<StackWrapper<WifiStaDevice>>,
         command_queue: Rc<CommandQueue>,
         initial_state: InitialStaControllerState,
     ) -> Self {

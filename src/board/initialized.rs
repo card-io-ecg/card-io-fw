@@ -198,6 +198,28 @@ impl InnerContext {
         Some(ap)
     }
 
+    pub async fn enable_wifi_ap_sta(&mut self) -> Option<(Ap, Sta)> {
+        if !self.can_enable_wifi() {
+            self.wifi.stop_if().await;
+            return None;
+        }
+
+        let apsta = self
+            .wifi
+            .configure_ap_sta(
+                NetConfig::ipv4_static(StaticConfigV4 {
+                    address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
+                    gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
+                    dns_servers: Default::default(),
+                }),
+                NetConfig::dhcpv4(Default::default()),
+                &self.clocks,
+            )
+            .await;
+
+        Some(apsta)
+    }
+
     /// Note: make sure Sta/Ap is released before calling this.
     pub async fn disable_wifi(&mut self) {
         self.wifi.stop_if().await
