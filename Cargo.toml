@@ -163,6 +163,8 @@ default = ["esp32s3", "defmt"]
 battery_adc = []
 battery_max17055 = ["dep:max17055"]
 
+bitbang_spi = []
+
 hw_v1 = ["battery_adc"]
 hw_v2 = ["battery_max17055"] # also v3
 hw_v4 = ["battery_max17055"]
