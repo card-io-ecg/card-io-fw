@@ -17,7 +17,6 @@ use crate::board::{
         systimer::SystemTimer,
         Rtc, IO,
     },
-    startup::WIFI_DRIVER,
     utils::DummyOutputPin,
     wifi::WifiDriver,
 };
@@ -125,7 +124,7 @@ impl super::startup::StartupResources {
             display,
             frontend: adc,
             battery_monitor,
-            wifi: WIFI_DRIVER.init_with(|| {
+            wifi: static_cell::make_static! {
                 WifiDriver::new(
                     peripherals.WIFI,
                     peripherals.TIMG1,
@@ -133,7 +132,7 @@ impl super::startup::StartupResources {
                     system.radio_clock_control,
                     &clocks,
                 )
-            }),
+            },
             clocks,
             rtc: Rtc::new(peripherals.RTC_CNTL),
         }

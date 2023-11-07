@@ -1,5 +1,4 @@
 use display_interface_spi::SPIInterface;
-use embassy_executor::_export::StaticCell;
 use embassy_time::Delay;
 use embedded_hal::digital::OutputPin;
 use embedded_hal_bus::spi::ExclusiveDevice;

@@ -1,5 +1,4 @@
 use display_interface::DisplayError;
-use embassy_executor::_export::StaticCell;
 use embassy_time::Delay;
 use embedded_graphics::{
     pixelcolor::BinaryColor,
@@ -12,12 +11,9 @@ use ssd1306::{
     command::AddrMode, mode::BufferedGraphicsMode, prelude::Brightness, rotation::DisplayRotation,
     size::DisplaySize128x64, Ssd1306,
 };
+use static_cell::make_static;
 
 use crate::board::DisplayInterface;
-
-static DISPLAY: StaticCell<
-    Ssd1306<DisplayInterface, DisplaySize128x64, BufferedGraphicsMode<DisplaySize128x64>>,
-> = StaticCell::new();
 
 pub struct Display<RESET> {
     display: &'static mut Ssd1306<
@@ -33,10 +29,10 @@ where
     RESET: OutputPin,
 {
     pub fn new(spi: DisplayInterface<'static>, reset: RESET) -> Self {
-        let display = DISPLAY.init_with(|| {
+        let display = make_static! {
             Ssd1306::new(spi, DisplaySize128x64, DisplayRotation::Rotate0)
                 .into_buffered_graphics_mode()
-        });
+        };
 
         Self { display, reset }
     }
