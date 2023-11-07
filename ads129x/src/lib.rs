@@ -18,6 +18,10 @@ use crate::descriptors::*;
 
 pub mod descriptors;
 
+// longer wait time used because esp-hal can't handle short waits yet
+const WAIT_TIME_AFTER_TRANSFER: u32 = 50;
+// const WAIT_TIME_AFTER_TRANSFER: u32 = 5;
+
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error<SpiE> {
@@ -251,13 +255,17 @@ where
 
         if payload.is_empty() {
             self.spi
-                .transaction(&mut [Operation::Write(command)])
+                .transaction(&mut [
+                    Operation::Write(command),
+                    Operation::DelayUs(WAIT_TIME_AFTER_TRANSFER),
+                ])
                 .map_err(Error::Transfer)
         } else {
             self.spi
                 .transaction(&mut [
                     Operation::Write(command),
                     Operation::TransferInPlace(payload),
+                    Operation::DelayUs(WAIT_TIME_AFTER_TRANSFER),
                 ])
                 .map_err(Error::Transfer)
         }
@@ -347,7 +355,10 @@ where
 
         if payload.is_empty() {
             self.spi
-                .transaction(&mut [Operation::Write(command)])
+                .transaction(&mut [
+                    Operation::Write(command),
+                    Operation::DelayUs(WAIT_TIME_AFTER_TRANSFER),
+                ])
                 .await
                 .map_err(Error::Transfer)
         } else {
@@ -355,6 +366,7 @@ where
                 .transaction(&mut [
                     Operation::Write(command),
                     Operation::TransferInPlace(payload),
+                    Operation::DelayUs(WAIT_TIME_AFTER_TRANSFER),
                 ])
                 .await
                 .map_err(Error::Transfer)
