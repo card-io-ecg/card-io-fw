@@ -1,9 +1,9 @@
 use crate::{
     board::{
         config::types::FilterStrength,
-        hal::{prelude::*, spi::Error as SpiError},
+        hal::prelude::*,
         initialized::{Context, InnerContext},
-        EcgFrontend, PoweredEcgFrontend,
+        AdcSpi, EcgFrontend, PoweredEcgFrontend,
     },
     states::{menu::AppMenu, to_progress, INIT_MENU_THRESHOLD, INIT_TIME, MIN_FRAME_TIME},
     task_control::{TaskControlToken, TaskController},
@@ -15,6 +15,7 @@ use alloc::{boxed::Box, sync::Arc};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
+use embedded_hal::spi::ErrorType;
 use embedded_hal_bus::spi::DeviceError;
 use gui::screens::{init::StartupScreen, measure::EcgScreen};
 use macros as cardio;
@@ -40,7 +41,10 @@ type MessageQueue = Channel<CriticalSectionRawMutex, Sample, 32>;
 unsafe impl Send for PoweredEcgFrontend {}
 
 struct EcgTaskParams {
-    token: TaskControlToken<Result<(), Error<SpiError>>, PoweredEcgFrontend>,
+    token: TaskControlToken<
+        Result<(), Error<<AdcSpi<'static> as ErrorType>::Error>>,
+        PoweredEcgFrontend,
+    >,
     sender: Arc<MessageQueue>,
 }
 
@@ -335,7 +339,7 @@ async fn reader_task(params: EcgTaskParams) {
 async fn read_ecg(
     queue: &MessageQueue,
     frontend: &mut PoweredEcgFrontend,
-) -> Result<(), Error<SpiError>> {
+) -> Result<(), Error<<AdcSpi<'static> as ErrorType>::Error>> {
     loop {
         match frontend.read().await {
             Ok(sample) => {
@@ -348,15 +352,7 @@ async fn read_ecg(
                     warn!("Sample lost");
                 }
             }
-            Err(e) => {
-                return Err(match e {
-                    Error::InvalidState => Error::InvalidState,
-                    Error::UnexpectedDeviceId => Error::UnexpectedDeviceId,
-                    Error::Verification => Error::Verification,
-                    Error::Transfer(DeviceError::Spi(e)) => Error::Transfer(e),
-                    Error::Transfer(DeviceError::Cs(_)) => unreachable!(),
-                });
-            }
+            Err(e) => return Err(e),
         }
     }
 }

@@ -45,8 +45,6 @@ use esp_println::logger::init_logger;
 
 use fugit::RateExtU32;
 
-pub static WIFI_DRIVER: StaticCell<WifiDriver> = StaticCell::new();
-
 pub struct StartupResources {
     pub display: Display,
     pub frontend: EcgFrontend,
