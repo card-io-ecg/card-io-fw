@@ -103,8 +103,9 @@ impl StartupResources {
 
         display_cs.connect_peripheral_to_output(display_spi.cs_signal());
 
-        static mut DISPLAY_SPI_DESCRIPTORS: [u32; 3] = [0; 3];
-        static mut DISPLAY_SPI_RX_DESCRIPTORS: [u32; 3] = [0; 3];
+        const DESCR_SET_COUNT: usize = 1;
+        static mut DISP_SPI_DESCRIPTORS: [u32; DESCR_SET_COUNT * 3] = [0; DESCR_SET_COUNT * 3];
+        static mut DISP_SPI_RX_DESCRIPTORS: [u32; DESCR_SET_COUNT * 3] = [0; DESCR_SET_COUNT * 3];
         let display_spi = Spi::new_no_cs_no_miso(
             display_spi,
             display_sclk.into(),
@@ -115,8 +116,8 @@ impl StartupResources {
         )
         .with_dma(display_dma_channel.configure(
             false,
-            unsafe { &mut DISPLAY_SPI_DESCRIPTORS },
-            unsafe { &mut DISPLAY_SPI_RX_DESCRIPTORS },
+            unsafe { &mut DISP_SPI_DESCRIPTORS },
+            unsafe { &mut DISP_SPI_RX_DESCRIPTORS },
             DmaPriority::Priority0,
         ));
 
@@ -166,8 +167,9 @@ impl StartupResources {
 
         unwrap!(adc_cs.set_high().ok());
 
-        static mut ADC_SPI_DESCRIPTORS: [u32; 3] = [0; 3];
-        static mut ADC_SPI_RX_DESCRIPTORS: [u32; 3] = [0; 3];
+        const DESCR_SET_COUNT: usize = 1;
+        static mut ADC_SPI_DESCRIPTORS: [u32; DESCR_SET_COUNT * 3] = [0; DESCR_SET_COUNT * 3];
+        static mut ADC_SPI_RX_DESCRIPTORS: [u32; DESCR_SET_COUNT * 3] = [0; DESCR_SET_COUNT * 3];
         Frontend::new(
             ExclusiveDevice::new(
                 Spi::new_no_cs(
