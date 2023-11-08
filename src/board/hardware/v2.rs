@@ -153,7 +153,7 @@ impl super::startup::StartupResources {
         };
 
         #[cfg(feature = "battery_max17055")]
-        let battery_monitor = Self::setup_batter_monitor_fg(
+        let battery_monitor = Self::setup_battery_monitor_fg(
             peripherals.I2C0,
             peripherals::Interrupt::I2C_EXT0,
             io.pins.gpio35,

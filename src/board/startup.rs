@@ -200,7 +200,7 @@ impl StartupResources {
     #[cfg(feature = "battery_max17055")]
     #[inline(always)]
     #[allow(clippy::too_many_arguments)]
-    pub(crate) async fn setup_batter_monitor_fg(
+    pub(crate) async fn setup_battery_monitor_fg(
         i2c: BatteryFgI2cInstance,
         i2c_interrupt: peripherals::Interrupt,
         sda: impl Into<I2cSda>,
