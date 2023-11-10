@@ -7,7 +7,6 @@ use crate::{
         wifi::{sta_net_task, StackWrapper},
     },
     task_control::{TaskControlToken, TaskController},
-    timeout::Timeout,
     Shared,
 };
 use alloc::{boxed::Box, rc::Rc, vec::Vec};
@@ -24,7 +23,7 @@ use embassy_sync::{
     mutex::{Mutex, MutexGuard},
     signal::Signal,
 };
-use embassy_time::Duration;
+use embassy_time::{with_timeout, Duration};
 use embedded_svc::wifi::{AccessPointInfo, ClientConfiguration, Configuration, Wifi as _};
 use enumset::EnumSet;
 use esp_wifi::{
@@ -146,11 +145,11 @@ impl Sta {
                 async {
                     loop {
                         let result =
-                            Timeout::with(Duration::from_secs(10), self.wait_for_state_change())
+                            with_timeout(Duration::from_secs(10), self.wait_for_state_change())
                                 .await;
                         match result {
-                            Some(WifiClientState::Connected) => break,
-                            Some(_state) => {}
+                            Ok(WifiClientState::Connected) => break,
+                            Ok(_state) => {}
                             _ => {
                                 debug!("State change timeout");
                                 break;
@@ -673,11 +672,12 @@ async fn sta_task(
                         if timeout == NO_TIMEOUT {
                             Some(resources.controller.wait_for_events(events, false).await)
                         } else {
-                            Timeout::with(
+                            with_timeout(
                                 timeout,
                                 resources.controller.wait_for_events(events, false),
                             )
                             .await
+                            .ok()
                         }
                     },
                     sta_controller.wait_for_command(),

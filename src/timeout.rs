@@ -1,7 +1,4 @@
-use core::future::Future;
-
-use embassy_futures::select::{select, Either};
-use embassy_time::{Duration, Instant, Timer};
+use embassy_time::{Duration, Instant};
 
 pub struct Timeout {
     start: Instant,
@@ -31,12 +28,5 @@ impl Timeout {
 
     pub fn remaining(&self) -> Duration {
         self.duration - self.elapsed()
-    }
-
-    pub async fn with<R>(duration: Duration, f: impl Future<Output = R>) -> Option<R> {
-        match select(Timer::after(duration), f).await {
-            Either::First(_) => None,
-            Either::Second(result) => Some(result),
-        }
     }
 }

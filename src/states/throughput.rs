@@ -1,7 +1,7 @@
 use core::cell::Cell;
 
 use embassy_futures::select::{select, Either};
-use embassy_time::{Duration, Instant, Timer};
+use embassy_time::{with_timeout, Duration, Instant, Timer};
 use embedded_io_async::BufRead;
 use reqwless::{request::Method, response::Status};
 use ufmt::{uwrite, uwriteln};
@@ -10,7 +10,6 @@ use crate::{
     board::initialized::{Context, StaMode},
     human_readable::{BinarySize, Throughput},
     states::menu::AppMenu,
-    timeout::Timeout,
     AppState, SerialNumber,
 };
 
@@ -99,7 +98,7 @@ async fn run_test(context: &mut Context) -> TestResult {
 
     debug!("Testing throughput using {}", url.as_str());
 
-    let connect = Timeout::with(CONNECT_TIMEOUT, async {
+    let connect = with_timeout(CONNECT_TIMEOUT, async {
         let futures = select(client.request(Method::GET, &url), async {
             loop {
                 // A message is displayed for at least 300ms so we don't need to wait here.
@@ -113,8 +112,8 @@ async fn run_test(context: &mut Context) -> TestResult {
     });
 
     let mut request = match connect.await {
-        Some(Ok(request)) => request,
-        Some(Err(e)) => {
+        Ok(Ok(request)) => request,
+        Ok(Err(e)) => {
             warn!("HTTP connect error: {:?}", e);
             return TestResult::Failed(TestError::HttpConnectionFailed);
         }
@@ -122,8 +121,8 @@ async fn run_test(context: &mut Context) -> TestResult {
     };
 
     let mut rx_buffer = [0; 4096];
-    let result = match Timeout::with(READ_TIMEOUT, request.send(&mut rx_buffer)).await {
-        Some(result) => result,
+    let result = match with_timeout(READ_TIMEOUT, request.send(&mut rx_buffer)).await {
+        Ok(result) => result,
         _ => return TestResult::Failed(TestError::HttpRequestTimeout),
     };
 
@@ -161,8 +160,8 @@ async fn run_test(context: &mut Context) -> TestResult {
     let result = select(
         async {
             loop {
-                match Timeout::with(READ_TIMEOUT, reader.fill_buf()).await {
-                    Some(result) => match result {
+                match with_timeout(READ_TIMEOUT, reader.fill_buf()).await {
+                    Ok(result) => match result {
                         Ok(&[]) => break None,
                         Ok(read) => {
                             let read_len = read.len();

@@ -1,7 +1,7 @@
 use core::cell::Cell;
 
 use embassy_futures::select::{select, Either};
-use embassy_time::{Duration, Instant, Timer};
+use embassy_time::{with_timeout, Duration, Instant, Timer};
 use embedded_io_async::BufRead;
 use reqwless::{request::Method, response::Status};
 use ufmt::uwrite;
@@ -13,7 +13,6 @@ use crate::{
     },
     human_readable::{BinarySize, Throughput},
     states::menu::AppMenu,
-    timeout::Timeout,
     AppState, SerialNumber,
 };
 
@@ -109,19 +108,18 @@ async fn do_update(context: &mut Context) -> UpdateResult {
 
     debug!("Looking for update at {}", url.as_str());
 
-    let mut request = match Timeout::with(CONNECT_TIMEOUT, client.request(Method::GET, &url)).await
-    {
-        Some(Ok(request)) => request,
-        Some(Err(e)) => {
+    let mut request = match with_timeout(CONNECT_TIMEOUT, client.request(Method::GET, &url)).await {
+        Ok(Ok(request)) => request,
+        Ok(Err(e)) => {
             warn!("HTTP connect error: {:?}", e);
             return UpdateResult::Failed(UpdateError::HttpConnectionFailed);
         }
-        None => return UpdateResult::Failed(UpdateError::HttpConnectionTimeout),
+        Err(_) => return UpdateResult::Failed(UpdateError::HttpConnectionTimeout),
     };
 
     let mut rx_buffer = [0; 4096];
-    let result = match Timeout::with(READ_TIMEOUT, request.send(&mut rx_buffer)).await {
-        Some(result) => result,
+    let result = match with_timeout(READ_TIMEOUT, request.send(&mut rx_buffer)).await {
+        Ok(result) => result,
         _ => return UpdateResult::Failed(UpdateError::HttpRequestTimeout),
     };
 
@@ -165,8 +163,8 @@ async fn do_update(context: &mut Context) -> UpdateResult {
     let result = select(
         async {
             loop {
-                let received_buffer = match Timeout::with(READ_TIMEOUT, reader.fill_buf()).await {
-                    Some(result) => match result {
+                let received_buffer = match with_timeout(READ_TIMEOUT, reader.fill_buf()).await {
+                    Ok(result) => match result {
                         Ok(&[]) => break None,
                         Ok(read) => read,
                         Err(e) => {

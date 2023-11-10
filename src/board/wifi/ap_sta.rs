@@ -1,6 +1,6 @@
 use alloc::{rc::Rc, vec::Vec};
 use embassy_sync::mutex::Mutex;
-use embassy_time::Duration;
+use embassy_time::{with_timeout, Duration};
 
 use crate::{
     board::{
@@ -15,7 +15,6 @@ use crate::{
         },
     },
     task_control::{TaskControlToken, TaskController},
-    timeout::Timeout,
 };
 use embassy_executor::Spawner;
 use embassy_futures::{
@@ -160,11 +159,12 @@ async fn ap_sta_task(
                         if timeout == NO_TIMEOUT {
                             Some(resources.controller.wait_for_events(events, false).await)
                         } else {
-                            Timeout::with(
+                            with_timeout(
                                 timeout,
                                 resources.controller.wait_for_events(events, false),
                             )
                             .await
+                            .ok()
                         }
                     },
                     sta_controller.wait_for_command(),

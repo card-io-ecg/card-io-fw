@@ -4,7 +4,7 @@ use core::{
 };
 
 use alloc::{boxed::Box, vec::Vec};
-use embassy_time::Duration;
+use embassy_time::{with_timeout, Duration};
 use embedded_menu::items::NavigationItem;
 use embedded_nal_async::{Dns, TcpConnect};
 use gui::screens::create_menu;
@@ -27,7 +27,6 @@ use crate::{
     },
     human_readable::BinarySize,
     states::menu::{AppMenuBuilder, MenuScreen},
-    timeout::Timeout,
     uformat, AppState, SerialNumber,
 };
 
@@ -436,9 +435,9 @@ where
     let headers = [("X-Timestamp", timestamp.as_str())];
 
     let mut request =
-        match Timeout::with(CONNECT_TIMEOUT, client.request(Method::POST, &upload_url)).await {
-            Some(Ok(request)) => request.headers(&headers).body(samples),
-            Some(Err(e)) => {
+        match with_timeout(CONNECT_TIMEOUT, client.request(Method::POST, &upload_url)).await {
+            Ok(Ok(request)) => request.headers(&headers).body(samples),
+            Ok(Err(e)) => {
                 warn!("HTTP connect error: {:?}", e);
                 return Err(());
             }
@@ -449,8 +448,8 @@ where
         };
 
     let mut rx_buffer = [0; 512];
-    match Timeout::with(UPLOAD_TIMEOUT, request.send(&mut rx_buffer)).await {
-        Some(Ok(response)) => {
+    match with_timeout(UPLOAD_TIMEOUT, request.send(&mut rx_buffer)).await {
+        Ok(Ok(response)) => {
             if [Status::Ok, Status::Created].contains(&response.status) {
                 return Ok(());
             }
@@ -466,7 +465,7 @@ where
                 }
             }
         }
-        Some(Err(e)) => warn!("HTTP upload error: {:?}", e),
+        Ok(Err(e)) => warn!("HTTP upload error: {:?}", e),
         _ => warn!("Timeout"),
     }
     Err(())
