@@ -190,7 +190,13 @@ fn run(hw: HardwareVersion, release: bool) -> AnyResult<()> {
 
     println!("💾  Building and flashing firmware");
 
-    let mut args = vec!["espflash", "flash", "-M", "--erase-parts=otadata"];
+    let mut args = vec![
+        "espflash",
+        "flash",
+        "-M",
+        "--erase-parts=otadata",
+        "--log-format=defmt",
+    ];
     args.extend_from_slice(&build_flags);
 
     cargo(&args).run()?;
@@ -209,6 +215,7 @@ fn monitor(variant: MonitorVariant) -> AnyResult<()> {
         "monitor",
         "-e",
         &format!("./target/xtensa-esp32s3-none-elf/{variant}/card_io_fw"),
+        "--log-format=defmt",
     ])
     .run()?;
 
