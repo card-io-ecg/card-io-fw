@@ -24,7 +24,7 @@ use crate::{
         utils::DummyOutputPin,
         wifi::WifiDriver,
         AdcChipSelect, AdcClockEnable, AdcDmaChannel, AdcDrdy, AdcMiso, AdcMosi, AdcReset, AdcSclk,
-        AdcSpiInstance, ChargerStatus, Display, DisplayChipSelect, DisplayDataCommand,
+        AdcSpi, AdcSpiInstance, ChargerStatus, Display, DisplayChipSelect, DisplayDataCommand,
         DisplayDmaChannel, DisplayMosi, DisplayReset, DisplaySclk, DisplaySpiInstance, EcgFrontend,
         TouchDetect, VbusDetect,
     },
@@ -127,7 +127,7 @@ impl StartupResources {
 
     #[inline(always)]
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn create_frontend_driver(
+    pub(crate) fn create_frontend_spi(
         adc_dma_channel: AdcDmaChannel,
         dma_in_interrupt: peripherals::Interrupt,
         dma_out_interrupt: peripherals::Interrupt,
@@ -135,14 +135,10 @@ impl StartupResources {
         adc_sclk: impl Into<AdcSclk>,
         adc_mosi: impl Into<AdcMosi>,
         adc_miso: impl Into<AdcMiso>,
-        adc_drdy: impl Into<AdcDrdy>,
-        adc_reset: impl Into<AdcReset>,
-        adc_clock_enable: impl Into<AdcClockEnable>,
-        touch_detect: impl Into<TouchDetect>,
         adc_cs: impl Into<AdcChipSelect>,
 
         clocks: &Clocks,
-    ) -> EcgFrontend {
+    ) -> AdcSpi {
         unwrap!(interrupt::enable(
             dma_in_interrupt,
             interrupt::Priority::Priority1
@@ -152,12 +148,6 @@ impl StartupResources {
             interrupt::Priority::Priority1
         ));
 
-        // DRDY
-        unwrap!(interrupt::enable(
-            peripherals::Interrupt::GPIO,
-            interrupt::Priority::Priority3,
-        ));
-
         let mut adc_cs: AdcChipSelect = adc_cs.into();
 
         unwrap!(adc_cs.set_high().ok());
@@ -165,21 +155,39 @@ impl StartupResources {
         const DESCR_SET_COUNT: usize = 1;
         static mut ADC_SPI_DESCRIPTORS: [u32; DESCR_SET_COUNT * 3] = [0; DESCR_SET_COUNT * 3];
         static mut ADC_SPI_RX_DESCRIPTORS: [u32; DESCR_SET_COUNT * 3] = [0; DESCR_SET_COUNT * 3];
+
+        ExclusiveDevice::new(
+            Spi::new(adc_spi, 1u32.MHz(), SpiMode::Mode1, clocks)
+                .with_sck(adc_sclk.into())
+                .with_mosi(adc_mosi.into())
+                .with_miso(adc_miso.into())
+                .with_dma(adc_dma_channel.configure(
+                    false,
+                    unsafe { &mut ADC_SPI_DESCRIPTORS },
+                    unsafe { &mut ADC_SPI_RX_DESCRIPTORS },
+                    DmaPriority::Priority1,
+                )),
+            adc_cs,
+            Delay,
+        )
+    }
+
+    #[inline(always)]
+    pub(crate) fn create_frontend_driver(
+        adc_spi: AdcSpi,
+        adc_drdy: impl Into<AdcDrdy>,
+        adc_reset: impl Into<AdcReset>,
+        adc_clock_enable: impl Into<AdcClockEnable>,
+        touch_detect: impl Into<TouchDetect>,
+    ) -> EcgFrontend {
+        // DRDY
+        unwrap!(interrupt::enable(
+            peripherals::Interrupt::GPIO,
+            interrupt::Priority::Priority3,
+        ));
+
         Frontend::new(
-            ExclusiveDevice::new(
-                Spi::new(adc_spi, 1u32.MHz(), SpiMode::Mode1, clocks)
-                    .with_sck(adc_sclk.into())
-                    .with_mosi(adc_mosi.into())
-                    .with_miso(adc_miso.into())
-                    .with_dma(adc_dma_channel.configure(
-                        false,
-                        unsafe { &mut ADC_SPI_DESCRIPTORS },
-                        unsafe { &mut ADC_SPI_RX_DESCRIPTORS },
-                        DmaPriority::Priority1,
-                    )),
-                adc_cs,
-                Delay,
-            ),
+            adc_spi,
             adc_drdy.into(),
             adc_reset.into(),
             adc_clock_enable.into(),
