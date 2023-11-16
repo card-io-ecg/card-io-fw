@@ -32,37 +32,43 @@ pub async fn main_menu(context: &mut Context) -> AppState {
 }
 
 struct MainMenu;
+type MainMenuBuilder = impl AppMenuBuilder<MainMenuEvents>;
+
+fn main_menu_builder(context: &mut Context) -> MainMenuBuilder {
+    let mut optional_items = heapless::Vec::<_, 4>::new();
+
+    let mut optional_item =
+        |label, event| unwrap!(optional_items.push(NavigationItem::new(label, event)).ok());
+
+    if context.can_enable_wifi() {
+        optional_item("Wifi setup", MainMenuEvents::WifiSetup);
+        optional_item("Wifi networks", MainMenuEvents::WifiListVisible);
+
+        let network_configured =
+            !context.config.backend_url.is_empty() && !context.config.known_networks.is_empty();
+
+        if network_configured {
+            optional_item("Firmware update", MainMenuEvents::FirmwareUpdate);
+            optional_item("Speed test", MainMenuEvents::Throughput);
+        }
+    }
+
+    create_menu("Main menu")
+        .add_item(NavigationItem::new("Measure", MainMenuEvents::Measure))
+        .add_item(NavigationItem::new("Display", MainMenuEvents::Display))
+        .add_item(NavigationItem::new("Storage", MainMenuEvents::Storage))
+        .add_item(NavigationItem::new("Device info", MainMenuEvents::About))
+        .add_items(optional_items)
+        .add_item(NavigationItem::new("Shutdown", MainMenuEvents::Shutdown))
+}
 
 impl MenuScreen for MainMenu {
     type Event = MainMenuEvents;
     type Result = AppState;
+    type MenuBuilder = MainMenuBuilder;
 
-    async fn menu(&mut self, context: &mut Context) -> impl AppMenuBuilder<Self::Event> {
-        let mut optional_items = heapless::Vec::<_, 4>::new();
-
-        let mut optional_item =
-            |label, event| unwrap!(optional_items.push(NavigationItem::new(label, event)).ok());
-
-        if context.can_enable_wifi() {
-            optional_item("Wifi setup", MainMenuEvents::WifiSetup);
-            optional_item("Wifi networks", MainMenuEvents::WifiListVisible);
-
-            let network_configured =
-                !context.config.backend_url.is_empty() && !context.config.known_networks.is_empty();
-
-            if network_configured {
-                optional_item("Firmware update", MainMenuEvents::FirmwareUpdate);
-                optional_item("Speed test", MainMenuEvents::Throughput);
-            }
-        }
-
-        create_menu("Main menu")
-            .add_item(NavigationItem::new("Measure", MainMenuEvents::Measure))
-            .add_item(NavigationItem::new("Display", MainMenuEvents::Display))
-            .add_item(NavigationItem::new("Storage", MainMenuEvents::Storage))
-            .add_item(NavigationItem::new("Device info", MainMenuEvents::About))
-            .add_items(optional_items)
-            .add_item(NavigationItem::new("Shutdown", MainMenuEvents::Shutdown))
+    async fn menu(&mut self, context: &mut Context) -> Self::MenuBuilder {
+        main_menu_builder(context)
     }
 
     async fn handle_event(

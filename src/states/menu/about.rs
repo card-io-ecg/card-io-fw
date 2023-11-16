@@ -25,41 +25,47 @@ pub async fn about_menu(context: &mut Context) -> AppState {
 }
 
 struct AboutAppMenu;
+type AboutMenuBuilder = impl AppMenuBuilder<AboutMenuEvents>;
+
+fn about_menu_builder(context: &mut Context) -> AboutMenuBuilder {
+    let list_item = |label| NavigationItem::new(label, AboutMenuEvents::None);
+
+    let mut items = heapless::Vec::<_, 5>::new();
+    items.extend([
+        list_item(uformat!(20, "{}", env!("FW_VERSION_MENU_ITEM"))),
+        list_item(uformat!(20, "{}", env!("HW_VERSION_MENU_ITEM"))),
+        NavigationItem::new(
+            uformat!(20, "Serial  {}", SerialNumber),
+            AboutMenuEvents::ToSerial,
+        ),
+        list_item(match context.frontend.device_id() {
+            Some(id) => uformat!(20, "ADC {:?}", LeftPadAny(16, id)),
+            None => uformat!(20, "ADC          Unknown"),
+        }),
+    ]);
+
+    #[cfg(feature = "battery_max17055")]
+    {
+        unwrap!(items
+            .push(
+                NavigationItem::new(uformat!(20, "Fuel gauge"), AboutMenuEvents::ToBatteryInfo)
+                    .with_marker("MAX17055")
+            )
+            .ok());
+    }
+
+    create_menu("Device info")
+        .add_items(items)
+        .add_item(NavigationItem::new("Back", AboutMenuEvents::Back))
+}
 
 impl MenuScreen for AboutAppMenu {
     type Event = AboutMenuEvents;
     type Result = AppState;
+    type MenuBuilder = AboutMenuBuilder;
 
-    async fn menu(&mut self, context: &mut Context) -> impl AppMenuBuilder<Self::Event> {
-        let list_item = |label| NavigationItem::new(label, AboutMenuEvents::None);
-
-        let mut items = heapless::Vec::<_, 5>::new();
-        items.extend([
-            list_item(uformat!(20, "{}", env!("FW_VERSION_MENU_ITEM"))),
-            list_item(uformat!(20, "{}", env!("HW_VERSION_MENU_ITEM"))),
-            NavigationItem::new(
-                uformat!(20, "Serial  {}", SerialNumber),
-                AboutMenuEvents::ToSerial,
-            ),
-            list_item(match context.frontend.device_id() {
-                Some(id) => uformat!(20, "ADC {:?}", LeftPadAny(16, id)),
-                None => uformat!(20, "ADC          Unknown"),
-            }),
-        ]);
-
-        #[cfg(feature = "battery_max17055")]
-        {
-            unwrap!(items
-                .push(
-                    NavigationItem::new(uformat!(20, "Fuel gauge"), AboutMenuEvents::ToBatteryInfo)
-                        .with_marker("MAX17055")
-                )
-                .ok());
-        }
-
-        create_menu("Device info")
-            .add_items(items)
-            .add_item(NavigationItem::new("Back", AboutMenuEvents::Back))
+    async fn menu(&mut self, context: &mut Context) -> Self::MenuBuilder {
+        about_menu_builder(context)
     }
 
     async fn handle_event(

@@ -120,37 +120,43 @@ async fn ask_for_measurement_action(context: &mut Context) -> (bool, bool) {
 }
 
 struct AskForMeasurementActionMenu;
+type AskForMeasurementActionMenuBuilder = impl AppMenuBuilder<(bool, bool)>;
+
+fn ask_for_action_builder(context: &mut Context) -> AskForMeasurementActionMenuBuilder {
+    let mut items = heapless::Vec::<_, 3>::new();
+
+    let mut add_item = |label, value| {
+        unwrap!(items.push(NavigationItem::new(label, value)).ok());
+    };
+
+    let network_configured =
+        !context.config.backend_url.is_empty() && !context.config.known_networks.is_empty();
+
+    let can_store = context.storage.is_some();
+
+    if network_configured {
+        if can_store {
+            add_item("Upload or store", (true, true));
+        }
+        add_item("Upload", (true, false));
+    }
+
+    if can_store {
+        add_item("Store", (false, true));
+    }
+
+    create_menu("EKG action")
+        .add_items(items)
+        .add_item(NavigationItem::new("Discard", (false, false)))
+}
 
 impl MenuScreen for AskForMeasurementActionMenu {
     type Event = (bool, bool);
     type Result = (bool, bool);
+    type MenuBuilder = AskForMeasurementActionMenuBuilder;
 
-    async fn menu(&mut self, context: &mut Context) -> impl AppMenuBuilder<Self::Event> {
-        let mut items = heapless::Vec::<_, 3>::new();
-
-        let mut add_item = |label, value| {
-            unwrap!(items.push(NavigationItem::new(label, value)).ok());
-        };
-
-        let network_configured =
-            !context.config.backend_url.is_empty() && !context.config.known_networks.is_empty();
-
-        let can_store = context.storage.is_some();
-
-        if network_configured {
-            if can_store {
-                add_item("Upload or store", (true, true));
-            }
-            add_item("Upload", (true, false));
-        }
-
-        if can_store {
-            add_item("Store", (false, true));
-        }
-
-        create_menu("EKG action")
-            .add_items(items)
-            .add_item(NavigationItem::new("Discard", (false, false)))
+    async fn menu(&mut self, context: &mut Context) -> Self::MenuBuilder {
+        ask_for_action_builder(context)
     }
 
     async fn handle_event(
