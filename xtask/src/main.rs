@@ -310,7 +310,7 @@ fn asm() -> AnyResult<()> {
         .stdout_path("target/asm.s")
         .run()?;
 
-    cmd!("xtensa-esp32s3-elf-nm", elf, "-S", "--size-sort",)
+    cmd!("xtensa-esp32s3-elf-nm", elf, "-S", "--size-sort")
         .stdout_path("target/syms.txt")
         .run()?;
 
