@@ -3,7 +3,7 @@ use crate::{
         config::types::{DisplayBrightness, FilterStrength},
         initialized::Context,
     },
-    states::menu::{AppMenu, MenuScreen},
+    states::menu::{AppMenu, AppMenuBuilder, MenuScreen},
     AppState,
 };
 use embedded_menu::items::{NavigationItem, Select};
@@ -29,26 +29,32 @@ pub enum DisplayMenuEvents {
 }
 
 struct DisplayMenu;
+type DisplayMenuBuilder = impl AppMenuBuilder<DisplayMenuEvents>;
+
+fn display_menu_builder(context: &mut Context) -> DisplayMenuBuilder {
+    create_menu("Display")
+        .add_item(
+            Select::new("Brightness", context.config.display_brightness)
+                .with_value_converter(DisplayMenuEvents::ChangeBrigtness),
+        )
+        .add_item(
+            Select::new("Battery", context.config.battery_display_style)
+                .with_value_converter(DisplayMenuEvents::ChangeBatteryStyle),
+        )
+        .add_item(
+            Select::new("EKG Filter", context.config.filter_strength)
+                .with_value_converter(DisplayMenuEvents::ChangeFilterStrength),
+        )
+        .add_item(NavigationItem::new("Back", DisplayMenuEvents::Back))
+}
 
 impl MenuScreen for DisplayMenu {
     type Event = DisplayMenuEvents;
     type Result = AppState;
+    type MenuBuilder = DisplayMenuBuilder;
 
-    async fn menu(&mut self, context: &mut Context) -> impl super::AppMenuBuilder<Self::Event> {
-        create_menu("Display")
-            .add_item(
-                Select::new("Brightness", context.config.display_brightness)
-                    .with_value_converter(DisplayMenuEvents::ChangeBrigtness),
-            )
-            .add_item(
-                Select::new("Battery", context.config.battery_display_style)
-                    .with_value_converter(DisplayMenuEvents::ChangeBatteryStyle),
-            )
-            .add_item(
-                Select::new("EKG Filter", context.config.filter_strength)
-                    .with_value_converter(DisplayMenuEvents::ChangeFilterStrength),
-            )
-            .add_item(NavigationItem::new("Back", DisplayMenuEvents::Back))
+    async fn menu(&mut self, context: &mut Context) -> Self::MenuBuilder {
+        display_menu_builder(context)
     }
 
     async fn handle_event(

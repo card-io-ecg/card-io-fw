@@ -34,62 +34,65 @@ pub async fn storage_menu(context: &mut Context) -> AppState {
 }
 
 struct StorageMenu;
+type StorageMenuBuilder = impl AppMenuBuilder<StorageMenuEvents>;
+
+async fn storage_menu_builder(context: &mut Context) -> StorageMenuBuilder {
+    // needs to be separate because the item is of a different type
+    let mut used_item = heapless::Vec::<_, 1>::new();
+    if let Some(storage) = context.storage.as_mut() {
+        if let Ok(used) = storage.used_bytes().await {
+            let used_str = uformat!(
+                32,
+                "{}/{}",
+                BinarySize(used),
+                BinarySize(storage.capacity())
+            );
+
+            unwrap!(used_item
+                .push(NavigationItem::new("Used", StorageMenuEvents::Nothing).with_marker(used_str))
+                .ok());
+        }
+    }
+
+    let mut items = heapless::Vec::<_, 2>::new();
+    unwrap!(items
+        .push(NavigationItem::new(
+            "Format storage",
+            StorageMenuEvents::Format,
+        ))
+        .ok());
+
+    if context.can_enable_wifi()
+        && !context.config.known_networks.is_empty()
+        && !context.config.backend_url.is_empty()
+        && context.sta_has_work().await
+    {
+        unwrap!(items
+            .push(NavigationItem::new(
+                "Upload data",
+                StorageMenuEvents::Upload
+            ))
+            .ok());
+    }
+
+    create_menu("Storage")
+        .add_item(
+            Select::new("New EKG", context.config.measurement_action)
+                .with_value_converter(StorageMenuEvents::ChangeMeasurementAction)
+                .with_detail_text("What to do with new measurements"),
+        )
+        .add_items(used_item)
+        .add_items(items)
+        .add_item(NavigationItem::new("Back", StorageMenuEvents::Back))
+}
 
 impl MenuScreen for StorageMenu {
     type Event = StorageMenuEvents;
     type Result = AppState;
+    type MenuBuilder = StorageMenuBuilder;
 
-    async fn menu(&mut self, context: &mut Context) -> impl AppMenuBuilder<Self::Event> {
-        // needs to be separate because the item is of a different type
-        let mut used_item = heapless::Vec::<_, 1>::new();
-        if let Some(storage) = context.storage.as_mut() {
-            if let Ok(used) = storage.used_bytes().await {
-                let used_str = uformat!(
-                    32,
-                    "{}/{}",
-                    BinarySize(used),
-                    BinarySize(storage.capacity())
-                );
-
-                unwrap!(used_item
-                    .push(
-                        NavigationItem::new("Used", StorageMenuEvents::Nothing)
-                            .with_marker(used_str)
-                    )
-                    .ok());
-            }
-        }
-
-        let mut items = heapless::Vec::<_, 2>::new();
-        unwrap!(items
-            .push(NavigationItem::new(
-                "Format storage",
-                StorageMenuEvents::Format,
-            ))
-            .ok());
-
-        if context.can_enable_wifi()
-            && !context.config.known_networks.is_empty()
-            && !context.config.backend_url.is_empty()
-            && context.sta_has_work().await
-        {
-            unwrap!(items
-                .push(NavigationItem::new(
-                    "Upload data",
-                    StorageMenuEvents::Upload
-                ))
-                .ok());
-        }
-
-        create_menu("Storage")
-            .add_item(
-                Select::new("New EKG", context.config.measurement_action)
-                    .with_value_converter(StorageMenuEvents::ChangeMeasurementAction)
-                    .with_detail_text("What to do with new measurements"),
-            )
-            .add_items(used_item)
-            .add_items(items)
-            .add_item(NavigationItem::new("Back", StorageMenuEvents::Back))
+    async fn menu(&mut self, context: &mut Context) -> Self::MenuBuilder {
+        storage_menu_builder(context).await
     }
 
     async fn handle_event(

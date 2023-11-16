@@ -96,10 +96,11 @@ where
 pub trait MenuScreen {
     type Event;
     type Result;
+    type MenuBuilder: AppMenuBuilder<Self::Event>;
 
     const REFRESH_PERIOD: Option<Duration> = None;
 
-    async fn menu(&mut self, context: &mut Context) -> impl AppMenuBuilder<Self::Event>;
+    async fn menu(&mut self, context: &mut Context) -> Self::MenuBuilder;
 
     async fn handle_event(
         &mut self,
