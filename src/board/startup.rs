@@ -106,20 +106,15 @@ impl StartupResources {
         const DESCR_SET_COUNT: usize = 1;
         static mut DISP_SPI_DESCRIPTORS: [u32; DESCR_SET_COUNT * 3] = [0; DESCR_SET_COUNT * 3];
         static mut DISP_SPI_RX_DESCRIPTORS: [u32; DESCR_SET_COUNT * 3] = [0; DESCR_SET_COUNT * 3];
-        let display_spi = Spi::new_no_cs_no_miso(
-            display_spi,
-            display_sclk.into(),
-            display_mosi.into(),
-            40u32.MHz(),
-            SpiMode::Mode0,
-            clocks,
-        )
-        .with_dma(display_dma_channel.configure(
-            false,
-            unsafe { &mut DISP_SPI_DESCRIPTORS },
-            unsafe { &mut DISP_SPI_RX_DESCRIPTORS },
-            DmaPriority::Priority0,
-        ));
+        let display_spi = Spi::new(display_spi, 40u32.MHz(), SpiMode::Mode0, clocks)
+            .with_sck(display_sclk.into())
+            .with_mosi(display_mosi.into())
+            .with_dma(display_dma_channel.configure(
+                false,
+                unsafe { &mut DISP_SPI_DESCRIPTORS },
+                unsafe { &mut DISP_SPI_RX_DESCRIPTORS },
+                DmaPriority::Priority0,
+            ));
 
         Display::new(
             SPIInterface::new(
@@ -172,21 +167,16 @@ impl StartupResources {
         static mut ADC_SPI_RX_DESCRIPTORS: [u32; DESCR_SET_COUNT * 3] = [0; DESCR_SET_COUNT * 3];
         Frontend::new(
             ExclusiveDevice::new(
-                Spi::new_no_cs(
-                    adc_spi,
-                    adc_sclk.into(),
-                    adc_mosi.into(),
-                    adc_miso.into(),
-                    1u32.MHz(),
-                    SpiMode::Mode1,
-                    clocks,
-                )
-                .with_dma(adc_dma_channel.configure(
-                    false,
-                    unsafe { &mut ADC_SPI_DESCRIPTORS },
-                    unsafe { &mut ADC_SPI_RX_DESCRIPTORS },
-                    DmaPriority::Priority1,
-                )),
+                Spi::new(adc_spi, 1u32.MHz(), SpiMode::Mode1, clocks)
+                    .with_sck(adc_sclk.into())
+                    .with_mosi(adc_mosi.into())
+                    .with_miso(adc_miso.into())
+                    .with_dma(adc_dma_channel.configure(
+                        false,
+                        unsafe { &mut ADC_SPI_DESCRIPTORS },
+                        unsafe { &mut ADC_SPI_RX_DESCRIPTORS },
+                        DmaPriority::Priority1,
+                    )),
                 adc_cs,
                 Delay,
             ),
