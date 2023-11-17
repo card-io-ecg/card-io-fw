@@ -78,8 +78,10 @@ pub enum Subcommands {
 pub enum HardwareVersion {
     V1,
     V2,
-    #[default]
     V4,
+    V6S3,
+    #[default]
+    V6C6,
 }
 
 impl HardwareVersion {
@@ -88,11 +90,16 @@ impl HardwareVersion {
             HardwareVersion::V1 => "hw_v1",
             HardwareVersion::V2 => "hw_v2",
             HardwareVersion::V4 => "hw_v4",
+            HardwareVersion::V6S3 => "hw_v6,esp32s3",
+            HardwareVersion::V6C6 => "hw_v6,esp32c6",
         }
     }
 
     fn soc(&self) -> SocConfig {
-        SocConfig::S3
+        match self {
+            HardwareVersion::V6C6 => SocConfig::C6,
+            _ => SocConfig::S3,
+        }
     }
 
     fn flash_size(&self) -> u32 {

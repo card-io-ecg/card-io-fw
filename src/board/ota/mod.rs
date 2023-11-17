@@ -4,7 +4,14 @@ use crc::{Algorithm, Crc};
 use macros::partition;
 use norfs::medium::StorageMedium;
 use norfs_driver::medium::MediumError;
-use norfs_esp32s3::{InternalDriver, InternalPartition, SmallInternalDriver};
+
+#[cfg(feature = "esp32s3")]
+use norfs_esp32s3 as norfs_impl;
+
+#[cfg(feature = "esp32c6")]
+use norfs_esp32c6 as norfs_impl;
+
+use norfs_impl::{InternalDriver, InternalPartition, SmallInternalDriver};
 
 #[partition("otadata")]
 pub struct OtaDataPartition;

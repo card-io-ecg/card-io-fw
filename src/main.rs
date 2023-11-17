@@ -32,16 +32,18 @@ use static_cell::StaticCell;
 use crate::{
     board::{hal::gpio::RTCPinWithResistors, ChargerStatus},
     sleep::disable_gpio_wakeup,
+    states::adc_setup::adc_setup,
 };
 
 #[cfg(any(feature = "hw_v2", feature = "hw_v4"))]
 use crate::board::VbusDetect;
 
+#[cfg(any(feature = "hw_v1", feature = "hw_v2", feature = "hw_v4"))]
+use crate::board::hal::Delay;
+
 #[cfg(feature = "battery_max17055")]
 pub use crate::states::menu::battery_info::battery_info_menu;
 
-#[cfg(feature = "hw_v1")]
-use crate::states::adc_setup::adc_setup;
 use crate::{
     board::{
         config::{Config, ConfigFile},
@@ -49,16 +51,12 @@ use crate::{
             self,
             embassy::executor::{FromCpu1, InterruptExecutor},
             entry,
-            gpio::RTCPin,
             interrupt::Priority,
             prelude::{interrupt, main},
-            rtc_cntl::sleep::{RtcioWakeupSource, WakeupLevel},
-            Delay,
         },
         initialized::{Context, InnerContext},
         startup::StartupResources,
         storage::FileSystem,
-        TouchDetect,
     },
     states::{
         charging::charging,
@@ -76,9 +74,22 @@ use crate::{
     },
 };
 
+#[cfg(all(
+    any(feature = "hw_v1", feature = "hw_v2", feature = "hw_v4"),
+    feature = "esp32s3"
+))]
+use crate::board::{
+    hal::{
+        gpio::RTCPin,
+        rtc_cntl::sleep::{RtcioWakeupSource, WakeupLevel},
+    },
+    TouchDetect,
+};
+
 mod board;
 mod heap;
 pub mod human_readable;
+#[cfg(any(feature = "hw_v1", feature = "hw_v2", feature = "hw_v4"))]
 mod sleep;
 mod stack_protection;
 mod states;
@@ -227,9 +238,13 @@ async fn main(_spawner: Spawner) {
     #[cfg(feature = "hw_v4")]
     info!("Hardware version: v4");
 
+    #[cfg(feature = "hw_v6")]
+    info!("Hardware version: v6");
+
     let mut storage = FileSystem::mount().await;
     let config = load_config(storage.as_deref_mut()).await;
 
+    #[cfg(any(feature = "hw_v1", feature = "hw_v2", feature = "hw_v4"))]
     let mut delay = Delay::new(&resources.clocks);
 
     // We're boxing Context because we will need to move out of it during shutdown.
@@ -306,6 +321,7 @@ async fn main(_spawner: Spawner) {
 
     let battery_monitor = board.inner.battery_monitor;
 
+    #[cfg(any(feature = "hw_v1", feature = "hw_v2", feature = "hw_v4"))]
     let is_charging = battery_monitor.is_plugged();
 
     #[cfg(feature = "hw_v1")]
@@ -314,17 +330,29 @@ async fn main(_spawner: Spawner) {
     #[cfg(any(feature = "hw_v2", feature = "hw_v4"))]
     let (mut charger_pin, _) = battery_monitor.stop().await;
 
-    let (_, _, _, mut touch) = board.frontend.split();
-    let mut rtc = resources.rtc;
+    #[cfg(feature = "hw_v6")]
+    let _ = battery_monitor.stop().await;
 
-    let mut wakeup_pins = heapless::Vec::<(&mut dyn RTCPin, WakeupLevel), 2>::new();
-    setup_wakeup_pins(&mut wakeup_pins, &mut touch, &mut charger_pin, is_charging);
-    let rtcio = RtcioWakeupSource::new(&mut wakeup_pins);
+    #[cfg(any(feature = "hw_v1", feature = "hw_v2", feature = "hw_v4"))]
+    {
+        let (_, _, _, mut touch) = board.frontend.split();
+        let mut rtc = resources.rtc;
 
-    rtc.sleep_deep(&[&rtcio], &mut delay);
+        let mut wakeup_pins = heapless::Vec::<(&mut dyn RTCPin, WakeupLevel), 2>::new();
+        setup_wakeup_pins(&mut wakeup_pins, &mut touch, &mut charger_pin, is_charging);
+        let rtcio = RtcioWakeupSource::new(&mut wakeup_pins);
 
-    // Shouldn't reach this. If we do, we just exit the task, which means the executor
-    // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
+        rtc.sleep_deep(&[&rtcio], &mut delay);
+
+        // Shouldn't reach this. If we do, we just exit the task, which means the executor
+        // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
+    }
+
+    #[cfg(not(any(feature = "hw_v1", feature = "hw_v2", feature = "hw_v4")))]
+    {
+        error!("Sleep not supported");
+        loop {}
+    }
 }
 
 #[cfg(feature = "hw_v1")]

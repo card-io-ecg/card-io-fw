@@ -44,6 +44,7 @@ impl StackMonitor {
                 true,
                 true,
             ),
+            #[cfg(feature = "esp32s3")]
             Cpu::AppCpu => assist.enable_core1_region0_monitor(
                 stack.start as u32 + CANARY_GRANULARITY,
                 stack.start as u32 + CANARY_GRANULARITY + CANARY_UNITS * CANARY_GRANULARITY,
@@ -65,6 +66,7 @@ impl Drop for StackMonitor {
     fn drop(&mut self) {
         match get_core() {
             Cpu::ProCpu => self.assist.disable_region0_monitor(),
+            #[cfg(feature = "esp32s3")]
             Cpu::AppCpu => self.assist.disable_core1_region0_monitor(),
         }
     }
@@ -84,6 +86,7 @@ fn ASSIST_DEBUG() {
             pc = da.get_region_monitor_pc();
             da.clear_region0_monitor_interrupt();
         }
+        #[cfg(feature = "esp32s3")]
         Cpu::AppCpu => {
             is_overflow = da.is_core1_region0_monitor_interrupt_set();
             pc = da.get_core1_region_monitor_pc();

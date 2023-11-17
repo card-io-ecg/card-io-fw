@@ -1,6 +1,5 @@
 use display_interface_spi::SPIInterface;
 use embassy_time::Delay;
-use embedded_hal::digital::OutputPin;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use static_cell::make_static;
 
@@ -13,22 +12,22 @@ use crate::{
             gpio::OutputPin as _,
             interrupt, peripherals,
             spi::{
-                master::{
-                    dma::{WithDmaSpi2, WithDmaSpi3},
-                    Instance, Spi,
-                },
+                master::{dma::*, Instance, Spi},
                 SpiMode,
             },
-            Rtc,
         },
         utils::DummyOutputPin,
         wifi::WifiDriver,
-        AdcChipSelect, AdcClockEnable, AdcDmaChannel, AdcDrdy, AdcMiso, AdcMosi, AdcReset, AdcSclk,
-        AdcSpi, AdcSpiInstance, ChargerStatus, Display, DisplayChipSelect, DisplayDataCommand,
-        DisplayDmaChannel, DisplayMosi, DisplayReset, DisplaySclk, DisplaySpiInstance, EcgFrontend,
-        TouchDetect, VbusDetect,
+        AdcClockEnable, AdcDrdy, AdcReset, AdcSpi, ChargerStatus, Display, DisplayChipSelect,
+        DisplayDataCommand, DisplayDmaChannel, DisplayMosi, DisplayReset, DisplaySclk,
+        DisplaySpiInstance, EcgFrontend, TouchDetect, VbusDetect,
     },
     heap::init_heap,
+};
+
+#[cfg(feature = "esp32s3")]
+use crate::board::{
+    hal::Rtc, AdcChipSelect, AdcDmaChannel, AdcMiso, AdcMosi, AdcSclk, AdcSpiInstance,
 };
 
 #[cfg(feature = "battery_max17055")]
@@ -52,6 +51,7 @@ pub struct StartupResources {
     pub battery_monitor: BatteryMonitor<VbusDetect, ChargerStatus>,
 
     pub wifi: &'static mut WifiDriver,
+    #[cfg(feature = "esp32s3")]
     pub rtc: Rtc<'static>,
 }
 
@@ -127,6 +127,7 @@ impl StartupResources {
 
     #[inline(always)]
     #[allow(clippy::too_many_arguments)]
+    #[cfg(feature = "esp32s3")]
     pub(crate) fn create_frontend_spi(
         adc_dma_channel: AdcDmaChannel,
         dma_in_interrupt: peripherals::Interrupt,
@@ -139,6 +140,8 @@ impl StartupResources {
 
         clocks: &Clocks,
     ) -> AdcSpi {
+        use embedded_hal::digital::OutputPin;
+
         unwrap!(interrupt::enable(
             dma_in_interrupt,
             interrupt::Priority::Priority1

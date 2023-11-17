@@ -17,7 +17,7 @@ use crate::board::{
     },
     hal::{
         self,
-        clock::{ClockControl, CpuClock},
+        clock::ClockControl,
         embassy,
         gdma::*,
         gpio::{Floating, GpioPin, Input, Output, PullUp, PushPull},
@@ -25,6 +25,7 @@ use crate::board::{
         prelude::*,
         spi::{master::dma::SpiDma, FullDuplexMode},
         systimer::SystemTimer,
+        timer::TimerGroup,
         Rtc, IO,
     },
     utils::DummyOutputPin,
@@ -106,7 +107,7 @@ impl super::startup::StartupResources {
         let peripherals = Peripherals::take();
 
         let system = peripherals.SYSTEM.split();
-        let clocks = ClockControl::configure(system.clock_control, CpuClock::Clock240MHz).freeze();
+        let clocks = ClockControl::max(system.clock_control).freeze();
 
         embassy::init(&clocks, SystemTimer::new(peripherals.SYSTIMER));
 
@@ -177,10 +178,9 @@ impl super::startup::StartupResources {
             wifi: static_cell::make_static! {
                 WifiDriver::new(
                     peripherals.WIFI,
-                    peripherals.TIMG1,
+                    TimerGroup::new(peripherals.TIMG1, &clocks).timer0,
                     peripherals.RNG,
                     system.radio_clock_control,
-                    &clocks,
                 )
             },
             clocks,

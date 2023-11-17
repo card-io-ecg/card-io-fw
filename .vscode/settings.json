@@ -1,5 +1,8 @@
 {
     "rust-analyzer.check.allTargets": false,
     "rust-analyzer.showUnlinkedFileNotification": false,
-    "cortex-debug.variableUseNaturalFormat": false
+    "cortex-debug.variableUseNaturalFormat": false,
+    "rust-analyzer.cargo.features": [
+        "esp32c6",
+    ]
 }
