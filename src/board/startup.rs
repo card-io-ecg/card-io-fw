@@ -63,17 +63,34 @@ impl StartupResources {
 
         use core::ptr::addr_of;
 
-        extern "C" {
-            static mut _stack_start_cpu0: u8;
-            static mut _stack_end_cpu0: u8;
-        }
+        #[cfg(feature = "esp32s3")]
+        let stack_range = {
+            extern "C" {
+                static mut _stack_start_cpu0: u8;
+                static mut _stack_end_cpu0: u8;
+            }
 
-        // We only use a single core for now, so we can write both stack regions.
-        let stack_start = unsafe { addr_of!(_stack_start_cpu0) as usize };
-        let stack_end = unsafe { addr_of!(_stack_end_cpu0) as usize };
-        let _stack_protection = make_static!(crate::stack_protection::StackMonitor::protect(
+            // We only use a single core for now, so we can write both stack regions.
+            let stack_start = unsafe { addr_of!(_stack_start_cpu0) as usize };
+            let stack_end = unsafe { addr_of!(_stack_end_cpu0) as usize };
+
             stack_start..stack_end
-        ));
+        };
+        #[cfg(feature = "esp32c6")]
+        let stack_range = {
+            extern "C" {
+                static mut _stack_start: u8;
+                static mut _stack_end: u8;
+            }
+
+            // We only use a single core for now, so we can write both stack regions.
+            let stack_start = unsafe { addr_of!(_stack_start) as usize };
+            let stack_end = unsafe { addr_of!(_stack_end) as usize };
+
+            stack_start..stack_end
+        };
+        let _stack_protection =
+            make_static!(crate::stack_protection::StackMonitor::protect(stack_range));
     }
 
     #[inline(always)]
