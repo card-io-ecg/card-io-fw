@@ -1,4 +1,4 @@
-use std::{convert::Infallible, f32::consts::PI};
+use std::{convert::Infallible, f32::consts::PI, num::NonZeroU8};
 
 use embedded_graphics::{
     pixelcolor::BinaryColor,
@@ -22,7 +22,7 @@ fn main() -> Result<(), Infallible> {
 
     let mut screen = EcgScreen::new();
 
-    screen.update_heart_rate(67);
+    screen.update_heart_rate(NonZeroU8::new(67));
 
     let mut progress = 0;
     'running: loop {
