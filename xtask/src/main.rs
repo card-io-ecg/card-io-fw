@@ -150,6 +150,11 @@ fn build(config: BuildConfig, timings: bool) -> AnyResult<()> {
         cargo(&command).run()?;
     }
 
+    match config.soc {
+        SocConfig::S3 => std::fs::copy("cfg_esp32s3.toml", "cfg.toml").ok(),
+        SocConfig::C6 => std::fs::copy("cfg_esp32c6.toml", "cfg.toml").ok(),
+    };
+
     let flash_size = format!("-s{}mb", config.version.flash_size());
     let mut command = vec![
         "espflash",
@@ -178,6 +183,11 @@ fn run(config: BuildConfig) -> AnyResult<()> {
     // cargo(&args).run()?;
 
     println!("💾  Building and flashing firmware");
+
+    match config.soc {
+        SocConfig::S3 => std::fs::copy("cfg_esp32s3.toml", "cfg.toml").ok(),
+        SocConfig::C6 => std::fs::copy("cfg_esp32c6.toml", "cfg.toml").ok(),
+    };
 
     let mut args = vec![
         "espflash",
