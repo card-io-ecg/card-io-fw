@@ -28,19 +28,6 @@ use norfs::{medium::StorageMedium, Storage, StorageError};
 use signal_processing::compressing_buffer::CompressingBuffer;
 use static_cell::StaticCell;
 
-#[cfg(feature = "hw_v1")]
-use crate::{
-    board::{hal::gpio::RTCPinWithResistors, ChargerStatus},
-    sleep::disable_gpio_wakeup,
-    states::adc_setup::adc_setup,
-};
-
-#[cfg(any(feature = "hw_v2", feature = "hw_v4"))]
-use crate::board::VbusDetect;
-
-#[cfg(any(feature = "hw_v1", feature = "hw_v2", feature = "hw_v4"))]
-use crate::board::hal::Delay;
-
 #[cfg(feature = "battery_max17055")]
 pub use crate::states::menu::battery_info::battery_info_menu;
 
@@ -53,6 +40,7 @@ use crate::{
             entry,
             interrupt::Priority,
             prelude::{interrupt, main},
+            Delay,
         },
         initialized::{Context, InnerContext},
         startup::StartupResources,
@@ -74,22 +62,27 @@ use crate::{
     },
 };
 
-#[cfg(all(
-    any(feature = "hw_v1", feature = "hw_v2", feature = "hw_v4"),
-    feature = "esp32s3"
-))]
+#[cfg(feature = "hw_v1")]
+use crate::{board::ChargerStatus, sleep::disable_gpio_wakeup, states::adc_setup::adc_setup};
+
 use crate::board::{
-    hal::{
-        gpio::RTCPin,
-        rtc_cntl::sleep::{RtcioWakeupSource, WakeupLevel},
-    },
+    hal::rtc_cntl::sleep::{RtcioWakeupSource, WakeupLevel},
     TouchDetect,
 };
+
+#[cfg(any(feature = "hw_v2", feature = "hw_v4", feature = "hw_v6"))]
+use crate::board::VbusDetect;
+
+#[cfg(feature = "esp32s3")]
+use crate::board::hal::gpio::RTCPin as RtcWakeupPin;
+
+#[cfg(feature = "esp32c6")]
+use crate::board::hal::gpio::RTCPinWithResistors as RtcWakeupPin;
 
 mod board;
 mod heap;
 pub mod human_readable;
-#[cfg(any(feature = "hw_v1", feature = "hw_v2", feature = "hw_v4"))]
+#[cfg(feature = "hw_v1")]
 mod sleep;
 mod stack_protection;
 mod states;
@@ -244,7 +237,6 @@ async fn main(_spawner: Spawner) {
     let mut storage = FileSystem::mount().await;
     let config = load_config(storage.as_deref_mut()).await;
 
-    #[cfg(any(feature = "hw_v1", feature = "hw_v2", feature = "hw_v4"))]
     let mut delay = Delay::new(&resources.clocks);
 
     // We're boxing Context because we will need to move out of it during shutdown.
@@ -321,43 +313,30 @@ async fn main(_spawner: Spawner) {
 
     let battery_monitor = board.inner.battery_monitor;
 
-    #[cfg(any(feature = "hw_v1", feature = "hw_v2", feature = "hw_v4"))]
+    let mut rtc = resources.rtc;
     let is_charging = battery_monitor.is_plugged();
 
     #[cfg(feature = "hw_v1")]
     let (_, mut charger_pin) = battery_monitor.stop().await;
 
-    #[cfg(any(feature = "hw_v2", feature = "hw_v4"))]
+    #[cfg(not(feature = "hw_v1"))]
     let (mut charger_pin, _) = battery_monitor.stop().await;
 
-    #[cfg(feature = "hw_v6")]
-    let _ = battery_monitor.stop().await;
+    let (_, _, _, mut touch) = board.frontend.split();
 
-    #[cfg(any(feature = "hw_v1", feature = "hw_v2", feature = "hw_v4"))]
-    {
-        let (_, _, _, mut touch) = board.frontend.split();
-        let mut rtc = resources.rtc;
+    let mut wakeup_pins = heapless::Vec::<(&mut dyn RtcWakeupPin, WakeupLevel), 2>::new();
+    setup_wakeup_pins(&mut wakeup_pins, &mut touch, &mut charger_pin, is_charging);
+    let rtcio = RtcioWakeupSource::new(&mut wakeup_pins);
 
-        let mut wakeup_pins = heapless::Vec::<(&mut dyn RTCPin, WakeupLevel), 2>::new();
-        setup_wakeup_pins(&mut wakeup_pins, &mut touch, &mut charger_pin, is_charging);
-        let rtcio = RtcioWakeupSource::new(&mut wakeup_pins);
+    rtc.sleep_deep(&[&rtcio], &mut delay);
 
-        rtc.sleep_deep(&[&rtcio], &mut delay);
-
-        // Shouldn't reach this. If we do, we just exit the task, which means the executor
-        // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
-    }
-
-    #[cfg(not(any(feature = "hw_v1", feature = "hw_v2", feature = "hw_v4")))]
-    {
-        error!("Sleep not supported");
-        loop {}
-    }
+    // Shouldn't reach this. If we do, we just exit the task, which means the executor
+    // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
 }
 
 #[cfg(feature = "hw_v1")]
 fn setup_wakeup_pins<'a, const N: usize>(
-    wakeup_pins: &mut heapless::Vec<(&'a mut dyn RTCPin, WakeupLevel), N>,
+    wakeup_pins: &mut heapless::Vec<(&'a mut dyn RtcWakeupPin, WakeupLevel), N>,
     touch: &'a mut TouchDetect,
     charger_pin: &'a mut ChargerStatus,
     is_charging: bool,
@@ -381,9 +360,9 @@ fn setup_wakeup_pins<'a, const N: usize>(
     }
 }
 
-#[cfg(any(feature = "hw_v2", feature = "hw_v4"))]
+#[cfg(any(feature = "hw_v2", feature = "hw_v4", feature = "hw_v6"))]
 fn setup_wakeup_pins<'a, const N: usize>(
-    wakeup_pins: &mut heapless::Vec<(&'a mut dyn RTCPin, WakeupLevel), N>,
+    wakeup_pins: &mut heapless::Vec<(&'a mut dyn RtcWakeupPin, WakeupLevel), N>,
     touch: &'a mut TouchDetect,
     charger_pin: &'a mut VbusDetect,
     is_charging: bool,

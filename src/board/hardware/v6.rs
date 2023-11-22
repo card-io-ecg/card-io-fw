@@ -16,7 +16,7 @@ use crate::board::{
         spi::{master::dma::SpiDma, FullDuplexMode},
         systimer::SystemTimer,
         timer::TimerGroup,
-        IO,
+        Rtc, IO,
     },
     utils::DummyOutputPin,
     wifi::WifiDriver,
@@ -28,7 +28,6 @@ use embedded_hal_bus::spi::ExclusiveDevice;
 #[cfg(feature = "esp32s3")]
 mod hw {
     use super::*;
-    pub use crate::board::hal::Rtc;
 
     pub type DisplaySpiInstance = hal::peripherals::SPI2;
     pub type DisplayDmaChannel = ChannelCreator0;
@@ -99,7 +98,7 @@ mod hw {
     pub type AdcMosi = GpioPin<Output<PushPull>, 7>;
     pub type AdcMiso = GpioPin<Input<Floating>, 5>;
     pub type AdcChipSelect = GpioPin<Output<PushPull>, 9>;
-    pub type AdcClockEnable = GpioPin<Output<PushPull>, 3>;
+    pub type AdcClockEnable = GpioPin<Output<PushPull>, 23>;
     pub type AdcDrdy = GpioPin<Input<Floating>, 4>;
     pub type AdcReset = GpioPin<Output<PushPull>, 15>;
     pub type TouchDetect = GpioPin<Input<Floating>, 2>;
@@ -107,7 +106,7 @@ mod hw {
     pub type AdcSpi = ExclusiveDevice<AdcSpiBus, AdcChipSelect, Delay>;
 
     pub type BatteryAdcEnable = DummyOutputPin;
-    pub type VbusDetect = GpioPin<Input<Floating>, 23>;
+    pub type VbusDetect = GpioPin<Input<Floating>, 3>;
     pub type ChargerStatus = GpioPin<Input<PullUp>, 20>;
 
     pub type EcgFrontend = Frontend<AdcSpi, AdcDrdy, AdcReset, AdcClockEnable, TouchDetect>;
@@ -205,7 +204,7 @@ impl super::startup::StartupResources {
             ),
             io.pins.gpio4,
             io.pins.gpio15,
-            io.pins.gpio3,
+            io.pins.gpio23,
             io.pins.gpio2,
         );
 
@@ -228,7 +227,7 @@ impl super::startup::StartupResources {
             peripherals::Interrupt::I2C_EXT0,
             io.pins.gpio19,
             io.pins.gpio18,
-            io.pins.gpio23,
+            io.pins.gpio3,
             io.pins.gpio20,
             DummyOutputPin,
             &clocks,
@@ -253,6 +252,8 @@ impl super::startup::StartupResources {
             clocks,
             #[cfg(feature = "esp32s3")]
             rtc: Rtc::new(peripherals.RTC_CNTL),
+            #[cfg(feature = "esp32c6")]
+            rtc: Rtc::new(peripherals.LP_CLKRST),
         }
     }
 }

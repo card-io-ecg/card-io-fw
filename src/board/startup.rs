@@ -15,6 +15,7 @@ use crate::{
                 master::{dma::*, Instance, Spi},
                 SpiMode,
             },
+            Rtc,
         },
         utils::DummyOutputPin,
         wifi::WifiDriver,
@@ -26,9 +27,7 @@ use crate::{
 };
 
 #[cfg(feature = "esp32s3")]
-use crate::board::{
-    hal::Rtc, AdcChipSelect, AdcDmaChannel, AdcMiso, AdcMosi, AdcSclk, AdcSpiInstance,
-};
+use crate::board::{AdcChipSelect, AdcDmaChannel, AdcMiso, AdcMosi, AdcSclk, AdcSpiInstance};
 
 #[cfg(feature = "battery_max17055")]
 use {
@@ -51,7 +50,6 @@ pub struct StartupResources {
     pub battery_monitor: BatteryMonitor<VbusDetect, ChargerStatus>,
 
     pub wifi: &'static mut WifiDriver,
-    #[cfg(feature = "esp32s3")]
     pub rtc: Rtc<'static>,
 }
 
