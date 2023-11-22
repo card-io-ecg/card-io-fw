@@ -1,4 +1,6 @@
 [esp-wifi]
+heap_size = 98304
+
 rx_queue_size = 16
 static_rx_buf_num = 32
 dynamic_rx_buf_num = 16
