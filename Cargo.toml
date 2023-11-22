@@ -202,7 +202,7 @@ esp32c6 = [
     "dep:norfs-esp32c6",
     "esp-backtrace/esp32c6",
     "esp-println/esp32c6",
-    "uart", # until I figure out why USB is dodgy
+    "jtag_serial",
     "esp-wifi/esp32c6",
 ]
 
