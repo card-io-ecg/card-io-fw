@@ -274,6 +274,7 @@ async fn main(_spawner: Spawner) {
             #[cfg(feature = "hw_v1")]
             AppState::AdcSetup => adc_setup(&mut board).await,
             AppState::PreInitialize => {
+                unwrap!(board.inner.display.enable().await.ok());
                 if board.battery_monitor.is_plugged() {
                     AppState::Charging
                 } else {
@@ -305,7 +306,10 @@ async fn main(_spawner: Spawner) {
                 break;
 
                 #[cfg(feature = "esp32c6")]
-                AppState::PreInitialize
+                {
+                    board.inner.display.shut_down();
+                    AppState::PreInitialize
+                }
             }
         };
 
