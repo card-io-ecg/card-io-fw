@@ -300,7 +300,13 @@ async fn main(_spawner: Spawner) {
             AppState::UploadOrStore(buffer) => {
                 upload_or_store_measurement(&mut board, buffer, AppState::Shutdown).await
             }
-            AppState::Shutdown => break,
+            AppState::Shutdown => {
+                #[cfg(feature = "esp32s3")]
+                break;
+
+                #[cfg(feature = "esp32c6")]
+                AppState::PreInitialize
+            }
         };
 
         board.wait_for_message(MESSAGE_DURATION).await;
