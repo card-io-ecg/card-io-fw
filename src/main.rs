@@ -274,7 +274,6 @@ async fn main(_spawner: Spawner) {
             #[cfg(feature = "hw_v1")]
             AppState::AdcSetup => adc_setup(&mut board).await,
             AppState::PreInitialize => {
-                unwrap!(board.inner.display.enable().await.ok());
                 if board.battery_monitor.is_plugged() {
                     AppState::Charging
                 } else {
@@ -301,16 +300,7 @@ async fn main(_spawner: Spawner) {
             AppState::UploadOrStore(buffer) => {
                 upload_or_store_measurement(&mut board, buffer, AppState::Shutdown).await
             }
-            AppState::Shutdown => {
-                #[cfg(feature = "esp32s3")]
-                break;
-
-                #[cfg(feature = "esp32c6")]
-                {
-                    board.inner.display.shut_down();
-                    AppState::PreInitialize
-                }
-            }
+            AppState::Shutdown => break,
         };
 
         board.wait_for_message(MESSAGE_DURATION).await;
