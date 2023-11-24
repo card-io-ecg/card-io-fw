@@ -66,7 +66,7 @@ use crate::{
 use crate::{board::ChargerStatus, sleep::disable_gpio_wakeup, states::adc_setup::adc_setup};
 
 use crate::board::{
-    hal::rtc_cntl::sleep::{RtcioWakeupSource, WakeupLevel},
+    hal::rtc_cntl::{sleep, sleep::WakeupLevel},
     TouchDetect,
 };
 
@@ -339,7 +339,7 @@ fn setup_wakeup_pins<'a, 'b, const N: usize>(
     touch: &'b mut TouchDetect,
     charger_pin: &'b mut ChargerStatus,
     is_charging: bool,
-) -> RtcioWakeupSource<'a, 'b> {
+) -> sleep::RtcioWakeupSource<'a, 'b> {
     unwrap!(wakeup_pins.push((touch, WakeupLevel::Low)).ok());
 
     if is_charging {
@@ -358,16 +358,20 @@ fn setup_wakeup_pins<'a, 'b, const N: usize>(
         unwrap!(wakeup_pins.push((charger_pin, WakeupLevel::Low)).ok());
     }
 
-    RtcioWakeupSource::new(wakeup_pins)
+    sleep::RtcioWakeupSource::new(wakeup_pins)
 }
 
-#[cfg(any(feature = "hw_v2", feature = "hw_v4", feature = "hw_v6"))]
+#[cfg(any(
+    feature = "hw_v2",
+    feature = "hw_v4",
+    all(feature = "hw_v6", feature = "esp32s3")
+))]
 fn setup_wakeup_pins<'a, 'b, const N: usize>(
     wakeup_pins: &'a mut heapless::Vec<(&'b mut dyn RtcWakeupPin, WakeupLevel), N>,
     touch: &'b mut TouchDetect,
     charger_pin: &'b mut VbusDetect,
     is_charging: bool,
-) -> RtcioWakeupSource<'a, 'b> {
+) -> sleep::RtcioWakeupSource<'a, 'b> {
     let charger_level = if is_charging {
         // Wake up momentarily when charger is disconnected
         WakeupLevel::Low
@@ -382,5 +386,29 @@ fn setup_wakeup_pins<'a, 'b, const N: usize>(
     unwrap!(wakeup_pins.push((touch, WakeupLevel::Low)).ok());
     unwrap!(wakeup_pins.push((charger_pin, charger_level)).ok());
 
-    RtcioWakeupSource::new(wakeup_pins)
+    sleep::RtcioWakeupSource::new(wakeup_pins)
+}
+
+#[cfg(all(feature = "hw_v6", feature = "esp32c6"))]
+fn setup_wakeup_pins<'a, 'b, const N: usize>(
+    wakeup_pins: &'a mut heapless::Vec<(&'b mut dyn RtcWakeupPin, WakeupLevel), N>,
+    touch: &'b mut TouchDetect,
+    charger_pin: &'b mut VbusDetect,
+    is_charging: bool,
+) -> sleep::Ext1WakeupSource<'a, 'b> {
+    let charger_level = if is_charging {
+        // Wake up momentarily when charger is disconnected
+        WakeupLevel::Low
+    } else {
+        // We want to wake up when the charger is connected, or the electrodes are touched.
+
+        // In v2, the charger status is not connected to an RTC IO pin, so we use the VBUS
+        // detect pin instead. This is a high level signal when the charger is connected.
+        WakeupLevel::High
+    };
+
+    unwrap!(wakeup_pins.push((touch, WakeupLevel::Low)).ok());
+    unwrap!(wakeup_pins.push((charger_pin, charger_level)).ok());
+
+    sleep::Ext1WakeupSource::new(wakeup_pins)
 }
