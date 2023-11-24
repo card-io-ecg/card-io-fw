@@ -325,22 +325,21 @@ async fn main(_spawner: Spawner) {
     let (_, _, _, mut touch) = board.frontend.split();
 
     let mut wakeup_pins = heapless::Vec::<(&mut dyn RtcWakeupPin, WakeupLevel), 2>::new();
-    setup_wakeup_pins(&mut wakeup_pins, &mut touch, &mut charger_pin, is_charging);
-    let rtcio = RtcioWakeupSource::new(&mut wakeup_pins);
-
-    rtc.sleep_deep(&[&rtcio], &mut delay);
+    let wakeup_source =
+        setup_wakeup_pins(&mut wakeup_pins, &mut touch, &mut charger_pin, is_charging);
+    rtc.sleep_deep(&[&wakeup_source], &mut delay);
 
     // Shouldn't reach this. If we do, we just exit the task, which means the executor
     // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
 }
 
 #[cfg(feature = "hw_v1")]
-fn setup_wakeup_pins<'a, const N: usize>(
-    wakeup_pins: &mut heapless::Vec<(&'a mut dyn RtcWakeupPin, WakeupLevel), N>,
-    touch: &'a mut TouchDetect,
-    charger_pin: &'a mut ChargerStatus,
+fn setup_wakeup_pins<'a, 'b, const N: usize>(
+    wakeup_pins: &'a mut heapless::Vec<(&'b mut dyn RtcWakeupPin, WakeupLevel), N>,
+    touch: &'b mut TouchDetect,
+    charger_pin: &'b mut ChargerStatus,
     is_charging: bool,
-) {
+) -> RtcioWakeupSource<'a, 'b> {
     unwrap!(wakeup_pins.push((touch, WakeupLevel::Low)).ok());
 
     if is_charging {
@@ -358,15 +357,17 @@ fn setup_wakeup_pins<'a, const N: usize>(
 
         unwrap!(wakeup_pins.push((charger_pin, WakeupLevel::Low)).ok());
     }
+
+    RtcioWakeupSource::new(wakeup_pins)
 }
 
 #[cfg(any(feature = "hw_v2", feature = "hw_v4", feature = "hw_v6"))]
-fn setup_wakeup_pins<'a, const N: usize>(
-    wakeup_pins: &mut heapless::Vec<(&'a mut dyn RtcWakeupPin, WakeupLevel), N>,
-    touch: &'a mut TouchDetect,
-    charger_pin: &'a mut VbusDetect,
+fn setup_wakeup_pins<'a, 'b, const N: usize>(
+    wakeup_pins: &'a mut heapless::Vec<(&'b mut dyn RtcWakeupPin, WakeupLevel), N>,
+    touch: &'b mut TouchDetect,
+    charger_pin: &'b mut VbusDetect,
     is_charging: bool,
-) {
+) -> RtcioWakeupSource<'a, 'b> {
     let charger_level = if is_charging {
         // Wake up momentarily when charger is disconnected
         WakeupLevel::Low
@@ -380,4 +381,6 @@ fn setup_wakeup_pins<'a, const N: usize>(
 
     unwrap!(wakeup_pins.push((touch, WakeupLevel::Low)).ok());
     unwrap!(wakeup_pins.push((charger_pin, charger_level)).ok());
+
+    RtcioWakeupSource::new(wakeup_pins)
 }
