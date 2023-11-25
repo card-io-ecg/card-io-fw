@@ -4,5 +4,6 @@
     "cortex-debug.variableUseNaturalFormat": false,
     "rust-analyzer.cargo.features": [
         "esp32c6",
+        "hw_v6"
     ]
 }
