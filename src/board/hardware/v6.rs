@@ -50,7 +50,7 @@ mod hw {
     pub type AdcMosi = GpioPin<Output<PushPull>, 7>;
     pub type AdcMiso = GpioPin<Input<Floating>, 5>;
     pub type AdcChipSelect = GpioPin<Output<PushPull>, 0>;
-    pub type AdcClockEnable = GpioPin<Output<PushPull>, 2>;
+    pub type AdcClockEnable = GpioPin<Output<PushPull>, 40>;
     pub type AdcDrdy = GpioPin<Input<Floating>, 4>;
     pub type AdcReset = GpioPin<Output<PushPull>, 42>;
     pub type TouchDetect = GpioPin<Input<Floating>, 1>;
@@ -58,7 +58,7 @@ mod hw {
     pub type AdcSpi = ExclusiveDevice<AdcSpiBus, AdcChipSelect, Delay>;
 
     pub type BatteryAdcEnable = DummyOutputPin;
-    pub type VbusDetect = GpioPin<Input<Floating>, 40>;
+    pub type VbusDetect = GpioPin<Input<Floating>, 2>;
     pub type ChargerStatus = GpioPin<Input<PullUp>, 37>;
 
     pub type EcgFrontend = Frontend<AdcSpi, AdcDrdy, AdcReset, AdcClockEnable, TouchDetect>;
@@ -186,7 +186,7 @@ impl super::startup::StartupResources {
             ),
             io.pins.gpio4,
             io.pins.gpio42,
-            io.pins.gpio2,
+            io.pins.gpio40,
             io.pins.gpio1,
         );
 
@@ -214,7 +214,7 @@ impl super::startup::StartupResources {
             peripherals::Interrupt::I2C_EXT0,
             io.pins.gpio36,
             io.pins.gpio35,
-            io.pins.gpio40,
+            io.pins.gpio2,
             io.pins.gpio37,
             DummyOutputPin,
             &clocks,
