@@ -84,13 +84,16 @@ esp-println = { version = "0.7.0", default-features = false, features = [
     "critical-section",
 ] }
 esp-alloc = "0.3.0"
-esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "0db7a70", default-features = false, features = [
+esp-wifi = { version = "0.1.1", default-features = false, features = [
     "phy-enable-usb",
     "ps-max-modem",
     "wifi",
-    "embedded-svc",
     "async",
-    "embassy-net"
+    "embassy-net",
+    "tcp",
+    "dns",
+    "ipv4",
+    "dhcpv4"
 ] }
 
 display-interface = { git = "https://github.com/therealprof/display-interface.git" }
@@ -169,10 +172,7 @@ esp32c3-hal = { path = "../../esp-hal/esp32c3-hal" }
 esp32c6-hal = { path = "../../esp-hal/esp32c6-hal" }
 esp-hal-common = { path = "../../esp-hal/esp-hal-common" }
 esp-hal-procmacros = { path = "../../esp-hal/esp-hal-procmacros" }
-
-[patch.'https://github.com/esp-rs/esp-wifi.git']
-# esp-wifi = { path = "../esp-wifi/esp-wifi" }
-# esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git" }
+esp-wifi = { path = "../esp-wifi/esp-wifi" }
 
 [features]
 default = ["defmt"]
