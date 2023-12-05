@@ -15,7 +15,7 @@ impl Mcu {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
 enum HwVersion {
     V1,
     V2,
@@ -31,6 +31,26 @@ impl HwVersion {
             Self::V4 => "v4",
             Self::V6 => "v6",
         }
+    }
+}
+
+struct BuildConfig {
+    mcu: Mcu,
+    hw_version: HwVersion,
+}
+
+impl BuildConfig {
+    fn as_str(&self) -> String {
+        let mcu = if self.hw_version >= HwVersion::V6 {
+            match self.mcu {
+                Mcu::ESP32S2 => "s2",
+                Mcu::ESP32S3 => "s3",
+                Mcu::ESP32C6 => "c6",
+            }
+        } else {
+            ""
+        };
+        format!("{}{}", self.hw_version.as_str(), mcu)
     }
 }
 
@@ -74,6 +94,8 @@ fn main() {
         panic!("Exactly 1 hardware version must be selected via its Cargo feature (hw_v1, hw_v2, hw_v4, hw_v6)");
     };
 
+    let build_config = BuildConfig { mcu, hw_version };
+
     if cfg!(feature = "defmt") {
         println!("cargo:rustc-link-arg=-Tdefmt.x");
     }
@@ -93,7 +115,7 @@ fn main() {
     println!("cargo:rustc-env=FW_VERSION={pkg_version}-{git_hash_str}");
 
     println!("cargo:rustc-env=MCU_MODEL={}", mcu.as_str());
-    println!("cargo:rustc-env=HW_VERSION={}", hw_version.as_str());
+    println!("cargo:rustc-env=HW_VERSION={}", build_config.as_str());
 
     // Device info list items
     println!(
@@ -103,6 +125,6 @@ fn main() {
 
     println!(
         "cargo:rustc-env=HW_VERSION_MENU_ITEM=HW {:>17}",
-        format!("{}/{}", mcu.as_str(), hw_version.as_str())
+        format!("{}/{}", mcu.as_str(), build_config.as_str())
     );
 }
