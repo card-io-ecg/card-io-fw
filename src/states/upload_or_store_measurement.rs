@@ -57,11 +57,13 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     debug!("Measurement length: {} samples", sample_count);
 
     if sample_count < 20 * SAMPLE_RATE {
-        // We don't want to store too-short measurements.
-        debug!("Measurement is too short to upload or store.");
-        context
-            .display_message("Measurement too short, discarding")
-            .await;
+        if context.config.measurement_action != MeasurementAction::Discard {
+            // We don't want to store too-short measurements.
+            debug!("Measurement is too short to upload or store.");
+            context
+                .display_message("Measurement too short, discarding")
+                .await;
+        }
         return next_state;
     }
 
