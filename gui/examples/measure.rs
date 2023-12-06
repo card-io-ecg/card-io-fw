@@ -1,4 +1,4 @@
-use std::{convert::Infallible, f32::consts::PI};
+use std::{convert::Infallible, f32::consts::PI, num::NonZeroU8};
 
 use embedded_graphics::{
     pixelcolor::BinaryColor,
@@ -22,8 +22,11 @@ fn main() -> Result<(), Infallible> {
 
     let mut screen = EcgScreen::new();
 
-    screen.update_heart_rate(67);
+    screen.update_heart_rate(NonZeroU8::new(67));
 
+    const INJECT_PULSE: usize = 160;
+
+    let mut inect_counter = 0;
     let mut progress = 0;
     'running: loop {
         display.clear(BinaryColor::Off).unwrap();
@@ -41,7 +44,19 @@ fn main() -> Result<(), Infallible> {
         let sample1 = wt.sin();
         let sample2 = wt2.sin();
 
-        screen.push(sample1 * sample2);
+        let mut sample = sample1 * sample2;
+
+        inect_counter += 1;
+        if inect_counter == INJECT_PULSE - 1 {
+            sample += 0.5;
+        }
+        if inect_counter == INJECT_PULSE {
+            inect_counter = 0;
+
+            sample -= 2.0;
+        }
+
+        screen.push(sample);
 
         screen.draw(&mut display).unwrap();
 

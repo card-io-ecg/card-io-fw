@@ -29,17 +29,22 @@ enum LimitKind {
 
 struct Limit {
     current: f32,
+    target: f32,
+    delta: f32,
     kind: LimitKind,
     age: usize,
 }
 
 impl Limit {
     fn new(kind: LimitKind) -> Limit {
+        let current = match kind {
+            LimitKind::Min => f32::MAX,
+            LimitKind::Max => f32::MIN,
+        };
         Self {
-            current: match kind {
-                LimitKind::Min => f32::MAX,
-                LimitKind::Max => f32::MIN,
-            },
+            current,
+            target: current,
+            delta: 0.0,
             kind,
             age: 0,
         }
@@ -53,18 +58,32 @@ impl Limit {
 
         if reset {
             self.current = value;
+            self.target = value;
+            self.delta = 0.0;
             self.age = 0;
-        } else {
-            self.age += 1;
+        } else if self.current != value {
+            // Short circuit if the value hasn't changed
+
+            if value != self.target {
+                // target changed, reset age and compute new delta
+                self.age = self.age.min(config.shrink_delay);
+                self.target = value;
+                self.delta =
+                    (value - self.current) / (config.shrink_end - config.shrink_delay) as f32;
+            } else {
+                // target unchanged, increment age
+                self.age += 1;
+            }
+
             if self.age > config.shrink_delay {
                 let remaining_shrink_frames = config.shrink_end - self.age;
 
                 if remaining_shrink_frames == 0 {
                     self.age = 0;
                     self.current = value;
+                    self.delta = 0.0;
                 } else {
-                    let delta = (value - self.current) / remaining_shrink_frames as f32;
-                    self.current += delta;
+                    self.current += self.delta;
                 }
             }
         }
