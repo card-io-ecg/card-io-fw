@@ -161,7 +161,7 @@ enumset = "1.1.3"
 [patch.crates-io]
 # esp32s3-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "c6sleep" }
 # esp32c6-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "c6sleep" }
-# esp-println = { git = "https://github.com/esp-rs/esp-println.git" }
+esp-println = { git = "https://github.com/bugadani/esp-println.git", branch = "wait" }
 # esp-backtrace = { path = "../../esp-backtrace" }
 # embedded-text = { git = "https://github.com/embedded-graphics/embedded-text.git" }
 esp32-hal = { path = "../../esp-hal/esp32-hal" }
@@ -241,7 +241,7 @@ defmt = [
     "embedded-io/defmt-03",
     "embedded-svc/defmt",
     "embedded-graphics/defmt",
-    "esp-println/defmt",
+    "esp-println/defmt-espflash",
     "esp-wifi/defmt",
     "esp32s3-hal?/defmt",
     "esp32c6-hal?/defmt",
