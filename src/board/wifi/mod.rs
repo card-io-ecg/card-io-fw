@@ -1,13 +1,18 @@
 use core::{hint::unreachable_unchecked, mem, ops::Deref, ptr::NonNull};
 
+#[cfg(feature = "esp32s3")]
+type WifiTimer =
+    crate::hal::timer::Timer<crate::hal::timer::Timer0<crate::hal::peripherals::TIMG1>>;
+#[cfg(feature = "esp32c6")]
+type WifiTimer = crate::hal::systimer::Alarm<crate::hal::systimer::Target, 0>;
+
 use crate::{
     board::{
         hal::{
             clock::Clocks,
-            peripherals::{RNG, TIMG1, WIFI},
+            peripherals::{RNG, WIFI},
             system::RadioClockControl,
-            timer::{Timer0, TimerGroup},
-            Rng, Timer,
+            Rng,
         },
         wifi::{
             ap::{Ap, ApState},
@@ -85,7 +90,7 @@ pub struct WifiDriver {
 }
 
 struct WifiInitResources {
-    timer: Timer<Timer0<TIMG1>>,
+    timer: WifiTimer,
     rng: Rng,
     rcc: RadioClockControl,
 }
@@ -141,22 +146,12 @@ impl WifiDriverState {
 }
 
 impl WifiDriver {
-    pub fn new(
-        wifi: WIFI,
-        timer: TIMG1,
-        rng: RNG,
-        rcc: RadioClockControl,
-        clocks: &Clocks,
-    ) -> Self {
+    pub fn new(wifi: WIFI, timer: WifiTimer, rng: RNG, rcc: RadioClockControl) -> Self {
         let rng = Rng::new(rng);
         Self {
             wifi,
             rng,
-            state: WifiDriverState::Uninitialized(WifiInitResources {
-                timer: TimerGroup::new(timer, clocks).timer0,
-                rng,
-                rcc,
-            }),
+            state: WifiDriverState::Uninitialized(WifiInitResources { timer, rng, rcc }),
         }
     }
 

@@ -40,10 +40,7 @@ type MessageQueue = Channel<CriticalSectionRawMutex, Sample, 32>;
 unsafe impl Send for PoweredEcgFrontend {}
 
 struct EcgTaskParams {
-    token: TaskControlToken<
-        Result<(), Error<<AdcSpi<'static> as ErrorType>::Error>>,
-        PoweredEcgFrontend,
-    >,
+    token: TaskControlToken<Result<(), Error<<AdcSpi as ErrorType>::Error>>, PoweredEcgFrontend>,
     sender: Arc<MessageQueue>,
 }
 
@@ -338,7 +335,7 @@ async fn reader_task(params: EcgTaskParams) {
 async fn read_ecg(
     queue: &MessageQueue,
     frontend: &mut PoweredEcgFrontend,
-) -> Result<(), Error<<AdcSpi<'static> as ErrorType>::Error>> {
+) -> Result<(), Error<<AdcSpi as ErrorType>::Error>> {
     loop {
         match frontend.read().await {
             Ok(sample) => {

@@ -1,6 +1,5 @@
 use crate::board::hal::{gpio::GpioPin, peripherals};
 
-#[allow(unused)]
 enum RtcioWakeupType {
     Disable = 0,
     LowLevel = 4,
@@ -21,7 +20,6 @@ fn enable_gpio_wakeup<MODE, const PIN: u8>(_pin: &GpioPin<MODE, PIN>, level: Rtc
 }
 
 // Wakeup remains enabled after waking from deep sleep, so we need to disable it manually.
-#[allow(unused)]
 pub fn disable_gpio_wakeup<MODE, const PIN: u8>(pin: &GpioPin<MODE, PIN>) {
     enable_gpio_wakeup(pin, RtcioWakeupType::Disable)
 }

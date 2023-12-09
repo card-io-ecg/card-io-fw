@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, path::PathBuf};
 
 use anyhow::Result as AnyResult;
 use clap::{Parser, Subcommand, ValueEnum};
@@ -11,7 +11,6 @@ pub enum Subcommands {
     Build {
         /// Which hardware version to build for.
         hw: Option<HardwareVersion>,
-        variant: Option<BuildVariant>,
     },
 
     /// Builds the firmware and dumps the assembly.
@@ -24,15 +23,19 @@ pub enum Subcommands {
     Test,
 
     /// Connects to the Card/IO device to display serial output.
-    Monitor { variant: Option<MonitorVariant> },
+    Monitor {
+        /// Which hardware version is connected.
+        hw: Option<HardwareVersion>,
+
+        profile: Option<Profile>,
+    },
 
     /// Builds, flashes and runs the firmware on a connected device.
     Run {
         /// Which hardware version to run on.
         hw: Option<HardwareVersion>,
 
-        #[arg(long)]
-        release: bool,
+        profile: Option<Profile>,
     },
 
     /// Checks the project for errors.
@@ -75,8 +78,10 @@ pub enum Subcommands {
 pub enum HardwareVersion {
     V1,
     V2,
-    #[default]
     V4,
+    V6S3,
+    #[default]
+    V6C6,
 }
 
 impl HardwareVersion {
@@ -85,19 +90,36 @@ impl HardwareVersion {
             HardwareVersion::V1 => "hw_v1",
             HardwareVersion::V2 => "hw_v2",
             HardwareVersion::V4 => "hw_v4",
+            HardwareVersion::V6S3 => "hw_v6,esp32s3",
+            HardwareVersion::V6C6 => "hw_v6,esp32c6",
         }
+    }
+
+    fn soc(&self) -> SocConfig {
+        match self {
+            HardwareVersion::V6C6 => SocConfig::C6,
+            _ => SocConfig::S3,
+        }
+    }
+
+    fn flash_size(&self) -> u32 {
+        2
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-pub enum BuildVariant {
-    StackSizes,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-pub enum MonitorVariant {
+pub enum Profile {
     Debug,
     Release,
+}
+
+impl Profile {
+    fn as_str(&self) -> &str {
+        match self {
+            Profile::Debug => "debug",
+            Profile::Release => "release",
+        }
+    }
 }
 
 #[derive(Debug, Parser)]
@@ -116,49 +138,30 @@ fn cargo(command: &[&str]) -> Expression {
     cmd("rustup", args_vec)
 }
 
-fn build(hw: HardwareVersion, opt: Option<BuildVariant>, timings: bool) -> AnyResult<()> {
-    let build_flags = [
-        "--target=xtensa-esp32s3-none-elf",
-        &format!("--features={}", hw.feature()),
-        "-Zbuild-std=core,alloc",
-        "-Zbuild-std-features=panic_immediate_abort",
-    ];
-
-    if let Some(option) = opt {
-        match option {
-            BuildVariant::StackSizes => {
-                let mut command = vec!["rustc"];
-
-                command.extend_from_slice(&build_flags);
-                command.extend_from_slice(&[
-                    "--profile=lto",
-                    "--",
-                    "-Zemit-stack-sizes",
-                    "--emit=llvm-bc",
-                ]);
-
-                cargo(&command).run()?;
-
-                return Ok(());
-            }
-        }
-    }
+fn build(config: BuildConfig, timings: bool) -> AnyResult<()> {
+    let build_flags = config.build_flags();
+    let build_flags = build_flags.iter().map(|s| s.as_str()).collect::<Vec<_>>();
 
     if timings {
-        let mut command = vec!["build", "--release", "--timings"];
+        let mut command = vec!["build", "--timings"];
 
         command.extend_from_slice(&build_flags);
 
         cargo(&command).run()?;
     }
 
+    match config.soc {
+        SocConfig::S3 => std::fs::copy("cfg_esp32s3.toml", "cfg.toml").ok(),
+        SocConfig::C6 => std::fs::copy("cfg_esp32c6.toml", "cfg.toml").ok(),
+    };
+
+    let flash_size = format!("-s{}mb", config.version.flash_size());
     let mut command = vec![
         "espflash",
         "save-image",
-        "--release",
         "--chip",
-        "esp32s3",
-        "-s2mb",
+        config.soc.chip(),
+        &flash_size,
         "target/card_io_fw.bin",
     ];
     command.extend_from_slice(&build_flags);
@@ -168,18 +171,9 @@ fn build(hw: HardwareVersion, opt: Option<BuildVariant>, timings: bool) -> AnyRe
     Ok(())
 }
 
-fn run(hw: HardwareVersion, release: bool) -> AnyResult<()> {
-    let hw = format!("--features={}", hw.feature());
-    let mut build_flags = vec![
-        "--target=xtensa-esp32s3-none-elf",
-        &hw,
-        "-Zbuild-std=core,alloc",
-    ];
-
-    if release {
-        build_flags.push("--release");
-        build_flags.push("-Zbuild-std-features=panic_immediate_abort");
-    }
+fn run(config: BuildConfig) -> AnyResult<()> {
+    let build_flags = config.build_flags();
+    let build_flags = build_flags.iter().map(|s| s.as_str()).collect::<Vec<_>>();
 
     // println!("🛠️  Building firmware");
     //
@@ -189,6 +183,11 @@ fn run(hw: HardwareVersion, release: bool) -> AnyResult<()> {
     // cargo(&args).run()?;
 
     println!("💾  Building and flashing firmware");
+
+    match config.soc {
+        SocConfig::S3 => std::fs::copy("cfg_esp32s3.toml", "cfg.toml").ok(),
+        SocConfig::C6 => std::fs::copy("cfg_esp32c6.toml", "cfg.toml").ok(),
+    };
 
     let mut args = vec![
         "espflash",
@@ -204,17 +203,12 @@ fn run(hw: HardwareVersion, release: bool) -> AnyResult<()> {
     Ok(())
 }
 
-fn monitor(variant: MonitorVariant) -> AnyResult<()> {
-    let variant = match variant {
-        MonitorVariant::Debug => "debug",
-        MonitorVariant::Release => "release",
-    };
-
+fn monitor(config: BuildConfig) -> AnyResult<()> {
     cargo(&[
         "espflash",
         "monitor",
         "-e",
-        &format!("./target/xtensa-esp32s3-none-elf/{variant}/card_io_fw"),
+        &config.elf_string(),
         "--log-format=defmt",
     ])
     .run()?;
@@ -222,28 +216,24 @@ fn monitor(variant: MonitorVariant) -> AnyResult<()> {
     Ok(())
 }
 
-fn checks(hw: HardwareVersion) -> AnyResult<()> {
-    cargo(&[
-        "check",
-        "--target=xtensa-esp32s3-none-elf",
-        "-Zbuild-std=core,alloc",
-        "-Zbuild-std-features=panic_immediate_abort",
-        &format!("--features={}", hw.feature()),
-    ])
-    .run()?;
+fn checks(config: BuildConfig) -> AnyResult<()> {
+    let build_flags = config.build_flags();
+    let build_flags = build_flags.iter().map(|s| s.as_str()).collect::<Vec<_>>();
+
+    let mut args = vec!["check"];
+    args.extend_from_slice(&build_flags);
+
+    cargo(&args).run()?;
 
     Ok(())
 }
 
-fn docs(open: bool, hw: HardwareVersion) -> AnyResult<()> {
-    let hw = format!("--features={}", hw.feature());
-    let mut args = vec![
-        "doc",
-        "--target=xtensa-esp32s3-none-elf",
-        "-Zbuild-std=core,alloc",
-        "-Zbuild-std-features=panic_immediate_abort",
-        &hw,
-    ];
+fn docs(config: BuildConfig, open: bool) -> AnyResult<()> {
+    let build_flags = config.build_flags();
+    let build_flags = build_flags.iter().map(|s| s.as_str()).collect::<Vec<_>>();
+
+    let mut args = vec!["doc"];
+    args.extend_from_slice(&build_flags);
 
     if open {
         args.push("--open");
@@ -254,16 +244,16 @@ fn docs(open: bool, hw: HardwareVersion) -> AnyResult<()> {
     Ok(())
 }
 
-fn extra_checks(hw: HardwareVersion) -> AnyResult<()> {
+fn extra_checks(config: BuildConfig) -> AnyResult<()> {
     cargo(&["fmt", "--check"]).run()?;
-    cargo(&[
-        "clippy",
-        "--target=xtensa-esp32s3-none-elf",
-        "-Zbuild-std=core,alloc",
-        "-Zbuild-std-features=panic_immediate_abort",
-        &format!("--features={}", hw.feature()),
-    ])
-    .run()?;
+
+    let build_flags = config.build_flags();
+    let build_flags = build_flags.iter().map(|s| s.as_str()).collect::<Vec<_>>();
+
+    let mut args = vec!["clippy"];
+    args.extend_from_slice(&build_flags);
+
+    cargo(&args).run()?;
 
     Ok(())
 }
@@ -304,13 +294,12 @@ fn example(package: String, name: String, watch: bool) -> AnyResult<()> {
     Ok(())
 }
 
-fn asm() -> AnyResult<()> {
-    let elf = "./target/xtensa-esp32s3-none-elf/release/card_io_fw";
-    cmd!("xtensa-esp32s3-elf-objdump", "-d", elf)
+fn asm(config: BuildConfig) -> AnyResult<()> {
+    cmd!(config.tool("objdump"), "-d", config.elf_string())
         .stdout_path("target/asm.s")
         .run()?;
 
-    cmd!("xtensa-esp32s3-elf-nm", elf, "-S", "--size-sort",)
+    cmd!(config.tool("nm"), config.elf_string(), "-S", "--size-sort")
         .stdout_path("target/syms.txt")
         .run()?;
 
@@ -331,21 +320,109 @@ fn main() -> AnyResult<()> {
     env::set_var("DEFMT_LOG", "card_io_fw=debug,info");
 
     match cli.subcommand {
-        Subcommands::Build { hw, variant: opt } => build(hw.unwrap_or_default(), opt, false),
+        Subcommands::Build { hw } => build(BuildConfig::from(hw), false),
         Subcommands::Test => test(),
         Subcommands::Asm { hw } => {
-            build(hw.unwrap_or_default(), None, true)?;
-            asm()
+            let config = BuildConfig::from(hw);
+            build(config, true)?;
+            asm(config)
         }
-        Subcommands::Monitor { variant } => monitor(variant.unwrap_or(MonitorVariant::Debug)),
-        Subcommands::Run { hw, release } => run(hw.unwrap_or_default(), release),
-        Subcommands::Check { hw } => checks(hw.unwrap_or_default()),
-        Subcommands::Doc { open, hw } => docs(open, hw.unwrap_or_default()),
-        Subcommands::ExtraCheck { hw } => extra_checks(hw.unwrap_or_default()),
+        Subcommands::Monitor { hw, profile } => monitor(BuildConfig::new(hw, profile)),
+        Subcommands::Run { hw, profile } => run(BuildConfig::new(hw, profile)),
+        Subcommands::Check { hw } => checks(BuildConfig::from(hw)),
+        Subcommands::Doc { hw, open } => docs(BuildConfig::from(hw), open),
+        Subcommands::ExtraCheck { hw } => extra_checks(BuildConfig::from(hw)),
         Subcommands::Example {
             package,
             name,
             watch,
         } => example(package, name, watch),
+    }
+}
+
+#[derive(Clone, Copy, Parser, Debug)]
+enum SocConfig {
+    S3,
+    C6,
+}
+
+impl SocConfig {
+    fn chip(self) -> &'static str {
+        match self {
+            SocConfig::S3 => "esp32s3",
+            SocConfig::C6 => "esp32c6",
+        }
+    }
+
+    fn triple(self) -> &'static str {
+        match self {
+            SocConfig::S3 => "xtensa-esp32s3-none",
+            SocConfig::C6 => "riscv32imac-unknown-none",
+        }
+    }
+
+    fn target(self) -> String {
+        format!("{}-elf", self.triple())
+    }
+
+    fn target_folder(self, profile: Profile) -> PathBuf {
+        PathBuf::from("./target")
+            .join(self.target())
+            .join(profile.as_str())
+    }
+}
+
+#[derive(Clone, Copy)]
+struct BuildConfig {
+    version: HardwareVersion,
+    profile: Profile,
+    soc: SocConfig,
+}
+
+impl From<Option<HardwareVersion>> for BuildConfig {
+    fn from(hw: Option<HardwareVersion>) -> Self {
+        Self::new(hw, None)
+    }
+}
+
+impl BuildConfig {
+    fn new(hw: Option<HardwareVersion>, variant: Option<Profile>) -> BuildConfig {
+        let hw = hw.unwrap_or_default();
+        Self {
+            version: hw,
+            soc: hw.soc(),
+            profile: variant.unwrap_or(Profile::Debug),
+        }
+    }
+
+    fn target_folder(&self) -> PathBuf {
+        self.soc.target_folder(self.profile)
+    }
+
+    fn elf(&self) -> PathBuf {
+        self.target_folder().join("card_io_fw")
+    }
+
+    fn elf_string(&self) -> String {
+        self.elf().display().to_string()
+    }
+
+    fn tool(&self, tool: &str) -> String {
+        format!("xtensa-esp32s3-elf-{tool}")
+    }
+
+    fn build_flags(self) -> Vec<String> {
+        let mut flags = vec![
+            format!("--target={}", self.soc.target()),
+            format!("--features={}", self.version.feature()),
+            String::from("-Zbuild-std=core,alloc"),
+        ];
+
+        if self.profile == Profile::Release {
+            flags.push(String::from("--release"));
+            flags.push(String::from("-Zbuild-std-features=panic_immediate_abort"));
+        }
+
+        flags
     }
 }

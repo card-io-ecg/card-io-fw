@@ -2,7 +2,14 @@ use core::ops::{Deref, DerefMut};
 
 use macros::partition;
 use norfs::{medium::cache::ReadCache, Storage, StorageError};
-use norfs_esp32s3::{InternalDriver, InternalPartition};
+
+#[cfg(feature = "esp32s3")]
+use norfs_esp32s3 as norfs_impl;
+
+#[cfg(feature = "esp32c6")]
+use norfs_esp32c6 as norfs_impl;
+
+use norfs_impl::{InternalDriver, InternalPartition};
 
 #[partition("storage")]
 pub struct ConfigPartition;

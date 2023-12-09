@@ -26,10 +26,16 @@ impl StackMonitor {
     /// accessing the canary prior to that. However, this is a good enough approximation for our
     /// purposes.
     pub fn protect(stack: Range<usize>) -> Self {
+        let (bottom, top) = if stack.start < stack.end {
+            (stack.start, stack.end)
+        } else {
+            (stack.end, stack.start)
+        };
+
         info!(
             "StackMonitor::protect({:?}, {})",
-            stack.start as *const u32,
-            stack.end - stack.start
+            top as *const u32,
+            top - bottom
         );
         let mut assist = conjure();
 
@@ -39,14 +45,15 @@ impl StackMonitor {
         // We watch writes to the last word in the stack.
         match get_core() {
             Cpu::ProCpu => assist.enable_region0_monitor(
-                stack.start as u32 + CANARY_GRANULARITY,
-                stack.start as u32 + CANARY_GRANULARITY + CANARY_UNITS * CANARY_GRANULARITY,
+                bottom as u32 + CANARY_GRANULARITY,
+                bottom as u32 + CANARY_GRANULARITY + CANARY_UNITS * CANARY_GRANULARITY,
                 true,
                 true,
             ),
+            #[cfg(feature = "esp32s3")]
             Cpu::AppCpu => assist.enable_core1_region0_monitor(
-                stack.start as u32 + CANARY_GRANULARITY,
-                stack.start as u32 + CANARY_GRANULARITY + CANARY_UNITS * CANARY_GRANULARITY,
+                bottom as u32 + CANARY_GRANULARITY,
+                bottom as u32 + CANARY_GRANULARITY + CANARY_UNITS * CANARY_GRANULARITY,
                 true,
                 true,
             ),
@@ -65,6 +72,7 @@ impl Drop for StackMonitor {
     fn drop(&mut self) {
         match get_core() {
             Cpu::ProCpu => self.assist.disable_region0_monitor(),
+            #[cfg(feature = "esp32s3")]
             Cpu::AppCpu => self.assist.disable_core1_region0_monitor(),
         }
     }
@@ -84,6 +92,7 @@ fn ASSIST_DEBUG() {
             pc = da.get_region_monitor_pc();
             da.clear_region0_monitor_interrupt();
         }
+        #[cfg(feature = "esp32s3")]
         Cpu::AppCpu => {
             is_overflow = da.is_core1_region0_monitor_interrupt_set();
             pc = da.get_core1_region_monitor_pc();

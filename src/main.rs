@@ -28,20 +28,9 @@ use norfs::{medium::StorageMedium, Storage, StorageError};
 use signal_processing::compressing_buffer::CompressingBuffer;
 use static_cell::StaticCell;
 
-#[cfg(feature = "hw_v1")]
-use crate::{
-    board::{hal::gpio::RTCPinWithResistors, ChargerStatus},
-    sleep::disable_gpio_wakeup,
-};
-
-#[cfg(any(feature = "hw_v2", feature = "hw_v4"))]
-use crate::board::VbusDetect;
-
 #[cfg(feature = "battery_max17055")]
 pub use crate::states::menu::battery_info::battery_info_menu;
 
-#[cfg(feature = "hw_v1")]
-use crate::states::adc_setup::adc_setup;
 use crate::{
     board::{
         config::{Config, ConfigFile},
@@ -49,16 +38,13 @@ use crate::{
             self,
             embassy::executor::{FromCpu1, InterruptExecutor},
             entry,
-            gpio::RTCPin,
             interrupt::Priority,
             prelude::{interrupt, main},
-            rtc_cntl::sleep::{RtcioWakeupSource, WakeupLevel},
             Delay,
         },
         initialized::{Context, InnerContext},
         startup::StartupResources,
         storage::FileSystem,
-        TouchDetect,
     },
     states::{
         charging::charging,
@@ -76,9 +62,27 @@ use crate::{
     },
 };
 
+#[cfg(feature = "hw_v1")]
+use crate::{board::ChargerStatus, sleep::disable_gpio_wakeup, states::adc_setup::adc_setup};
+
+use crate::board::{
+    hal::rtc_cntl::{sleep, sleep::WakeupLevel},
+    TouchDetect,
+};
+
+#[cfg(any(feature = "hw_v2", feature = "hw_v4", feature = "hw_v6"))]
+use crate::board::VbusDetect;
+
+#[cfg(feature = "esp32s3")]
+use crate::board::hal::gpio::RTCPin as RtcWakeupPin;
+
+#[cfg(feature = "esp32c6")]
+use crate::board::hal::gpio::RTCPinWithResistors as RtcWakeupPin;
+
 mod board;
 mod heap;
 pub mod human_readable;
+#[cfg(feature = "hw_v1")]
 mod sleep;
 mod stack_protection;
 mod states;
@@ -227,6 +231,9 @@ async fn main(_spawner: Spawner) {
     #[cfg(feature = "hw_v4")]
     info!("Hardware version: v4");
 
+    #[cfg(feature = "hw_v6")]
+    info!("Hardware version: v6");
+
     let mut storage = FileSystem::mount().await;
     let config = load_config(storage.as_deref_mut()).await;
 
@@ -306,34 +313,33 @@ async fn main(_spawner: Spawner) {
 
     let battery_monitor = board.inner.battery_monitor;
 
+    let mut rtc = resources.rtc;
     let is_charging = battery_monitor.is_plugged();
 
     #[cfg(feature = "hw_v1")]
     let (_, mut charger_pin) = battery_monitor.stop().await;
 
-    #[cfg(any(feature = "hw_v2", feature = "hw_v4"))]
+    #[cfg(not(feature = "hw_v1"))]
     let (mut charger_pin, _) = battery_monitor.stop().await;
 
     let (_, _, _, mut touch) = board.frontend.split();
-    let mut rtc = resources.rtc;
 
-    let mut wakeup_pins = heapless::Vec::<(&mut dyn RTCPin, WakeupLevel), 2>::new();
-    setup_wakeup_pins(&mut wakeup_pins, &mut touch, &mut charger_pin, is_charging);
-    let rtcio = RtcioWakeupSource::new(&mut wakeup_pins);
-
-    rtc.sleep_deep(&[&rtcio], &mut delay);
+    let mut wakeup_pins = heapless::Vec::<(&mut dyn RtcWakeupPin, WakeupLevel), 2>::new();
+    let wakeup_source =
+        setup_wakeup_pins(&mut wakeup_pins, &mut touch, &mut charger_pin, is_charging);
+    rtc.sleep_deep(&[&wakeup_source], &mut delay);
 
     // Shouldn't reach this. If we do, we just exit the task, which means the executor
     // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
 }
 
 #[cfg(feature = "hw_v1")]
-fn setup_wakeup_pins<'a, const N: usize>(
-    wakeup_pins: &mut heapless::Vec<(&'a mut dyn RTCPin, WakeupLevel), N>,
-    touch: &'a mut TouchDetect,
-    charger_pin: &'a mut ChargerStatus,
+fn setup_wakeup_pins<'a, 'b, const N: usize>(
+    wakeup_pins: &'a mut heapless::Vec<(&'b mut dyn RtcWakeupPin, WakeupLevel), N>,
+    touch: &'b mut TouchDetect,
+    charger_pin: &'b mut ChargerStatus,
     is_charging: bool,
-) {
+) -> sleep::RtcioWakeupSource<'a, 'b> {
     unwrap!(wakeup_pins.push((touch, WakeupLevel::Low)).ok());
 
     if is_charging {
@@ -351,15 +357,21 @@ fn setup_wakeup_pins<'a, const N: usize>(
 
         unwrap!(wakeup_pins.push((charger_pin, WakeupLevel::Low)).ok());
     }
+
+    sleep::RtcioWakeupSource::new(wakeup_pins)
 }
 
-#[cfg(any(feature = "hw_v2", feature = "hw_v4"))]
-fn setup_wakeup_pins<'a, const N: usize>(
-    wakeup_pins: &mut heapless::Vec<(&'a mut dyn RTCPin, WakeupLevel), N>,
-    touch: &'a mut TouchDetect,
-    charger_pin: &'a mut VbusDetect,
+#[cfg(any(
+    feature = "hw_v2",
+    feature = "hw_v4",
+    all(feature = "hw_v6", feature = "esp32s3")
+))]
+fn setup_wakeup_pins<'a, 'b, const N: usize>(
+    wakeup_pins: &'a mut heapless::Vec<(&'b mut dyn RtcWakeupPin, WakeupLevel), N>,
+    touch: &'b mut TouchDetect,
+    charger_pin: &'b mut VbusDetect,
     is_charging: bool,
-) {
+) -> sleep::RtcioWakeupSource<'a, 'b> {
     let charger_level = if is_charging {
         // Wake up momentarily when charger is disconnected
         WakeupLevel::Low
@@ -373,4 +385,30 @@ fn setup_wakeup_pins<'a, const N: usize>(
 
     unwrap!(wakeup_pins.push((touch, WakeupLevel::Low)).ok());
     unwrap!(wakeup_pins.push((charger_pin, charger_level)).ok());
+
+    sleep::RtcioWakeupSource::new(wakeup_pins)
+}
+
+#[cfg(all(feature = "hw_v6", feature = "esp32c6"))]
+fn setup_wakeup_pins<'a, 'b, const N: usize>(
+    wakeup_pins: &'a mut heapless::Vec<(&'b mut dyn RtcWakeupPin, WakeupLevel), N>,
+    touch: &'b mut TouchDetect,
+    charger_pin: &'b mut VbusDetect,
+    is_charging: bool,
+) -> sleep::Ext1WakeupSource<'a, 'b> {
+    let charger_level = if is_charging {
+        // Wake up momentarily when charger is disconnected
+        WakeupLevel::Low
+    } else {
+        // We want to wake up when the charger is connected, or the electrodes are touched.
+
+        // In v2, the charger status is not connected to an RTC IO pin, so we use the VBUS
+        // detect pin instead. This is a high level signal when the charger is connected.
+        WakeupLevel::High
+    };
+
+    unwrap!(wakeup_pins.push((touch, WakeupLevel::Low)).ok());
+    unwrap!(wakeup_pins.push((charger_pin, charger_level)).ok());
+
+    sleep::Ext1WakeupSource::new(wakeup_pins)
 }

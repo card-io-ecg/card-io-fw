@@ -15,7 +15,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
 
 jobs:
-  test:
+  check:
+    strategy:
+      matrix:
+        version: ["v4", "v6c6", "v6s3"]
+
     runs-on: ubuntu-latest
 
     steps:
@@ -31,7 +35,18 @@ jobs:
         run: cargo fmt --check
 
       - name: check
-        run: cargo xcheck
+        run: cargo xcheck ${{ matrix.version }}
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: esp-rs/xtensa-toolchain@v1.5
+        with:
+          default: true
+          buildtargets: esp32s3
+          ldproxy: false
+      - uses: Swatinem/rust-cache@v2
 
       - name: test
         run: cargo xtask test

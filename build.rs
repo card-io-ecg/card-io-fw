@@ -2,6 +2,7 @@
 enum Mcu {
     ESP32S2,
     ESP32S3,
+    ESP32C6,
 }
 
 impl Mcu {
@@ -9,15 +10,17 @@ impl Mcu {
         match self {
             Self::ESP32S2 => "ESP32-S2",
             Self::ESP32S3 => "ESP32-S3",
+            Self::ESP32C6 => "ESP32-C6",
         }
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
 enum HwVersion {
     V1,
     V2,
     V4,
+    V6,
 }
 
 impl HwVersion {
@@ -26,7 +29,28 @@ impl HwVersion {
             Self::V1 => "v1",
             Self::V2 => "v2",
             Self::V4 => "v4",
+            Self::V6 => "v6",
         }
+    }
+}
+
+struct BuildConfig {
+    mcu: Mcu,
+    hw_version: HwVersion,
+}
+
+impl BuildConfig {
+    fn as_str(&self) -> String {
+        let mcu = if self.hw_version >= HwVersion::V6 {
+            match self.mcu {
+                Mcu::ESP32S2 => "s2",
+                Mcu::ESP32S3 => "s3",
+                Mcu::ESP32C6 => "c6",
+            }
+        } else {
+            ""
+        };
+        format!("{}{}", self.hw_version.as_str(), mcu)
     }
 }
 
@@ -51,10 +75,11 @@ fn main() {
     let mcu_features = [
         (cfg!(feature = "esp32s2"), Mcu::ESP32S2),
         (cfg!(feature = "esp32s3"), Mcu::ESP32S3),
+        (cfg!(feature = "esp32c6"), Mcu::ESP32C6),
     ];
 
     let Some(mcu) = get_unique(mcu_features) else {
-        panic!("Exactly 1 MCU must be selected via its Cargo feature (esp32s2, esp32s3)");
+        panic!("Exactly 1 MCU must be selected via its Cargo feature (esp32s2, esp32s3, esp32c6)");
     };
 
     // Ensure that only a single HW version
@@ -62,11 +87,14 @@ fn main() {
         (cfg!(feature = "hw_v1"), HwVersion::V1),
         (cfg!(feature = "hw_v2"), HwVersion::V2),
         (cfg!(feature = "hw_v4"), HwVersion::V4),
+        (cfg!(feature = "hw_v6"), HwVersion::V6),
     ];
 
     let Some(hw_version) = get_unique(hw_features) else {
-        panic!("Exactly 1 hardware version must be selected via its Cargo feature (hw_v1, hw_v2, hw_v4)");
+        panic!("Exactly 1 hardware version must be selected via its Cargo feature (hw_v1, hw_v2, hw_v4, hw_v6)");
     };
+
+    let build_config = BuildConfig { mcu, hw_version };
 
     if cfg!(feature = "defmt") {
         println!("cargo:rustc-link-arg=-Tdefmt.x");
@@ -87,7 +115,7 @@ fn main() {
     println!("cargo:rustc-env=FW_VERSION={pkg_version}-{git_hash_str}");
 
     println!("cargo:rustc-env=MCU_MODEL={}", mcu.as_str());
-    println!("cargo:rustc-env=HW_VERSION={}", hw_version.as_str());
+    println!("cargo:rustc-env=HW_VERSION={}", build_config.as_str());
 
     // Device info list items
     println!(
@@ -97,6 +125,6 @@ fn main() {
 
     println!(
         "cargo:rustc-env=HW_VERSION_MENU_ITEM=HW {:>17}",
-        format!("{}/{}", mcu.as_str(), hw_version.as_str())
+        format!("{}/{}", mcu.as_str(), build_config.as_str())
     );
 }

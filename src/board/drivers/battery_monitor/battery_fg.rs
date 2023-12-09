@@ -3,7 +3,9 @@ use embedded_hal::digital::OutputPin;
 use embedded_hal_async::{delay::DelayUs, i2c::I2c};
 use max17055::Max17055;
 
-use crate::{hal::gpio::RTCPinWithResistors, task_control::TaskControlToken, Shared};
+#[cfg(all(feature = "esp32s3", not(feature = "hw_v6")))]
+use crate::hal::gpio::RTCPinWithResistors;
+use crate::{task_control::TaskControlToken, Shared};
 
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -19,7 +21,7 @@ pub struct BatteryFg<I2C, EN> {
 
 impl<I2C, EN> BatteryFg<I2C, EN>
 where
-    EN: OutputPin + RTCPinWithResistors,
+    EN: OutputPin,
     I2C: I2c,
 {
     pub fn new(fg: Max17055<I2C>, enable: EN) -> Self {
@@ -46,11 +48,18 @@ where
         })
     }
 
-    pub fn disable(&mut self) {
+    #[cfg(all(feature = "esp32s3", not(feature = "hw_v6")))]
+    pub fn disable(&mut self)
+    where
+        EN: RTCPinWithResistors,
+    {
         // We want to keep the fuel gauge out of shutdown mode
         self.enable.rtcio_pad_hold(true);
         self.enable.rtcio_pullup(true);
     }
+
+    #[cfg(any(not(feature = "esp32s3"), feature = "hw_v6"))]
+    pub fn disable(&mut self) {}
 }
 
 #[embassy_executor::task]

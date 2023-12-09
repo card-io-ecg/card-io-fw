@@ -5,7 +5,6 @@
     "version": "0.2.0",
     "configurations": [
         {
-            // more info at: https://github.com/Marus/cortex-debug/blob/master/package.json
             "name": "Attach (USB JTAG)",
             "type": "cortex-debug",
             "request": "attach", // attach instead of launch, because otherwise flash write is attempted, but fails
@@ -34,7 +33,6 @@
             ]
         },
         {
-            // more info at: https://github.com/Marus/cortex-debug/blob/master/package.json
             "name": "Attach (USB JTAG, release)",
             "type": "cortex-debug",
             "request": "attach", // attach instead of launch, because otherwise flash write is attempted, but fails
@@ -63,7 +61,34 @@
             ]
         },
         {
-            // more info at: https://github.com/Marus/cortex-debug/blob/master/package.json
+            "name": "Attach (C6, USB JTAG, debug)",
+            "type": "cortex-debug",
+            "request": "attach", // attach instead of launch, because otherwise flash write is attempted, but fails
+            "cwd": "${workspaceRoot}",
+            "executable": "target/riscv32imac-unknown-none-elf/debug/card_io_fw",
+            "servertype": "openocd",
+            "interface": "jtag",
+            "svdFile": ".vscode/esp32c6.base.svd",
+            "toolchainPrefix": "riscv32-esp-elf",
+            "openOCDPreConfigLaunchCommands": [
+                "set ESP_RTOS none"
+            ],
+            "serverpath": "${userHome}/openocd-esp32/bin/openocd.exe",
+            "configFiles": [
+                "board/esp32c6-builtin.cfg"
+            ],
+            "overrideAttachCommands": [
+                "set remote hardware-watchpoint-limit 2",
+                "mon halt",
+                "flushregs"
+            ],
+            "overrideRestartCommands": [
+                "mon reset halt",
+                "flushregs",
+                "c"
+            ]
+        },
+        {
             "name": "Attach (esp-prog JTAG)",
             "type": "cortex-debug",
             "request": "attach", // attach instead of launch, because otherwise flash write is attempted, but fails

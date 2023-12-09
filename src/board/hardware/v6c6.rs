@@ -21,17 +21,18 @@ use crate::board::{
     utils::DummyOutputPin,
     wifi::WifiDriver,
 };
+use display_interface_spi::SPIInterface;
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 
-use display_interface_spi::SPIInterface;
+pub use crate::board::drivers::bitbang_spi::BitbangSpi;
 
 pub type DisplaySpiInstance = hal::peripherals::SPI2;
 pub type DisplayDmaChannel = ChannelCreator0;
-pub type DisplayDataCommand = GpioPin<Output<PushPull>, 13>;
+pub type DisplayDataCommand = GpioPin<Output<PushPull>, 8>;
 pub type DisplayChipSelect = GpioPin<Output<PushPull>, 11>;
-pub type DisplayReset = GpioPin<Output<PushPull>, 12>;
-pub type DisplaySclk = GpioPin<Output<PushPull>, 14>;
+pub type DisplayReset = GpioPin<Output<PushPull>, 10>;
+pub type DisplaySclk = GpioPin<Output<PushPull>, 22>;
 pub type DisplayMosi = GpioPin<Output<PushPull>, 21>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommand>;
@@ -41,25 +42,20 @@ pub type DisplaySpi<'d> = ExclusiveDevice<
     Delay,
 >;
 
-pub type AdcDmaChannel = ChannelCreator1;
-pub type AdcSpiInstance = hal::peripherals::SPI3;
 pub type AdcSclk = GpioPin<Output<PushPull>, 6>;
 pub type AdcMosi = GpioPin<Output<PushPull>, 7>;
 pub type AdcMiso = GpioPin<Input<Floating>, 5>;
-pub type AdcChipSelect = GpioPin<Output<PushPull>, 18>;
-pub type AdcClockEnable = GpioPin<Output<PushPull>, 38>;
+pub type AdcChipSelect = GpioPin<Output<PushPull>, 9>;
+pub type AdcClockEnable = GpioPin<Output<PushPull>, 23>;
 pub type AdcDrdy = GpioPin<Input<Floating>, 4>;
-pub type AdcReset = GpioPin<Output<PushPull>, 2>;
-pub type TouchDetect = GpioPin<Input<Floating>, 1>;
-pub type AdcSpi = ExclusiveDevice<
-    SpiDma<'static, AdcSpiInstance, Channel1, FullDuplexMode>,
-    AdcChipSelect,
-    Delay,
->;
+pub type AdcReset = GpioPin<Output<PushPull>, 15>;
+pub type TouchDetect = GpioPin<Input<Floating>, 2>;
+pub type AdcSpiBus = BitbangSpi<AdcMosi, AdcMiso, AdcSclk>;
+pub type AdcSpi = ExclusiveDevice<AdcSpiBus, AdcChipSelect, Delay>;
 
-pub type BatteryAdcEnable = GpioPin<Output<PushPull>, 8>;
-pub type VbusDetect = GpioPin<Input<Floating>, 17>;
-pub type ChargerStatus = GpioPin<Input<PullUp>, 47>;
+pub type BatteryAdcEnable = DummyOutputPin;
+pub type VbusDetect = GpioPin<Input<Floating>, 3>;
+pub type ChargerStatus = GpioPin<Input<PullUp>, 20>;
 
 pub type EcgFrontend = Frontend<AdcSpi, AdcDrdy, AdcReset, AdcClockEnable, TouchDetect>;
 pub type PoweredEcgFrontend =
@@ -68,8 +64,8 @@ pub type PoweredEcgFrontend =
 pub type Display = DisplayType<DisplayReset>;
 
 pub type BatteryFgI2cInstance = hal::peripherals::I2C0;
-pub type I2cSda = GpioPin<Unknown, 36>;
-pub type I2cScl = GpioPin<Unknown, 35>;
+pub type I2cSda = GpioPin<Unknown, 19>;
+pub type I2cScl = GpioPin<Unknown, 18>;
 pub type BatteryFgI2c = I2C<'static, BatteryFgI2cInstance>;
 pub type BatteryFg = BatteryFgType<BatteryFgI2c, BatteryAdcEnable>;
 
@@ -82,7 +78,7 @@ impl super::startup::StartupResources {
         let system = peripherals.SYSTEM.split();
         let clocks = ClockControl::max(system.clock_control).freeze();
 
-        embassy::init(&clocks, SystemTimer::new(peripherals.SYSTIMER));
+        embassy::init(&clocks, TimerGroup::new(peripherals.TIMG0, &clocks).timer0);
 
         let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
 
@@ -93,40 +89,39 @@ impl super::startup::StartupResources {
             peripherals::Interrupt::DMA_IN_CH0,
             peripherals::Interrupt::DMA_OUT_CH0,
             peripherals.SPI2,
-            io.pins.gpio12,
-            io.pins.gpio13,
+            io.pins.gpio10,
+            io.pins.gpio8,
             io.pins.gpio11,
-            io.pins.gpio14,
+            io.pins.gpio22,
             io.pins.gpio21,
             &clocks,
         );
 
         let adc = Self::create_frontend_driver(
-            Self::create_frontend_spi(
-                dma.channel1,
-                peripherals::Interrupt::DMA_IN_CH1,
-                peripherals::Interrupt::DMA_OUT_CH1,
-                peripherals.SPI3,
-                io.pins.gpio6,
-                io.pins.gpio7,
-                io.pins.gpio5,
-                io.pins.gpio18,
-                &clocks,
+            ExclusiveDevice::new(
+                BitbangSpi::new(
+                    io.pins.gpio7.into(),
+                    io.pins.gpio5.into(),
+                    io.pins.gpio6.into(),
+                    1u32.MHz(),
+                ),
+                io.pins.gpio9.into(),
+                Delay,
             ),
             io.pins.gpio4,
+            io.pins.gpio15,
+            io.pins.gpio23,
             io.pins.gpio2,
-            io.pins.gpio38,
-            io.pins.gpio1,
         );
 
         let battery_monitor = Self::setup_battery_monitor_fg(
             peripherals.I2C0,
             peripherals::Interrupt::I2C_EXT0,
-            io.pins.gpio36,
-            io.pins.gpio35,
-            io.pins.gpio17,
-            io.pins.gpio47,
-            io.pins.gpio8,
+            io.pins.gpio19,
+            io.pins.gpio18,
+            io.pins.gpio3,
+            io.pins.gpio20,
+            DummyOutputPin,
             &clocks,
         )
         .await;
@@ -138,13 +133,13 @@ impl super::startup::StartupResources {
             wifi: static_cell::make_static! {
                 WifiDriver::new(
                     peripherals.WIFI,
-                    TimerGroup::new(peripherals.TIMG1, &clocks).timer0,
+                    SystemTimer::new(peripherals.SYSTIMER).alarm0,
                     peripherals.RNG,
                     system.radio_clock_control,
                 )
             },
             clocks,
-            rtc: Rtc::new(peripherals.RTC_CNTL),
+            rtc: Rtc::new(peripherals.LP_CLKRST),
         }
     }
 }

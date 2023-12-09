@@ -35,9 +35,10 @@ log = { version = "0.4.18", default-features = false, features = [
 ] }
 logger = { path = "logger" }
 signal-processing = { path = "signal-processing" }
-norfs = { git = "https://github.com/card-io-ecg/norfs.git", rev = "62cd6ea" }
-norfs-driver = { git = "https://github.com/card-io-ecg/norfs.git", rev = "62cd6ea" }
-norfs-esp32s3 = { git = "https://github.com/card-io-ecg/norfs.git", rev = "62cd6ea" }
+norfs = { git = "https://github.com/card-io-ecg/norfs.git", rev = "01c1905" }
+norfs-driver = { git = "https://github.com/card-io-ecg/norfs.git", rev = "01c1905" }
+norfs-esp32s3 = { git = "https://github.com/card-io-ecg/norfs.git", rev = "01c1905" }
+norfs-esp32c6 = { git = "https://github.com/card-io-ecg/norfs.git", rev = "01c1905" }
 object-chain = "0.1.3"
 bad-server = { path = "bad-server" }
 defmt = { version = "=0.3.5" }
@@ -64,6 +65,17 @@ esp32s3-hal = { version = "0.13.0", optional = true, features = [
     "embassy-time-systick",
     "eh1",
 ] }
+esp32c6-hal = { version = "0.6.0", optional = true, default-features = false, features = [
+    "rt",
+    "vectored",
+    "zero-rtc-bss",
+    "embassy-generic-queue-8",
+    "async",
+    "embassy",
+    "embassy-executor-thread",
+    "embassy-executor-interrupt",
+    "eh1",
+] }
 esp-backtrace = { version = "0.9.0", features = [
     "panic-handler",
     "exception-handler",
@@ -72,13 +84,16 @@ esp-println = { version = "0.7.0", default-features = false, features = [
     "critical-section",
 ] }
 esp-alloc = "0.3.0"
-esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "0db7a70", default-features = false, features = [
+esp-wifi = { version = "0.1.1", default-features = false, features = [
     "phy-enable-usb",
     "ps-max-modem",
     "wifi",
-    "embedded-svc",
     "async",
-    "embassy-net"
+    "embassy-net",
+    "tcp",
+    "dns",
+    "ipv4",
+    "dhcpv4"
 ] }
 
 display-interface = { git = "https://github.com/therealprof/display-interface.git" }
@@ -128,6 +143,9 @@ norfs-driver = { workspace = true }
 norfs-esp32s3 = { workspace = true, optional = true, features = [
     "critical-section",
 ] }
+norfs-esp32c6 = { workspace = true, optional = true, features = [
+    "critical-section",
+] }
 heapless = { workspace = true }
 object-chain = { workspace = true }
 ufmt = { workspace = true }
@@ -141,8 +159,10 @@ crc = "3.0.1"
 enumset = "1.1.3"
 
 [patch.crates-io]
-# esp32s3-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "0c8dd59163472133870a62b6248f50953f02defc" }
-# esp-println = { git = "https://github.com/esp-rs/esp-println.git" }
+esp32s3-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "c6sleep" }
+esp32c6-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "c6sleep" }
+esp-println = { git = "https://github.com/esp-rs/esp-println.git" }
+esp-wifi = { git = "https://github.com/esp-rs/esp-wifi.git", rev = "d46dfc4" }
 # esp-backtrace = { path = "../../esp-backtrace" }
 # embedded-text = { git = "https://github.com/embedded-graphics/embedded-text.git" }
 # esp32-hal = { path = "../../esp-hal/esp32-hal" }
@@ -153,32 +173,38 @@ enumset = "1.1.3"
 # esp32c6-hal = { path = "../../esp-hal/esp32c6-hal" }
 # esp-hal-common = { path = "../../esp-hal/esp-hal-common" }
 # esp-hal-procmacros = { path = "../../esp-hal/esp-hal-procmacros" }
-
-[patch.'https://github.com/esp-rs/esp-wifi.git']
 # esp-wifi = { path = "../esp-wifi/esp-wifi" }
-# esp-wifi = { git = "https://github.com/bugadani/esp-wifi.git" }
 
 [features]
-default = ["esp32s3", "defmt"]
+default = ["defmt"]
 
 battery_adc = []
 battery_max17055 = ["dep:max17055"]
 
-bitbang_spi = []
-
-hw_v1 = ["battery_adc"]
-hw_v2 = ["battery_max17055"] # also v3
-hw_v4 = ["battery_max17055"]
+hw_v1 = ["battery_adc", "esp32s3"]
+hw_v2 = ["battery_max17055", "esp32s3"] # skipped v3
+hw_v4 = ["battery_max17055", "esp32s3"]
+hw_v6 = ["battery_max17055"] # skipped v5, v6 has S3 and C6 options
 
 # MCU options
 # esp32s2 = ["dep:esp32s2", "dep:esp32s2-hal", "esp-backtrace/esp32s2", "esp-println/esp32s2", "rtt"]
 esp32s3 = [
     "dep:esp32s3-hal",
+    "esp32s3-hal/embassy-time-systick",
     "dep:norfs-esp32s3",
     "esp-backtrace/esp32s3",
     "esp-println/esp32s3",
     "jtag_serial",
     "esp-wifi/esp32s3",
+]
+esp32c6 = [
+    "dep:esp32c6-hal",
+    "esp32c6-hal/embassy-time-timg0",
+    "dep:norfs-esp32c6",
+    "esp-backtrace/esp32c6",
+    "esp-println/esp32c6",
+    "jtag_serial",
+    "esp-wifi/esp32c6",
 ]
 
 # Signal processing
@@ -195,7 +221,8 @@ log = [
     "esp-println/log",
     "esp-println/colors",
     "esp-wifi/log",
-    "esp32s3-hal/log",
+    "esp32s3-hal?/log",
+    "esp32c6-hal?/log",
 
     "logger/log",
     "config-site/log",
@@ -215,9 +242,10 @@ defmt = [
     "embedded-io/defmt-03",
     "embedded-svc/defmt",
     "embedded-graphics/defmt",
-    "esp-println/defmt",
+    "esp-println/defmt-espflash",
     "esp-wifi/defmt",
-    "esp32s3-hal/defmt",
+    "esp32s3-hal?/defmt",
+    "esp32c6-hal?/defmt",
 
     "logger/defmt",
     "config-site/defmt",

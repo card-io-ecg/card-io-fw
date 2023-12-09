@@ -21,7 +21,7 @@ jobs:
   build-fw:
     strategy:
       matrix:
-        version: ["v4"]
+        version: ["v4", "v6c6", "v6s3"]
 
     runs-on: ubuntu-latest
 

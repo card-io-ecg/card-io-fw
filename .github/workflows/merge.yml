@@ -8,7 +8,11 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-  test:
+  build:
+    strategy:
+      matrix:
+        version: ["v4", "v6c6", "v6s3"]
+
     runs-on: ubuntu-latest
 
     steps:
@@ -24,11 +28,20 @@ jobs:
       - name: setup espflash
         run: cargo binstall --no-confirm --force cargo-espflash
 
-      - name: check
-        run: cargo xcheck
+      - name: build
+        run: cargo xbuild ${{ matrix.version }}
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: esp-rs/xtensa-toolchain@v1.5
+        with:
+          default: true
+          buildtargets: esp32s3
+          ldproxy: false
+      - uses: Swatinem/rust-cache@v2
 
       - name: test
         run: cargo xtask test
-  
-      - name: build
-        run: cargo xbuild
+      

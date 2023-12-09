@@ -7,7 +7,7 @@ use crate::board::{
     hal::{
         self,
         adc::ADC2,
-        clock::{ClockControl, CpuClock},
+        clock::ClockControl,
         embassy,
         gdma::*,
         gpio::{Analog, Floating, GpioPin, Input, Output, PullUp, PushPull},
@@ -15,6 +15,7 @@ use crate::board::{
         prelude::*,
         spi::{master::dma::SpiDma, FullDuplexMode},
         systimer::SystemTimer,
+        timer::TimerGroup,
         Rtc, IO,
     },
     utils::DummyOutputPin,
@@ -50,8 +51,11 @@ pub type AdcClockEnable = DummyOutputPin;
 pub type AdcDrdy = GpioPin<Input<Floating>, 4>;
 pub type AdcReset = GpioPin<Output<PushPull>, 2>;
 pub type TouchDetect = GpioPin<Input<Floating>, 1>;
-pub type AdcSpi<'d> =
-    ExclusiveDevice<SpiDma<'d, AdcSpiInstance, Channel1, FullDuplexMode>, AdcChipSelect, Delay>;
+pub type AdcSpi = ExclusiveDevice<
+    SpiDma<'static, AdcSpiInstance, Channel1, FullDuplexMode>,
+    AdcChipSelect,
+    Delay,
+>;
 
 pub type BatteryAdcInput = GpioPin<Analog, 17>;
 pub type BatteryAdcEnable = GpioPin<Output<PushPull>, 8>;
@@ -59,9 +63,9 @@ pub type VbusDetect = GpioPin<Input<Floating>, 47>;
 pub type ChargeCurrentInput = GpioPin<Analog, 14>;
 pub type ChargerStatus = GpioPin<Input<PullUp>, 21>;
 
-pub type EcgFrontend = Frontend<AdcSpi<'static>, AdcDrdy, AdcReset, AdcClockEnable, TouchDetect>;
+pub type EcgFrontend = Frontend<AdcSpi, AdcDrdy, AdcReset, AdcClockEnable, TouchDetect>;
 pub type PoweredEcgFrontend =
-    PoweredFrontend<AdcSpi<'static>, AdcDrdy, AdcReset, AdcClockEnable, TouchDetect>;
+    PoweredFrontend<AdcSpi, AdcDrdy, AdcReset, AdcClockEnable, TouchDetect>;
 
 pub type Display = DisplayType<DisplayReset>;
 
@@ -74,7 +78,7 @@ impl super::startup::StartupResources {
         let peripherals = Peripherals::take();
 
         let system = peripherals.SYSTEM.split();
-        let clocks = ClockControl::configure(system.clock_control, CpuClock::Clock240MHz).freeze();
+        let clocks = ClockControl::max(system.clock_control).freeze();
 
         embassy::init(&clocks, SystemTimer::new(peripherals.SYSTIMER));
 
@@ -96,19 +100,21 @@ impl super::startup::StartupResources {
         );
 
         let adc = Self::create_frontend_driver(
-            dma.channel1,
-            peripherals::Interrupt::DMA_IN_CH1,
-            peripherals::Interrupt::DMA_OUT_CH1,
-            peripherals.SPI3,
-            io.pins.gpio6,
-            io.pins.gpio7,
-            io.pins.gpio5,
+            Self::create_frontend_spi(
+                dma.channel1,
+                peripherals::Interrupt::DMA_IN_CH1,
+                peripherals::Interrupt::DMA_OUT_CH1,
+                peripherals.SPI3,
+                io.pins.gpio6,
+                io.pins.gpio7,
+                io.pins.gpio5,
+                io.pins.gpio18,
+                &clocks,
+            ),
             io.pins.gpio4,
             io.pins.gpio2,
             DummyOutputPin,
             io.pins.gpio1,
-            io.pins.gpio18,
-            &clocks,
         );
 
         // Battery ADC
@@ -127,10 +133,9 @@ impl super::startup::StartupResources {
             wifi: static_cell::make_static! {
                 WifiDriver::new(
                     peripherals.WIFI,
-                    peripherals.TIMG1,
+                    TimerGroup::new(peripherals.TIMG1, &clocks).timer0,
                     peripherals.RNG,
                     system.radio_clock_control,
-                    &clocks,
                 )
             },
             clocks,
