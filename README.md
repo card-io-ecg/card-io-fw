@@ -2,7 +2,7 @@ Card/IO firmware
 ================
 
 This repository contains the firmware source code for the Card/IO open source ECG device, built with
-an ESP32-S3 MCU.
+an ESP32-C6 or ESP32-S3 MCU.
 
 This firmware is in its early stages of development.
 
