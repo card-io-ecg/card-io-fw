@@ -115,6 +115,20 @@
                 "flushregs",
                 "c"
             ]
+        },
+        {
+            "type": "probe-rs-debug",
+            "flashingConfig": {
+                "haltAfterReset": true
+            },
+            "request": "launch",
+            "name": "probe_rs Executable Test",
+            "chip": "esp32c6",
+            "coreConfigs": [
+                {
+                    "programBinary": "${workspaceRoot}/target/riscv32imac-unknown-none-elf/debug/card_io_fw"
+                }
+            ]
         }
     ]
 }

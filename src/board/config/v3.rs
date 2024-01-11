@@ -23,7 +23,7 @@ impl From<super::v2::Config> for Config {
             display_brightness: value.display_brightness,
             known_networks: value.known_networks,
             filter_strength: FilterStrength::Weak,
-            backend_url: heapless::String::from(DEFAULT_BACKEND_URL),
+            backend_url: heapless::String::try_from(DEFAULT_BACKEND_URL).unwrap(),
         }
     }
 }

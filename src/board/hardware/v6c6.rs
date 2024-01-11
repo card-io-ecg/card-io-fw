@@ -78,7 +78,7 @@ impl super::startup::StartupResources {
         let system = peripherals.SYSTEM.split();
         let clocks = ClockControl::max(system.clock_control).freeze();
 
-        embassy::init(&clocks, TimerGroup::new(peripherals.TIMG0, &clocks).timer0);
+        embassy::init(&clocks, TimerGroup::new(peripherals.TIMG0, &clocks));
 
         let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
 
@@ -139,7 +139,7 @@ impl super::startup::StartupResources {
                 )
             },
             clocks,
-            rtc: Rtc::new(peripherals.LP_CLKRST),
+            rtc: Rtc::new(peripherals.LPWR),
         }
     }
 }

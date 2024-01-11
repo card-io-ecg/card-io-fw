@@ -39,23 +39,3 @@ pub use hardware::*;
 
 pub const DEFAULT_BACKEND_URL: &str = "https://stingray-prime-monkey.ngrok-free.app";
 pub const LOW_BATTERY_PERCENTAGE: u8 = 5;
-
-#[cfg(feature = "esp32c6")]
-#[no_mangle]
-extern "C" fn fminf(x: f32, y: f32) -> f32 {
-    if x < y {
-        x
-    } else {
-        y
-    }
-}
-
-#[cfg(feature = "esp32c6")]
-#[no_mangle]
-extern "C" fn fmaxf(x: f32, y: f32) -> f32 {
-    if x > y {
-        x
-    } else {
-        y
-    }
-}

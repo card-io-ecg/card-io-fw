@@ -140,7 +140,7 @@ impl super::startup::StartupResources {
                 )
             },
             clocks,
-            rtc: Rtc::new(peripherals.RTC_CNTL),
+            rtc: Rtc::new(peripherals.LPWR),
         }
     }
 }

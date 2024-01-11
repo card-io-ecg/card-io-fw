@@ -46,7 +46,7 @@ impl Default for Config {
             display_brightness: DisplayBrightness::Normal,
             known_networks: heapless::Vec::new(),
             filter_strength: FilterStrength::Weak,
-            backend_url: heapless::String::from(DEFAULT_BACKEND_URL),
+            backend_url: heapless::String::try_from(DEFAULT_BACKEND_URL).unwrap(),
             measurement_action: MeasurementAction::Auto,
         }
     }
