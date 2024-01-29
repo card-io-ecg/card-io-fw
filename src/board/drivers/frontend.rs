@@ -132,7 +132,7 @@ where
         }
     }
 
-    pub fn is_touched(&self) -> bool {
+    pub fn is_touched(&mut self) -> bool {
         unwrap!(self.touch.is_low().ok())
     }
 

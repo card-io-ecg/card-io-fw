@@ -1,6 +1,6 @@
 use embassy_time::{Delay, Duration, Ticker};
 use embedded_hal::digital::OutputPin;
-use embedded_hal_async::{delay::DelayUs, i2c::I2c};
+use embedded_hal_async::{delay::DelayNs, i2c::I2c};
 use max17055::Max17055;
 
 #[cfg(all(feature = "esp32s3", not(feature = "hw_v6")))]
@@ -28,7 +28,7 @@ where
         Self { fg, enable }
     }
 
-    pub async fn enable<D: DelayUs>(&mut self, delay: &mut D) -> Result<(), ()> {
+    pub async fn enable<D: DelayNs>(&mut self, delay: &mut D) -> Result<(), ()> {
         self.enable.set_high().map_err(|_| ())?;
         delay.delay_ms(10).await;
         self.fg

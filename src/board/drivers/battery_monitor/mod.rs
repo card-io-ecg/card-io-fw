@@ -103,13 +103,13 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
         self.last_battery_data()
     }
 
-    fn last_battery_data(&self) -> Option<BatteryInfo> {
+    fn last_battery_data(&mut self) -> Option<BatteryInfo> {
         self.last_battery_state
             .data
             .map(|data| self.convert_battery_data(data))
     }
 
-    pub fn charging_state(&self) -> ChargingState {
+    pub fn charging_state(&mut self) -> ChargingState {
         match (self.is_plugged(), self.is_charging()) {
             (_, true) => ChargingState::Charging,
             (true, false) => ChargingState::Plugged,
@@ -117,15 +117,15 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
         }
     }
 
-    pub fn is_plugged(&self) -> bool {
+    pub fn is_plugged(&mut self) -> bool {
         unwrap!(self.vbus_detect.is_high().ok())
     }
 
-    pub fn is_charging(&self) -> bool {
+    pub fn is_charging(&mut self) -> bool {
         unwrap!(self.charger_status.is_low().ok())
     }
 
-    pub fn is_low(&self) -> bool {
+    pub fn is_low(&mut self) -> bool {
         self.last_battery_data()
             .map(|data| data.is_low)
             .unwrap_or(false)
@@ -171,7 +171,7 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
 
 #[cfg(feature = "battery_max17055")]
 impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
-    pub fn convert_battery_data(&self, data: BatteryData) -> BatteryInfo {
+    pub fn convert_battery_data(&mut self, data: BatteryData) -> BatteryInfo {
         BatteryInfo {
             voltage: data.voltage,
             charging_state: self.charging_state(),

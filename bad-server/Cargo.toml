@@ -11,7 +11,7 @@ defmt = { workspace = true, optional = true }
 embassy-net = { workspace = true, optional = true }
 embedded-io-async = { workspace = true }
 embedded-svc = { workspace = true }
-heapless = { workspace = true, features = ["ufmt-impl"] }
+heapless = { workspace = true, features = ["ufmt"] }
 httparse = { version = "1.8", default-features = false }
 logger = { workspace = true }
 log = { workspace = true, optional = true }

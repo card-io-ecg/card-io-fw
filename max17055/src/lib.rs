@@ -8,7 +8,7 @@ extern crate logger;
 use byte_slice_cast::AsMutByteSlice;
 use device_descriptor::{ReadOnlyRegister, ReaderProxy, Register};
 use embedded_hal::i2c::I2c;
-use embedded_hal_async::{delay::DelayUs as AsyncDelayUs, i2c::I2c as AsyncI2c};
+use embedded_hal_async::{delay::DelayNs as AsyncDelayNs, i2c::I2c as AsyncI2c};
 use register_access::{AsyncRegisterAccess, RegisterAccess};
 
 use crate::descriptors::*;
@@ -299,7 +299,7 @@ where
     async fn write_and_verify_register_async<R>(
         &mut self,
         reg: R,
-        delay: &mut impl AsyncDelayUs,
+        delay: &mut impl AsyncDelayNs,
     ) -> Result<(), Error<I2C::Error>>
     where
         R: Register<RegisterWidth = u16>,
@@ -317,7 +317,7 @@ where
 
     async fn poll_async<R: ReadOnlyRegister<RegisterWidth = u16>>(
         &mut self,
-        delay: &mut impl AsyncDelayUs,
+        delay: &mut impl AsyncDelayNs,
         predicate: impl Fn(&R) -> bool,
     ) -> Result<(), Error<I2C::Error>> {
         loop {
@@ -336,7 +336,7 @@ where
     /// procedure from the datasheet.
     pub async fn load_initial_config_async(
         &mut self,
-        delay: &mut impl AsyncDelayUs,
+        delay: &mut impl AsyncDelayNs,
     ) -> Result<(), Error<I2C::Error>> {
         trace!("Loading initial configuration");
 
@@ -546,7 +546,7 @@ where
     pub async fn restore_learned_params(
         &mut self,
         params: &LearnedParams,
-        delay: &mut impl AsyncDelayUs,
+        delay: &mut impl AsyncDelayNs,
     ) -> Result<(), Error<I2C::Error>> {
         self.write_and_verify_register_async(RComp0::from_bits(params.rcomp0), delay)
             .await?;

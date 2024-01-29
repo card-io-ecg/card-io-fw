@@ -257,7 +257,7 @@ where
             self.spi
                 .transaction(&mut [
                     Operation::Write(command),
-                    Operation::DelayUs(WAIT_TIME_AFTER_TRANSFER),
+                    Operation::DelayNs(WAIT_TIME_AFTER_TRANSFER),
                 ])
                 .map_err(Error::Transfer)
         } else {
@@ -265,7 +265,7 @@ where
                 .transaction(&mut [
                     Operation::Write(command),
                     Operation::TransferInPlace(payload),
-                    Operation::DelayUs(WAIT_TIME_AFTER_TRANSFER),
+                    Operation::DelayNs(WAIT_TIME_AFTER_TRANSFER),
                 ])
                 .map_err(Error::Transfer)
         }
@@ -282,7 +282,7 @@ where
         config.apply(self)
     }
 
-    pub fn reset<RESET>(&self, reset: &mut RESET, delay: &mut impl embedded_hal::delay::DelayUs)
+    pub fn reset<RESET>(&self, reset: &mut RESET, delay: &mut impl embedded_hal::delay::DelayNs)
     where
         RESET: OutputPin,
     {
@@ -357,7 +357,7 @@ where
             self.spi
                 .transaction(&mut [
                     Operation::Write(command),
-                    Operation::DelayUs(WAIT_TIME_AFTER_TRANSFER),
+                    Operation::DelayNs(WAIT_TIME_AFTER_TRANSFER),
                 ])
                 .await
                 .map_err(Error::Transfer)
@@ -366,7 +366,7 @@ where
                 .transaction(&mut [
                     Operation::Write(command),
                     Operation::TransferInPlace(payload),
-                    Operation::DelayUs(WAIT_TIME_AFTER_TRANSFER),
+                    Operation::DelayNs(WAIT_TIME_AFTER_TRANSFER),
                 ])
                 .await
                 .map_err(Error::Transfer)
@@ -398,7 +398,7 @@ where
     pub async fn reset_async<RESET>(
         &mut self,
         reset: &mut RESET,
-        delay: &mut impl embedded_hal_async::delay::DelayUs,
+        delay: &mut impl embedded_hal_async::delay::DelayNs,
     ) -> Result<(), Error<SPI::Error>>
     where
         RESET: OutputPin,

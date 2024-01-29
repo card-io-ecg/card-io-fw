@@ -1,12 +1,10 @@
 #![no_std]
 #![no_main]
 #![feature(allocator_api)] // Box::try_new
-#![feature(async_fn_in_trait)]
 #![feature(type_alias_impl_trait)]
 #![feature(let_chains)]
 #![feature(never_type)] // Wifi net_task
 #![feature(generic_const_exprs)] // norfs needs this
-#![feature(return_position_impl_trait_in_trait)]
 #![feature(impl_trait_in_assoc_type)]
 #![allow(incomplete_features)] // generic_const_exprs
 
@@ -311,7 +309,7 @@ async fn main(_spawner: Spawner) {
     board.frontend.wait_for_release().await;
     Timer::after(Duration::from_millis(100)).await;
 
-    let battery_monitor = board.inner.battery_monitor;
+    let mut battery_monitor = board.inner.battery_monitor;
 
     let mut rtc = resources.rtc;
     let is_charging = battery_monitor.is_plugged();

@@ -153,7 +153,7 @@ impl ApController {
         info!("Configuring AP");
 
         let client_config = Configuration::AccessPoint(AccessPointConfiguration {
-            ssid: "Card/IO".into(),
+            ssid: "Card/IO".try_into().unwrap(),
             max_connections: 1,
             ..Default::default()
         });

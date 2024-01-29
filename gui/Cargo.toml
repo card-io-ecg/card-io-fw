@@ -11,7 +11,7 @@ embedded-menu = { workspace = true }
 norfs = { workspace = true }
 embedded-io = { workspace = true }
 embedded-io-async = { workspace = true }
-heapless = { workspace = true, features = ["ufmt-impl"] }
+heapless = { workspace = true, features = ["ufmt"] }
 embedded-text = "0.6.6"
 embedded-layout = "0.4.1"
 tinybmp = "0.5"
