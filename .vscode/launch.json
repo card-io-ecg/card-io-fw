@@ -117,16 +117,49 @@
             ]
         },
         {
+            "name": "Flash and debug (v6c6)",
             "type": "probe-rs-debug",
             "flashingConfig": {
-                "haltAfterReset": true
+                "haltAfterReset": true,
+                "flashingEnabled": true,
+                "formatOptions": {
+                    "idf_partition_table": "partitions.csv"
+                }
             },
             "request": "launch",
-            "name": "probe_rs Executable Test",
             "chip": "esp32c6",
             "coreConfigs": [
                 {
                     "programBinary": "${workspaceRoot}/target/riscv32imac-unknown-none-elf/debug/card_io_fw"
+                }
+            ]
+        },
+        {
+            "name": "Flash and debug v4",
+            "type": "probe-rs-debug",
+            "flashingConfig": {
+                "haltAfterReset": true,
+                "flashingEnabled": true,
+                "formatOptions": {
+                    "idf_partition_table": "partitions.csv"
+                }
+            },
+            "request": "launch",
+            "chip": "esp32s3",
+            "coreConfigs": [
+                {
+                    "programBinary": "${workspaceRoot}/target/xtensa-esp32s3-none-elf/debug/card_io_fw"
+                }
+            ]
+        },
+        {
+            "name": "Attach to v4",
+            "type": "probe-rs-debug",
+            "request": "attach",
+            "chip": "esp32s3",
+            "coreConfigs": [
+                {
+                    "programBinary": "${workspaceRoot}/target/xtensa-esp32s3-none-elf/debug/card_io_fw"
                 }
             ]
         }
