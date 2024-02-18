@@ -8,7 +8,7 @@ use crate::{
         drivers::{battery_monitor::BatteryMonitor, frontend::Frontend},
         hal::{
             clock::Clocks,
-            dma::DmaPriority,
+            dma::{DmaDescriptor, DmaPriority},
             gpio::OutputPin as _,
             interrupt, peripherals,
             spi::{
@@ -119,8 +119,10 @@ impl StartupResources {
         display_cs.connect_peripheral_to_output(display_spi.cs_signal());
 
         const DESCR_SET_COUNT: usize = 1;
-        static mut DISP_SPI_DESCRIPTORS: [u32; DESCR_SET_COUNT * 3] = [0; DESCR_SET_COUNT * 3];
-        static mut DISP_SPI_RX_DESCRIPTORS: [u32; DESCR_SET_COUNT * 3] = [0; DESCR_SET_COUNT * 3];
+        static mut DISP_SPI_DESCRIPTORS: [DmaDescriptor; DESCR_SET_COUNT] =
+            [DmaDescriptor::EMPTY; DESCR_SET_COUNT];
+        static mut DISP_SPI_RX_DESCRIPTORS: [DmaDescriptor; DESCR_SET_COUNT] =
+            [DmaDescriptor::EMPTY; DESCR_SET_COUNT];
         let display_spi = Spi::new(display_spi, 40u32.MHz(), SpiMode::Mode0, clocks)
             .with_sck(display_sclk.into())
             .with_mosi(display_mosi.into())
@@ -171,8 +173,10 @@ impl StartupResources {
         unwrap!(adc_cs.set_high().ok());
 
         const DESCR_SET_COUNT: usize = 1;
-        static mut ADC_SPI_DESCRIPTORS: [u32; DESCR_SET_COUNT * 3] = [0; DESCR_SET_COUNT * 3];
-        static mut ADC_SPI_RX_DESCRIPTORS: [u32; DESCR_SET_COUNT * 3] = [0; DESCR_SET_COUNT * 3];
+        static mut ADC_SPI_DESCRIPTORS: [DmaDescriptor; DESCR_SET_COUNT] =
+            [DmaDescriptor::EMPTY; DESCR_SET_COUNT];
+        static mut ADC_SPI_RX_DESCRIPTORS: [DmaDescriptor; DESCR_SET_COUNT] =
+            [DmaDescriptor::EMPTY; DESCR_SET_COUNT];
 
         ExclusiveDevice::new(
             Spi::new(adc_spi, 1u32.MHz(), SpiMode::Mode1, clocks)
