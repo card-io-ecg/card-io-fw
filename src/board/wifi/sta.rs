@@ -513,14 +513,18 @@ impl StaController {
         controller: &mut WifiController<'_>,
     ) -> Result<(), ConnectError> {
         self.state.update(InternalConnectionState::Connecting);
-        match controller.connect().await {
-            Ok(_) => {
+        match with_timeout(Duration::from_secs(30), controller.connect()).await {
+            Ok(Ok(_)) => {
                 self.state.update(InternalConnectionState::WaitingForIp);
                 Ok(())
             }
-            Err(e) => {
+            Ok(Err(e)) => {
                 warn!("Failed to connect to wifi: {:?}", e);
 
+                Err(ConnectError)
+            }
+            Err(_) => {
+                warn!("Connection timeout");
                 Err(ConnectError)
             }
         }
