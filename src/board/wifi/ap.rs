@@ -162,13 +162,17 @@ impl ApController {
 
     pub fn handle_events(&mut self, events: EnumSet<WifiEvent>) -> bool {
         if events.contains(WifiEvent::ApStaconnected) {
-            let old_count = self.state.client_count.fetch_add(1, Ordering::Release);
-            info!("Client connected, {} total", old_count + 1);
+            let old_count = self.state.client_count.load(Ordering::Acquire);
+            let new_count = old_count.saturating_add(1);
+            self.state.client_count.store(new_count, Ordering::Relaxed);
+            info!("Client connected, {} total", new_count);
         }
 
         if events.contains(WifiEvent::ApStadisconnected) {
-            let old_count = self.state.client_count.fetch_sub(1, Ordering::Release);
-            info!("Client disconnected, {} left", old_count - 1);
+            let old_count = self.state.client_count.load(Ordering::Acquire);
+            let new_count = old_count.saturating_sub(1);
+            self.state.client_count.store(new_count, Ordering::Relaxed);
+            info!("Client disconnected, {} left", new_count);
         }
 
         if events.contains(WifiEvent::ApStop) {
