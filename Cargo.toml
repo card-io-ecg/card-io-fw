@@ -15,7 +15,6 @@ embedded-nal-async = "0.7.0"
 embedded-io = "0.6"
 embedded-io-async = "0.6"
 embedded-menu = "0.6.0"
-embedded-svc = { version = "0.27", default-features = false }
 embassy-net = { version = "0.4", features = [
     "tcp",
     "dhcpv4",
@@ -128,7 +127,6 @@ embedded-nal-async.workspace = true
 embedded-io.workspace = true
 embedded-io-async.workspace = true
 embedded-menu.workspace = true
-embedded-svc.workspace = true
 embassy-net.workspace = true
 embassy-sync.workspace = true
 
@@ -162,6 +160,7 @@ esp32c6-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "deb9f212845212
 esp32h2-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "deb9f212845212a6f0bfcd9df0a12484ece59894" }
 esp-hal-procmacros = { git = "https://github.com/esp-rs/esp-hal", rev = "deb9f212845212a6f0bfcd9df0a12484ece59894" }
 esp-hal-common = { git = "https://github.com/esp-rs/esp-hal", rev = "deb9f212845212a6f0bfcd9df0a12484ece59894" }
+esp-wifi = { git = "https://github.com/esp-rs/esp-wifi", rev = "d200a167237f03cf63edce721a5f85fd65d2db84" }
 
 [features]
 default = ["defmt"]
@@ -228,7 +227,6 @@ defmt = [
     "dep:defmt",
     "norfs/defmt",
     "embedded-io/defmt-03",
-    "embedded-svc/defmt",
     "embedded-graphics/defmt",
     "esp-println/defmt-espflash",
     "esp-wifi/defmt",

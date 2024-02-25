@@ -24,10 +24,12 @@ use embassy_sync::{
     signal::Signal,
 };
 use embassy_time::{with_timeout, Duration};
-use embedded_svc::wifi::{AccessPointInfo, ClientConfiguration, Configuration, Wifi as _};
 use enumset::EnumSet;
 use esp_wifi::{
-    wifi::{WifiController, WifiDevice, WifiEvent, WifiStaDevice},
+    wifi::{
+        AccessPointInfo, ClientConfiguration, Configuration, WifiController, WifiDevice, WifiEvent,
+        WifiStaDevice,
+    },
     EspWifiInitialization,
 };
 use gui::widgets::wifi_client::WifiClientState;
