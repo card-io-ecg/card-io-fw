@@ -4,7 +4,7 @@ use alloc::{string::String, vec};
 use embassy_futures::select::{select, Either};
 use embassy_time::{Duration, Instant, Ticker, Timer};
 use embedded_graphics::Drawable;
-use embedded_menu::items::NavigationItem;
+use embedded_menu::items::menu_item::MenuItem;
 use gui::screens::create_menu;
 
 use crate::{
@@ -36,8 +36,9 @@ pub async fn wifi_sta(context: &mut Context) -> AppState {
         let mut ticker = Ticker::every(MIN_FRAME_TIME);
         let mut menu_state = Default::default();
 
-        let list_item =
-            |label: &str| NavigationItem::new(String::from(label), WifiStaMenuEvents::None);
+        let list_item = |label: &str| {
+            MenuItem::new(String::from(label), "").with_value_converter(|_| WifiStaMenuEvents::None)
+        };
 
         // Initial placeholder
         let mut ssids = vec![list_item("Scanning...")];
@@ -72,8 +73,8 @@ pub async fn wifi_sta(context: &mut Context) -> AppState {
             }
 
             let mut menu_screen = create_menu("Access points")
-                .add_items(&mut ssids)
-                .add_item(NavigationItem::new("Back", WifiStaMenuEvents::Back))
+                .add_menu_items(&mut ssids)
+                .add_item("Back", "<-", |_| WifiStaMenuEvents::Back)
                 .build_with_state(menu_state);
 
             if let Some(WifiStaMenuEvents::Back) = menu_screen.interact(is_touched) {

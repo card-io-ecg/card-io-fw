@@ -92,14 +92,20 @@ where
 
     fn at(&self, _idx: usize) -> &dyn View {
         match self {
-            Self::Hidden(_) => unsafe { &EMPTY_VIEW_GROUP },
+            Self::Hidden(_) => unsafe {
+                #[allow(static_mut_ref)]
+                &EMPTY_VIEW_GROUP
+            },
             Self::Visible(view) => view,
         }
     }
 
     fn at_mut(&mut self, _idx: usize) -> &mut dyn View {
         match self {
-            Self::Hidden(_) => unsafe { &mut EMPTY_VIEW_GROUP },
+            Self::Hidden(_) => unsafe {
+                #[allow(static_mut_ref)]
+                &mut EMPTY_VIEW_GROUP
+            },
             Self::Visible(view) => view,
         }
     }

@@ -5,7 +5,7 @@ use crate::{
     uformat, AppState, SerialNumber,
 };
 
-use embedded_menu::items::NavigationItem;
+use embedded_menu::items::menu_item::MenuItem;
 use gui::screens::create_menu;
 
 #[derive(Clone, Copy)]
@@ -28,16 +28,15 @@ struct AboutAppMenu;
 type AboutMenuBuilder = impl AppMenuBuilder<AboutMenuEvents>;
 
 fn about_menu_builder(context: &mut Context) -> AboutMenuBuilder {
-    let list_item = |label| NavigationItem::new(label, AboutMenuEvents::None);
+    let list_item =
+        |label| MenuItem::new(label, "").with_value_converter(|_| AboutMenuEvents::None);
 
     let mut items = heapless::Vec::<_, 5>::new();
     items.extend([
         list_item(uformat!(20, "{}", env!("FW_VERSION_MENU_ITEM"))),
         list_item(uformat!(20, "{}", env!("HW_VERSION_MENU_ITEM"))),
-        NavigationItem::new(
-            uformat!(20, "Serial  {}", SerialNumber),
-            AboutMenuEvents::ToSerial,
-        ),
+        list_item(uformat!(20, "Serial  {}", SerialNumber))
+            .with_value_converter(|_| AboutMenuEvents::ToSerial),
         list_item(match context.frontend.device_id() {
             Some(id) => uformat!(20, "ADC {:?}", LeftPadAny(16, id)),
             None => uformat!(20, "ADC          Unknown"),
@@ -48,15 +47,15 @@ fn about_menu_builder(context: &mut Context) -> AboutMenuBuilder {
     {
         unwrap!(items
             .push(
-                NavigationItem::new(uformat!(20, "Fuel gauge"), AboutMenuEvents::ToBatteryInfo)
-                    .with_marker("MAX17055")
+                MenuItem::new(uformat!(20, "Fuel gauge"), "MAX17055")
+                    .with_value_converter(|_| AboutMenuEvents::ToBatteryInfo)
             )
             .ok());
     }
 
     create_menu("Device info")
-        .add_items(items)
-        .add_item(NavigationItem::new("Back", AboutMenuEvents::Back))
+        .add_menu_items(items)
+        .add_item("Back", "<-", |_| AboutMenuEvents::Back)
 }
 
 impl MenuScreen for AboutAppMenu {
