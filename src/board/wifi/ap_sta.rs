@@ -22,7 +22,6 @@ use embassy_futures::{
     select::{select, Either},
 };
 use embassy_net::Config;
-use embedded_svc::wifi::Wifi as _;
 use esp_wifi::{wifi::WifiController, EspWifiInitialization};
 use macros as cardio;
 

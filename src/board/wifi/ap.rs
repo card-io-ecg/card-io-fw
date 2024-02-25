@@ -13,9 +13,11 @@ use crate::{
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_net::{Config, Stack};
-use embedded_svc::wifi::{AccessPointConfiguration, Configuration, Wifi as _};
 use esp_wifi::{
-    wifi::{WifiApDevice, WifiController, WifiDevice, WifiEvent},
+    wifi::{
+        AccessPointConfiguration, Configuration, WifiApDevice, WifiController, WifiDevice,
+        WifiEvent,
+    },
     EspWifiInitialization,
 };
 use macros as cardio;

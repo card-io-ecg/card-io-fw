@@ -89,7 +89,8 @@ esp-wifi = { version = "0.3.0", default-features = false, features = [
     "tcp",
     "dns",
     "ipv4",
-    "dhcpv4"
+    "dhcpv4",
+    "embedded-svc"
 ] }
 
 display-interface = "0.5"
@@ -162,6 +163,7 @@ esp32c6-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "deb9f212845212
 esp32h2-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "deb9f212845212a6f0bfcd9df0a12484ece59894" }
 esp-hal-procmacros = { git = "https://github.com/esp-rs/esp-hal", rev = "deb9f212845212a6f0bfcd9df0a12484ece59894" }
 esp-hal-common = { git = "https://github.com/esp-rs/esp-hal", rev = "deb9f212845212a6f0bfcd9df0a12484ece59894" }
+esp-wifi = { git = "https://github.com/esp-rs/esp-wifi", rev = "d200a167237f03cf63edce721a5f85fd65d2db84" }
 
 [features]
 default = ["defmt"]
