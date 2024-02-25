@@ -1,6 +1,8 @@
 use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
+use embedded_layout::{chain, object_chain::Chain};
 use embedded_menu::{
     interaction::single_touch::SingleTouch,
+    items::MenuItem,
     selection_indicator::{style::animated_triangle::AnimatedTriangle, AnimatedPosition},
     Menu,
 };
@@ -17,18 +19,16 @@ pub enum ApMenuEvents {
     Exit,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Menu)]
-#[menu(
-    title = "WiFi Config",
-    navigation(events = ApMenuEvents),
-    items = [
-        navigation(label = "Exit", event = ApMenuEvents::Exit)
-    ]
-)]
-pub struct ApMenu {}
-
 pub struct WifiApScreen {
-    pub menu: ApMenuMenuWrapper<SingleTouch, AnimatedPosition, AnimatedTriangle>,
+    pub menu: Menu<
+        &'static str,
+        SingleTouch,
+        chain! { MenuItem<&'static str, ApMenuEvents, (), true> },
+        ApMenuEvents,
+        AnimatedPosition,
+        AnimatedTriangle,
+        BinaryColor,
+    >,
     pub state: WifiAccessPointState,
     pub timeout: Option<u8>,
 }
@@ -36,7 +36,9 @@ pub struct WifiApScreen {
 impl WifiApScreen {
     pub fn new() -> Self {
         Self {
-            menu: ApMenu {}.create_menu_with_style(menu_style()),
+            menu: Menu::with_style("WiFi Config", menu_style())
+                .add_item("Exit", (), |_| ApMenuEvents::Exit)
+                .build(),
             state: WifiAccessPointState::NotConnected,
             timeout: None,
         }

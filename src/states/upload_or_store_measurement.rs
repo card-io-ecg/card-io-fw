@@ -5,7 +5,7 @@ use core::{
 
 use alloc::{boxed::Box, vec::Vec};
 use embassy_time::{with_timeout, Duration};
-use embedded_menu::items::NavigationItem;
+use embedded_menu::items::menu_item::{MenuItem, SelectValue};
 use embedded_nal_async::{Dns, TcpConnect};
 use gui::screens::create_menu;
 use norfs::{
@@ -122,13 +122,27 @@ async fn ask_for_measurement_action(context: &mut Context) -> (bool, bool) {
 }
 
 struct AskForMeasurementActionMenu;
+
+#[derive(Clone, Copy, PartialEq)]
+struct UploadOrStore(bool, bool);
+impl SelectValue for UploadOrStore {
+    fn marker(&self) -> &'static str {
+        ""
+    }
+}
+
 type AskForMeasurementActionMenuBuilder = impl AppMenuBuilder<(bool, bool)>;
 
 fn ask_for_action_builder(context: &mut Context) -> AskForMeasurementActionMenuBuilder {
     let mut items = heapless::Vec::<_, 3>::new();
 
-    let mut add_item = |label, value| {
-        unwrap!(items.push(NavigationItem::new(label, value)).ok());
+    let mut add_item = |label, can_upload, can_store| {
+        unwrap!(items
+            .push(
+                MenuItem::new(label, UploadOrStore(can_upload, can_store))
+                    .with_value_converter(|x| (x.0, x.1))
+            )
+            .ok());
     };
 
     let network_configured =
@@ -138,18 +152,20 @@ fn ask_for_action_builder(context: &mut Context) -> AskForMeasurementActionMenuB
 
     if network_configured {
         if can_store {
-            add_item("Upload or store", (true, true));
+            add_item("Upload or store", true, true);
         }
-        add_item("Upload", (true, false));
+        add_item("Upload", true, false);
     }
 
     if can_store {
-        add_item("Store", (false, true));
+        add_item("Store", false, true);
     }
 
-    create_menu("EKG action")
-        .add_items(items)
-        .add_item(NavigationItem::new("Discard", (false, false)))
+    create_menu("EKG action").add_menu_items(items).add_item(
+        "Discard",
+        UploadOrStore(false, false),
+        |x| (x.0, x.1),
+    )
 }
 
 impl MenuScreen for AskForMeasurementActionMenu {

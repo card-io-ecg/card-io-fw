@@ -14,7 +14,7 @@ embedded-hal-bus = { version = "0.1.0", features = ["async"] }
 embedded-nal-async = "0.7.0"
 embedded-io = "0.6"
 embedded-io-async = "0.6"
-embedded-menu = "0.5.2"
+embedded-menu = "0.6.0"
 embedded-svc = { version = "0.27", default-features = false }
 embassy-net = { version = "0.4", features = [
     "tcp",

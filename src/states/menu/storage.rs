@@ -8,7 +8,7 @@ use crate::{
     states::menu::{AppMenu, MenuScreen},
     uformat, AppState,
 };
-use embedded_menu::items::{NavigationItem, Select};
+use embedded_menu::items::menu_item::{MenuItem, SelectValue};
 use gui::screens::create_menu;
 
 use super::AppMenuBuilder;
@@ -33,34 +33,39 @@ pub async fn storage_menu(context: &mut Context) -> AppState {
     result
 }
 
+#[derive(Clone, PartialEq)]
+struct UsedStorage(heapless::String<32>);
+
+impl SelectValue for UsedStorage {
+    fn marker(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
 struct StorageMenu;
 type StorageMenuBuilder = impl AppMenuBuilder<StorageMenuEvents>;
 
 async fn storage_menu_builder(context: &mut Context) -> StorageMenuBuilder {
-    // needs to be separate because the item is of a different type
-    let mut used_item = heapless::Vec::<_, 1>::new();
+    let mut used_item = heapless::Vec::<_, 2>::new();
+    let mut items = heapless::Vec::<_, 2>::new();
+
     if let Some(storage) = context.storage.as_mut() {
         if let Ok(used) = storage.used_bytes().await {
-            let used_str = uformat!(
+            let used_str = UsedStorage(uformat!(
                 32,
                 "{}/{}",
                 BinarySize(used),
                 BinarySize(storage.capacity())
-            );
+            ));
 
             unwrap!(used_item
-                .push(NavigationItem::new("Used", StorageMenuEvents::Nothing).with_marker(used_str))
+                .push(
+                    MenuItem::new("Used", used_str)
+                        .with_value_converter(|_| StorageMenuEvents::Nothing)
+                )
                 .ok());
         }
     }
-
-    let mut items = heapless::Vec::<_, 2>::new();
-    unwrap!(items
-        .push(NavigationItem::new(
-            "Format storage",
-            StorageMenuEvents::Format,
-        ))
-        .ok());
 
     if context.can_enable_wifi()
         && !context.config.known_networks.is_empty()
@@ -68,22 +73,23 @@ async fn storage_menu_builder(context: &mut Context) -> StorageMenuBuilder {
         && context.sta_has_work().await
     {
         unwrap!(items
-            .push(NavigationItem::new(
-                "Upload data",
-                StorageMenuEvents::Upload
-            ))
+            .push(
+                MenuItem::new("Upload data", "->")
+                    .with_value_converter(|_| StorageMenuEvents::Upload)
+            )
             .ok());
     }
 
     create_menu("Storage")
         .add_item(
-            Select::new("New EKG", context.config.measurement_action)
-                .with_value_converter(StorageMenuEvents::ChangeMeasurementAction)
-                .with_detail_text("What to do with new measurements"),
+            "New EKG",
+            context.config.measurement_action,
+            StorageMenuEvents::ChangeMeasurementAction,
         )
-        .add_items(used_item)
-        .add_items(items)
-        .add_item(NavigationItem::new("Back", StorageMenuEvents::Back))
+        .add_menu_items(used_item)
+        .add_menu_items(items)
+        .add_item("Format storage", "->", |_| StorageMenuEvents::Format)
+        .add_item("Back", "<-", |_| StorageMenuEvents::Back)
 }
 
 impl MenuScreen for StorageMenu {

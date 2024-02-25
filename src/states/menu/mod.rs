@@ -49,7 +49,7 @@ pub trait AppMenuBuilder<E> {
 }
 
 impl<T, VG, E> AppMenuBuilder<E>
-    for MenuBuilder<T, SingleTouch, VG, E, BinaryColor, AnimatedPosition, AnimatedTriangle>
+    for MenuBuilder<T, SingleTouch, VG, E, AnimatedPosition, AnimatedTriangle, BinaryColor>
 where
     T: AsRef<str>,
     VG: ViewGroup + MenuItemCollection<E>,
@@ -75,7 +75,7 @@ pub trait AppMenuT<E>: Drawable<Color = BinaryColor, Output = ()> {
 }
 
 impl<T, VG, E> AppMenuT<E>
-    for Menu<T, SingleTouch, VG, E, BinaryColor, AnimatedPosition, AnimatedTriangle>
+    for Menu<T, SingleTouch, VG, E, AnimatedPosition, AnimatedTriangle, BinaryColor>
 where
     T: AsRef<str>,
     VG: ViewGroup + MenuItemCollection<E>,
