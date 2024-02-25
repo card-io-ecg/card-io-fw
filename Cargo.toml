@@ -15,7 +15,6 @@ embedded-nal-async = "0.7.0"
 embedded-io = "0.6"
 embedded-io-async = "0.6"
 embedded-menu = "0.6.0"
-embedded-svc = { version = "0.27", default-features = false }
 embassy-net = { version = "0.4", features = [
     "tcp",
     "dhcpv4",
@@ -89,8 +88,7 @@ esp-wifi = { version = "0.3.0", default-features = false, features = [
     "tcp",
     "dns",
     "ipv4",
-    "dhcpv4",
-    "embedded-svc"
+    "dhcpv4"
 ] }
 
 display-interface = "0.5"
@@ -129,7 +127,6 @@ embedded-nal-async.workspace = true
 embedded-io.workspace = true
 embedded-io-async.workspace = true
 embedded-menu.workspace = true
-embedded-svc.workspace = true
 embassy-net.workspace = true
 embassy-sync.workspace = true
 
@@ -230,7 +227,6 @@ defmt = [
     "dep:defmt",
     "norfs/defmt",
     "embedded-io/defmt-03",
-    "embedded-svc/defmt",
     "embedded-graphics/defmt",
     "esp-println/defmt-espflash",
     "esp-wifi/defmt",
