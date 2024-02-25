@@ -8,8 +8,8 @@ use crate::board::{
         self,
         adc::ADC2,
         clock::ClockControl,
+        dma::*,
         embassy,
-        gdma::*,
         gpio::{Analog, Floating, GpioPin, Input, Output, PullUp, PushPull},
         peripherals::{self, Peripherals},
         prelude::*,
@@ -84,7 +84,7 @@ impl super::startup::StartupResources {
 
         let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
 
-        let dma = Gdma::new(peripherals.DMA);
+        let dma = Dma::new(peripherals.DMA);
 
         let display = Self::create_display_driver(
             dma.channel0,

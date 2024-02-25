@@ -151,15 +151,15 @@ crc = "3.0.1"
 enumset = "1.1.3"
 
 [patch.crates-io]
-esp32-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "deb9f212845212a6f0bfcd9df0a12484ece59894" }
-esp32s2-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "deb9f212845212a6f0bfcd9df0a12484ece59894" }
-esp32s3-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "deb9f212845212a6f0bfcd9df0a12484ece59894" }
-esp32c2-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "deb9f212845212a6f0bfcd9df0a12484ece59894" }
-esp32c3-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "deb9f212845212a6f0bfcd9df0a12484ece59894" }
-esp32c6-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "deb9f212845212a6f0bfcd9df0a12484ece59894" }
-esp32h2-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "deb9f212845212a6f0bfcd9df0a12484ece59894" }
-esp-hal-procmacros = { git = "https://github.com/esp-rs/esp-hal", rev = "deb9f212845212a6f0bfcd9df0a12484ece59894" }
-esp-hal-common = { git = "https://github.com/esp-rs/esp-hal", rev = "deb9f212845212a6f0bfcd9df0a12484ece59894" }
+esp32-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0aa880af7271f059797339bf890d2d59c64" }
+esp32s2-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0aa880af7271f059797339bf890d2d59c64" }
+esp32s3-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0aa880af7271f059797339bf890d2d59c64" }
+esp32c2-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0aa880af7271f059797339bf890d2d59c64" }
+esp32c3-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0aa880af7271f059797339bf890d2d59c64" }
+esp32c6-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0aa880af7271f059797339bf890d2d59c64" }
+esp32h2-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0aa880af7271f059797339bf890d2d59c64" }
+esp-hal-procmacros = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0aa880af7271f059797339bf890d2d59c64" }
+esp-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0aa880af7271f059797339bf890d2d59c64" }
 esp-wifi = { git = "https://github.com/esp-rs/esp-wifi", rev = "d200a167237f03cf63edce721a5f85fd65d2db84" }
 
 [features]
