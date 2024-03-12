@@ -3,9 +3,9 @@ use embedded_hal::digital::OutputPin;
 use embedded_hal_async::{delay::DelayNs, i2c::I2c};
 use max17055::Max17055;
 
-#[cfg(all(feature = "esp32s3", not(feature = "hw_v6")))]
-use crate::hal::gpio::RTCPinWithResistors;
 use crate::{task_control::TaskControlToken, Shared};
+#[cfg(all(feature = "esp32s3", not(feature = "hw_v6")))]
+use esp_hal::gpio::RTCPinWithResistors;
 
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]

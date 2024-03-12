@@ -32,17 +32,10 @@ pub use crate::states::menu::battery_info::battery_info_menu;
 use crate::{
     board::{
         config::{Config, ConfigFile},
-        hal::{
-            self,
-            embassy::executor::{FromCpu1, InterruptExecutor},
-            entry,
-            interrupt::Priority,
-            prelude::{interrupt, main},
-            Delay,
-        },
         initialized::{Context, InnerContext},
         startup::StartupResources,
         storage::FileSystem,
+        TouchDetect,
     },
     states::{
         charging::charging,
@@ -59,29 +52,27 @@ use crate::{
         MESSAGE_DURATION,
     },
 };
-
-#[cfg(feature = "hw_v1")]
-use crate::{board::ChargerStatus, sleep::disable_gpio_wakeup, states::adc_setup::adc_setup};
-
-use crate::board::{
-    hal::rtc_cntl::{sleep, sleep::WakeupLevel},
-    TouchDetect,
+use esp_hal::{
+    embassy::executor::{FromCpu1, InterruptExecutor},
+    entry,
+    interrupt::Priority,
+    prelude::{interrupt, main},
+    rtc_cntl::{sleep, sleep::WakeupLevel},
+    Delay,
 };
 
 #[cfg(any(feature = "hw_v2", feature = "hw_v4", feature = "hw_v6"))]
 use crate::board::VbusDetect;
 
 #[cfg(feature = "esp32s3")]
-use crate::board::hal::gpio::RTCPin as RtcWakeupPin;
+use esp_hal::gpio::RTCPin as RtcWakeupPin;
 
 #[cfg(feature = "esp32c6")]
-use crate::board::hal::gpio::RTCPinWithResistors as RtcWakeupPin;
+use esp_hal::gpio::RTCPinWithResistors as RtcWakeupPin;
 
 mod board;
 mod heap;
 pub mod human_readable;
-#[cfg(feature = "hw_v1")]
-mod sleep;
 mod stack_protection;
 mod states;
 mod task_control;
@@ -91,7 +82,7 @@ pub struct SerialNumber;
 
 impl SerialNumber {
     pub fn bytes() -> [u8; 6] {
-        hal::efuse::Efuse::get_mac_address()
+        esp_hal::efuse::Efuse::get_mac_address()
     }
 }
 
@@ -120,8 +111,6 @@ pub type SharedGuard<'a, T> = MutexGuard<'a, NoopRawMutex, T>;
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum AppState {
-    #[cfg(feature = "hw_v1")]
-    AdcSetup,
     PreInitialize,
     Initialize,
     Measure,
@@ -220,9 +209,6 @@ where
 async fn main(_spawner: Spawner) {
     let resources = StartupResources::initialize().await;
 
-    #[cfg(feature = "hw_v1")]
-    info!("Hardware version: v1");
-
     #[cfg(feature = "hw_v2")]
     info!("Hardware version: v2");
 
@@ -260,17 +246,11 @@ async fn main(_spawner: Spawner) {
     board.apply_hw_config_changes().await;
     board.config_changed = false;
 
-    #[cfg(feature = "hw_v1")]
-    let mut state = AppState::AdcSetup;
-
-    #[cfg(not(feature = "hw_v1"))]
     let mut state = AppState::PreInitialize;
 
     loop {
         info!("New app state: {:?}", state);
         state = match state {
-            #[cfg(feature = "hw_v1")]
-            AppState::AdcSetup => adc_setup(&mut board).await,
             AppState::PreInitialize => {
                 if board.battery_monitor.is_plugged() {
                     AppState::Charging
@@ -314,10 +294,6 @@ async fn main(_spawner: Spawner) {
     let mut rtc = resources.rtc;
     let is_charging = battery_monitor.is_plugged();
 
-    #[cfg(feature = "hw_v1")]
-    let (_, mut charger_pin) = battery_monitor.stop().await;
-
-    #[cfg(not(feature = "hw_v1"))]
     let (mut charger_pin, _) = battery_monitor.stop().await;
 
     let (_, _, _, mut touch) = board.frontend.split();
@@ -329,34 +305,6 @@ async fn main(_spawner: Spawner) {
 
     // Shouldn't reach this. If we do, we just exit the task, which means the executor
     // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
-}
-
-#[cfg(feature = "hw_v1")]
-fn setup_wakeup_pins<'a, 'b, const N: usize>(
-    wakeup_pins: &'a mut heapless::Vec<(&'b mut dyn RtcWakeupPin, WakeupLevel), N>,
-    touch: &'b mut TouchDetect,
-    charger_pin: &'b mut ChargerStatus,
-    is_charging: bool,
-) -> sleep::RtcioWakeupSource<'a, 'b> {
-    unwrap!(wakeup_pins.push((touch, WakeupLevel::Low)).ok());
-
-    if is_charging {
-        // This is a bit awkward as unplugging then replugging will not wake the
-        // device. Ideally, we'd use the VBUS detect pin, but it's not connected to RTCIO.
-        disable_gpio_wakeup(charger_pin);
-    } else {
-        // We want to wake up when the charger is connected, or the electrodes are touched.
-
-        // v1 uses the charger status pin, which is open drain
-        // and the board does not have a pullup resistor. A low signal means the battery is
-        // charging. This means we can watch for low level to detect a charger connection.
-        charger_pin.rtcio_pad_hold(true);
-        charger_pin.rtcio_pullup(true);
-
-        unwrap!(wakeup_pins.push((charger_pin, WakeupLevel::Low)).ok());
-    }
-
-    sleep::RtcioWakeupSource::new(wakeup_pins)
 }
 
 #[cfg(any(
