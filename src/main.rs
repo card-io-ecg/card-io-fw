@@ -32,7 +32,6 @@ pub use crate::states::menu::battery_info::battery_info_menu;
 use crate::{
     board::{
         config::{Config, ConfigFile},
-        hal as esp_hal,
         initialized::{Context, InnerContext},
         startup::StartupResources,
         storage::FileSystem,

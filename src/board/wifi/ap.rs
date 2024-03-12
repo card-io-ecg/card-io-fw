@@ -4,10 +4,7 @@ use enumset::EnumSet;
 use gui::widgets::wifi_access_point::WifiAccessPointState;
 
 use crate::{
-    board::{
-        hal as esp_hal,
-        wifi::{ap_net_task, StackWrapper},
-    },
+    board::wifi::{ap_net_task, StackWrapper},
     task_control::{TaskControlToken, TaskController},
 };
 use embassy_executor::Spawner;

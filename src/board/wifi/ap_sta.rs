@@ -3,16 +3,11 @@ use embassy_sync::mutex::Mutex;
 use embassy_time::{with_timeout, Duration};
 
 use crate::{
-    board::{
-        hal as esp_hal,
-        wifi::{
-            ap::{Ap, ApConnectionState, ApController},
-            ap_net_task,
-            sta::{
-                CommandQueue, InitialStaControllerState, Sta, StaConnectionState, StaController,
-            },
-            sta_net_task, StackWrapper,
-        },
+    board::wifi::{
+        ap::{Ap, ApConnectionState, ApController},
+        ap_net_task,
+        sta::{CommandQueue, InitialStaControllerState, Sta, StaConnectionState, StaController},
+        sta_net_task, StackWrapper,
     },
     task_control::{TaskControlToken, TaskController},
 };

@@ -4,7 +4,6 @@ use crate::{
     board::{
         config::Config,
         drivers::battery_monitor::BatteryMonitor,
-        hal as esp_hal,
         storage::FileSystem,
         wifi::{ap::Ap, sta::Sta, WifiDriver},
         ChargerStatus, Display, EcgFrontend, VbusDetect,
