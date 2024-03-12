@@ -1,7 +1,6 @@
 use crate::{
     board::{
         config::types::FilterStrength,
-        hal::prelude::*,
         initialized::{Context, InnerContext},
         AdcSpi, EcgFrontend, PoweredEcgFrontend,
     },
@@ -16,6 +15,7 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channe
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
 use embedded_hal::spi::ErrorType;
+use esp_hal::prelude::*;
 use gui::screens::{init::StartupScreen, measure::EcgScreen};
 use macros as cardio;
 use object_chain::{chain, Chain, ChainElement, Link};
