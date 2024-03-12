@@ -4,7 +4,6 @@ use crate::board::{
         display::Display as DisplayType,
         frontend::{Frontend, PoweredFrontend},
     },
-    hal as esp_hal,
     utils::DummyOutputPin,
     wifi::WifiDriver,
 };

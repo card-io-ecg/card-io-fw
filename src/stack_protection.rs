@@ -1,6 +1,5 @@
 use core::ops::Range;
 
-use crate::board::hal as esp_hal;
 use esp_hal::{
     assist_debug::DebugAssist,
     get_core, interrupt,

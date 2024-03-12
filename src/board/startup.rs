@@ -6,7 +6,6 @@ use static_cell::make_static;
 use crate::{
     board::{
         drivers::{battery_monitor::BatteryMonitor, frontend::Frontend},
-        hal as esp_hal,
         utils::DummyOutputPin,
         wifi::WifiDriver,
         AdcClockEnable, AdcDrdy, AdcReset, AdcSpi, ChargerStatus, Display, DisplayChipSelect,

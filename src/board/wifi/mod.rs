@@ -6,13 +6,10 @@ type WifiTimer = esp_hal::timer::Timer<esp_hal::timer::Timer0<esp_hal::periphera
 type WifiTimer = esp_hal::systimer::Alarm<esp_hal::systimer::Target, 0>;
 
 use crate::{
-    board::{
-        hal as esp_hal,
-        wifi::{
-            ap::{Ap, ApState},
-            ap_sta::ApStaState,
-            sta::{Sta, StaState},
-        },
+    board::wifi::{
+        ap::{Ap, ApState},
+        ap_sta::ApStaState,
+        sta::{Sta, StaState},
     },
     task_control::TaskControlToken,
 };

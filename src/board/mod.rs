@@ -22,15 +22,6 @@ pub mod wifi;
 
 use esp_backtrace as _;
 
-#[cfg(feature = "esp32s2")]
-pub use esp32s2_hal as hal;
-
-#[cfg(feature = "esp32s3")]
-pub use esp32s3_hal as hal;
-
-#[cfg(feature = "esp32c6")]
-pub use esp32c6_hal as hal;
-
 pub use hardware::*;
 
 pub const DEFAULT_BACKEND_URL: &str = "https://stingray-prime-monkey.ngrok-free.app";
