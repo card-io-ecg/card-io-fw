@@ -1,5 +1,3 @@
-#[cfg(feature = "hw_v1")]
-pub mod adc_setup;
 pub mod charging;
 pub mod display_serial;
 pub mod firmware_update;

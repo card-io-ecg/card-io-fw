@@ -84,14 +84,13 @@ fn main() {
 
     // Ensure that only a single HW version
     let hw_features = [
-        (cfg!(feature = "hw_v1"), HwVersion::V1),
         (cfg!(feature = "hw_v2"), HwVersion::V2),
         (cfg!(feature = "hw_v4"), HwVersion::V4),
         (cfg!(feature = "hw_v6"), HwVersion::V6),
     ];
 
     let Some(hw_version) = get_unique(hw_features) else {
-        panic!("Exactly 1 hardware version must be selected via its Cargo feature (hw_v1, hw_v2, hw_v4, hw_v6)");
+        panic!("Exactly 1 hardware version must be selected via its Cargo feature (hw_v2, hw_v4, hw_v6)");
     };
 
     let build_config = BuildConfig { mcu, hw_version };

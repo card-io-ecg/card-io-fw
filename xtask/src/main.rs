@@ -76,7 +76,6 @@ pub enum Subcommands {
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum HardwareVersion {
-    V1,
     V2,
     V4,
     V6S3,
@@ -87,7 +86,6 @@ pub enum HardwareVersion {
 impl HardwareVersion {
     fn feature(&self) -> &str {
         match self {
-            HardwareVersion::V1 => "hw_v1",
             HardwareVersion::V2 => "hw_v2",
             HardwareVersion::V4 => "hw_v4",
             HardwareVersion::V6S3 => "hw_v6,esp32s3",
