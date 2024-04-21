@@ -5,7 +5,7 @@ use gui::widgets::wifi_access_point::WifiAccessPointState;
 
 use crate::{
     board::{
-        hal::{peripherals::WIFI, Rng},
+        hal as esp_hal,
         wifi::{ap_net_task, StackWrapper},
     },
     task_control::{TaskControlToken, TaskController},
@@ -13,6 +13,7 @@ use crate::{
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_net::{Config, Stack};
+use esp_hal::{peripherals::WIFI, Rng};
 use esp_wifi::{
     wifi::{
         AccessPointConfiguration, Configuration, WifiApDevice, WifiController, WifiDevice,

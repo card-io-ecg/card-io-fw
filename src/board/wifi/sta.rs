@@ -2,7 +2,7 @@ use core::{alloc::AllocError, ptr::addr_of, sync::atomic::Ordering};
 
 use crate::{
     board::{
-        hal::{peripherals::WIFI, Rng},
+        hal as esp_hal,
         initialized::Context,
         wifi::{sta_net_task, StackWrapper},
     },
@@ -25,6 +25,7 @@ use embassy_sync::{
 };
 use embassy_time::{with_timeout, Duration};
 use enumset::EnumSet;
+use esp_hal::{peripherals::WIFI, Rng};
 use esp_wifi::{
     wifi::{
         AccessPointInfo, ClientConfiguration, Configuration, WifiController, WifiDevice, WifiEvent,

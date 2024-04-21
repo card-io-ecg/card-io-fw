@@ -1,4 +1,7 @@
-use core::ops::{Deref, DerefMut};
+use core::{
+    ops::{Deref, DerefMut},
+    ptr::addr_of_mut,
+};
 
 use macros::partition;
 use norfs::{medium::cache::ReadCache, Storage, StorageError};
@@ -56,11 +59,13 @@ impl FileSystem {
 
         unsafe { READ_CACHE = ReadCache::new(InternalDriver::new(ConfigPartition)) };
 
-        let storage = match Storage::mount(unsafe { &mut READ_CACHE }).await {
+        let cache = unsafe { addr_of_mut!(READ_CACHE).as_mut().unwrap_unchecked() };
+        let storage = match Storage::mount(cache).await {
             Ok(storage) => Ok(storage),
             Err(StorageError::NotFormatted) => {
                 info!("Formatting storage");
-                Storage::format_and_mount(unsafe { &mut READ_CACHE }).await
+                let cache = unsafe { addr_of_mut!(READ_CACHE).as_mut().unwrap_unchecked() };
+                Storage::format_and_mount(cache).await
             }
             e => e,
         };

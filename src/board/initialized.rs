@@ -4,7 +4,7 @@ use crate::{
     board::{
         config::Config,
         drivers::battery_monitor::BatteryMonitor,
-        hal::clock::Clocks,
+        hal as esp_hal,
         storage::FileSystem,
         wifi::{ap::Ap, sta::Sta, WifiDriver},
         ChargerStatus, Display, EcgFrontend, VbusDetect,
@@ -17,6 +17,7 @@ use embassy_executor::SendSpawner;
 use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
 use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
+use esp_hal::clock::Clocks;
 use gui::{
     screens::message::MessageScreen,
     widgets::{

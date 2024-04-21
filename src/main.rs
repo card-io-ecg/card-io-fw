@@ -32,17 +32,11 @@ pub use crate::states::menu::battery_info::battery_info_menu;
 use crate::{
     board::{
         config::{Config, ConfigFile},
-        hal::{
-            self,
-            embassy::executor::{FromCpu1, InterruptExecutor},
-            entry,
-            interrupt::Priority,
-            prelude::{interrupt, main},
-            Delay,
-        },
+        hal as esp_hal,
         initialized::{Context, InnerContext},
         startup::StartupResources,
         storage::FileSystem,
+        TouchDetect,
     },
     states::{
         charging::charging,
@@ -60,19 +54,23 @@ use crate::{
     },
 };
 
-use crate::board::{
-    hal::rtc_cntl::{sleep, sleep::WakeupLevel},
-    TouchDetect,
+use esp_hal::{
+    embassy::executor::{FromCpu1, InterruptExecutor},
+    entry,
+    interrupt::Priority,
+    prelude::{interrupt, main},
+    rtc_cntl::{sleep, sleep::WakeupLevel},
+    Delay,
 };
 
 #[cfg(any(feature = "hw_v4", feature = "hw_v6"))]
 use crate::board::VbusDetect;
 
 #[cfg(feature = "esp32s3")]
-use crate::board::hal::gpio::RTCPin as RtcWakeupPin;
+use esp_hal::gpio::RTCPin as RtcWakeupPin;
 
 #[cfg(feature = "esp32c6")]
-use crate::board::hal::gpio::RTCPinWithResistors as RtcWakeupPin;
+use esp_hal::gpio::RTCPinWithResistors as RtcWakeupPin;
 
 mod board;
 mod heap;
@@ -86,7 +84,7 @@ pub struct SerialNumber;
 
 impl SerialNumber {
     pub fn bytes() -> [u8; 6] {
-        hal::efuse::Efuse::get_mac_address()
+        esp_hal::efuse::Efuse::get_mac_address()
     }
 }
 
