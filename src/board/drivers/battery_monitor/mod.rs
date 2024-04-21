@@ -6,18 +6,8 @@ use embassy_sync::mutex::Mutex;
 use embedded_hal::digital::InputPin;
 use gui::screens::{BatteryInfo, ChargingState};
 
-#[cfg(feature = "battery_adc")]
-pub mod battery_adc;
 #[cfg(feature = "battery_max17055")]
 pub mod battery_fg;
-
-#[cfg(feature = "battery_adc")]
-use crate::board::{
-    drivers::battery_monitor::battery_adc::{
-        monitor_task_adc as monitor_task, BatteryAdcData as BatteryData,
-    },
-    BatteryAdc as BatterySensorImpl,
-};
 
 #[cfg(feature = "battery_max17055")]
 use crate::board::{
@@ -27,10 +17,10 @@ use crate::board::{
     BatteryFg as BatterySensorImpl,
 };
 
-#[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
+#[cfg(feature = "battery_max17055")]
 use crate::board::LOW_BATTERY_PERCENTAGE;
 
-#[cfg(any(feature = "battery_adc", feature = "battery_max17055"))]
+#[cfg(feature = "battery_max17055")]
 use embassy_executor::Spawner;
 
 #[derive(Default, Clone, Copy)]
@@ -139,33 +129,6 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
     pub async fn stop(self) -> (VBUS, CHG) {
         _ = self.signal.stop().await;
         (self.vbus_detect, self.charger_status)
-    }
-}
-
-#[cfg(feature = "battery_adc")]
-impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
-    fn convert_battery_data(&self, data: BatteryData) -> BatteryInfo {
-        use signal_processing::battery::BatteryModel;
-
-        let battery_model = BatteryModel {
-            voltage: (2750, 4200),
-            charge_current: (0, 1000),
-        };
-
-        let charge_current = if self.is_charging() {
-            None
-        } else {
-            Some(data.charge_current)
-        };
-
-        let percentage = battery_model.estimate(data.voltage, charge_current);
-
-        BatteryInfo {
-            voltage: data.voltage,
-            charging_state: self.charging_state(),
-            percentage,
-            is_low: percentage < LOW_BATTERY_PERCENTAGE,
-        }
     }
 }
 

@@ -165,10 +165,8 @@ esp-wifi = { git = "https://github.com/esp-rs/esp-wifi", rev = "d200a167237f03cf
 [features]
 default = ["defmt"]
 
-battery_adc = []
 battery_max17055 = ["dep:max17055"]
 
-hw_v1 = ["battery_adc", "esp32s3"]
 hw_v2 = ["battery_max17055", "esp32s3"] # skipped v3
 hw_v4 = ["battery_max17055", "esp32s3"]
 hw_v6 = ["battery_max17055"] # skipped v5, v6 has S3 and C6 options
