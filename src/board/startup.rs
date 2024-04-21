@@ -118,18 +118,13 @@ impl StartupResources {
 
         display_cs.connect_peripheral_to_output(display_spi.cs_signal());
 
-        const DESCR_SET_COUNT: usize = 1;
-        static mut DISP_SPI_DESCRIPTORS: [DmaDescriptor; DESCR_SET_COUNT] =
-            [DmaDescriptor::EMPTY; DESCR_SET_COUNT];
-        static mut DISP_SPI_RX_DESCRIPTORS: [DmaDescriptor; DESCR_SET_COUNT] =
-            [DmaDescriptor::EMPTY; DESCR_SET_COUNT];
         let display_spi = Spi::new(display_spi, 40u32.MHz(), SpiMode::Mode0, clocks)
             .with_sck(display_sclk.into())
             .with_mosi(display_mosi.into())
             .with_dma(display_dma_channel.configure(
                 false,
-                unsafe { &mut DISP_SPI_DESCRIPTORS },
-                unsafe { &mut DISP_SPI_RX_DESCRIPTORS },
+                make_static!([DmaDescriptor::EMPTY; 1]),
+                make_static!([DmaDescriptor::EMPTY; 1]),
                 DmaPriority::Priority0,
             ));
 
@@ -172,12 +167,6 @@ impl StartupResources {
 
         unwrap!(adc_cs.set_high().ok());
 
-        const DESCR_SET_COUNT: usize = 1;
-        static mut ADC_SPI_DESCRIPTORS: [DmaDescriptor; DESCR_SET_COUNT] =
-            [DmaDescriptor::EMPTY; DESCR_SET_COUNT];
-        static mut ADC_SPI_RX_DESCRIPTORS: [DmaDescriptor; DESCR_SET_COUNT] =
-            [DmaDescriptor::EMPTY; DESCR_SET_COUNT];
-
         ExclusiveDevice::new(
             Spi::new(adc_spi, 1u32.MHz(), SpiMode::Mode1, clocks)
                 .with_sck(adc_sclk.into())
@@ -185,8 +174,8 @@ impl StartupResources {
                 .with_miso(adc_miso.into())
                 .with_dma(adc_dma_channel.configure(
                     false,
-                    unsafe { &mut ADC_SPI_DESCRIPTORS },
-                    unsafe { &mut ADC_SPI_RX_DESCRIPTORS },
+                    make_static!([DmaDescriptor::EMPTY; 1]),
+                    make_static!([DmaDescriptor::EMPTY; 1]),
                     DmaPriority::Priority1,
                 )),
             adc_cs,
