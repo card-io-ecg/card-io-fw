@@ -24,7 +24,7 @@ use embassy_sync::{
 use embassy_time::{Duration, Timer};
 use norfs::{medium::StorageMedium, Storage, StorageError};
 use signal_processing::compressing_buffer::CompressingBuffer;
-use static_cell::StaticCell;
+use static_cell::{make_static, StaticCell};
 
 #[cfg(feature = "battery_max17055")]
 pub use crate::states::menu::battery_info::battery_info_menu;
@@ -54,12 +54,12 @@ use crate::{
 };
 
 use esp_hal::{
-    embassy::executor::{FromCpu1, InterruptExecutor},
+    delay::Delay,
+    embassy::executor::InterruptExecutor,
     entry,
     interrupt::Priority,
-    prelude::{interrupt, main},
-    rtc_cntl::{sleep, sleep::WakeupLevel},
-    Delay,
+    prelude::main,
+    rtc_cntl::sleep::{self, WakeupLevel},
 };
 
 #[cfg(any(feature = "hw_v4", feature = "hw_v6"))]
@@ -123,13 +123,6 @@ pub enum AppState {
     Shutdown,
     UploadStored(AppMenu),
     UploadOrStore(Box<CompressingBuffer<ECG_BUFFER_SIZE>>),
-}
-
-static INT_EXECUTOR: InterruptExecutor<FromCpu1> = InterruptExecutor::new();
-
-#[interrupt]
-fn FROM_CPU_INTR1() {
-    unsafe { INT_EXECUTOR.on_interrupt() }
 }
 
 async fn load_config<M: StorageMedium>(storage: Option<&mut Storage<M>>) -> &'static mut Config
@@ -210,6 +203,8 @@ where
 async fn main(_spawner: Spawner) {
     let resources = StartupResources::initialize().await;
 
+    let interrupt_executor = make_static!(InterruptExecutor::new(resources.software_interrupt1));
+
     #[cfg(feature = "hw_v4")]
     info!("Hardware version: v4");
 
@@ -229,7 +224,7 @@ async fn main(_spawner: Spawner) {
         inner: InnerContext {
             display: resources.display,
             clocks: resources.clocks,
-            high_prio_spawner: INT_EXECUTOR.start(Priority::Priority3),
+            high_prio_spawner: interrupt_executor.start(Priority::Priority3),
             battery_monitor: resources.battery_monitor,
             wifi: resources.wifi,
             config,

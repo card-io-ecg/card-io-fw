@@ -13,14 +13,15 @@ use esp_hal::{
     clock::ClockControl,
     dma::*,
     embassy,
-    gpio::{Floating, GpioPin, Input, Output, PullUp, PushPull, Unknown},
+    gpio::{Floating, GpioPin, Input, Output, PullUp, PushPull, Unknown, IO},
     i2c::I2C,
     peripherals::{self, Peripherals},
     prelude::*,
+    rtc_cntl::Rtc,
     spi::{master::dma::SpiDma, FullDuplexMode},
     systimer::SystemTimer,
     timer::TimerGroup,
-    Rtc, IO,
+    Async,
 };
 
 use display_interface_spi::SPIInterface;
@@ -35,7 +36,7 @@ pub type DisplayMosi = GpioPin<Output<PushPull>, 21>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommand>;
 pub type DisplaySpi<'d> = ExclusiveDevice<
-    SpiDma<'d, DisplaySpiInstance, Channel0, FullDuplexMode>,
+    SpiDma<'d, DisplaySpiInstance, Channel0, FullDuplexMode, Async>,
     DummyOutputPin,
     Delay,
 >;
@@ -51,7 +52,7 @@ pub type AdcDrdy = GpioPin<Input<Floating>, 4>;
 pub type AdcReset = GpioPin<Output<PushPull>, 2>;
 pub type TouchDetect = GpioPin<Input<Floating>, 1>;
 pub type AdcSpi = ExclusiveDevice<
-    SpiDma<'static, AdcSpiInstance, Channel1, FullDuplexMode>,
+    SpiDma<'static, AdcSpiInstance, Channel1, FullDuplexMode, Async>,
     AdcChipSelect,
     Delay,
 >;
@@ -69,7 +70,7 @@ pub type Display = DisplayType<DisplayReset>;
 pub type BatteryFgI2cInstance = peripherals::I2C0;
 pub type I2cSda = GpioPin<Unknown, 36>;
 pub type I2cScl = GpioPin<Unknown, 35>;
-pub type BatteryFgI2c = I2C<'static, BatteryFgI2cInstance>;
+pub type BatteryFgI2c = I2C<'static, BatteryFgI2cInstance, Async>;
 pub type BatteryFg = BatteryFgType<BatteryFgI2c, BatteryAdcEnable>;
 
 impl super::startup::StartupResources {
@@ -81,7 +82,7 @@ impl super::startup::StartupResources {
         let system = peripherals.SYSTEM.split();
         let clocks = ClockControl::max(system.clock_control).freeze();
 
-        embassy::init(&clocks, SystemTimer::new(peripherals.SYSTIMER));
+        embassy::init(&clocks, SystemTimer::new_async(peripherals.SYSTIMER));
 
         let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
 
@@ -137,13 +138,14 @@ impl super::startup::StartupResources {
             wifi: static_cell::make_static! {
                 WifiDriver::new(
                     peripherals.WIFI,
-                    TimerGroup::new(peripherals.TIMG1, &clocks).timer0,
+                    TimerGroup::new(peripherals.TIMG1, &clocks, None).timer0,
                     peripherals.RNG,
                     system.radio_clock_control,
                 )
             },
             clocks,
-            rtc: Rtc::new(peripherals.LPWR),
+            rtc: Rtc::new(peripherals.LPWR, None),
+            software_interrupt1: system.software_interrupt_control.software_interrupt1,
         }
     }
 }

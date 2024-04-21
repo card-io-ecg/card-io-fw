@@ -10,7 +10,7 @@ use crate::{
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_net::{Config, Stack};
-use esp_hal::{peripherals::WIFI, Rng};
+use esp_hal::{peripherals::WIFI, rng::Rng};
 use esp_wifi::{
     wifi::{
         AccessPointConfiguration, Configuration, WifiApDevice, WifiController, WifiDevice,

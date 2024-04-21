@@ -19,11 +19,12 @@ use esp_hal::{
     dma::{DmaDescriptor, DmaPriority},
     gpio::OutputPin as _,
     interrupt, peripherals,
+    rtc_cntl::Rtc,
     spi::{
         master::{dma::*, Instance, Spi},
         SpiMode,
     },
-    Rtc,
+    system::SoftwareInterrupt,
 };
 
 #[cfg(feature = "esp32s3")]
@@ -50,6 +51,8 @@ pub struct StartupResources {
 
     pub wifi: &'static mut WifiDriver,
     pub rtc: Rtc<'static>,
+
+    pub software_interrupt1: SoftwareInterrupt<1>,
 }
 
 impl StartupResources {
@@ -120,7 +123,7 @@ impl StartupResources {
         let display_spi = Spi::new(display_spi, 40u32.MHz(), SpiMode::Mode0, clocks)
             .with_sck(display_sclk.into())
             .with_mosi(display_mosi.into())
-            .with_dma(display_dma_channel.configure(
+            .with_dma(display_dma_channel.configure_for_async(
                 false,
                 make_static!([DmaDescriptor::EMPTY; 1]),
                 make_static!([DmaDescriptor::EMPTY; 1]),
@@ -151,8 +154,6 @@ impl StartupResources {
 
         clocks: &Clocks,
     ) -> AdcSpi {
-        use embedded_hal::digital::OutputPin;
-
         unwrap!(interrupt::enable(
             dma_in_interrupt,
             interrupt::Priority::Priority1
@@ -164,14 +165,14 @@ impl StartupResources {
 
         let mut adc_cs: AdcChipSelect = adc_cs.into();
 
-        unwrap!(adc_cs.set_high().ok());
+        adc_cs.set_high();
 
         ExclusiveDevice::new(
             Spi::new(adc_spi, 1u32.MHz(), SpiMode::Mode1, clocks)
                 .with_sck(adc_sclk.into())
                 .with_mosi(adc_mosi.into())
                 .with_miso(adc_miso.into())
-                .with_dma(adc_dma_channel.configure(
+                .with_dma(adc_dma_channel.configure_for_async(
                     false,
                     make_static!([DmaDescriptor::EMPTY; 1]),
                     make_static!([DmaDescriptor::EMPTY; 1]),
@@ -245,7 +246,7 @@ impl StartupResources {
             charger_status.into(),
             BatteryFg::new(
                 Max17055::new(
-                    I2C::new(i2c, sda.into(), scl.into(), 100u32.kHz(), clocks),
+                    I2C::new_async(i2c, sda.into(), scl.into(), 100u32.kHz(), clocks),
                     design,
                 ),
                 fg_enable.into(),

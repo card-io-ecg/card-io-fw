@@ -51,13 +51,12 @@ embassy-time = { version = "0.3.0" }
 
 embedded-hal-old = { package = "embedded-hal", version = "0.2.7" }
 
-esp-hal = { version = "0.16.1", features = [
-    "rt",
+esp-hal = { version = "0.17.0", features = [
     "async",
     "embassy",
     "embassy-executor-thread",
     "embassy-executor-interrupt",
-    "eh1",
+    "embedded-hal-02"
 ] }
 esp-backtrace = { version = "0.11.1", features = [
     "panic-handler",
@@ -67,7 +66,7 @@ esp-println = { version = "0.9.1", default-features = false, features = [
     "critical-section",
 ] }
 esp-alloc = "0.3.0"
-esp-wifi = { version = "0.4.0", default-features = false, features = [
+esp-wifi = { version = "0.5.0", default-features = false, features = [
     "phy-enable-usb",
     "ps-max-modem",
     "wifi",
