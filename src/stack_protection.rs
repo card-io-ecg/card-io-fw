@@ -14,7 +14,7 @@ pub struct StackMonitor {
 
 fn conjure() -> DebugAssist<'static> {
     let peripheral = unsafe { ASSIST_DEBUG::steal() };
-    DebugAssist::new(peripheral)
+    DebugAssist::new(peripheral, None)
 }
 
 impl StackMonitor {
@@ -37,7 +37,8 @@ impl StackMonitor {
             top as *const u32,
             top - bottom
         );
-        let mut assist = conjure();
+        let peripheral = unsafe { ASSIST_DEBUG::steal() };
+        let mut assist = DebugAssist::new(peripheral, Some(interrupt_handler));
 
         const CANARY_UNITS: u32 = 1;
         const CANARY_GRANULARITY: u32 = 16;
@@ -78,8 +79,8 @@ impl Drop for StackMonitor {
     }
 }
 
-#[interrupt]
-fn ASSIST_DEBUG() {
+#[handler(priority = esp_hal::interrupt::Priority::max())]
+fn interrupt_handler() {
     let mut da = conjure();
     let cpu = get_core();
 

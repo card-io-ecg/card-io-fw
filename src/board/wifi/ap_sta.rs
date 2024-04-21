@@ -17,7 +17,7 @@ use embassy_futures::{
     select::{select, Either},
 };
 use embassy_net::Config;
-use esp_hal::{peripherals::WIFI, Rng};
+use esp_hal::{peripherals::WIFI, rng::Rng};
 use esp_wifi::{wifi::WifiController, EspWifiInitialization};
 use macros as cardio;
 

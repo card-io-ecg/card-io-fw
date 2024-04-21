@@ -14,14 +14,15 @@ use esp_hal::{
     clock::ClockControl,
     dma::*,
     embassy,
-    gpio::{Floating, GpioPin, Input, Output, PullUp, PushPull, Unknown},
+    gpio::{Floating, GpioPin, Input, Output, PullUp, PushPull, Unknown, IO},
     i2c::I2C,
     peripherals::{self, Peripherals},
     prelude::*,
+    rtc_cntl::Rtc,
     spi::{master::dma::SpiDma, FullDuplexMode},
     systimer::SystemTimer,
     timer::TimerGroup,
-    Rtc, IO,
+    Async,
 };
 
 pub use crate::board::drivers::bitbang_spi::BitbangSpi;
@@ -36,7 +37,7 @@ pub type DisplayMosi = GpioPin<Output<PushPull>, 21>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommand>;
 pub type DisplaySpi<'d> = ExclusiveDevice<
-    SpiDma<'d, DisplaySpiInstance, Channel0, FullDuplexMode>,
+    SpiDma<'d, DisplaySpiInstance, Channel0, FullDuplexMode, Async>,
     DummyOutputPin,
     Delay,
 >;
@@ -65,7 +66,7 @@ pub type Display = DisplayType<DisplayReset>;
 pub type BatteryFgI2cInstance = peripherals::I2C0;
 pub type I2cSda = GpioPin<Unknown, 19>;
 pub type I2cScl = GpioPin<Unknown, 18>;
-pub type BatteryFgI2c = I2C<'static, BatteryFgI2cInstance>;
+pub type BatteryFgI2c = I2C<'static, BatteryFgI2cInstance, Async>;
 pub type BatteryFg = BatteryFgType<BatteryFgI2c, BatteryAdcEnable>;
 
 impl super::startup::StartupResources {
@@ -77,7 +78,7 @@ impl super::startup::StartupResources {
         let system = peripherals.SYSTEM.split();
         let clocks = ClockControl::max(system.clock_control).freeze();
 
-        embassy::init(&clocks, TimerGroup::new(peripherals.TIMG0, &clocks));
+        embassy::init(&clocks, TimerGroup::new_async(peripherals.TIMG0, &clocks));
 
         let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
 
@@ -138,7 +139,8 @@ impl super::startup::StartupResources {
                 )
             },
             clocks,
-            rtc: Rtc::new(peripherals.LPWR),
+            rtc: Rtc::new(peripherals.LPWR, None),
+            software_interrupt1: system.software_interrupt_control.software_interrupt1,
         }
     }
 }
