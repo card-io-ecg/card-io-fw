@@ -17,8 +17,6 @@ impl Mcu {
 
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 enum HwVersion {
-    V1,
-    V2,
     V4,
     V6,
 }
@@ -26,8 +24,6 @@ enum HwVersion {
 impl HwVersion {
     fn as_str(self) -> &'static str {
         match self {
-            Self::V1 => "v1",
-            Self::V2 => "v2",
             Self::V4 => "v4",
             Self::V6 => "v6",
         }
@@ -84,13 +80,12 @@ fn main() {
 
     // Ensure that only a single HW version
     let hw_features = [
-        (cfg!(feature = "hw_v2"), HwVersion::V2),
         (cfg!(feature = "hw_v4"), HwVersion::V4),
         (cfg!(feature = "hw_v6"), HwVersion::V6),
     ];
 
     let Some(hw_version) = get_unique(hw_features) else {
-        panic!("Exactly 1 hardware version must be selected via its Cargo feature (hw_v2, hw_v4, hw_v6)");
+        panic!("Exactly 1 hardware version must be selected via its Cargo feature (hw_v4, hw_v6)");
     };
 
     let build_config = BuildConfig { mcu, hw_version };

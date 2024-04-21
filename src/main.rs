@@ -65,7 +65,7 @@ use crate::board::{
     TouchDetect,
 };
 
-#[cfg(any(feature = "hw_v2", feature = "hw_v4", feature = "hw_v6"))]
+#[cfg(any(feature = "hw_v4", feature = "hw_v6"))]
 use crate::board::VbusDetect;
 
 #[cfg(feature = "esp32s3")]
@@ -213,9 +213,6 @@ where
 async fn main(_spawner: Spawner) {
     let resources = StartupResources::initialize().await;
 
-    #[cfg(feature = "hw_v2")]
-    info!("Hardware version: v2");
-
     #[cfg(feature = "hw_v4")]
     info!("Hardware version: v4");
 
@@ -311,11 +308,7 @@ async fn main(_spawner: Spawner) {
     // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
 }
 
-#[cfg(any(
-    feature = "hw_v2",
-    feature = "hw_v4",
-    all(feature = "hw_v6", feature = "esp32s3")
-))]
+#[cfg(any(feature = "hw_v4", all(feature = "hw_v6", feature = "esp32s3")))]
 fn setup_wakeup_pins<'a, 'b, const N: usize>(
     wakeup_pins: &'a mut heapless::Vec<(&'b mut dyn RtcWakeupPin, WakeupLevel), N>,
     touch: &'b mut TouchDetect,
