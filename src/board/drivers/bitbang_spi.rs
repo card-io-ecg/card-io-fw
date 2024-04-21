@@ -1,12 +1,13 @@
 use core::convert::Infallible;
 
-use crate::hal::clock::Clocks;
+use crate::board::hal as esp_hal;
 use embassy_time::{Duration, Ticker};
 use embedded_hal::{
     digital::{InputPin, OutputPin, PinState},
     spi::ErrorType,
 };
 use embedded_hal_async::spi::SpiBus;
+use esp_hal::clock::Clocks;
 use fugit::HertzU32;
 
 pub struct BitbangSpi<MOSI, MISO, SCLK> {

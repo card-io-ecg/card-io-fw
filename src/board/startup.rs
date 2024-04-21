@@ -6,17 +6,7 @@ use static_cell::make_static;
 use crate::{
     board::{
         drivers::{battery_monitor::BatteryMonitor, frontend::Frontend},
-        hal::{
-            clock::Clocks,
-            dma::{DmaDescriptor, DmaPriority},
-            gpio::OutputPin as _,
-            interrupt, peripherals,
-            spi::{
-                master::{dma::*, Instance, Spi},
-                SpiMode,
-            },
-            Rtc,
-        },
+        hal as esp_hal,
         utils::DummyOutputPin,
         wifi::WifiDriver,
         AdcClockEnable, AdcDrdy, AdcReset, AdcSpi, ChargerStatus, Display, DisplayChipSelect,
@@ -25,16 +15,26 @@ use crate::{
     },
     heap::init_heap,
 };
+use esp_hal::{
+    clock::Clocks,
+    dma::{DmaDescriptor, DmaPriority},
+    gpio::OutputPin as _,
+    interrupt, peripherals,
+    spi::{
+        master::{dma::*, Instance, Spi},
+        SpiMode,
+    },
+    Rtc,
+};
 
 #[cfg(feature = "esp32s3")]
 use crate::board::{AdcChipSelect, AdcDmaChannel, AdcMiso, AdcMosi, AdcSclk, AdcSpiInstance};
 
 #[cfg(feature = "battery_max17055")]
+use esp_hal::i2c::I2C;
+#[cfg(feature = "battery_max17055")]
 use {
-    crate::{
-        board::{BatteryAdcEnable, BatteryFg, BatteryFgI2cInstance, I2cScl, I2cSda},
-        hal::i2c::I2C,
-    },
+    crate::board::{BatteryAdcEnable, BatteryFg, BatteryFgI2cInstance, I2cScl, I2cSda},
     max17055::{DesignData, Max17055},
 };
 

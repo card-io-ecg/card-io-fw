@@ -1,19 +1,13 @@
 use core::{hint::unreachable_unchecked, mem, ops::Deref, ptr::NonNull};
 
 #[cfg(feature = "esp32s3")]
-type WifiTimer =
-    crate::hal::timer::Timer<crate::hal::timer::Timer0<crate::hal::peripherals::TIMG1>>;
+type WifiTimer = esp_hal::timer::Timer<esp_hal::timer::Timer0<esp_hal::peripherals::TIMG1>>;
 #[cfg(feature = "esp32c6")]
-type WifiTimer = crate::hal::systimer::Alarm<crate::hal::systimer::Target, 0>;
+type WifiTimer = esp_hal::systimer::Alarm<esp_hal::systimer::Target, 0>;
 
 use crate::{
     board::{
-        hal::{
-            clock::Clocks,
-            peripherals::{RNG, WIFI},
-            system::RadioClockControl,
-            Rng,
-        },
+        hal as esp_hal,
         wifi::{
             ap::{Ap, ApState},
             ap_sta::ApStaState,
@@ -25,6 +19,12 @@ use crate::{
 use alloc::{boxed::Box, rc::Rc};
 use embassy_executor::Spawner;
 use embassy_net::{Config, Stack, StackResources};
+use esp_hal::{
+    clock::Clocks,
+    peripherals::{RNG, WIFI},
+    system::RadioClockControl,
+    Rng,
+};
 use esp_wifi::{
     wifi::{WifiApDevice, WifiDevice, WifiDeviceMode, WifiStaDevice},
     EspWifiInitFor, EspWifiInitialization,

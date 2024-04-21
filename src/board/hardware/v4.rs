@@ -4,29 +4,29 @@ use crate::board::{
         display::Display as DisplayType,
         frontend::{Frontend, PoweredFrontend},
     },
-    hal::{
-        self,
-        clock::ClockControl,
-        dma::*,
-        embassy,
-        gpio::{Floating, GpioPin, Input, Output, PullUp, PushPull, Unknown},
-        i2c::I2C,
-        peripherals::{self, Peripherals},
-        prelude::*,
-        spi::{master::dma::SpiDma, FullDuplexMode},
-        systimer::SystemTimer,
-        timer::TimerGroup,
-        Rtc, IO,
-    },
+    hal as esp_hal,
     utils::DummyOutputPin,
     wifi::WifiDriver,
 };
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
+use esp_hal::{
+    clock::ClockControl,
+    dma::*,
+    embassy,
+    gpio::{Floating, GpioPin, Input, Output, PullUp, PushPull, Unknown},
+    i2c::I2C,
+    peripherals::{self, Peripherals},
+    prelude::*,
+    spi::{master::dma::SpiDma, FullDuplexMode},
+    systimer::SystemTimer,
+    timer::TimerGroup,
+    Rtc, IO,
+};
 
 use display_interface_spi::SPIInterface;
 
-pub type DisplaySpiInstance = hal::peripherals::SPI2;
+pub type DisplaySpiInstance = peripherals::SPI2;
 pub type DisplayDmaChannel = ChannelCreator0;
 pub type DisplayDataCommand = GpioPin<Output<PushPull>, 13>;
 pub type DisplayChipSelect = GpioPin<Output<PushPull>, 11>;
@@ -42,7 +42,7 @@ pub type DisplaySpi<'d> = ExclusiveDevice<
 >;
 
 pub type AdcDmaChannel = ChannelCreator1;
-pub type AdcSpiInstance = hal::peripherals::SPI3;
+pub type AdcSpiInstance = peripherals::SPI3;
 pub type AdcSclk = GpioPin<Output<PushPull>, 6>;
 pub type AdcMosi = GpioPin<Output<PushPull>, 7>;
 pub type AdcMiso = GpioPin<Input<Floating>, 5>;
@@ -67,7 +67,7 @@ pub type PoweredEcgFrontend =
 
 pub type Display = DisplayType<DisplayReset>;
 
-pub type BatteryFgI2cInstance = hal::peripherals::I2C0;
+pub type BatteryFgI2cInstance = peripherals::I2C0;
 pub type I2cSda = GpioPin<Unknown, 36>;
 pub type I2cScl = GpioPin<Unknown, 35>;
 pub type BatteryFgI2c = I2C<'static, BatteryFgI2cInstance>;
