@@ -35,8 +35,6 @@ use signal_processing::filter::downsample::DownSampler;
 
 type MessageQueue = Channel<CriticalSectionRawMutex, Sample, 32>;
 
-// FIXME: avoid this allow
-#[allow(suspicious_auto_trait_impls)] // SAFETY: yolo
 unsafe impl Send for PoweredEcgFrontend {}
 
 struct EcgTaskParams {
