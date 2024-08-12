@@ -3,7 +3,7 @@
     "rust-analyzer.showUnlinkedFileNotification": false,
     "cortex-debug.variableUseNaturalFormat": false,
     "rust-analyzer.cargo.features": [
-        "esp32c6",
-        "hw_v6"
+        "esp32s3",
+        "hw_v4"
     ]
 }
