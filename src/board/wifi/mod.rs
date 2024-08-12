@@ -1,11 +1,5 @@
 use core::{hint::unreachable_unchecked, mem, ops::Deref, ptr::NonNull};
 
-#[cfg(feature = "esp32s3")]
-type WifiTimer =
-    esp_hal::timer::Timer<esp_hal::timer::Timer0<esp_hal::peripherals::TIMG1>, Blocking>;
-#[cfg(feature = "esp32c6")]
-type WifiTimer = esp_hal::systimer::Alarm<esp_hal::systimer::Target, Blocking, 0>;
-
 use crate::{
     board::wifi::{
         ap::{Ap, ApState},
@@ -19,10 +13,9 @@ use embassy_executor::Spawner;
 use embassy_net::{Config, Stack, StackResources};
 use esp_hal::{
     clock::Clocks,
-    peripherals::{RNG, WIFI},
+    peripherals::{RADIO_CLK, RNG, WIFI},
     rng::Rng,
-    system::RadioClockControl,
-    Blocking,
+    timer::{ErasedTimer, PeriodicTimer},
 };
 use esp_wifi::{
     wifi::{WifiApDevice, WifiDevice, WifiDeviceMode, WifiStaDevice},
@@ -30,6 +23,8 @@ use esp_wifi::{
 };
 use gui::widgets::{wifi_access_point::WifiAccessPointState, wifi_client::WifiClientState};
 use macros as cardio;
+
+type WifiTimer = PeriodicTimer<ErasedTimer>;
 
 pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
     mem::transmute(what)
@@ -91,7 +86,7 @@ pub struct WifiDriver {
 struct WifiInitResources {
     timer: WifiTimer,
     rng: Rng,
-    rcc: RadioClockControl,
+    radio_clk: RADIO_CLK,
 }
 
 enum WifiDriverState {
@@ -117,7 +112,7 @@ impl WifiDriverState {
                         EspWifiInitFor::Wifi,
                         resources.timer,
                         resources.rng,
-                        resources.rcc,
+                        resources.radio_clk,
                         clocks,
                     ));
                     info!("Wifi driver initialized");
@@ -145,12 +140,16 @@ impl WifiDriverState {
 }
 
 impl WifiDriver {
-    pub fn new(wifi: WIFI, timer: WifiTimer, rng: RNG, rcc: RadioClockControl) -> Self {
+    pub fn new(wifi: WIFI, timer: WifiTimer, rng: RNG, radio_clk: RADIO_CLK) -> Self {
         let rng = Rng::new(rng);
         Self {
             wifi,
             rng,
-            state: WifiDriverState::Uninitialized(WifiInitResources { timer, rng, rcc }),
+            state: WifiDriverState::Uninitialized(WifiInitResources {
+                timer,
+                rng,
+                radio_clk,
+            }),
         }
     }
 

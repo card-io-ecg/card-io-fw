@@ -16,7 +16,7 @@ use embassy_executor::SendSpawner;
 use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
 use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
-use esp_hal::clock::Clocks;
+use esp_hal::{clock::Clocks, gpio::Input};
 use gui::{
     screens::message::MessageScreen,
     widgets::{
@@ -36,7 +36,7 @@ pub struct InnerContext {
     pub display: Display,
     pub clocks: Clocks<'static>,
     pub high_prio_spawner: SendSpawner,
-    pub battery_monitor: BatteryMonitor<VbusDetect, ChargerStatus>,
+    pub battery_monitor: BatteryMonitor<Input<'static, VbusDetect>, Input<'static, ChargerStatus>>,
     pub wifi: &'static mut WifiDriver,
     pub config: &'static mut Config,
     pub config_changed: bool,

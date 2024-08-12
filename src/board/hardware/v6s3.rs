@@ -13,7 +13,6 @@ use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
     clock::ClockControl,
     dma::*,
-    embassy,
     gpio::{Floating, GpioPin, Input, Output, PullUp, PushPull, Unknown, IO},
     i2c::I2C,
     peripherals::{self, Peripherals},
@@ -117,7 +116,6 @@ impl super::startup::StartupResources {
 
         let battery_monitor = Self::setup_battery_monitor_fg(
             peripherals.I2C0,
-            peripherals::Interrupt::I2C_EXT0,
             io.pins.gpio36,
             io.pins.gpio35,
             io.pins.gpio2,
@@ -136,7 +134,7 @@ impl super::startup::StartupResources {
                     peripherals.WIFI,
                     TimerGroup::new(peripherals.TIMG1, &clocks, None).timer0,
                     peripherals.RNG,
-                    system.radio_clock_control,
+                    peripherals.RADIO_CLK,
                 )
             },
             clocks,

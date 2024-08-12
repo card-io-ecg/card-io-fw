@@ -55,21 +55,21 @@ use crate::{
 
 use esp_hal::{
     delay::Delay,
-    embassy::executor::InterruptExecutor,
     entry,
     interrupt::Priority,
     prelude::main,
     rtc_cntl::sleep::{self, WakeupLevel},
 };
+use esp_hal_embassy::InterruptExecutor;
 
 #[cfg(any(feature = "hw_v4", feature = "hw_v6"))]
 use crate::board::VbusDetect;
 
 #[cfg(feature = "esp32s3")]
-use esp_hal::gpio::RTCPin as RtcWakeupPin;
+use esp_hal::gpio::RtcPin as RtcWakeupPin;
 
 #[cfg(feature = "esp32c6")]
-use esp_hal::gpio::RTCPinWithResistors as RtcWakeupPin;
+use esp_hal::gpio::RtcPinWithResistors as RtcWakeupPin;
 
 mod board;
 mod heap;
@@ -294,7 +294,7 @@ async fn main(_spawner: Spawner) {
     let mut wakeup_pins = heapless::Vec::<(&mut dyn RtcWakeupPin, WakeupLevel), 2>::new();
     let wakeup_source =
         setup_wakeup_pins(&mut wakeup_pins, &mut touch, &mut charger_pin, is_charging);
-    rtc.sleep_deep(&[&wakeup_source], &mut delay);
+    rtc.sleep_deep(&[&wakeup_source]);
 
     // Shouldn't reach this. If we do, we just exit the task, which means the executor
     // will have nothing else to do. Not ideal, but again, we shouldn't reach this.

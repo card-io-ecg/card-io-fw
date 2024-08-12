@@ -5,7 +5,7 @@ use max17055::Max17055;
 
 use crate::{task_control::TaskControlToken, Shared};
 #[cfg(all(feature = "esp32s3", not(feature = "hw_v6")))]
-use esp_hal::gpio::RTCPinWithResistors;
+use esp_hal::gpio::RtcPinWithResistors;
 
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -51,7 +51,7 @@ where
     #[cfg(all(feature = "esp32s3", not(feature = "hw_v6")))]
     pub fn disable(&mut self)
     where
-        EN: RTCPinWithResistors,
+        EN: RtcPinWithResistors,
     {
         // We want to keep the fuel gauge out of shutdown mode
         self.enable.rtcio_pad_hold(true);
