@@ -124,7 +124,7 @@ async fn do_update(context: &mut Context) -> UpdateResult {
     };
 
     let response = match result {
-        Ok(response) => match response.status {
+        Ok(response) => match response.status.into() {
             Status::Ok => response,
             Status::NotModified => return UpdateResult::AlreadyUpToDate,
             _ => {
