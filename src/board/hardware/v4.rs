@@ -18,7 +18,7 @@ use esp_hal::{
     rtc_cntl::Rtc,
     spi::{master::dma::SpiDma, FullDuplexMode},
     system::SystemControl,
-    timer::{OneShotTimer, PeriodicTimer},
+    timer::{ErasedTimer, OneShotTimer, PeriodicTimer},
     Async,
 };
 
@@ -37,7 +37,7 @@ pub type DisplayDataCommandPin = Output<'static, DisplayDataCommand>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommandPin>;
 pub type DisplaySpi<'d> = ExclusiveDevice<
-    SpiDma<'d, DisplaySpiInstance, Channel0, FullDuplexMode, Async>,
+    SpiDma<'d, DisplaySpiInstance, DmaChannel0, FullDuplexMode, Async>,
     DummyOutputPin,
     Delay,
 >;
@@ -60,7 +60,7 @@ pub type TouchDetectPin = Input<'static, TouchDetect>;
 pub type AdcChipSelectPin = Output<'static, AdcChipSelect>;
 
 pub type AdcSpi = ExclusiveDevice<
-    SpiDma<'static, AdcSpiInstance, Channel1, FullDuplexMode, Async>,
+    SpiDma<'static, AdcSpiInstance, DmaChannel1, FullDuplexMode, Async>,
     AdcChipSelectPin,
     Delay,
 >;
@@ -95,10 +95,10 @@ impl super::startup::StartupResources {
         let clocks = ClockControl::max(system.clock_control).freeze();
 
         let systimer = esp_hal::timer::systimer::SystemTimer::new(peripherals.SYSTIMER);
-        esp_hal_embassy::init(
-            &clocks,
-            static_cell::make_static!([OneShotTimer::new(systimer.alarm0.into()); 1]),
-        );
+        let timer = static_cell::make_static!(OneShotTimer::<ErasedTimer>::new(ErasedTimer::from(
+            systimer.alarm0
+        )));
+        esp_hal_embassy::init(&clocks, core::slice::from_mut(timer));
 
         let io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
 
@@ -150,17 +150,16 @@ impl super::startup::StartupResources {
                 WifiDriver::new(
                     peripherals.WIFI,
                     PeriodicTimer::new(
-                        esp_hal::timer::timg::TimerGroup::new(peripherals.TIMG0, &clocks, None)
-                            .timer0
-                            .into(),
+                        ErasedTimer::from(esp_hal::timer::timg::TimerGroup::new(peripherals.TIMG0, &clocks)
+                            .timer0)
                     ),
                     peripherals.RNG,
                     peripherals.RADIO_CLK,
                 )
             },
             clocks,
-            rtc: Rtc::new(peripherals.LPWR, None),
-            software_interrupt1: system.software_interrupt_control.software_interrupt1,
+            rtc: Rtc::new(peripherals.LPWR),
+            software_interrupt1: system.software_interrupt_control.software_interrupt2,
         }
     }
 }

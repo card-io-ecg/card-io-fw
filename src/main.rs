@@ -58,6 +58,7 @@ use esp_hal::{
     entry,
     interrupt::Priority,
     prelude::main,
+    reset,
     rtc_cntl::sleep::{self, WakeupLevel},
 };
 use esp_hal_embassy::InterruptExecutor;
@@ -292,10 +293,10 @@ async fn main(_spawner: Spawner) {
     let (_, _, _, mut touch) = board.frontend.split();
 
     let mut wakeup_pins = heapless::Vec::<(&mut dyn RtcWakeupPin, WakeupLevel), 2>::new();
-    let wakeup_source =
-        setup_wakeup_pins(&mut wakeup_pins, &mut touch, &mut charger_pin, is_charging);
-    rtc.sleep_deep(&[&wakeup_source]);
-
+    //    let wakeup_source =
+    //        setup_wakeup_pins(&mut wakeup_pins, &mut touch, &mut charger_pin, is_charging);
+    //    rtc.sleep_deep(&[&wakeup_source]);
+    reset::software_reset();
     // Shouldn't reach this. If we do, we just exit the task, which means the executor
     // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
 }

@@ -51,7 +51,7 @@ pub struct StartupResources {
     pub wifi: &'static mut WifiDriver,
     pub rtc: Rtc<'static>,
 
-    pub software_interrupt1: SoftwareInterrupt<1>,
+    pub software_interrupt1: SoftwareInterrupt<2>,
 }
 
 impl StartupResources {

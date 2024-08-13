@@ -24,7 +24,7 @@ use esp_wifi::{
 use gui::widgets::{wifi_access_point::WifiAccessPointState, wifi_client::WifiClientState};
 use macros as cardio;
 
-type WifiTimer = PeriodicTimer<ErasedTimer>;
+type WifiTimer = PeriodicTimer<'static, ErasedTimer>;
 
 pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
     mem::transmute(what)

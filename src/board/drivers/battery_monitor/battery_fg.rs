@@ -93,6 +93,6 @@ pub async fn monitor_task_fg(
         })
         .await;
 
-    fuel_gauge.lock().await.disable();
+    //fuel_gauge.lock().await.disable();
     info!("Monitor exited");
 }
