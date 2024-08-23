@@ -18,7 +18,7 @@ use esp_hal::{
     rtc_cntl::Rtc,
     spi::{master::dma::SpiDma, FullDuplexMode},
     system::SystemControl,
-    timer::{ErasedTimer, OneShotTimer, PeriodicTimer},
+    timer::{systimer::Target, ErasedTimer, PeriodicTimer},
     Async,
 };
 
@@ -94,11 +94,9 @@ impl super::startup::StartupResources {
         let system = SystemControl::new(peripherals.SYSTEM);
         let clocks = ClockControl::max(system.clock_control).freeze();
 
-        let systimer = esp_hal::timer::systimer::SystemTimer::new(peripherals.SYSTIMER);
-        let timer = static_cell::make_static!(OneShotTimer::<ErasedTimer>::new(ErasedTimer::from(
-            systimer.alarm0
-        )));
-        esp_hal_embassy::init(&clocks, core::slice::from_mut(timer));
+        let systimer =
+            esp_hal::timer::systimer::SystemTimer::new(peripherals.SYSTIMER).split::<Target>();
+        esp_hal_embassy::init(&clocks, systimer.alarm0);
 
         let io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
 
