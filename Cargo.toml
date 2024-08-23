@@ -248,7 +248,7 @@ codegen-units = 1
 lto = "thin"
 
 [profile.release]
-debug = false
+debug = true
 codegen-units = 1
 lto = "fat"
 
