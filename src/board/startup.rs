@@ -102,7 +102,7 @@ impl StartupResources {
         display_cs: DisplayChipSelect,
         display_sclk: DisplaySclk,
         display_mosi: DisplayMosi,
-        clocks: &Clocks,
+        clocks: &Clocks<'static>,
     ) -> Display {
         let display_spi = Spi::new(display_spi, 40u32.MHz(), SpiMode::Mode0, clocks)
             .with_sck(display_sclk)
@@ -134,7 +134,7 @@ impl StartupResources {
         adc_miso: AdcMiso,
         adc_cs: AdcChipSelect,
 
-        clocks: &Clocks,
+        clocks: &Clocks<'static>,
     ) -> AdcSpi {
         ExclusiveDevice::new(
             Spi::new(adc_spi, 1u32.MHz(), SpiMode::Mode1, clocks)
@@ -180,7 +180,7 @@ impl StartupResources {
         vbus_detect: VbusDetect,
         charger_status: ChargerStatus,
         fg_enable: BatteryAdcEnable,
-        clocks: &Clocks<'_>,
+        clocks: &Clocks<'static>,
     ) -> BatteryMonitor<VbusDetectPin, ChargerStatusPin> {
         // MCP73832T-2ACI/OT
         // - ITerm/Ireg = 7.5%

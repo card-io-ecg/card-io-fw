@@ -225,7 +225,7 @@ async fn main(_spawner: Spawner) {
         inner: InnerContext {
             display: resources.display,
             clocks: resources.clocks,
-            high_prio_spawner: interrupt_executor.start(Priority::Priority3),
+            high_prio_spawner: interrupt_executor.start(Priority::Priority2),
             battery_monitor: resources.battery_monitor,
             wifi: resources.wifi,
             config,
