@@ -10,15 +10,19 @@ use crate::board::{
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
-    clock::ClockControl,
     dma::*,
-    gpio::{GpioPin, Input, Io, Output},
+    gpio::{GpioPin, Input, Io, Level, Output},
     i2c::I2C,
-    peripherals::{self, Peripherals},
+    interrupt::software::SoftwareInterruptControl,
+    peripherals,
+    prelude::*,
     rtc_cntl::Rtc,
-    spi::{master::dma::SpiDma, FullDuplexMode},
-    system::SystemControl,
-    timer::{systimer::Target, ErasedTimer, PeriodicTimer},
+    spi::{master::SpiDmaBus, FullDuplexMode},
+    timer::{
+        systimer::{SystemTimer, Target},
+        timg::TimerGroup,
+        ErasedTimer,
+    },
     Async,
 };
 
@@ -37,7 +41,7 @@ pub type DisplayDataCommandPin = Output<'static, DisplayDataCommand>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommandPin>;
 pub type DisplaySpi<'d> = ExclusiveDevice<
-    SpiDma<'d, DisplaySpiInstance, DmaChannel0, FullDuplexMode, Async>,
+    SpiDmaBus<'d, DisplaySpiInstance, DmaChannel0, FullDuplexMode, Async>,
     DummyOutputPin,
     Delay,
 >;
@@ -60,7 +64,7 @@ pub type TouchDetectPin = Input<'static, TouchDetect>;
 pub type AdcChipSelectPin = Output<'static, AdcChipSelect>;
 
 pub type AdcSpi = ExclusiveDevice<
-    SpiDma<'static, AdcSpiInstance, DmaChannel1, FullDuplexMode, Async>,
+    SpiDmaBus<'static, AdcSpiInstance, DmaChannel1, FullDuplexMode, Async>,
     AdcChipSelectPin,
     Delay,
 >;
@@ -89,13 +93,13 @@ impl super::startup::StartupResources {
     pub async fn initialize() -> Self {
         Self::common_init();
 
-        let peripherals = Peripherals::take();
+        let (peripherals, clocks) = esp_hal::init({
+            let mut config = esp_hal::Config::default();
+            config.cpu_clock = CpuClock::max();
+            config
+        });
 
-        let system = SystemControl::new(peripherals.SYSTEM);
-        let clocks = ClockControl::max(system.clock_control).freeze();
-
-        let systimer =
-            esp_hal::timer::systimer::SystemTimer::new(peripherals.SYSTIMER).split::<Target>();
+        let systimer = SystemTimer::new(peripherals.SYSTIMER).split::<Target>();
         esp_hal_embassy::init(&clocks, systimer.alarm0);
 
         let io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
@@ -135,10 +139,12 @@ impl super::startup::StartupResources {
             io.pins.gpio35,
             io.pins.gpio17,
             io.pins.gpio47,
-            io.pins.gpio8,
+            Output::new(io.pins.gpio8, Level::Low),
             &clocks,
         )
         .await;
+
+        let sw_int = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
 
         Self {
             display,
@@ -147,17 +153,15 @@ impl super::startup::StartupResources {
             wifi: static_cell::make_static! {
                 WifiDriver::new(
                     peripherals.WIFI,
-                    PeriodicTimer::new(
-                        ErasedTimer::from(esp_hal::timer::timg::TimerGroup::new(peripherals.TIMG0, &clocks)
-                            .timer0)
-                    ),
+                        ErasedTimer::from(TimerGroup::new(peripherals.TIMG0, &clocks)
+                            .timer0),
                     peripherals.RNG,
                     peripherals.RADIO_CLK,
                 )
             },
             clocks,
             rtc: Rtc::new(peripherals.LPWR),
-            software_interrupt1: system.software_interrupt_control.software_interrupt2,
+            software_interrupt1: sw_int.software_interrupt1,
         }
     }
 }

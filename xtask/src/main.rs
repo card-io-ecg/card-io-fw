@@ -125,10 +125,13 @@ pub struct Cli {
     pub subcommand: Subcommands,
 }
 
-fn cargo(command: &[&str]) -> Expression {
-    println!("🛠️  Running command: cargo +esp {}", command.join(" "));
+fn cargo(toolchain: &'static str, command: &[&str]) -> Expression {
+    println!(
+        "🛠️  Running command: cargo +{toolchain} {}",
+        command.join(" ")
+    );
 
-    let mut args_vec = vec!["run", "esp", "cargo"];
+    let mut args_vec = vec!["run", toolchain, "cargo"];
     args_vec.extend(command);
 
     cmd("rustup", args_vec)
@@ -143,7 +146,7 @@ fn build(config: BuildConfig, timings: bool) -> AnyResult<()> {
 
         command.extend_from_slice(&build_flags);
 
-        cargo(&command).run()?;
+        cargo(config.soc.toolchain(), &command).run()?;
     }
 
     match config.soc {
@@ -162,7 +165,7 @@ fn build(config: BuildConfig, timings: bool) -> AnyResult<()> {
     ];
     command.extend_from_slice(&build_flags);
 
-    cargo(&command).run()?;
+    cargo(config.soc.toolchain(), &command).run()?;
 
     Ok(())
 }
@@ -194,19 +197,22 @@ fn run(config: BuildConfig) -> AnyResult<()> {
     ];
     args.extend_from_slice(&build_flags);
 
-    cargo(&args).run()?;
+    cargo(config.soc.toolchain(), &args).run()?;
 
     Ok(())
 }
 
 fn monitor(config: BuildConfig) -> AnyResult<()> {
-    cargo(&[
-        "espflash",
-        "monitor",
-        "-e",
-        &config.elf_string(),
-        "--log-format=defmt",
-    ])
+    cargo(
+        config.soc.toolchain(),
+        &[
+            "espflash",
+            "monitor",
+            "-e",
+            &config.elf_string(),
+            "--log-format=defmt",
+        ],
+    )
     .run()?;
 
     Ok(())
@@ -219,7 +225,7 @@ fn checks(config: BuildConfig) -> AnyResult<()> {
     let mut args = vec!["check"];
     args.extend_from_slice(&build_flags);
 
-    cargo(&args).run()?;
+    cargo(config.soc.toolchain(), &args).run()?;
 
     Ok(())
 }
@@ -235,13 +241,13 @@ fn docs(config: BuildConfig, open: bool) -> AnyResult<()> {
         args.push("--open");
     }
 
-    cargo(&args).run()?;
+    cargo(config.soc.toolchain(), &args).run()?;
 
     Ok(())
 }
 
 fn extra_checks(config: BuildConfig) -> AnyResult<()> {
-    cargo(&["fmt", "--check"]).run()?;
+    cargo(config.soc.toolchain(), &["fmt", "--check"]).run()?;
 
     let build_flags = config.build_flags();
     let build_flags = build_flags.iter().map(|s| s.as_str()).collect::<Vec<_>>();
@@ -249,7 +255,7 @@ fn extra_checks(config: BuildConfig) -> AnyResult<()> {
     let mut args = vec!["clippy"];
     args.extend_from_slice(&build_flags);
 
-    cargo(&args).run()?;
+    cargo(config.soc.toolchain(), &args).run()?;
 
     Ok(())
 }
@@ -264,7 +270,7 @@ fn test() -> AnyResult<()> {
         args.push(p);
     }
 
-    cargo(&args).run()?;
+    cargo("esp", &args).run()?;
 
     Ok(())
 }
@@ -365,6 +371,13 @@ impl SocConfig {
         PathBuf::from("./target")
             .join(self.target())
             .join(profile.as_str())
+    }
+
+    fn toolchain(self) -> &'static str {
+        match self {
+            SocConfig::S3 => "esp",
+            SocConfig::C6 => "nightly-2024-06-01-x86_64-pc-windows-msvc",
+        }
     }
 }
 

@@ -545,7 +545,9 @@ impl StaController {
                         *preference = NetworkPreference::Deprioritized;
                     }
                 }
-                Configuration::AccessPoint(_) | Configuration::None => unreachable!(),
+                Configuration::EapClient(_)
+                | Configuration::AccessPoint(_)
+                | Configuration::None => unreachable!(),
             },
             Err(_) => unreachable!(),
         }

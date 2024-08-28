@@ -16,14 +16,12 @@ use crate::{
 };
 use esp_hal::{
     clock::Clocks,
-    dma::{DmaDescriptor, DmaPriority},
+    dma::*,
+    dma_buffers,
     gpio::{Input, Level, Output, Pull},
+    interrupt::software::SoftwareInterrupt,
     rtc_cntl::Rtc,
-    spi::{
-        master::{dma::*, Spi},
-        SpiMode,
-    },
-    system::SoftwareInterrupt,
+    spi::{master::Spi, SpiMode},
 };
 
 #[cfg(feature = "esp32s3")]
@@ -33,7 +31,7 @@ use crate::board::{AdcChipSelect, AdcDmaChannel, AdcMiso, AdcMosi, AdcSclk, AdcS
 use esp_hal::i2c::I2C;
 #[cfg(feature = "battery_max17055")]
 use {
-    crate::board::{BatteryAdcEnable, BatteryFg, BatteryFgI2cInstance, I2cScl, I2cSda},
+    crate::board::{BatteryAdcEnablePin, BatteryFg, BatteryFgI2cInstance, I2cScl, I2cSda},
     max17055::{DesignData, Max17055},
 };
 
@@ -51,7 +49,7 @@ pub struct StartupResources {
     pub wifi: &'static mut WifiDriver,
     pub rtc: Rtc<'static>,
 
-    pub software_interrupt1: SoftwareInterrupt<2>,
+    pub software_interrupt1: SoftwareInterrupt<1>,
 }
 
 impl StartupResources {
@@ -104,15 +102,15 @@ impl StartupResources {
         display_mosi: DisplayMosi,
         clocks: &Clocks<'static>,
     ) -> Display {
+        let (tx_buffer, tx_descriptors, rx_buffer, rx_descriptors) = dma_buffers!(4092);
+        let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
+        let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
         let display_spi = Spi::new(display_spi, 40u32.MHz(), SpiMode::Mode0, clocks)
             .with_sck(display_sclk)
             .with_mosi(display_mosi)
             .with_cs(display_cs)
-            .with_dma(
-                display_dma_channel.configure_for_async(false, DmaPriority::Priority0),
-                make_static!([DmaDescriptor::EMPTY; 1]),
-                make_static!([DmaDescriptor::EMPTY; 1]),
-            );
+            .with_dma(display_dma_channel.configure_for_async(false, DmaPriority::Priority0))
+            .with_buffers(dma_tx_buf, dma_rx_buf);
 
         Display::new(
             SPIInterface::new(
@@ -136,16 +134,17 @@ impl StartupResources {
 
         clocks: &Clocks<'static>,
     ) -> AdcSpi {
+        let (tx_buffer, tx_descriptors, rx_buffer, rx_descriptors) = dma_buffers!(4092);
+        let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
+        let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
+
         ExclusiveDevice::new(
             Spi::new(adc_spi, 1u32.MHz(), SpiMode::Mode1, clocks)
                 .with_sck(adc_sclk)
                 .with_mosi(adc_mosi)
                 .with_miso(adc_miso)
-                .with_dma(
-                    adc_dma_channel.configure_for_async(false, DmaPriority::Priority1),
-                    make_static!([DmaDescriptor::EMPTY; 1]),
-                    make_static!([DmaDescriptor::EMPTY; 1]),
-                ),
+                .with_dma(adc_dma_channel.configure_for_async(false, DmaPriority::Priority1))
+                .with_buffers(dma_tx_buf, dma_rx_buf),
             Output::new(adc_cs, Level::High),
             Delay,
         )
@@ -179,7 +178,7 @@ impl StartupResources {
         scl: I2cScl,
         vbus_detect: VbusDetect,
         charger_status: ChargerStatus,
-        fg_enable: BatteryAdcEnable,
+        fg_enable: BatteryAdcEnablePin,
         clocks: &Clocks<'static>,
     ) -> BatteryMonitor<VbusDetectPin, ChargerStatusPin> {
         // MCP73832T-2ACI/OT
@@ -204,7 +203,7 @@ impl StartupResources {
             Input::new(charger_status, Pull::None),
             BatteryFg::new(
                 Max17055::new(I2C::new_async(i2c, sda, scl, 100u32.kHz(), clocks), design),
-                Output::new(fg_enable, Level::Low),
+                fg_enable,
             ),
         )
         .await

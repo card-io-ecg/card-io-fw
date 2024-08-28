@@ -55,7 +55,6 @@ use crate::{
 
 use esp_hal::{
     delay::Delay,
-    entry,
     interrupt::Priority,
     prelude::main,
     reset,
@@ -215,7 +214,7 @@ async fn main(_spawner: Spawner) {
     let mut storage = FileSystem::mount().await;
     let config = load_config(storage.as_deref_mut()).await;
 
-    let mut delay = Delay::new(&resources.clocks);
+    let delay = Delay::new(&resources.clocks);
 
     // We're boxing Context because we will need to move out of it during shutdown.
     let mut board = Box::new(Context {

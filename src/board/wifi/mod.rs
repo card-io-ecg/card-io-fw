@@ -15,7 +15,7 @@ use esp_hal::{
     clock::Clocks,
     peripherals::{RADIO_CLK, RNG, WIFI},
     rng::Rng,
-    timer::{ErasedTimer, PeriodicTimer},
+    timer::ErasedTimer,
 };
 use esp_wifi::{
     wifi::{WifiApDevice, WifiDevice, WifiDeviceMode, WifiStaDevice},
@@ -23,8 +23,6 @@ use esp_wifi::{
 };
 use gui::widgets::{wifi_access_point::WifiAccessPointState, wifi_client::WifiClientState};
 use macros as cardio;
-
-type WifiTimer = PeriodicTimer<'static, ErasedTimer>;
 
 pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
     mem::transmute(what)
@@ -84,7 +82,7 @@ pub struct WifiDriver {
 }
 
 struct WifiInitResources {
-    timer: WifiTimer,
+    timer: ErasedTimer,
     rng: Rng,
     radio_clk: RADIO_CLK,
 }
@@ -140,7 +138,7 @@ impl WifiDriverState {
 }
 
 impl WifiDriver {
-    pub fn new(wifi: WIFI, timer: WifiTimer, rng: RNG, radio_clk: RADIO_CLK) -> Self {
+    pub fn new(wifi: WIFI, timer: ErasedTimer, rng: RNG, radio_clk: RADIO_CLK) -> Self {
         let rng = Rng::new(rng);
         Self {
             wifi,
