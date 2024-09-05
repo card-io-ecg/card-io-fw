@@ -35,7 +35,7 @@ use crate::{
         initialized::{Context, InnerContext},
         startup::StartupResources,
         storage::FileSystem,
-        TouchDetect,
+        TouchDetectPin,
     },
     states::{
         charging::charging,
@@ -54,16 +54,15 @@ use crate::{
 };
 
 use esp_hal::{
-    delay::Delay,
     interrupt::Priority,
     prelude::main,
-    reset,
     rtc_cntl::sleep::{self, WakeupLevel},
+    peripheral::Peripheral
 };
 use esp_hal_embassy::InterruptExecutor;
 
 #[cfg(any(feature = "hw_v4", feature = "hw_v6"))]
-use crate::board::VbusDetect;
+use crate::board::VbusDetectPin;
 
 #[cfg(feature = "esp32s3")]
 use esp_hal::gpio::RtcPin as RtcWakeupPin;
@@ -214,8 +213,6 @@ async fn main(_spawner: Spawner) {
     let mut storage = FileSystem::mount().await;
     let config = load_config(storage.as_deref_mut()).await;
 
-    let delay = Delay::new(&resources.clocks);
-
     // We're boxing Context because we will need to move out of it during shutdown.
     let mut board = Box::new(Context {
         // If the device is awake, the display should be enabled.
@@ -223,7 +220,6 @@ async fn main(_spawner: Spawner) {
         storage,
         inner: InnerContext {
             display: resources.display,
-            clocks: resources.clocks,
             high_prio_spawner: interrupt_executor.start(Priority::Priority2),
             battery_monitor: resources.battery_monitor,
             wifi: resources.wifi,
@@ -284,29 +280,24 @@ async fn main(_spawner: Spawner) {
 
     let mut battery_monitor = board.inner.battery_monitor;
 
-    let mut rtc = resources.rtc;
     let is_charging = battery_monitor.is_plugged();
 
-    let (mut charger_pin, _) = battery_monitor.stop().await;
+    let (charger_pin, _) = battery_monitor.stop().await;
 
-    let (_, _, _, mut touch) = board.frontend.split();
+    let (_, _, _, touch) = board.frontend.split();
 
-    let mut wakeup_pins = heapless::Vec::<(&mut dyn RtcWakeupPin, WakeupLevel), 2>::new();
-    //    let wakeup_source =
-    //        setup_wakeup_pins(&mut wakeup_pins, &mut touch, &mut charger_pin, is_charging);
-    //    rtc.sleep_deep(&[&wakeup_source]);
-    reset::software_reset();
+    enter_sleep(resources.rtc, touch, charger_pin, is_charging);
     // Shouldn't reach this. If we do, we just exit the task, which means the executor
     // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
 }
 
 #[cfg(any(feature = "hw_v4", all(feature = "hw_v6", feature = "esp32s3")))]
-fn setup_wakeup_pins<'a, 'b, const N: usize>(
-    wakeup_pins: &'a mut heapless::Vec<(&'b mut dyn RtcWakeupPin, WakeupLevel), N>,
-    touch: &'b mut TouchDetect,
-    charger_pin: &'b mut VbusDetect,
+fn enter_sleep(
+    mut rtc: esp_hal::rtc_cntl::Rtc,
+    touch: TouchDetectPin,
+    charger_pin: VbusDetectPin,
     is_charging: bool,
-) -> sleep::RtcioWakeupSource<'a, 'b> {
+) {
     let charger_level = if is_charging {
         // Wake up momentarily when charger is disconnected
         WakeupLevel::Low
@@ -318,19 +309,22 @@ fn setup_wakeup_pins<'a, 'b, const N: usize>(
         WakeupLevel::High
     };
 
-    unwrap!(wakeup_pins.push((touch, WakeupLevel::Low)).ok());
-    unwrap!(wakeup_pins.push((charger_pin, charger_level)).ok());
+    let mut wakeup_pins: [(&mut dyn RtcWakeupPin, WakeupLevel); 2] = [
+        (&mut *touch.into_ref(), WakeupLevel::Low),
+        (&mut *charger_pin.into_ref(), charger_level),
+    ];
+    let wakeup_source = sleep::RtcioWakeupSource::new(&mut wakeup_pins);
 
-    sleep::RtcioWakeupSource::new(wakeup_pins)
+    rtc.sleep_deep(&[&wakeup_source]);
 }
 
 #[cfg(all(feature = "hw_v6", feature = "esp32c6"))]
-fn setup_wakeup_pins<'a, 'b, const N: usize>(
-    wakeup_pins: &'a mut heapless::Vec<(&'b mut dyn RtcWakeupPin, WakeupLevel), N>,
-    touch: &'b mut TouchDetect,
-    charger_pin: &'b mut VbusDetect,
+fn enter_sleep(
+    mut rtc: esp_hal::rtc_cntl::Rtc,
+    touch: TouchDetectPin,
+    charger_pin: VbusDetectPin,
     is_charging: bool,
-) -> sleep::Ext1WakeupSource<'a, 'b> {
+) {
     let charger_level = if is_charging {
         // Wake up momentarily when charger is disconnected
         WakeupLevel::Low
@@ -342,8 +336,12 @@ fn setup_wakeup_pins<'a, 'b, const N: usize>(
         WakeupLevel::High
     };
 
-    unwrap!(wakeup_pins.push((touch, WakeupLevel::Low)).ok());
-    unwrap!(wakeup_pins.push((charger_pin, charger_level)).ok());
+    let mut wakeup_pins: [(&mut dyn RtcWakeupPin, WakeupLevel); 2] = [
+        (&mut *touch.into_ref(), WakeupLevel::Low),
+        (&mut *charger_pin.into_ref(), charger_level),
+    ];
 
-    sleep::Ext1WakeupSource::new(wakeup_pins)
+    let wakeup_source = sleep::Ext1WakeupSource::new(&mut wakeup_pins);
+
+    rtc.sleep_deep(&[&wakeup_source]);
 }

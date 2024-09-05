@@ -93,14 +93,14 @@ impl super::startup::StartupResources {
     pub async fn initialize() -> Self {
         Self::common_init();
 
-        let (peripherals, clocks) = esp_hal::init({
+        let peripherals = esp_hal::init({
             let mut config = esp_hal::Config::default();
             config.cpu_clock = CpuClock::max();
             config
         });
 
         let systimer = SystemTimer::new(peripherals.SYSTIMER).split::<Target>();
-        esp_hal_embassy::init(&clocks, systimer.alarm0);
+        esp_hal_embassy::init(systimer.alarm0);
 
         let io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
 
@@ -114,7 +114,6 @@ impl super::startup::StartupResources {
             io.pins.gpio11,
             io.pins.gpio14,
             io.pins.gpio21,
-            &clocks,
         );
 
         let adc = Self::create_frontend_driver(
@@ -125,7 +124,6 @@ impl super::startup::StartupResources {
                 io.pins.gpio7,
                 io.pins.gpio5,
                 io.pins.gpio18,
-                &clocks,
             ),
             io.pins.gpio4,
             io.pins.gpio2,
@@ -139,8 +137,7 @@ impl super::startup::StartupResources {
             io.pins.gpio35,
             io.pins.gpio17,
             io.pins.gpio47,
-            Output::new(io.pins.gpio8, Level::Low),
-            &clocks,
+            Output::new_typed(io.pins.gpio8, Level::Low),
         )
         .await;
 
@@ -153,13 +150,12 @@ impl super::startup::StartupResources {
             wifi: static_cell::make_static! {
                 WifiDriver::new(
                     peripherals.WIFI,
-                        ErasedTimer::from(TimerGroup::new(peripherals.TIMG0, &clocks)
+                        ErasedTimer::from(TimerGroup::new(peripherals.TIMG0)
                             .timer0),
                     peripherals.RNG,
                     peripherals.RADIO_CLK,
                 )
             },
-            clocks,
             rtc: Rtc::new(peripherals.LPWR),
             software_interrupt1: sw_int.software_interrupt1,
         }

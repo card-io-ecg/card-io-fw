@@ -16,7 +16,7 @@ use embassy_executor::SendSpawner;
 use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
 use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
-use esp_hal::{clock::Clocks, gpio::Input};
+use esp_hal::gpio::Input;
 use gui::{
     screens::message::MessageScreen,
     widgets::{
@@ -34,7 +34,6 @@ pub enum StaMode {
 
 pub struct InnerContext {
     pub display: Display,
-    pub clocks: Clocks<'static>,
     pub high_prio_spawner: SendSpawner,
     pub battery_monitor: BatteryMonitor<Input<'static, VbusDetect>, Input<'static, ChargerStatus>>,
     pub wifi: &'static mut WifiDriver,
@@ -169,7 +168,7 @@ impl InnerContext {
 
         let sta = self
             .wifi
-            .configure_sta(NetConfig::dhcpv4(Default::default()), &self.clocks)
+            .configure_sta(NetConfig::dhcpv4(Default::default()))
             .await;
 
         sta.update_known_networks(&self.config.known_networks).await;
@@ -191,7 +190,6 @@ impl InnerContext {
                     gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
                     dns_servers: Default::default(),
                 }),
-                &self.clocks,
             )
             .await;
 
@@ -213,7 +211,6 @@ impl InnerContext {
                     dns_servers: Default::default(),
                 }),
                 NetConfig::dhcpv4(Default::default()),
-                &self.clocks,
             )
             .await;
 

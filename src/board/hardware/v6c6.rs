@@ -92,14 +92,14 @@ impl super::startup::StartupResources {
     pub async fn initialize() -> Self {
         Self::common_init();
 
-        let (peripherals, clocks) = esp_hal::init({
+        let peripherals = esp_hal::init({
             let mut config = esp_hal::Config::default();
             config.cpu_clock = CpuClock::max();
             config
         });
 
-        let timg0 = TimerGroup::new(peripherals.TIMG0, &clocks);
-        esp_hal_embassy::init(&clocks, timg0.timer0);
+        let timg0 = TimerGroup::new(peripherals.TIMG0);
+        esp_hal_embassy::init(timg0.timer0);
 
         let io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
 
@@ -113,18 +113,17 @@ impl super::startup::StartupResources {
             io.pins.gpio11,
             io.pins.gpio22,
             io.pins.gpio21,
-            &clocks,
         );
 
         let adc = Self::create_frontend_driver(
             ExclusiveDevice::new(
                 BitbangSpi::new(
-                    Output::new(io.pins.gpio7, Level::Low),
-                    Input::new(io.pins.gpio5, Pull::None),
-                    Output::new(io.pins.gpio6, Level::Low),
+                    Output::new_typed(io.pins.gpio7, Level::Low),
+                    Input::new_typed(io.pins.gpio5, Pull::None),
+                    Output::new_typed(io.pins.gpio6, Level::Low),
                     1u32.MHz(),
                 ),
-                Output::new(io.pins.gpio9, Level::High),
+                Output::new_typed(io.pins.gpio9, Level::High),
                 Delay,
             ),
             io.pins.gpio4,
@@ -140,7 +139,6 @@ impl super::startup::StartupResources {
             io.pins.gpio3,
             io.pins.gpio20,
             DummyOutputPin,
-            &clocks,
         )
         .await;
 
@@ -158,7 +156,6 @@ impl super::startup::StartupResources {
                     peripherals.RADIO_CLK,
                 )
             },
-            clocks,
             rtc: Rtc::new(peripherals.LPWR),
             software_interrupt1: sw_int.software_interrupt1,
         }

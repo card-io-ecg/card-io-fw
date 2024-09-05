@@ -15,7 +15,6 @@ use crate::{
     heap::init_heap,
 };
 use esp_hal::{
-    clock::Clocks,
     dma::*,
     dma_buffers,
     gpio::{Input, Level, Output, Pull},
@@ -43,7 +42,6 @@ use fugit::RateExtU32;
 pub struct StartupResources {
     pub display: Display,
     pub frontend: EcgFrontend,
-    pub clocks: Clocks<'static>,
     pub battery_monitor: BatteryMonitor<VbusDetectPin, ChargerStatusPin>,
 
     pub wifi: &'static mut WifiDriver,
@@ -100,12 +98,11 @@ impl StartupResources {
         display_cs: DisplayChipSelect,
         display_sclk: DisplaySclk,
         display_mosi: DisplayMosi,
-        clocks: &Clocks<'static>,
     ) -> Display {
         let (tx_buffer, tx_descriptors, rx_buffer, rx_descriptors) = dma_buffers!(4092);
         let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
         let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
-        let display_spi = Spi::new(display_spi, 40u32.MHz(), SpiMode::Mode0, clocks)
+        let display_spi = Spi::new(display_spi, 40u32.MHz(), SpiMode::Mode0)
             .with_sck(display_sclk)
             .with_mosi(display_mosi)
             .with_cs(display_cs)
@@ -115,9 +112,9 @@ impl StartupResources {
         Display::new(
             SPIInterface::new(
                 ExclusiveDevice::new(display_spi, DummyOutputPin, Delay),
-                Output::new(display_dc, Level::Low),
+                Output::new_typed(display_dc, Level::Low),
             ),
-            Output::new(display_reset, Level::Low),
+            Output::new_typed(display_reset, Level::Low),
         )
     }
 
@@ -131,21 +128,19 @@ impl StartupResources {
         adc_mosi: AdcMosi,
         adc_miso: AdcMiso,
         adc_cs: AdcChipSelect,
-
-        clocks: &Clocks<'static>,
     ) -> AdcSpi {
         let (tx_buffer, tx_descriptors, rx_buffer, rx_descriptors) = dma_buffers!(4092);
         let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
         let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
 
         ExclusiveDevice::new(
-            Spi::new(adc_spi, 1u32.MHz(), SpiMode::Mode1, clocks)
+            Spi::new(adc_spi, 1u32.MHz(), SpiMode::Mode1)
                 .with_sck(adc_sclk)
                 .with_mosi(adc_mosi)
                 .with_miso(adc_miso)
                 .with_dma(adc_dma_channel.configure_for_async(false, DmaPriority::Priority1))
                 .with_buffers(dma_tx_buf, dma_rx_buf),
-            Output::new(adc_cs, Level::High),
+            Output::new_typed(adc_cs, Level::High),
             Delay,
         )
     }
@@ -162,10 +157,10 @@ impl StartupResources {
 
         Frontend::new(
             adc_spi,
-            Input::new(adc_drdy, Pull::None),
-            Output::new(adc_reset, Level::Low),
-            Output::new(adc_clock_enable, Level::Low),
-            Input::new(touch_detect, Pull::None),
+            Input::new_typed(adc_drdy, Pull::None),
+            Output::new_typed(adc_reset, Level::Low),
+            Output::new_typed(adc_clock_enable, Level::Low),
+            Input::new_typed(touch_detect, Pull::None),
         )
     }
 
@@ -179,7 +174,6 @@ impl StartupResources {
         vbus_detect: VbusDetect,
         charger_status: ChargerStatus,
         fg_enable: BatteryAdcEnablePin,
-        clocks: &Clocks<'static>,
     ) -> BatteryMonitor<VbusDetectPin, ChargerStatusPin> {
         // MCP73832T-2ACI/OT
         // - ITerm/Ireg = 7.5%
@@ -199,10 +193,10 @@ impl StartupResources {
         };
 
         BatteryMonitor::start(
-            Input::new(vbus_detect, Pull::None),
-            Input::new(charger_status, Pull::None),
+            Input::new_typed(vbus_detect, Pull::None),
+            Input::new_typed(charger_status, Pull::None),
             BatteryFg::new(
-                Max17055::new(I2C::new_async(i2c, sda, scl, 100u32.kHz(), clocks), design),
+                Max17055::new(I2C::new_async(i2c, sda, scl, 100u32.kHz()), design),
                 fg_enable,
             ),
         )

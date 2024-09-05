@@ -197,7 +197,7 @@ async fn measure_impl(
             frontend
                 .spi_mut()
                 .bus_mut()
-                .change_bus_frequency(4u32.MHz(), &context.clocks);
+                .change_bus_frequency(4u32.MHz());
         }
 
         Err(_e) => {
