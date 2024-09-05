@@ -95,10 +95,7 @@ enum WifiDriverState {
 }
 
 impl WifiDriverState {
-    async fn initialize(
-        &mut self,
-        callback: impl FnOnce(EspWifiInitialization) -> Self,
-    ) {
+    async fn initialize(&mut self, callback: impl FnOnce(EspWifiInitialization) -> Self) {
         self.uninit().await;
         replace_with::replace_with_or_abort(self, |this| {
             let token = match this {
@@ -172,11 +169,7 @@ impl WifiDriver {
         }
     }
 
-    pub async fn configure_ap_sta(
-        &mut self,
-        ap_config: Config,
-        sta_config: Config,
-    ) -> (Ap, Sta) {
+    pub async fn configure_ap_sta(&mut self, ap_config: Config, sta_config: Config) -> (Ap, Sta) {
         // Prepare, stop STA if running
         if !matches!(self.state, WifiDriverState::ApSta(_)) {
             let spawner = Spawner::for_current_executor().await;

@@ -55,9 +55,9 @@ use crate::{
 
 use esp_hal::{
     interrupt::Priority,
+    peripheral::Peripheral,
     prelude::main,
     rtc_cntl::sleep::{self, WakeupLevel},
-    peripheral::Peripheral
 };
 use esp_hal_embassy::InterruptExecutor;
 

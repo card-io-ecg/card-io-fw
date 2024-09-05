@@ -184,13 +184,11 @@ impl InnerContext {
 
         let ap = self
             .wifi
-            .configure_ap(
-                NetConfig::ipv4_static(StaticConfigV4 {
-                    address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
-                    gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
-                    dns_servers: Default::default(),
-                }),
-            )
+            .configure_ap(NetConfig::ipv4_static(StaticConfigV4 {
+                address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
+                gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
+                dns_servers: Default::default(),
+            }))
             .await;
 
         Some(ap)
