@@ -28,7 +28,12 @@ jobs:
         with:
           default: true
           buildtargets: esp32s3
+          version: "1.80.0"
           ldproxy: false
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2024-06-01
+          components: clippy, rustfmt, rust-src
       - uses: Swatinem/rust-cache@v2
 
       - name: format check
