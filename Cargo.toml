@@ -75,9 +75,7 @@ esp-wifi = { version = "0.9.1", default-features = false, features = [
 
 display-interface = "0.5"
 display-interface-spi = "0.5"
-ssd1306 = { git = "https://github.com/bugadani/ssd1306.git", branch = "ehal1", features = [
-    "graphics",
-] }
+ssd1306 = { version = "0.9.0", features = ["async", "graphics"] }
 
 portable_atomic_enum = "0.3.1"
 config-site = { path = "config-site", default-features = false, features = [

@@ -8,18 +8,18 @@ use embedded_graphics::{
 };
 use embedded_hal::digital::OutputPin;
 use ssd1306::{
-    command::AddrMode, mode::BufferedGraphicsMode, prelude::Brightness, rotation::DisplayRotation,
-    size::DisplaySize128x64, Ssd1306,
+    command::AddrMode, mode::BufferedGraphicsModeAsync, prelude::*, rotation::DisplayRotation,
+    size::DisplaySize128x64, Ssd1306Async,
 };
 use static_cell::make_static;
 
 use crate::board::DisplayInterface;
 
 pub struct Display<RESET> {
-    display: &'static mut Ssd1306<
+    display: &'static mut Ssd1306Async<
         DisplayInterface<'static>,
         DisplaySize128x64,
-        BufferedGraphicsMode<DisplaySize128x64>,
+        BufferedGraphicsModeAsync<DisplaySize128x64>,
     >,
     reset: RESET,
 }
@@ -30,7 +30,7 @@ where
 {
     pub fn new(spi: DisplayInterface<'static>, reset: RESET) -> Self {
         let display = make_static! {
-            Ssd1306::new(spi, DisplaySize128x64, DisplayRotation::Rotate0)
+            Ssd1306Async::new(spi, DisplaySize128x64, DisplayRotation::Rotate0)
                 .into_buffered_graphics_mode()
         };
 
@@ -40,15 +40,15 @@ where
     pub async fn enable(&mut self) -> Result<(), DisplayError> {
         unwrap!(self
             .display
-            .reset_async::<_, Delay>(&mut self.reset, &mut Delay)
+            .reset::<_, Delay>(&mut self.reset, &mut Delay)
             .await
             .ok());
 
         self.display
-            .init_with_addr_mode_async(AddrMode::Horizontal)
+            .init_with_addr_mode(AddrMode::Horizontal)
             .await?;
         self.display.clear(BinaryColor::Off)?;
-        self.display.flush_async().await?;
+        self.display.flush().await?;
 
         Ok(())
     }
@@ -69,14 +69,14 @@ where
     }
 
     pub async fn flush(&mut self) -> Result<(), DisplayError> {
-        self.display.flush_async().await
+        self.display.flush().await
     }
 
     pub async fn update_brightness_async(
         &mut self,
         brightness: Brightness,
     ) -> Result<(), DisplayError> {
-        self.display.set_brightness_async(brightness).await
+        self.display.set_brightness(brightness).await
     }
 
     pub fn shut_down(&mut self) {
