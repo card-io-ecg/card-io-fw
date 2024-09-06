@@ -44,10 +44,7 @@ where
             .await
             .ok());
 
-        self.display
-            .init_with_addr_mode(AddrMode::Horizontal)
-            .await?;
-        self.display.clear(BinaryColor::Off)?;
+        self.display.init().await?;
         self.display.flush().await?;
 
         Ok(())
