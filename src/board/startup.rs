@@ -194,7 +194,7 @@ impl StartupResources {
 
         BatteryMonitor::start(
             Input::new_typed(vbus_detect, Pull::None),
-            Input::new_typed(charger_status, Pull::None),
+            Input::new_typed(charger_status, Pull::Up),
             BatteryFg::new(
                 Max17055::new(I2C::new_async(i2c, sda, scl, 100u32.kHz()), design),
                 fg_enable,
