@@ -173,6 +173,28 @@
                     "programBinary": "${workspaceRoot}/target/xtensa-esp32s3-none-elf/release/card_io_fw"
                 }
             ]
+        },
+        {
+            "name": "Attach to v6c6",
+            "type": "probe-rs-debug",
+            "request": "attach",
+            "chip": "esp32c6",
+            "coreConfigs": [
+                {
+                    "programBinary": "${workspaceRoot}/target/riscv32imac-unknown-none-elf/debug/card_io_fw"
+                }
+            ]
+        },
+        {
+            "name": "Attach to v6c6 release",
+            "type": "probe-rs-debug",
+            "request": "attach",
+            "chip": "esp32c6",
+            "coreConfigs": [
+                {
+                    "programBinary": "${workspaceRoot}/target/riscv32imac-unknown-none-elf/release/card_io_fw"
+                }
+            ]
         }
     ]
 }
