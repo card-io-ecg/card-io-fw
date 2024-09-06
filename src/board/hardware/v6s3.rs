@@ -7,8 +7,7 @@ use crate::board::{
     utils::DummyOutputPin,
     wifi::WifiDriver,
 };
-use display_interface_spi::SPIInterface;
-use embassy_time::Delay;
+use display_interface_spi::{NoDelay, SPIInterface};
 use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
     dma::*,
@@ -42,7 +41,7 @@ pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommandP
 pub type DisplaySpi<'d> = ExclusiveDevice<
     SpiDmaBus<'d, DisplaySpiInstance, DmaChannel0, FullDuplexMode, Async>,
     DummyOutputPin,
-    Delay,
+    NoDelay,
 >;
 
 pub type AdcDmaChannel = ChannelCreator1;
@@ -65,7 +64,7 @@ pub type AdcChipSelectPin = Output<'static, AdcChipSelect>;
 pub type AdcSpi = ExclusiveDevice<
     SpiDmaBus<'static, AdcSpiInstance, DmaChannel1, FullDuplexMode, Async>,
     AdcChipSelectPin,
-    Delay,
+    NoDelay,
 >;
 
 pub type VbusDetect = GpioPin<2>;

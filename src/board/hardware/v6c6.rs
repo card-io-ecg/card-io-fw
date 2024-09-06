@@ -8,8 +8,7 @@ use crate::board::{
     wifi::WifiDriver,
 };
 use display_interface_spi::SPIInterface;
-use embassy_time::Delay;
-use embedded_hal_bus::spi::ExclusiveDevice;
+use embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
 use esp_hal::{
     dma::*,
     gpio::{GpioPin, Input, Io, Level, Output, Pull},
@@ -44,7 +43,7 @@ pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommandP
 pub type DisplaySpi<'d> = ExclusiveDevice<
     SpiDmaBus<'d, DisplaySpiInstance, DmaChannel0, FullDuplexMode, Async>,
     DummyOutputPin,
-    Delay,
+    NoDelay,
 >;
 
 pub type AdcSclk = GpioPin<6>;
@@ -67,7 +66,7 @@ pub type AdcMisoPin = Input<'static, AdcMiso>;
 pub type AdcSclkPin = Output<'static, AdcSclk>;
 
 pub type AdcSpi =
-    ExclusiveDevice<BitbangSpi<AdcMosiPin, AdcMisoPin, AdcSclkPin>, AdcChipSelectPin, Delay>;
+    ExclusiveDevice<BitbangSpi<AdcMosiPin, AdcMisoPin, AdcSclkPin>, AdcChipSelectPin, NoDelay>;
 
 pub type VbusDetect = GpioPin<3>;
 pub type ChargerStatus = GpioPin<20>;
@@ -116,7 +115,7 @@ impl super::startup::StartupResources {
         );
 
         let adc = Self::create_frontend_driver(
-            ExclusiveDevice::new(
+            ExclusiveDevice::new_no_delay(
                 BitbangSpi::new(
                     Output::new_typed(io.pins.gpio7, Level::Low),
                     Input::new_typed(io.pins.gpio5, Pull::None),
@@ -124,7 +123,6 @@ impl super::startup::StartupResources {
                     1u32.MHz(),
                 ),
                 Output::new_typed(io.pins.gpio9, Level::High),
-                Delay,
             ),
             io.pins.gpio4,
             io.pins.gpio15,

@@ -1,5 +1,4 @@
 use display_interface_spi::SPIInterface;
-use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use static_cell::make_static;
 
@@ -111,7 +110,7 @@ impl StartupResources {
 
         Display::new(
             SPIInterface::new(
-                ExclusiveDevice::new(display_spi, DummyOutputPin, Delay),
+                ExclusiveDevice::new_no_delay(display_spi, DummyOutputPin),
                 Output::new_typed(display_dc, Level::Low),
             ),
             Output::new_typed(display_reset, Level::Low),
@@ -133,7 +132,7 @@ impl StartupResources {
         let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
         let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
 
-        ExclusiveDevice::new(
+        ExclusiveDevice::new_no_delay(
             Spi::new(adc_spi, 1u32.MHz(), SpiMode::Mode1)
                 .with_sck(adc_sclk)
                 .with_mosi(adc_mosi)
@@ -141,7 +140,6 @@ impl StartupResources {
                 .with_dma(adc_dma_channel.configure_for_async(false, DmaPriority::Priority1))
                 .with_buffers(dma_tx_buf, dma_rx_buf),
             Output::new_typed(adc_cs, Level::High),
-            Delay,
         )
     }
 
