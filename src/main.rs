@@ -71,7 +71,6 @@ use esp_hal::gpio::RtcPin as RtcWakeupPin;
 use esp_hal::gpio::RtcPinWithResistors as RtcWakeupPin;
 
 mod board;
-mod heap;
 pub mod human_readable;
 mod stack_protection;
 mod states;
@@ -200,6 +199,8 @@ where
 
 #[main]
 async fn main(_spawner: Spawner) {
+    esp_alloc::heap_allocator!((48 + 96) * 1024);
+
     let resources = StartupResources::initialize().await;
 
     let interrupt_executor = make_static!(InterruptExecutor::new(resources.software_interrupt1));

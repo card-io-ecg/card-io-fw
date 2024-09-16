@@ -3,16 +3,13 @@ use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use static_cell::make_static;
 
-use crate::{
-    board::{
-        drivers::{battery_monitor::BatteryMonitor, frontend::Frontend},
-        utils::DummyOutputPin,
-        wifi::WifiDriver,
-        AdcClockEnable, AdcDrdy, AdcReset, AdcSpi, ChargerStatus, ChargerStatusPin, Display,
-        DisplayChipSelect, DisplayDataCommand, DisplayDmaChannel, DisplayMosi, DisplayReset,
-        DisplaySclk, DisplaySpiInstance, EcgFrontend, TouchDetect, VbusDetect, VbusDetectPin,
-    },
-    heap::init_heap,
+use crate::board::{
+    drivers::{battery_monitor::BatteryMonitor, frontend::Frontend},
+    utils::DummyOutputPin,
+    wifi::WifiDriver,
+    AdcClockEnable, AdcDrdy, AdcReset, AdcSpi, ChargerStatus, ChargerStatusPin, Display,
+    DisplayChipSelect, DisplayDataCommand, DisplayDmaChannel, DisplayMosi, DisplayReset,
+    DisplaySclk, DisplaySpiInstance, EcgFrontend, TouchDetect, VbusDetect, VbusDetectPin,
 };
 use esp_hal::{
     dma::*,
@@ -54,7 +51,6 @@ impl StartupResources {
     pub(super) fn common_init() {
         #[cfg(feature = "log")]
         init_logger(log::LevelFilter::Trace); // we let the compile-time log level filter do the work
-        init_heap();
 
         use core::ptr::addr_of;
 
@@ -99,7 +95,7 @@ impl StartupResources {
         display_sclk: DisplaySclk,
         display_mosi: DisplayMosi,
     ) -> Display {
-        let (tx_buffer, tx_descriptors, rx_buffer, rx_descriptors) = dma_buffers!(4092);
+        let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(4092);
         let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
         let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
         let display_spi = Spi::new(display_spi, 40u32.MHz(), SpiMode::Mode0)
@@ -107,7 +103,7 @@ impl StartupResources {
             .with_mosi(display_mosi)
             .with_cs(display_cs)
             .with_dma(display_dma_channel.configure_for_async(false, DmaPriority::Priority0))
-            .with_buffers(dma_tx_buf, dma_rx_buf);
+            .with_buffers(dma_rx_buf, dma_tx_buf);
 
         Display::new(
             SPIInterface::new(
@@ -129,7 +125,7 @@ impl StartupResources {
         adc_miso: AdcMiso,
         adc_cs: AdcChipSelect,
     ) -> AdcSpi {
-        let (tx_buffer, tx_descriptors, rx_buffer, rx_descriptors) = dma_buffers!(4092);
+        let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(4092);
         let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
         let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
 
@@ -139,7 +135,7 @@ impl StartupResources {
                 .with_mosi(adc_mosi)
                 .with_miso(adc_miso)
                 .with_dma(adc_dma_channel.configure_for_async(false, DmaPriority::Priority1))
-                .with_buffers(dma_tx_buf, dma_rx_buf),
+                .with_buffers(dma_rx_buf, dma_tx_buf),
             Output::new_typed(adc_cs, Level::High),
             Delay,
         )

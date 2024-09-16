@@ -14,7 +14,7 @@ use embassy_net::{Config, Stack, StackResources};
 use esp_hal::{
     peripherals::{RADIO_CLK, RNG, WIFI},
     rng::Rng,
-    timer::ErasedTimer,
+    timer::AnyTimer,
 };
 use esp_wifi::{
     wifi::{WifiApDevice, WifiDevice, WifiDeviceMode, WifiStaDevice},
@@ -81,7 +81,7 @@ pub struct WifiDriver {
 }
 
 struct WifiInitResources {
-    timer: ErasedTimer,
+    timer: AnyTimer,
     rng: Rng,
     radio_clk: RADIO_CLK,
 }
@@ -132,7 +132,7 @@ impl WifiDriverState {
 }
 
 impl WifiDriver {
-    pub fn new(wifi: WIFI, timer: ErasedTimer, rng: RNG, radio_clk: RADIO_CLK) -> Self {
+    pub fn new(wifi: WIFI, timer: AnyTimer, rng: RNG, radio_clk: RADIO_CLK) -> Self {
         let rng = Rng::new(rng);
         Self {
             wifi,

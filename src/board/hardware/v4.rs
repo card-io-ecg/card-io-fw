@@ -21,7 +21,7 @@ use esp_hal::{
     timer::{
         systimer::{SystemTimer, Target},
         timg::TimerGroup,
-        ErasedTimer,
+        AnyTimer,
     },
     Async,
 };
@@ -150,7 +150,7 @@ impl super::startup::StartupResources {
             wifi: static_cell::make_static! {
                 WifiDriver::new(
                     peripherals.WIFI,
-                        ErasedTimer::from(TimerGroup::new(peripherals.TIMG0)
+                        AnyTimer::from(TimerGroup::new(peripherals.TIMG0)
                             .timer0),
                     peripherals.RNG,
                     peripherals.RADIO_CLK,
