@@ -8,7 +8,7 @@ use embedded_graphics::{
 };
 use embedded_hal::digital::OutputPin;
 use ssd1306::{
-    command::AddrMode, mode::BufferedGraphicsModeAsync, prelude::*, rotation::DisplayRotation,
+    mode::BufferedGraphicsModeAsync, prelude::*, rotation::DisplayRotation,
     size::DisplaySize128x64, Ssd1306Async,
 };
 use static_cell::make_static;
