@@ -31,72 +31,38 @@ pub use crate::board::drivers::bitbang_spi::BitbangSpi;
 
 pub type DisplaySpiInstance = peripherals::SPI2;
 pub type DisplayDmaChannel = ChannelCreator0;
-pub type DisplayDataCommand = GpioPin<8>;
-pub type DisplayChipSelect = GpioPin<11>;
-pub type DisplayReset = GpioPin<10>;
-pub type DisplaySclk = GpioPin<22>;
-pub type DisplayMosi = GpioPin<21>;
 
-pub type DisplayResetPin = Output<'static, DisplayReset>;
-pub type DisplayDataCommandPin = Output<'static, DisplayDataCommand>;
-
-pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommandPin>;
+pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, Output<'static>>;
 pub type DisplaySpi<'d> = ExclusiveDevice<
     SpiDmaBus<'d, DisplaySpiInstance, DmaChannel0, FullDuplexMode, Async>,
     DummyOutputPin,
     Delay,
 >;
 
-pub type AdcSclk = GpioPin<6>;
-pub type AdcMosi = GpioPin<7>;
-pub type AdcMiso = GpioPin<5>;
-pub type AdcChipSelect = GpioPin<9>;
-pub type AdcClockEnable = GpioPin<23>;
-pub type AdcDrdy = GpioPin<4>;
-pub type AdcReset = GpioPin<15>;
-pub type TouchDetect = GpioPin<2>;
-
-pub type AdcClockEnablePin = Output<'static, AdcClockEnable>;
-pub type AdcDrdyPin = Input<'static, AdcDrdy>;
-pub type AdcResetPin = Output<'static, AdcReset>;
-pub type TouchDetectPin = Input<'static, TouchDetect>;
-pub type AdcChipSelectPin = Output<'static, AdcChipSelect>;
-
-pub type AdcMosiPin = Output<'static, AdcMosi>;
-pub type AdcMisoPin = Input<'static, AdcMiso>;
-pub type AdcSclkPin = Output<'static, AdcSclk>;
-
-pub type AdcSpi =
-    ExclusiveDevice<BitbangSpi<AdcMosiPin, AdcMisoPin, AdcSclkPin>, AdcChipSelectPin, Delay>;
-
-pub type VbusDetect = GpioPin<3>;
-pub type ChargerStatus = GpioPin<20>;
+pub type AdcSpi = ExclusiveDevice<
+    BitbangSpi<Output<'static>, Input<'static>, Output<'static>>,
+    Output<'static>,
+    Delay,
+>;
 
 pub type BatteryAdcEnablePin = DummyOutputPin;
-pub type VbusDetectPin = Input<'static, VbusDetect>;
-pub type ChargerStatusPin = Input<'static, ChargerStatus>;
+pub type VbusDetectPin = Input<'static>;
+pub type ChargerStatusPin = Input<'static>;
 
-pub type EcgFrontend = Frontend<AdcSpi, AdcDrdyPin, AdcResetPin, AdcClockEnablePin, TouchDetectPin>;
+pub type EcgFrontend =
+    Frontend<AdcSpi, Input<'static>, Output<'static>, Output<'static>, Input<'static>>;
 pub type PoweredEcgFrontend =
-    PoweredFrontend<AdcSpi, AdcDrdyPin, AdcResetPin, AdcClockEnablePin, TouchDetectPin>;
+    PoweredFrontend<AdcSpi, Input<'static>, Output<'static>, Output<'static>, Input<'static>>;
 
-pub type Display = DisplayType<DisplayResetPin>;
+pub type Display = DisplayType<Output<'static>>;
 
 pub type BatteryFgI2cInstance = peripherals::I2C0;
-pub type I2cSda = GpioPin<19>;
-pub type I2cScl = GpioPin<18>;
 pub type BatteryFgI2c = I2C<'static, BatteryFgI2cInstance, Async>;
 pub type BatteryFg = BatteryFgType<BatteryFgI2c, BatteryAdcEnablePin>;
 
 impl super::startup::StartupResources {
     pub async fn initialize() -> Self {
-        Self::common_init();
-
-        let peripherals = esp_hal::init({
-            let mut config = esp_hal::Config::default();
-            config.cpu_clock = CpuClock::max();
-            config
-        });
+        let peripherals = Self::common_init();
 
         let timg0 = TimerGroup::new(peripherals.TIMG0);
         esp_hal_embassy::init(timg0.timer0);
@@ -118,12 +84,12 @@ impl super::startup::StartupResources {
         let adc = Self::create_frontend_driver(
             ExclusiveDevice::new(
                 BitbangSpi::new(
-                    Output::new_typed(io.pins.gpio7, Level::Low),
-                    Input::new_typed(io.pins.gpio5, Pull::None),
-                    Output::new_typed(io.pins.gpio6, Level::Low),
+                    Output::new(io.pins.gpio7, Level::Low),
+                    Input::new(io.pins.gpio5, Pull::None),
+                    Output::new(io.pins.gpio6, Level::Low),
                     1u32.MHz(),
                 ),
-                Output::new_typed(io.pins.gpio9, Level::High),
+                Output::new(io.pins.gpio9, Level::High),
                 Delay,
             ),
             io.pins.gpio4,

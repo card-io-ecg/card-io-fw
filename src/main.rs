@@ -35,7 +35,6 @@ use crate::{
         initialized::{Context, InnerContext},
         startup::StartupResources,
         storage::FileSystem,
-        TouchDetectPin,
     },
     states::{
         charging::charging,
@@ -60,9 +59,6 @@ use esp_hal::{
     rtc_cntl::sleep::{self, WakeupLevel},
 };
 use esp_hal_embassy::InterruptExecutor;
-
-#[cfg(any(feature = "hw_v4", feature = "hw_v6"))]
-use crate::board::VbusDetectPin;
 
 #[cfg(feature = "esp32s3")]
 use esp_hal::gpio::RtcPin as RtcWakeupPin;
@@ -295,8 +291,8 @@ async fn main(_spawner: Spawner) {
 #[cfg(any(feature = "hw_v4", all(feature = "hw_v6", feature = "esp32s3")))]
 fn enter_sleep(
     mut rtc: esp_hal::rtc_cntl::Rtc,
-    touch: TouchDetectPin,
-    charger_pin: VbusDetectPin,
+    touch: impl Peripheral<P = impl RtcWakeupPin>,
+    charger_pin: impl Peripheral<P = impl RtcWakeupPin>,
     is_charging: bool,
 ) {
     let charger_level = if is_charging {
@@ -322,8 +318,8 @@ fn enter_sleep(
 #[cfg(all(feature = "hw_v6", feature = "esp32c6"))]
 fn enter_sleep(
     mut rtc: esp_hal::rtc_cntl::Rtc,
-    touch: TouchDetectPin,
-    charger_pin: VbusDetectPin,
+    touch: impl Peripheral<P = impl RtcWakeupPin>,
+    charger_pin: impl Peripheral<P = impl RtcWakeupPin>,
     is_charging: bool,
 ) {
     let charger_level = if is_charging {

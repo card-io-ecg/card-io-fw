@@ -16,7 +16,6 @@ use esp_hal::{
     i2c::I2C,
     interrupt::software::SoftwareInterruptControl,
     peripherals,
-    prelude::*,
     rtc_cntl::Rtc,
     spi::{master::SpiDmaBus, FullDuplexMode},
     timer::{
@@ -29,16 +28,8 @@ use esp_hal::{
 
 pub type DisplaySpiInstance = peripherals::SPI2;
 pub type DisplayDmaChannel = ChannelCreator0;
-pub type DisplayDataCommand = GpioPin<17>;
-pub type DisplayChipSelect = GpioPin<8>;
-pub type DisplayReset = GpioPin<18>;
-pub type DisplaySclk = GpioPin<39>;
-pub type DisplayMosi = GpioPin<38>;
 
-pub type DisplayResetPin = Output<'static, DisplayReset>;
-pub type DisplayDataCommandPin = Output<'static, DisplayDataCommand>;
-
-pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, DisplayDataCommandPin>;
+pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, Output<'static>>;
 pub type DisplaySpi<'d> = ExclusiveDevice<
     SpiDmaBus<'d, DisplaySpiInstance, DmaChannel0, FullDuplexMode, Async>,
     DummyOutputPin,
@@ -47,55 +38,31 @@ pub type DisplaySpi<'d> = ExclusiveDevice<
 
 pub type AdcDmaChannel = ChannelCreator1;
 pub type AdcSpiInstance = peripherals::SPI3;
-pub type AdcSclk = GpioPin<6>;
-pub type AdcMosi = GpioPin<7>;
-pub type AdcMiso = GpioPin<5>;
-pub type AdcChipSelect = GpioPin<0>;
-pub type AdcClockEnable = GpioPin<40>;
-pub type AdcDrdy = GpioPin<4>;
-pub type AdcReset = GpioPin<42>;
-pub type TouchDetect = GpioPin<1>;
-
-pub type AdcClockEnablePin = Output<'static, AdcClockEnable>;
-pub type AdcDrdyPin = Input<'static, AdcDrdy>;
-pub type AdcResetPin = Output<'static, AdcReset>;
-pub type TouchDetectPin = Input<'static, TouchDetect>;
-pub type AdcChipSelectPin = Output<'static, AdcChipSelect>;
 
 pub type AdcSpi = ExclusiveDevice<
     SpiDmaBus<'static, AdcSpiInstance, DmaChannel1, FullDuplexMode, Async>,
-    AdcChipSelectPin,
+    Output<'static>,
     Delay,
 >;
 
-pub type VbusDetect = GpioPin<2>;
-pub type ChargerStatus = GpioPin<37>;
-
 pub type BatteryAdcEnablePin = DummyOutputPin;
-pub type VbusDetectPin = Input<'static, VbusDetect>;
-pub type ChargerStatusPin = Input<'static, ChargerStatus>;
+pub type VbusDetectPin = Input<'static>;
+pub type ChargerStatusPin = Input<'static>;
 
-pub type EcgFrontend = Frontend<AdcSpi, AdcDrdyPin, AdcResetPin, AdcClockEnablePin, TouchDetectPin>;
+pub type EcgFrontend =
+    Frontend<AdcSpi, Input<'static>, Output<'static>, Output<'static>, Input<'static>>;
 pub type PoweredEcgFrontend =
-    PoweredFrontend<AdcSpi, AdcDrdyPin, AdcResetPin, AdcClockEnablePin, TouchDetectPin>;
+    PoweredFrontend<AdcSpi, Input<'static>, Output<'static>, Output<'static>, Input<'static>>;
 
-pub type Display = DisplayType<DisplayResetPin>;
+pub type Display = DisplayType<Output<'static>>;
 
 pub type BatteryFgI2cInstance = peripherals::I2C0;
-pub type I2cSda = GpioPin<36>;
-pub type I2cScl = GpioPin<35>;
 pub type BatteryFgI2c = I2C<'static, BatteryFgI2cInstance, Async>;
 pub type BatteryFg = BatteryFgType<BatteryFgI2c, BatteryAdcEnablePin>;
 
 impl super::startup::StartupResources {
     pub async fn initialize() -> Self {
-        Self::common_init();
-
-        let peripherals = esp_hal::init({
-            let mut config = esp_hal::Config::default();
-            config.cpu_clock = CpuClock::max();
-            config
-        });
+        let peripherals = Self::common_init();
 
         let systimer = SystemTimer::new(peripherals.SYSTIMER).split::<Target>();
         esp_hal_embassy::init(systimer.alarm0);

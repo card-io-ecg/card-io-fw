@@ -6,7 +6,7 @@ use crate::{
         drivers::battery_monitor::BatteryMonitor,
         storage::FileSystem,
         wifi::{ap::Ap, sta::Sta, WifiDriver},
-        ChargerStatus, Display, EcgFrontend, VbusDetect,
+        Display, EcgFrontend,
     },
     saved_measurement_exists,
     states::MESSAGE_MIN_DURATION,
@@ -35,7 +35,7 @@ pub enum StaMode {
 pub struct InnerContext {
     pub display: Display,
     pub high_prio_spawner: SendSpawner,
-    pub battery_monitor: BatteryMonitor<Input<'static, VbusDetect>, Input<'static, ChargerStatus>>,
+    pub battery_monitor: BatteryMonitor<Input<'static>, Input<'static>>,
     pub wifi: &'static mut WifiDriver,
     pub config: &'static mut Config,
     pub config_changed: bool,
