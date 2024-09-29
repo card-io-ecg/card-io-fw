@@ -132,12 +132,12 @@ crc = "3.0.1"
 enumset = "1.1.3"
 
 [patch.crates-io]
-esp-hal = { git = "https://github.com/bugadani/esp-hal.git", rev = "2a74addee03970f1f79522b96dea285c947ac329" }
-esp-hal-embassy = { git = "https://github.com/bugadani/esp-hal.git", rev = "2a74addee03970f1f79522b96dea285c947ac329" }
-esp-wifi = { git = "https://github.com/bugadani/esp-hal.git", rev = "2a74addee03970f1f79522b96dea285c947ac329" }
-esp-backtrace = { git = "https://github.com/bugadani/esp-hal.git", rev = "2a74addee03970f1f79522b96dea285c947ac329" }
-esp-println = { git = "https://github.com/bugadani/esp-hal.git", rev = "2a74addee03970f1f79522b96dea285c947ac329" }
-esp-alloc = { git = "https://github.com/bugadani/esp-hal.git", rev = "2a74addee03970f1f79522b96dea285c947ac329" }
+esp-hal = { git = "https://github.com/bugadani/esp-hal.git", rev = "1423f84" }
+esp-hal-embassy = { git = "https://github.com/bugadani/esp-hal.git", rev = "1423f84" }
+esp-wifi = { git = "https://github.com/bugadani/esp-hal.git", rev = "1423f84" }
+esp-backtrace = { git = "https://github.com/bugadani/esp-hal.git", rev = "1423f84" }
+esp-println = { git = "https://github.com/bugadani/esp-hal.git", rev = "1423f84" }
+esp-alloc = { git = "https://github.com/bugadani/esp-hal.git", rev = "1423f84" }
 
 [features]
 default = ["defmt"]

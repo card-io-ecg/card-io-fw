@@ -28,7 +28,7 @@ use esp_hal::{
 use display_interface_spi::SPIInterface;
 
 pub type DisplaySpiInstance = peripherals::SPI2;
-pub type DisplayDmaChannel = ChannelCreator0;
+pub type DisplayDmaChannel = ChannelCreator<0>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, Output<'static>>;
 pub type DisplaySpi<'d> = ExclusiveDevice<
@@ -37,7 +37,7 @@ pub type DisplaySpi<'d> = ExclusiveDevice<
     Delay,
 >;
 
-pub type AdcDmaChannel = ChannelCreator1;
+pub type AdcDmaChannel = ChannelCreator<1>;
 pub type AdcSpiInstance = peripherals::SPI3;
 
 pub type AdcSpi = ExclusiveDevice<

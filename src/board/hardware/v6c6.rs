@@ -30,7 +30,7 @@ use esp_hal::{
 pub use crate::board::drivers::bitbang_spi::BitbangSpi;
 
 pub type DisplaySpiInstance = peripherals::SPI2;
-pub type DisplayDmaChannel = ChannelCreator0;
+pub type DisplayDmaChannel = ChannelCreator<0>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, Output<'static>>;
 pub type DisplaySpi<'d> = ExclusiveDevice<
