@@ -12,7 +12,7 @@ use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
     dma::*,
-    gpio::{GpioPin, Input, Io, Level, Output, Pull},
+    gpio::{Input, Io, Level, Output, Pull},
     i2c::I2C,
     interrupt::software::SoftwareInterruptControl,
     peripherals,

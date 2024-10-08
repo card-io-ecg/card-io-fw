@@ -12,7 +12,7 @@ use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
     dma::*,
-    gpio::{GpioPin, Input, Io, Output},
+    gpio::{Input, Io, Output},
     i2c::I2C,
     interrupt::software::SoftwareInterruptControl,
     peripherals,
@@ -27,7 +27,7 @@ use esp_hal::{
 };
 
 pub type DisplaySpiInstance = peripherals::SPI2;
-pub type DisplayDmaChannel = ChannelCreator0;
+pub type DisplayDmaChannel = ChannelCreator<0>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, Output<'static>>;
 pub type DisplaySpi<'d> = ExclusiveDevice<
@@ -36,7 +36,7 @@ pub type DisplaySpi<'d> = ExclusiveDevice<
     Delay,
 >;
 
-pub type AdcDmaChannel = ChannelCreator1;
+pub type AdcDmaChannel = ChannelCreator<1>;
 pub type AdcSpiInstance = peripherals::SPI3;
 
 pub type AdcSpi = ExclusiveDevice<

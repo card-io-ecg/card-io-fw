@@ -101,7 +101,7 @@ impl WifiDriverState {
             let token = match this {
                 Self::Uninitialized(resources) => {
                     info!("Initializing Wifi driver");
-                    let token = unwrap!(esp_wifi::initialize(
+                    let token = unwrap!(esp_wifi::init(
                         EspWifiInitFor::Wifi,
                         resources.timer,
                         resources.rng,
