@@ -132,12 +132,12 @@ crc = "3.0.1"
 enumset = "1.1.3"
 
 [patch.crates-io]
-esp-hal = { git = "https://github.com/bugadani/esp-hal.git", rev = "038d07f" }
-esp-hal-embassy = { git = "https://github.com/bugadani/esp-hal.git", rev = "038d07f" }
-esp-wifi = { git = "https://github.com/bugadani/esp-hal.git", rev = "038d07f" }
-esp-backtrace = { git = "https://github.com/bugadani/esp-hal.git", rev = "038d07f" }
-esp-println = { git = "https://github.com/bugadani/esp-hal.git", rev = "038d07f" }
-esp-alloc = { git = "https://github.com/bugadani/esp-hal.git", rev = "038d07f" }
+esp-hal = { git = "https://github.com/bugadani/esp-hal.git", rev = "7ca1b4376fd48229c887018d7133ce317742ce4e" }
+esp-hal-embassy = { git = "https://github.com/bugadani/esp-hal.git", rev = "7ca1b4376fd48229c887018d7133ce317742ce4e" }
+esp-wifi = { git = "https://github.com/bugadani/esp-hal.git", rev = "7ca1b4376fd48229c887018d7133ce317742ce4e" }
+esp-backtrace = { git = "https://github.com/bugadani/esp-hal.git", rev = "7ca1b4376fd48229c887018d7133ce317742ce4e" }
+esp-println = { git = "https://github.com/bugadani/esp-hal.git", rev = "7ca1b4376fd48229c887018d7133ce317742ce4e" }
+esp-alloc = { git = "https://github.com/bugadani/esp-hal.git", rev = "7ca1b4376fd48229c887018d7133ce317742ce4e" }
 
 [features]
 default = ["defmt"]
@@ -157,6 +157,7 @@ esp32s3 = [
     "esp-println/esp32s3",
     "jtag-serial",
     "esp-wifi/esp32s3",
+    "esp-hal-embassy/esp32s3",
 ]
 esp32c6 = [
     "esp-hal/esp32c6",
@@ -166,6 +167,7 @@ esp32c6 = [
     "esp-println/esp32c6",
     "jtag-serial",
     "esp-wifi/esp32c6",
+    "esp-hal-embassy/esp32c6",
 ]
 
 # Signal processing

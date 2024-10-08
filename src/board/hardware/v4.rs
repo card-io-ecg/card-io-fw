@@ -32,7 +32,7 @@ pub type DisplayDmaChannel = ChannelCreator<0>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, Output<'static>>;
 pub type DisplaySpi<'d> = ExclusiveDevice<
-    SpiDmaBus<'d, DisplaySpiInstance, DmaChannel0, FullDuplexMode, Async>,
+    SpiDmaBus<'d, DisplaySpiInstance, FullDuplexMode, Async>,
     DummyOutputPin,
     Delay,
 >;
@@ -41,7 +41,7 @@ pub type AdcDmaChannel = ChannelCreator<1>;
 pub type AdcSpiInstance = peripherals::SPI3;
 
 pub type AdcSpi = ExclusiveDevice<
-    SpiDmaBus<'static, AdcSpiInstance, DmaChannel1, FullDuplexMode, Async>,
+    SpiDmaBus<'static, AdcSpiInstance, FullDuplexMode, Async>,
     Output<'static>,
     Delay,
 >;
