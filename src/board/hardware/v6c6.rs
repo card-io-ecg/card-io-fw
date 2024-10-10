@@ -13,7 +13,7 @@ use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
     dma::*,
     gpio::{Input, Io, Level, Output, Pull},
-    i2c::I2C,
+    i2c::I2c,
     interrupt::software::SoftwareInterruptControl,
     peripherals,
     prelude::*,
@@ -57,7 +57,7 @@ pub type PoweredEcgFrontend =
 pub type Display = DisplayType<Output<'static>>;
 
 pub type BatteryFgI2cInstance = peripherals::I2C0;
-pub type BatteryFgI2c = I2C<'static, BatteryFgI2cInstance, Async>;
+pub type BatteryFgI2c = I2c<'static, BatteryFgI2cInstance, Async>;
 pub type BatteryFg = BatteryFgType<BatteryFgI2c, BatteryAdcEnablePin>;
 
 impl super::startup::StartupResources {
@@ -91,7 +91,8 @@ impl super::startup::StartupResources {
                 ),
                 Output::new(io.pins.gpio9, Level::High),
                 Delay,
-            ),
+            )
+            .unwrap(),
             io.pins.gpio4,
             io.pins.gpio15,
             io.pins.gpio23,

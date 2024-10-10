@@ -26,7 +26,7 @@ use esp_hal::{
 use crate::board::{AdcDmaChannel, AdcSpiInstance};
 
 #[cfg(feature = "battery_max17055")]
-use esp_hal::i2c::I2C;
+use esp_hal::i2c::I2c;
 #[cfg(feature = "battery_max17055")]
 use {
     crate::board::{BatteryAdcEnablePin, BatteryFg, BatteryFgI2cInstance},
@@ -115,7 +115,7 @@ impl StartupResources {
 
         Display::new(
             SPIInterface::new(
-                ExclusiveDevice::new(display_spi, DummyOutputPin, Delay),
+                ExclusiveDevice::new(display_spi, DummyOutputPin, Delay).unwrap(),
                 Output::new(display_dc, Level::Low),
             ),
             Output::new(display_reset, Level::Low),
@@ -147,6 +147,7 @@ impl StartupResources {
             Output::new(adc_cs, Level::High),
             Delay,
         )
+        .unwrap()
     }
 
     #[inline(always)]
@@ -203,7 +204,7 @@ impl StartupResources {
             Input::new(vbus_detect, Pull::None),
             Input::new(charger_status, Pull::Up),
             BatteryFg::new(
-                Max17055::new(I2C::new_async(i2c, sda, scl, 100u32.kHz()), design),
+                Max17055::new(I2c::new_async(i2c, sda, scl, 100u32.kHz()), design),
                 fg_enable,
             ),
         )
