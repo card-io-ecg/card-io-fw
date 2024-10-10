@@ -1,22 +1,19 @@
 [target.xtensa-esp32s3-none-elf]
+runner    = "probe-rs run --preverify"
 rustflags = [
   "-C", "link-arg=-nostartfiles",
   "-C", "link-arg=-Wl,-Tlinkall.x",
   "-C", "link-arg=-Trom_functions.x",
-]
-
-[target.xtensa-esp32s2-none-elf]
-rustflags = [
-  "-C", "link-arg=-nostartfiles",
-  "-C", "link-arg=-Wl,-Tlinkall.x",
-  "-C", "link-arg=-Trom_functions.x",
+  "-C", "link-arg=-Tdefmt.x",
 ]
 
 [target.riscv32imac-unknown-none-elf]
+runner    = "probe-rs run --preverify"
 rustflags = [
   "-C", "force-frame-pointers",
   "-C", "link-arg=-Tlinkall.x",
   "-C", "link-arg=-Trom_functions.x",
+  "-C", "link-arg=-Tdefmt.x",
 ]
 
 [alias]
@@ -29,3 +26,20 @@ xrun = "xtask run"
 xdoc = "xtask doc"
 example = "xtask example"
 monitor = "xtask monitor"
+
+[env]
+DEFMT_LOG = "card_io_fw=debug,info"
+
+ESP_WIFI_RX_QUEUE_SIZE = "16"
+ESP_WIFI_STATIC_RX_BUF_NUM = "32"
+ESP_WIFI_DYNAMIC_RX_BUF_NUM = "16"
+
+ESP_WIFI_TX_QUEUE_SIZE = "16"
+ESP_WIFI_STATIC_TX_BUF_NUM = "12"
+ESP_WIFI_DYNAMIC_TX_BUF_NUM = "16"
+
+ESP_WIFI_AMPDU_RX_ENABLE = "y"
+ESP_WIFI_AMPDU_TX_ENABLE = "y"
+ESP_WIFI_RX_BA_WIN = "8"
+ESP_WIFI_MAX_BURST_SIZE = "0" # 0 means no limit
+ESP_WIFI_TICK_RATE_HZ = "200"

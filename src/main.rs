@@ -9,11 +9,8 @@
 #![allow(incomplete_features)] // generic_const_exprs
 
 extern crate alloc;
-
 #[macro_use]
 extern crate logger;
-
-use esp_println as _;
 
 use alloc::{boxed::Box, rc::Rc};
 use embassy_executor::Spawner;
@@ -195,6 +192,16 @@ where
 
 #[main]
 async fn main(_spawner: Spawner) {
+    let channels = rtt_target::rtt_init! {
+        up: {
+            0: {
+                size: 1024,
+                name: "defmt"
+            }
+        }
+    };
+    rtt_target::set_defmt_channel(channels.up.0);
+
     esp_alloc::heap_allocator!((48 + 96) * 1024);
 
     let resources = StartupResources::initialize().await;

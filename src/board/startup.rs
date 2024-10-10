@@ -33,9 +33,6 @@ use {
     max17055::{DesignData, Max17055},
 };
 
-#[cfg(feature = "log")]
-use esp_println::logger::init_logger;
-
 use fugit::RateExtU32;
 
 pub struct StartupResources {
@@ -51,9 +48,6 @@ pub struct StartupResources {
 
 impl StartupResources {
     pub(super) fn common_init() -> Peripherals {
-        #[cfg(feature = "log")]
-        init_logger(log::LevelFilter::Trace); // we let the compile-time log level filter do the work
-
         use core::ptr::addr_of;
 
         #[cfg(feature = "esp32s3")]
