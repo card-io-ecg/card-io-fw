@@ -16,14 +16,6 @@ pub enum Subcommands {
     /// Runs tests.
     Test,
 
-    /// Connects to the Card/IO device to display serial output.
-    Monitor {
-        /// Which hardware version is connected.
-        hw: Option<HardwareVersion>,
-
-        profile: Option<Profile>,
-    },
-
     /// Builds, flashes and runs the firmware on a connected device.
     Run {
         /// Which hardware version to run on.
@@ -143,11 +135,6 @@ fn build(config: BuildConfig, timings: bool) -> AnyResult<()> {
         cargo(config.soc.toolchain(), &command).run()?;
     }
 
-    match config.soc {
-        SocConfig::S3 => std::fs::copy("cfg_esp32s3.toml", "cfg.toml").ok(),
-        SocConfig::C6 => std::fs::copy("cfg_esp32c6.toml", "cfg.toml").ok(),
-    };
-
     let flash_size = format!("-s{}mb", config.version.flash_size());
     let mut command = vec![
         "espflash",
@@ -168,40 +155,16 @@ fn run(config: BuildConfig) -> AnyResult<()> {
     let build_flags = config.build_flags();
     let build_flags = build_flags.iter().map(|s| s.as_str()).collect::<Vec<_>>();
 
-    // println!("🛠️  Building firmware");
-    //
-    // let mut args = vec!["build"];
-    // args.extend_from_slice(&build_flags);
-    //
-    // cargo(&args).run()?;
+    println!("🛠️  Building firmware");
 
-    println!("💾  Building and flashing firmware");
+    build(config, false)?;
 
-    match config.soc {
-        SocConfig::S3 => std::fs::copy("cfg_esp32s3.toml", "cfg.toml").ok(),
-        SocConfig::C6 => std::fs::copy("cfg_esp32c6.toml", "cfg.toml").ok(),
-    };
+    println!("💾  Flashing firmware");
 
     let mut args = vec!["run"];
     args.extend_from_slice(&build_flags);
 
     cargo(config.soc.toolchain(), &args).run()?;
-
-    Ok(())
-}
-
-fn monitor(config: BuildConfig) -> AnyResult<()> {
-    cargo(
-        config.soc.toolchain(),
-        &[
-            "espflash",
-            "monitor",
-            "-e",
-            &config.elf_string(),
-            "--log-format=defmt",
-        ],
-    )
-    .run()?;
 
     Ok(())
 }
@@ -287,12 +250,9 @@ fn example(package: String, name: String, watch: bool) -> AnyResult<()> {
 fn main() -> AnyResult<()> {
     let cli = Cli::parse();
 
-    env::set_var("DEFMT_LOG", "card_io_fw=debug,info");
-
     match cli.subcommand {
         Subcommands::Build { hw } => build(BuildConfig::from(hw), false),
         Subcommands::Test => test(),
-        Subcommands::Monitor { hw, profile } => monitor(BuildConfig::new(hw, profile)),
         Subcommands::Run { hw, profile } => run(BuildConfig::new(hw, profile)),
         Subcommands::Check { hw } => checks(BuildConfig::from(hw)),
         Subcommands::Doc { hw, open } => docs(BuildConfig::from(hw), open),
@@ -377,10 +337,6 @@ impl BuildConfig {
 
     fn elf_string(&self) -> String {
         self.elf().display().to_string()
-    }
-
-    fn tool(&self, tool: &str) -> String {
-        format!("xtensa-esp32s3-elf-{tool}")
     }
 
     fn build_flags(self) -> Vec<String> {
