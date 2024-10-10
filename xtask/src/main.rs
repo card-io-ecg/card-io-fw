@@ -1,5 +1,3 @@
-use std::{env, path::PathBuf};
-
 use anyhow::Result as AnyResult;
 use clap::{Parser, Subcommand, ValueEnum};
 
@@ -93,15 +91,6 @@ impl HardwareVersion {
 pub enum Profile {
     Debug,
     Release,
-}
-
-impl Profile {
-    fn as_str(&self) -> &str {
-        match self {
-            Profile::Debug => "debug",
-            Profile::Release => "release",
-        }
-    }
 }
 
 #[derive(Debug, Parser)]
@@ -290,12 +279,6 @@ impl SocConfig {
         format!("{}-elf", self.triple())
     }
 
-    fn target_folder(self, profile: Profile) -> PathBuf {
-        PathBuf::from("./target")
-            .join(self.target())
-            .join(profile.as_str())
-    }
-
     fn toolchain(self) -> &'static str {
         match self {
             SocConfig::S3 => "esp",
@@ -325,18 +308,6 @@ impl BuildConfig {
             soc: hw.soc(),
             profile: variant.unwrap_or(Profile::Debug),
         }
-    }
-
-    fn target_folder(&self) -> PathBuf {
-        self.soc.target_folder(self.profile)
-    }
-
-    fn elf(&self) -> PathBuf {
-        self.target_folder().join("card_io_fw")
-    }
-
-    fn elf_string(&self) -> String {
-        self.elf().display().to_string()
     }
 
     fn build_flags(self) -> Vec<String> {
