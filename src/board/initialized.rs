@@ -4,10 +4,9 @@ use crate::{
     board::{
         config::Config,
         drivers::battery_monitor::BatteryMonitor,
-        hal as esp_hal,
         storage::FileSystem,
         wifi::{ap::Ap, sta::Sta, WifiDriver},
-        ChargerStatus, Display, EcgFrontend, VbusDetect,
+        Display, EcgFrontend,
     },
     saved_measurement_exists,
     states::MESSAGE_MIN_DURATION,
@@ -17,7 +16,7 @@ use embassy_executor::SendSpawner;
 use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
 use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
-use esp_hal::clock::Clocks;
+use esp_hal::gpio::Input;
 use gui::{
     screens::message::MessageScreen,
     widgets::{
@@ -35,9 +34,8 @@ pub enum StaMode {
 
 pub struct InnerContext {
     pub display: Display,
-    pub clocks: Clocks<'static>,
     pub high_prio_spawner: SendSpawner,
-    pub battery_monitor: BatteryMonitor<VbusDetect, ChargerStatus>,
+    pub battery_monitor: BatteryMonitor<Input<'static>, Input<'static>>,
     pub wifi: &'static mut WifiDriver,
     pub config: &'static mut Config,
     pub config_changed: bool,
@@ -170,7 +168,7 @@ impl InnerContext {
 
         let sta = self
             .wifi
-            .configure_sta(NetConfig::dhcpv4(Default::default()), &self.clocks)
+            .configure_sta(NetConfig::dhcpv4(Default::default()))
             .await;
 
         sta.update_known_networks(&self.config.known_networks).await;
@@ -186,14 +184,11 @@ impl InnerContext {
 
         let ap = self
             .wifi
-            .configure_ap(
-                NetConfig::ipv4_static(StaticConfigV4 {
-                    address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
-                    gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
-                    dns_servers: Default::default(),
-                }),
-                &self.clocks,
-            )
+            .configure_ap(NetConfig::ipv4_static(StaticConfigV4 {
+                address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
+                gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
+                dns_servers: Default::default(),
+            }))
             .await;
 
         Some(ap)
@@ -214,7 +209,6 @@ impl InnerContext {
                     dns_servers: Default::default(),
                 }),
                 NetConfig::dhcpv4(Default::default()),
-                &self.clocks,
             )
             .await;
 

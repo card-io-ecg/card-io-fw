@@ -2,7 +2,6 @@ use core::{alloc::AllocError, ptr::addr_of, sync::atomic::Ordering};
 
 use crate::{
     board::{
-        hal as esp_hal,
         initialized::Context,
         wifi::{sta_net_task, StackWrapper},
     },
@@ -25,7 +24,7 @@ use embassy_sync::{
 };
 use embassy_time::{with_timeout, Duration};
 use enumset::EnumSet;
-use esp_hal::{peripherals::WIFI, Rng};
+use esp_hal::{peripherals::WIFI, rng::Rng};
 use esp_wifi::{
     wifi::{
         AccessPointInfo, ClientConfiguration, Configuration, WifiController, WifiDevice, WifiEvent,
@@ -79,9 +78,9 @@ pub type KnownNetwork = (WifiNetwork, NetworkPreference);
 type Command = (StaCommand, Rc<Signal<NoopRawMutex, ()>>);
 pub type CommandQueue = Channel<NoopRawMutex, Command, 1>;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[atomic_enum::atomic_enum]
+#[portable_atomic_enum::atomic_enum]
 pub(super) enum InternalConnectionState {
     NotConnected,
     Connecting,
@@ -546,7 +545,9 @@ impl StaController {
                         *preference = NetworkPreference::Deprioritized;
                     }
                 }
-                Configuration::AccessPoint(_) | Configuration::None => unreachable!(),
+                Configuration::EapClient(_)
+                | Configuration::AccessPoint(_)
+                | Configuration::None => unreachable!(),
             },
             Err(_) => unreachable!(),
         }

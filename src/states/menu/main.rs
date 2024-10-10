@@ -1,6 +1,5 @@
 use crate::{
     board::initialized::Context,
-    heap::ALLOCATOR,
     states::menu::{AppMenu, MenuScreen},
     AppState,
 };
@@ -29,7 +28,7 @@ impl SelectValue for MainMenuEvents {
 }
 
 pub async fn main_menu(context: &mut Context) -> AppState {
-    info!("Free heap: {} bytes", ALLOCATOR.free());
+    info!("Free heap: {} bytes", esp_alloc::HEAP.free());
 
     MainMenu
         .display(context)

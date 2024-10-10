@@ -474,7 +474,7 @@ where
     let mut rx_buffer = [0; 512];
     match with_timeout(UPLOAD_TIMEOUT, request.send(&mut rx_buffer)).await {
         Ok(Ok(response)) => {
-            if [Status::Ok, Status::Created].contains(&response.status) {
+            if [Status::Ok, Status::Created].contains(&response.status.into()) {
                 return Ok(());
             }
 

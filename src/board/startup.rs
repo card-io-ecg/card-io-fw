@@ -3,38 +3,33 @@ use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use static_cell::make_static;
 
-use crate::{
-    board::{
-        drivers::{battery_monitor::BatteryMonitor, frontend::Frontend},
-        hal as esp_hal,
-        utils::DummyOutputPin,
-        wifi::WifiDriver,
-        AdcClockEnable, AdcDrdy, AdcReset, AdcSpi, ChargerStatus, Display, DisplayChipSelect,
-        DisplayDataCommand, DisplayDmaChannel, DisplayMosi, DisplayReset, DisplaySclk,
-        DisplaySpiInstance, EcgFrontend, TouchDetect, VbusDetect,
-    },
-    heap::init_heap,
+use crate::board::{
+    drivers::{battery_monitor::BatteryMonitor, frontend::Frontend},
+    utils::DummyOutputPin,
+    wifi::WifiDriver,
+    AdcSpi, ChargerStatusPin, Display, DisplayDmaChannel, DisplaySpiInstance, EcgFrontend,
+    VbusDetectPin,
 };
 use esp_hal::{
-    clock::Clocks,
-    dma::{DmaDescriptor, DmaPriority},
-    gpio::OutputPin as _,
-    interrupt, peripherals,
-    spi::{
-        master::{dma::*, Instance, Spi},
-        SpiMode,
-    },
-    Rtc,
+    clock::CpuClock,
+    dma::*,
+    dma_buffers,
+    gpio::{Input, InputPin, Level, Output, OutputPin, Pull},
+    interrupt::software::SoftwareInterrupt,
+    peripheral::Peripheral,
+    peripherals::Peripherals,
+    rtc_cntl::Rtc,
+    spi::{master::Spi, SpiMode},
 };
 
 #[cfg(feature = "esp32s3")]
-use crate::board::{AdcChipSelect, AdcDmaChannel, AdcMiso, AdcMosi, AdcSclk, AdcSpiInstance};
+use crate::board::{AdcDmaChannel, AdcSpiInstance};
 
 #[cfg(feature = "battery_max17055")]
-use esp_hal::i2c::I2C;
+use esp_hal::i2c::I2c;
 #[cfg(feature = "battery_max17055")]
 use {
-    crate::board::{BatteryAdcEnable, BatteryFg, BatteryFgI2cInstance, I2cScl, I2cSda},
+    crate::board::{BatteryAdcEnablePin, BatteryFg, BatteryFgI2cInstance},
     max17055::{DesignData, Max17055},
 };
 
@@ -46,18 +41,18 @@ use fugit::RateExtU32;
 pub struct StartupResources {
     pub display: Display,
     pub frontend: EcgFrontend,
-    pub clocks: Clocks<'static>,
-    pub battery_monitor: BatteryMonitor<VbusDetect, ChargerStatus>,
+    pub battery_monitor: BatteryMonitor<VbusDetectPin, ChargerStatusPin>,
 
     pub wifi: &'static mut WifiDriver,
     pub rtc: Rtc<'static>,
+
+    pub software_interrupt1: SoftwareInterrupt<1>,
 }
 
 impl StartupResources {
-    pub(super) fn common_init() {
+    pub(super) fn common_init() -> Peripherals {
         #[cfg(feature = "log")]
         init_logger(log::LevelFilter::Trace); // we let the compile-time log level filter do the work
-        init_heap();
 
         use core::ptr::addr_of;
 
@@ -89,51 +84,41 @@ impl StartupResources {
         };
         let _stack_protection =
             make_static!(crate::stack_protection::StackMonitor::protect(stack_range));
+
+        esp_hal::init({
+            let mut config = esp_hal::Config::default();
+            config.cpu_clock = CpuClock::max();
+            config
+        })
     }
 
     #[inline(always)]
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_display_driver(
         display_dma_channel: DisplayDmaChannel,
-        dma_in_interrupt: peripherals::Interrupt,
-        dma_out_interrupt: peripherals::Interrupt,
         display_spi: DisplaySpiInstance,
-        display_reset: impl Into<DisplayReset>,
-        display_dc: impl Into<DisplayDataCommand>,
-        display_cs: impl Into<DisplayChipSelect>,
-        display_sclk: impl Into<DisplaySclk>,
-        display_mosi: impl Into<DisplayMosi>,
-        clocks: &Clocks,
+        display_reset: impl Peripheral<P = impl OutputPin> + 'static,
+        display_dc: impl Peripheral<P = impl OutputPin> + 'static,
+        display_cs: impl Peripheral<P = impl OutputPin> + 'static,
+        display_sclk: impl Peripheral<P = impl OutputPin> + 'static,
+        display_mosi: impl Peripheral<P = impl OutputPin> + 'static,
     ) -> Display {
-        unwrap!(interrupt::enable(
-            dma_in_interrupt,
-            interrupt::Priority::Priority1
-        ));
-        unwrap!(interrupt::enable(
-            dma_out_interrupt,
-            interrupt::Priority::Priority1
-        ));
-
-        let mut display_cs: DisplayChipSelect = display_cs.into();
-
-        display_cs.connect_peripheral_to_output(display_spi.cs_signal());
-
-        let display_spi = Spi::new(display_spi, 40u32.MHz(), SpiMode::Mode0, clocks)
-            .with_sck(display_sclk.into())
-            .with_mosi(display_mosi.into())
-            .with_dma(display_dma_channel.configure(
-                false,
-                make_static!([DmaDescriptor::EMPTY; 1]),
-                make_static!([DmaDescriptor::EMPTY; 1]),
-                DmaPriority::Priority0,
-            ));
+        let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(4092);
+        let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
+        let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
+        let display_spi = Spi::new(display_spi, 40u32.MHz(), SpiMode::Mode0)
+            .with_sck(display_sclk)
+            .with_mosi(display_mosi)
+            .with_cs(display_cs)
+            .with_dma(display_dma_channel.configure_for_async(false, DmaPriority::Priority0))
+            .with_buffers(dma_rx_buf, dma_tx_buf);
 
         Display::new(
             SPIInterface::new(
-                ExclusiveDevice::new(display_spi, DummyOutputPin, Delay),
-                display_dc.into(),
+                ExclusiveDevice::new(display_spi, DummyOutputPin, Delay).unwrap(),
+                Output::new(display_dc, Level::Low),
             ),
-            display_reset.into(),
+            Output::new(display_reset, Level::Low),
         )
     }
 
@@ -142,88 +127,62 @@ impl StartupResources {
     #[cfg(feature = "esp32s3")]
     pub(crate) fn create_frontend_spi(
         adc_dma_channel: AdcDmaChannel,
-        dma_in_interrupt: peripherals::Interrupt,
-        dma_out_interrupt: peripherals::Interrupt,
         adc_spi: AdcSpiInstance,
-        adc_sclk: impl Into<AdcSclk>,
-        adc_mosi: impl Into<AdcMosi>,
-        adc_miso: impl Into<AdcMiso>,
-        adc_cs: impl Into<AdcChipSelect>,
-
-        clocks: &Clocks,
+        adc_sclk: impl Peripheral<P = impl OutputPin> + 'static,
+        adc_mosi: impl Peripheral<P = impl OutputPin> + 'static,
+        adc_miso: impl Peripheral<P = impl InputPin> + 'static,
+        adc_cs: impl Peripheral<P = impl OutputPin> + 'static,
     ) -> AdcSpi {
-        use embedded_hal::digital::OutputPin;
-
-        unwrap!(interrupt::enable(
-            dma_in_interrupt,
-            interrupt::Priority::Priority1
-        ));
-        unwrap!(interrupt::enable(
-            dma_out_interrupt,
-            interrupt::Priority::Priority1
-        ));
-
-        let mut adc_cs: AdcChipSelect = adc_cs.into();
-
-        unwrap!(adc_cs.set_high().ok());
+        let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(4092);
+        let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
+        let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
 
         ExclusiveDevice::new(
-            Spi::new(adc_spi, 1u32.MHz(), SpiMode::Mode1, clocks)
-                .with_sck(adc_sclk.into())
-                .with_mosi(adc_mosi.into())
-                .with_miso(adc_miso.into())
-                .with_dma(adc_dma_channel.configure(
-                    false,
-                    make_static!([DmaDescriptor::EMPTY; 1]),
-                    make_static!([DmaDescriptor::EMPTY; 1]),
-                    DmaPriority::Priority1,
-                )),
-            adc_cs,
+            Spi::new(adc_spi, 1u32.MHz(), SpiMode::Mode1)
+                .with_sck(adc_sclk)
+                .with_mosi(adc_mosi)
+                .with_miso(adc_miso)
+                .with_dma(adc_dma_channel.configure_for_async(false, DmaPriority::Priority1))
+                .with_buffers(dma_rx_buf, dma_tx_buf),
+            Output::new(adc_cs, Level::High),
             Delay,
         )
+        .unwrap()
     }
 
     #[inline(always)]
     pub(crate) fn create_frontend_driver(
         adc_spi: AdcSpi,
-        adc_drdy: impl Into<AdcDrdy>,
-        adc_reset: impl Into<AdcReset>,
-        adc_clock_enable: impl Into<AdcClockEnable>,
-        touch_detect: impl Into<TouchDetect>,
+        adc_drdy: impl Peripheral<P = impl InputPin> + 'static,
+        adc_reset: impl Peripheral<P = impl OutputPin> + 'static,
+        adc_clock_enable: impl Peripheral<P = impl OutputPin> + 'static,
+        touch_detect: impl Peripheral<P = impl InputPin> + 'static,
     ) -> EcgFrontend {
         // DRDY
-        unwrap!(interrupt::enable(
-            peripherals::Interrupt::GPIO,
-            interrupt::Priority::Priority3,
-        ));
 
         Frontend::new(
             adc_spi,
-            adc_drdy.into(),
-            adc_reset.into(),
-            adc_clock_enable.into(),
-            touch_detect.into(),
+            Input::new(adc_drdy, Pull::None),
+            Output::new(adc_reset, Level::Low),
+            Output::new(adc_clock_enable, Level::Low),
+            Input::new(touch_detect, Pull::None),
         )
     }
 
     #[cfg(feature = "battery_max17055")]
     #[inline(always)]
     #[allow(clippy::too_many_arguments)]
-    pub(crate) async fn setup_battery_monitor_fg(
+    pub(crate) async fn setup_battery_monitor_fg<
+        SDA: InputPin + OutputPin,
+        SCL: InputPin + OutputPin,
+    >(
         i2c: BatteryFgI2cInstance,
-        i2c_interrupt: peripherals::Interrupt,
-        sda: impl Into<I2cSda>,
-        scl: impl Into<I2cScl>,
-        vbus_detect: impl Into<VbusDetect>,
-        charger_status: impl Into<ChargerStatus>,
-        fg_enable: impl Into<BatteryAdcEnable>,
-        clocks: &Clocks<'_>,
-    ) -> BatteryMonitor<VbusDetect, ChargerStatus> {
-        unwrap!(interrupt::enable(
-            i2c_interrupt,
-            interrupt::Priority::Priority1,
-        ));
-
+        sda: impl Peripheral<P = SDA> + 'static,
+        scl: impl Peripheral<P = SCL> + 'static,
+        vbus_detect: impl Peripheral<P = impl InputPin> + 'static,
+        charger_status: impl Peripheral<P = impl InputPin> + 'static,
+        fg_enable: BatteryAdcEnablePin,
+    ) -> BatteryMonitor<VbusDetectPin, ChargerStatusPin> {
         // MCP73832T-2ACI/OT
         // - ITerm/Ireg = 7.5%
         // - Vreg = 4.2
@@ -242,14 +201,11 @@ impl StartupResources {
         };
 
         BatteryMonitor::start(
-            vbus_detect.into(),
-            charger_status.into(),
+            Input::new(vbus_detect, Pull::None),
+            Input::new(charger_status, Pull::Up),
             BatteryFg::new(
-                Max17055::new(
-                    I2C::new(i2c, sda.into(), scl.into(), 100u32.kHz(), clocks),
-                    design,
-                ),
-                fg_enable.into(),
+                Max17055::new(I2c::new_async(i2c, sda, scl, 100u32.kHz()), design),
+                fg_enable,
             ),
         )
         .await

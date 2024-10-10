@@ -1,6 +1,5 @@
 use core::ops::Range;
 
-use crate::board::hal as esp_hal;
 use esp_hal::{
     assist_debug::DebugAssist,
     get_core, interrupt,
@@ -38,7 +37,10 @@ impl StackMonitor {
             top as *const u32,
             top - bottom
         );
-        let mut assist = conjure();
+        let peripheral = unsafe { ASSIST_DEBUG::steal() };
+        let mut assist = DebugAssist::new(peripheral);
+
+        assist.set_interrupt_handler(interrupt_handler);
 
         const CANARY_UNITS: u32 = 1;
         const CANARY_GRANULARITY: u32 = 16;
@@ -79,8 +81,8 @@ impl Drop for StackMonitor {
     }
 }
 
-#[interrupt]
-fn ASSIST_DEBUG() {
+#[handler(priority = esp_hal::interrupt::Priority::max())]
+fn interrupt_handler() {
     let mut da = conjure();
     let cpu = get_core();
 

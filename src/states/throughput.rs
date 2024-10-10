@@ -127,7 +127,7 @@ async fn run_test(context: &mut Context) -> TestResult {
     };
 
     let response = match result {
-        Ok(response) => match response.status {
+        Ok(response) => match response.status.into() {
             Status::Ok => response,
             _ => {
                 warn!("HTTP response error: {:?}", response.status);

@@ -38,3 +38,4 @@ Commands
   Use `--watch` to enable automatic reload when a file changes.
 - To run the config site on your PC, run `cargo example config-site simple --watch`
   and open `127.0.0.1:8080` in a browser.
+

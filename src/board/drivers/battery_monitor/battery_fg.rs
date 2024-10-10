@@ -3,12 +3,7 @@ use embedded_hal::digital::OutputPin;
 use embedded_hal_async::{delay::DelayNs, i2c::I2c};
 use max17055::Max17055;
 
-#[cfg(all(feature = "esp32s3", not(feature = "hw_v6")))]
-use crate::board::hal as esp_hal;
-
 use crate::{task_control::TaskControlToken, Shared};
-#[cfg(all(feature = "esp32s3", not(feature = "hw_v6")))]
-use esp_hal::gpio::RTCPinWithResistors;
 
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -52,13 +47,16 @@ where
     }
 
     #[cfg(all(feature = "esp32s3", not(feature = "hw_v6")))]
-    pub fn disable(&mut self)
+    pub fn disable<R>(&mut self)
     where
-        EN: RTCPinWithResistors,
+        EN: esp_hal::peripheral::Peripheral<P = R>,
+        R: esp_hal::gpio::RtcPinWithResistors,
     {
+        use esp_hal::peripheral::Peripheral;
         // We want to keep the fuel gauge out of shutdown mode
-        self.enable.rtcio_pad_hold(true);
-        self.enable.rtcio_pullup(true);
+        let mut enable = (&mut self.enable).into_ref();
+        enable.rtcio_pad_hold(true);
+        enable.rtcio_pullup(true);
     }
 
     #[cfg(any(not(feature = "esp32s3"), feature = "hw_v6"))]

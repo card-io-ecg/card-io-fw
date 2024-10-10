@@ -1,13 +1,11 @@
 use core::convert::Infallible;
 
-use crate::board::hal as esp_hal;
 use embassy_time::{Duration, Ticker};
 use embedded_hal::{
     digital::{InputPin, OutputPin, PinState},
     spi::ErrorType,
 };
 use embedded_hal_async::spi::SpiBus;
-use esp_hal::clock::Clocks;
 use fugit::HertzU32;
 
 pub struct BitbangSpi<MOSI, MISO, SCLK> {
@@ -55,7 +53,7 @@ where
         }
     }
 
-    pub fn change_bus_frequency(&mut self, frequency: HertzU32, _clocks: &Clocks<'_>) {
+    pub fn change_bus_frequency(&mut self, frequency: HertzU32) {
         self.half_bit_delay = Self::frequency_to_duration(frequency);
     }
 }

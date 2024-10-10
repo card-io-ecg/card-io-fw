@@ -10,7 +10,7 @@ license = "MIT"
 embedded-graphics = "0.8.0"
 embedded-hal = "1.0.0"
 embedded-hal-async = "1.0.0"
-embedded-hal-bus = { version = "0.1.0", features = ["async"] }
+embedded-hal-bus = { version = "0.2.0", features = ["async"] }
 embedded-nal-async = "0.7.0"
 embedded-io = "0.6"
 embedded-io-async = "0.6"
@@ -21,8 +21,8 @@ embassy-net = { version = "0.4", features = [
     "dns",
     "medium-ethernet",
 ] }
-embassy-sync = { version = "0.5.0" }
-embassy-executor = { version = "0.5" }
+embassy-sync = { version = "0.6.0" }
+embassy-executor = { version = "0.6" }
 
 heapless = "0.8"
 log = { version = "0.4.18", default-features = false, features = [
@@ -37,7 +37,7 @@ norfs-esp32s3 = { git = "https://github.com/card-io-ecg/norfs.git", rev = "19e14
 norfs-esp32c6 = { git = "https://github.com/card-io-ecg/norfs.git", rev = "19e14b5" }
 object-chain = "0.1.3"
 bad-server = { path = "bad-server" }
-defmt = { version = "=0.3.5" }
+defmt = "0.3.8"
 ufmt = "0.2.0"
 
 smoltcp = { version = "0.11.0", default-features = false, features = [
@@ -51,35 +51,18 @@ embassy-time = { version = "0.3.0" }
 
 embedded-hal-old = { package = "embedded-hal", version = "0.2.7" }
 
-# esp32s2-hal = { version = "0.10.0", optional = true, features = ["rt", "async", "embassy", "embassy-time-systick", "eh1"] }
-esp32s3-hal = { version = "0.15.0", optional = true, features = [
-    "rt",
-    "async",
-    "embassy",
-    "embassy-executor-thread",
-    "embassy-executor-interrupt",
-    "embassy-time-systick",
-    "eh1",
-] }
-esp32c6-hal = { version = "0.8.0", optional = true, default-features = false, features = [
-    "rt",
-    "vectored",
-    "zero-rtc-bss",
-    "async",
-    "embassy",
-    "embassy-executor-thread",
-    "embassy-executor-interrupt",
-    "eh1",
-] }
-esp-backtrace = { version = "0.10.0", features = [
+esp-hal = { version = "0.21.0" }
+esp-hal-embassy = { version = "0.4.0" }
+esp-backtrace = { version = "0.14.2", features = [
     "panic-handler",
     "exception-handler",
 ] }
-esp-println = { version = "0.8.0", default-features = false, features = [
+esp-println = { version = "0.12.0", default-features = false, features = [
     "critical-section",
 ] }
-esp-alloc = "0.3.0"
-esp-wifi = { version = "0.3.0", default-features = false, features = [
+esp-alloc = "0.5.0"
+esp-wifi = { version = "0.10.1", default-features = false, features = [
+    "esp-alloc",
     "phy-enable-usb",
     "ps-max-modem",
     "wifi",
@@ -93,11 +76,9 @@ esp-wifi = { version = "0.3.0", default-features = false, features = [
 
 display-interface = "0.5"
 display-interface-spi = "0.5"
-ssd1306 = { git = "https://github.com/bugadani/ssd1306.git", branch = "ehal1", features = [
-    "graphics",
-] }
+ssd1306 = { version = "0.9.0", features = ["async", "graphics"] }
 
-atomic_enum = "0.2.0"
+portable_atomic_enum = "0.3.1"
 config-site = { path = "config-site", default-features = false, features = [
     "embedded",
 ] }
@@ -117,7 +98,7 @@ replace_with = { version = "0.1", default-features = false, features = [
 static_cell = { version = "2.0.0", features = ["nightly"] }
 bad-server = { path = "bad-server", features = ["embassy"] }
 embedded-tls = { version = "0.17.0", default-features = false }
-reqwless = "0.11.0"
+reqwless = "0.12.1"
 
 embedded-graphics.workspace = true
 embedded-hal.workspace = true
@@ -150,17 +131,13 @@ smoltcp = { workspace = true }
 crc = "3.0.1"
 enumset = "1.1.3"
 
-[patch.crates-io]
-esp32-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0aa880af7271f059797339bf890d2d59c64" }
-esp32s2-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0aa880af7271f059797339bf890d2d59c64" }
-esp32s3-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0aa880af7271f059797339bf890d2d59c64" }
-esp32c2-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0aa880af7271f059797339bf890d2d59c64" }
-esp32c3-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0aa880af7271f059797339bf890d2d59c64" }
-esp32c6-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0aa880af7271f059797339bf890d2d59c64" }
-esp32h2-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0aa880af7271f059797339bf890d2d59c64" }
-esp-hal-procmacros = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0aa880af7271f059797339bf890d2d59c64" }
-esp-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0aa880af7271f059797339bf890d2d59c64" }
-esp-wifi = { git = "https://github.com/esp-rs/esp-wifi", rev = "d200a167237f03cf63edce721a5f85fd65d2db84" }
+#[patch.crates-io]
+#esp-hal = { git = "https://github.com/bugadani/esp-hal.git", rev = "7ca1b4376fd48229c887018d7133ce317742ce4e" }
+#esp-hal-embassy = { git = "https://github.com/bugadani/esp-hal.git", rev = "7ca1b4376fd48229c887018d7133ce317742ce4e" }
+#esp-wifi = { git = "https://github.com/bugadani/esp-hal.git", rev = "7ca1b4376fd48229c887018d7133ce317742ce4e" }
+#esp-backtrace = { git = "https://github.com/bugadani/esp-hal.git", rev = "7ca1b4376fd48229c887018d7133ce317742ce4e" }
+#esp-println = { git = "https://github.com/bugadani/esp-hal.git", rev = "7ca1b4376fd48229c887018d7133ce317742ce4e" }
+#esp-alloc = { git = "https://github.com/bugadani/esp-hal.git", rev = "7ca1b4376fd48229c887018d7133ce317742ce4e" }
 
 [features]
 default = ["defmt"]
@@ -173,31 +150,32 @@ hw_v6 = ["battery_max17055"] # skipped v5, v6 has S3 and C6 options
 # MCU options
 # esp32s2 = ["dep:esp32s2", "dep:esp32s2-hal", "esp-backtrace/esp32s2", "esp-println/esp32s2", "rtt"]
 esp32s3 = [
-    "dep:esp32s3-hal",
-    "esp32s3-hal/embassy-time-systick",
+    "esp-hal/esp32s3",
+    "embassy-executor/integrated-timers",
     "dep:norfs-esp32s3",
     "esp-backtrace/esp32s3",
     "esp-println/esp32s3",
     "jtag-serial",
     "esp-wifi/esp32s3",
+    "esp-hal-embassy/esp32s3",
 ]
 esp32c6 = [
-    "dep:esp32c6-hal",
-    "esp32c6-hal/embassy-time-timg0",
+    "esp-hal/esp32c6",
     "embassy-time/generic-queue-8",
     "dep:norfs-esp32c6",
     "esp-backtrace/esp32c6",
     "esp-println/esp32c6",
     "jtag-serial",
     "esp-wifi/esp32c6",
+    "esp-hal-embassy/esp32c6",
 ]
 
 # Signal processing
 downsampler-light = [] # uses IIR-based filtering and less memory
 
 # Print options
-uart = ["esp-backtrace/print-uart", "esp-println/uart"]
-jtag-serial = ["esp-backtrace/print-jtag-serial", "esp-println/jtag-serial"]
+uart = ["esp-println/uart"]
+jtag-serial = ["esp-println/jtag-serial"]
 
 log = [
     "dep:log",
@@ -205,8 +183,8 @@ log = [
     "esp-println/log",
     "esp-println/colors",
     "esp-wifi/log",
-    "esp32s3-hal?/log",
-    "esp32c6-hal?/log",
+    "esp-hal/log",
+    "esp-backtrace/println",
 
     "logger/log",
     "config-site/log",
@@ -227,8 +205,8 @@ defmt = [
     "embedded-graphics/defmt",
     "esp-println/defmt-espflash",
     "esp-wifi/defmt",
-    "esp32s3-hal?/defmt",
-    "esp32c6-hal?/defmt",
+    "esp-hal/defmt",
+    "esp-backtrace/defmt",
 
     "logger/defmt",
     "config-site/defmt",
@@ -268,7 +246,7 @@ codegen-units = 1
 lto = "thin"
 
 [profile.release]
-debug = false
+debug = true
 codegen-units = 1
 lto = "fat"
 

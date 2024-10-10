@@ -1,18 +1,10 @@
 use core::{hint::unreachable_unchecked, mem, ops::Deref, ptr::NonNull};
 
-#[cfg(feature = "esp32s3")]
-type WifiTimer = esp_hal::timer::Timer<esp_hal::timer::Timer0<esp_hal::peripherals::TIMG1>>;
-#[cfg(feature = "esp32c6")]
-type WifiTimer = esp_hal::systimer::Alarm<esp_hal::systimer::Target, 0>;
-
 use crate::{
-    board::{
-        hal as esp_hal,
-        wifi::{
-            ap::{Ap, ApState},
-            ap_sta::ApStaState,
-            sta::{Sta, StaState},
-        },
+    board::wifi::{
+        ap::{Ap, ApState},
+        ap_sta::ApStaState,
+        sta::{Sta, StaState},
     },
     task_control::TaskControlToken,
 };
@@ -20,10 +12,9 @@ use alloc::{boxed::Box, rc::Rc};
 use embassy_executor::Spawner;
 use embassy_net::{Config, Stack, StackResources};
 use esp_hal::{
-    clock::Clocks,
-    peripherals::{RNG, WIFI},
-    system::RadioClockControl,
-    Rng,
+    peripherals::{RADIO_CLK, RNG, WIFI},
+    rng::Rng,
+    timer::AnyTimer,
 };
 use esp_wifi::{
     wifi::{WifiApDevice, WifiDevice, WifiDeviceMode, WifiStaDevice},
@@ -90,9 +81,9 @@ pub struct WifiDriver {
 }
 
 struct WifiInitResources {
-    timer: WifiTimer,
+    timer: AnyTimer,
     rng: Rng,
-    rcc: RadioClockControl,
+    radio_clk: RADIO_CLK,
 }
 
 enum WifiDriverState {
@@ -104,22 +95,17 @@ enum WifiDriverState {
 }
 
 impl WifiDriverState {
-    async fn initialize(
-        &mut self,
-        clocks: &Clocks<'_>,
-        callback: impl FnOnce(EspWifiInitialization) -> Self,
-    ) {
+    async fn initialize(&mut self, callback: impl FnOnce(EspWifiInitialization) -> Self) {
         self.uninit().await;
         replace_with::replace_with_or_abort(self, |this| {
             let token = match this {
                 Self::Uninitialized(resources) => {
                     info!("Initializing Wifi driver");
-                    let token = unwrap!(esp_wifi::initialize(
+                    let token = unwrap!(esp_wifi::init(
                         EspWifiInitFor::Wifi,
                         resources.timer,
                         resources.rng,
-                        resources.rcc,
-                        clocks,
+                        resources.radio_clk,
                     ));
                     info!("Wifi driver initialized");
                     token
@@ -146,21 +132,25 @@ impl WifiDriverState {
 }
 
 impl WifiDriver {
-    pub fn new(wifi: WIFI, timer: WifiTimer, rng: RNG, rcc: RadioClockControl) -> Self {
+    pub fn new(wifi: WIFI, timer: AnyTimer, rng: RNG, radio_clk: RADIO_CLK) -> Self {
         let rng = Rng::new(rng);
         Self {
             wifi,
             rng,
-            state: WifiDriverState::Uninitialized(WifiInitResources { timer, rng, rcc }),
+            state: WifiDriverState::Uninitialized(WifiInitResources {
+                timer,
+                rng,
+                radio_clk,
+            }),
         }
     }
 
-    pub async fn configure_ap(&mut self, ap_config: Config, clocks: &Clocks<'_>) -> Ap {
+    pub async fn configure_ap(&mut self, ap_config: Config) -> Ap {
         // Prepare, stop STA if running
         if !matches!(self.state, WifiDriverState::Ap(_)) {
             let spawner = Spawner::for_current_executor().await;
             self.state
-                .initialize(clocks, |init| {
+                .initialize(|init| {
                     WifiDriverState::Ap(ApState::init(
                         init,
                         ap_config,
@@ -179,17 +169,12 @@ impl WifiDriver {
         }
     }
 
-    pub async fn configure_ap_sta(
-        &mut self,
-        ap_config: Config,
-        sta_config: Config,
-        clocks: &Clocks<'_>,
-    ) -> (Ap, Sta) {
+    pub async fn configure_ap_sta(&mut self, ap_config: Config, sta_config: Config) -> (Ap, Sta) {
         // Prepare, stop STA if running
         if !matches!(self.state, WifiDriverState::ApSta(_)) {
             let spawner = Spawner::for_current_executor().await;
             self.state
-                .initialize(clocks, |init| {
+                .initialize(|init| {
                     WifiDriverState::ApSta(ApStaState::init(
                         init,
                         ap_config,
@@ -210,12 +195,12 @@ impl WifiDriver {
         }
     }
 
-    pub async fn configure_sta(&mut self, sta_config: Config, clocks: &Clocks<'_>) -> Sta {
+    pub async fn configure_sta(&mut self, sta_config: Config) -> Sta {
         // Prepare, stop AP if running
         if !matches!(self.state, WifiDriverState::Sta(_)) {
             let spawner = Spawner::for_current_executor().await;
             self.state
-                .initialize(clocks, |init| {
+                .initialize(|init| {
                     WifiDriverState::Sta(StaState::init(
                         init,
                         sta_config,

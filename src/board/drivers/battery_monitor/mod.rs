@@ -61,7 +61,11 @@ pub struct BatteryMonitor<VBUS, CHG> {
     sensor: Shared<BatterySensor>,
 }
 
-impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
+impl<VBUS, CHG> BatteryMonitor<VBUS, CHG>
+where
+    VBUS: InputPin,
+    CHG: InputPin,
+{
     pub async fn start(vbus_detect: VBUS, charger_status: CHG, sensor: BatterySensorImpl) -> Self {
         let this = BatteryMonitor {
             sensor: Rc::new(Mutex::new(BatterySensor {
@@ -133,7 +137,11 @@ impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
 }
 
 #[cfg(feature = "battery_max17055")]
-impl<VBUS: InputPin, CHG: InputPin> BatteryMonitor<VBUS, CHG> {
+impl<VBUS, CHG> BatteryMonitor<VBUS, CHG>
+where
+    VBUS: InputPin,
+    CHG: InputPin,
+{
     pub fn convert_battery_data(&mut self, data: BatteryData) -> BatteryInfo {
         BatteryInfo {
             voltage: data.voltage,
