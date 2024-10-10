@@ -1,22 +1,19 @@
 [target.xtensa-esp32s3-none-elf]
+runner    = "probe-rs run"
 rustflags = [
   "-C", "link-arg=-nostartfiles",
   "-C", "link-arg=-Wl,-Tlinkall.x",
   "-C", "link-arg=-Trom_functions.x",
-]
-
-[target.xtensa-esp32s2-none-elf]
-rustflags = [
-  "-C", "link-arg=-nostartfiles",
-  "-C", "link-arg=-Wl,-Tlinkall.x",
-  "-C", "link-arg=-Trom_functions.x",
+  "-C", "link-arg=-Tdefmt.x",
 ]
 
 [target.riscv32imac-unknown-none-elf]
+runner    = "probe-rs run"
 rustflags = [
   "-C", "force-frame-pointers",
   "-C", "link-arg=-Tlinkall.x",
   "-C", "link-arg=-Trom_functions.x",
+  "-C", "link-arg=-Tdefmt.x",
 ]
 
 [alias]

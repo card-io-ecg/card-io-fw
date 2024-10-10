@@ -188,13 +188,7 @@ fn run(config: BuildConfig) -> AnyResult<()> {
         SocConfig::C6 => std::fs::copy("cfg_esp32c6.toml", "cfg.toml").ok(),
     };
 
-    let mut args = vec![
-        "espflash",
-        "flash",
-        "-M",
-        "--erase-parts=otadata",
-        "--log-format=defmt",
-    ];
+    let mut args = vec!["run"];
     args.extend_from_slice(&build_flags);
 
     cargo(config.soc.toolchain(), &args).run()?;
