@@ -1,5 +1,5 @@
 [target.xtensa-esp32s3-none-elf]
-runner    = "probe-rs run"
+runner    = "probe-rs run --preverify"
 rustflags = [
   "-C", "link-arg=-nostartfiles",
   "-C", "link-arg=-Wl,-Tlinkall.x",
@@ -8,7 +8,7 @@ rustflags = [
 ]
 
 [target.riscv32imac-unknown-none-elf]
-runner    = "probe-rs run"
+runner    = "probe-rs run --preverify"
 rustflags = [
   "-C", "force-frame-pointers",
   "-C", "link-arg=-Tlinkall.x",
