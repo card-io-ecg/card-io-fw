@@ -129,13 +129,14 @@ smoltcp.workspace = true
 crc = "3.0.1"
 enumset = "1.1.3"
 
-#[patch.crates-io]
-#esp-hal = { git = "https://github.com/bugadani/esp-hal.git", rev = "7ca1b4376fd48229c887018d7133ce317742ce4e" }
-#esp-hal-embassy = { git = "https://github.com/bugadani/esp-hal.git", rev = "7ca1b4376fd48229c887018d7133ce317742ce4e" }
-#esp-wifi = { git = "https://github.com/bugadani/esp-hal.git", rev = "7ca1b4376fd48229c887018d7133ce317742ce4e" }
-#esp-backtrace = { git = "https://github.com/bugadani/esp-hal.git", rev = "7ca1b4376fd48229c887018d7133ce317742ce4e" }
-#esp-println = { git = "https://github.com/bugadani/esp-hal.git", rev = "7ca1b4376fd48229c887018d7133ce317742ce4e" }
-#esp-alloc = { git = "https://github.com/bugadani/esp-hal.git", rev = "7ca1b4376fd48229c887018d7133ce317742ce4e" }
+[patch.crates-io]
+esp-hal = { git = "https://github.com/bugadani/esp-hal.git", rev = "4b9ef27" }
+esp-hal-embassy = { git = "https://github.com/bugadani/esp-hal.git", rev = "4b9ef27" }
+esp-wifi = { git = "https://github.com/bugadani/esp-hal.git", rev = "4b9ef27" }
+esp-backtrace = { git = "https://github.com/bugadani/esp-hal.git", rev = "4b9ef27" }
+esp-println = { git = "https://github.com/bugadani/esp-hal.git", rev = "4b9ef27" }
+esp-alloc = { git = "https://github.com/bugadani/esp-hal.git", rev = "4b9ef27" }
+xtensa-lx-rt = { git = "https://github.com/bugadani/esp-hal.git", rev = "4b9ef27" }
 
 [features]
 default = ["defmt"]
