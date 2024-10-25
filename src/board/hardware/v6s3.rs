@@ -17,7 +17,7 @@ use esp_hal::{
     interrupt::software::SoftwareInterruptControl,
     peripherals,
     rtc_cntl::Rtc,
-    spi::{master::SpiDmaBus, FullDuplexMode},
+    spi::master::SpiDmaBus,
     timer::{
         systimer::{SystemTimer, Target},
         timg::TimerGroup,
@@ -26,24 +26,14 @@ use esp_hal::{
     Async,
 };
 
-pub type DisplaySpiInstance = peripherals::SPI2;
 pub type DisplayDmaChannel = ChannelCreator<0>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, Output<'static>>;
-pub type DisplaySpi<'d> = ExclusiveDevice<
-    SpiDmaBus<'d, DisplaySpiInstance, FullDuplexMode, Async>,
-    DummyOutputPin,
-    Delay,
->;
+pub type DisplaySpi<'d> = ExclusiveDevice<SpiDmaBus<'d, Async>, DummyOutputPin, Delay>;
 
 pub type AdcDmaChannel = ChannelCreator<1>;
-pub type AdcSpiInstance = peripherals::SPI3;
 
-pub type AdcSpi = ExclusiveDevice<
-    SpiDmaBus<'static, AdcSpiInstance, FullDuplexMode, Async>,
-    Output<'static>,
-    Delay,
->;
+pub type AdcSpi = ExclusiveDevice<SpiDmaBus<'static, Async>, Output<'static>, Delay>;
 
 pub type BatteryAdcEnablePin = DummyOutputPin;
 pub type VbusDetectPin = Input<'static>;
@@ -56,8 +46,7 @@ pub type PoweredEcgFrontend =
 
 pub type Display = DisplayType<Output<'static>>;
 
-pub type BatteryFgI2cInstance = peripherals::I2C0;
-pub type BatteryFgI2c = I2c<'static, BatteryFgI2cInstance, Async>;
+pub type BatteryFgI2c = I2c<'static, Async>;
 pub type BatteryFg = BatteryFgType<BatteryFgI2c, BatteryAdcEnablePin>;
 
 impl super::startup::StartupResources {

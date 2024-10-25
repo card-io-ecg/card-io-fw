@@ -7,8 +7,7 @@ use crate::board::{
     drivers::{battery_monitor::BatteryMonitor, frontend::Frontend},
     utils::DummyOutputPin,
     wifi::WifiDriver,
-    AdcSpi, ChargerStatusPin, Display, DisplayDmaChannel, DisplaySpiInstance, EcgFrontend,
-    VbusDetectPin,
+    AdcSpi, ChargerStatusPin, Display, DisplayDmaChannel, EcgFrontend, VbusDetectPin,
 };
 use esp_hal::{
     clock::CpuClock,
@@ -23,13 +22,13 @@ use esp_hal::{
 };
 
 #[cfg(feature = "esp32s3")]
-use crate::board::{AdcDmaChannel, AdcSpiInstance};
+use crate::board::AdcDmaChannel;
 
 #[cfg(feature = "battery_max17055")]
 use esp_hal::i2c::I2c;
 #[cfg(feature = "battery_max17055")]
 use {
-    crate::board::{BatteryAdcEnablePin, BatteryFg, BatteryFgI2cInstance},
+    crate::board::{BatteryAdcEnablePin, BatteryFg},
     max17055::{DesignData, Max17055},
 };
 
@@ -90,7 +89,7 @@ impl StartupResources {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_display_driver(
         display_dma_channel: DisplayDmaChannel,
-        display_spi: DisplaySpiInstance,
+        display_spi: impl Peripheral<P = impl esp_hal::spi::master::Instance> + 'static,
         display_reset: impl Peripheral<P = impl OutputPin> + 'static,
         display_dc: impl Peripheral<P = impl OutputPin> + 'static,
         display_cs: impl Peripheral<P = impl OutputPin> + 'static,
@@ -121,7 +120,7 @@ impl StartupResources {
     #[cfg(feature = "esp32s3")]
     pub(crate) fn create_frontend_spi(
         adc_dma_channel: AdcDmaChannel,
-        adc_spi: AdcSpiInstance,
+        adc_spi: impl Peripheral<P = impl esp_hal::spi::master::Instance> + 'static,
         adc_sclk: impl Peripheral<P = impl OutputPin> + 'static,
         adc_mosi: impl Peripheral<P = impl OutputPin> + 'static,
         adc_miso: impl Peripheral<P = impl InputPin> + 'static,
@@ -170,7 +169,7 @@ impl StartupResources {
         SDA: InputPin + OutputPin,
         SCL: InputPin + OutputPin,
     >(
-        i2c: BatteryFgI2cInstance,
+        i2c: impl Peripheral<P = impl esp_hal::i2c::Instance> + 'static,
         sda: impl Peripheral<P = SDA> + 'static,
         scl: impl Peripheral<P = SCL> + 'static,
         vbus_detect: impl Peripheral<P = impl InputPin> + 'static,
