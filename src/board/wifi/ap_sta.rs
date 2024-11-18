@@ -18,11 +18,11 @@ use embassy_futures::{
 };
 use embassy_net::Config;
 use esp_hal::{peripherals::WIFI, rng::Rng};
-use esp_wifi::wifi::WifiController;
+use esp_wifi::{wifi::WifiController, EspWifiController};
 use macros as cardio;
 
 pub(super) struct ApStaState {
-    init: EspWifiInitialization,
+    init: EspWifiController<'static>,
     connection_task_control: TaskController<(), ApStaTaskResources>,
     ap_net_task_control: TaskController<!>,
     sta_net_task_control: TaskController<!>,
@@ -32,7 +32,7 @@ pub(super) struct ApStaState {
 
 impl ApStaState {
     pub(super) fn init(
-        init: EspWifiInitialization,
+        init: EspWifiController<'static>,
         ap_config: Config,
         sta_config: Config,
         wifi: &'static mut WIFI,
@@ -41,7 +41,10 @@ impl ApStaState {
     ) -> Self {
         info!("Configuring AP-STA");
 
-        let (ap_device, sta_device, controller) = unwrap!(esp_wifi::wifi::new_ap_sta(&init, wifi));
+        let (ap_device, sta_device, controller) = unwrap!(esp_wifi::wifi::new_ap_sta(
+            unsafe { core::mem::transmute(&init) },
+            wifi
+        ));
 
         info!("Starting AP-STA");
 
@@ -100,7 +103,7 @@ impl ApStaState {
         }
     }
 
-    pub(super) async fn stop(mut self) -> EspWifiInitialization {
+    pub(super) async fn stop(mut self) -> EspWifiController<'static> {
         info!("Stopping AP-STA");
         let _ = join3(
             self.connection_task_control.stop(),

@@ -61,7 +61,7 @@ impl Ap {
 }
 
 pub(super) struct ApState {
-    init: EspWifiController,
+    init: EspWifiController<'static>,
     connection_task_control: TaskController<(), ApTaskResources>,
     net_task_control: TaskController<!>,
     handle: Ap,
@@ -69,7 +69,7 @@ pub(super) struct ApState {
 
 impl ApState {
     pub(super) fn init(
-        init: EspWifiController,
+        init: EspWifiController<'static>,
         config: Config,
         wifi: &'static mut WIFI,
         rng: Rng,
@@ -77,8 +77,11 @@ impl ApState {
     ) -> Self {
         info!("Configuring AP");
 
-        let (ap_device, controller) =
-            unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiApDevice));
+        let (ap_device, controller) = unwrap!(esp_wifi::wifi::new_with_mode(
+            unsafe { core::mem::transmute(&init) },
+            wifi,
+            WifiApDevice
+        ));
 
         info!("Starting AP");
 
@@ -106,7 +109,7 @@ impl ApState {
         }
     }
 
-    pub(super) async fn stop(mut self) -> EspWifiInitialization {
+    pub(super) async fn stop(mut self) -> EspWifiController<'static> {
         info!("Stopping AP");
         let _ = join(
             self.connection_task_control.stop(),

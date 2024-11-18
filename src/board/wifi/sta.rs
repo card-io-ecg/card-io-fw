@@ -25,9 +25,12 @@ use embassy_sync::{
 use embassy_time::{with_timeout, Duration};
 use enumset::EnumSet;
 use esp_hal::{peripherals::WIFI, rng::Rng};
-use esp_wifi::wifi::{
-    AccessPointInfo, ClientConfiguration, Configuration, WifiController, WifiDevice, WifiEvent,
-    WifiStaDevice,
+use esp_wifi::{
+    wifi::{
+        AccessPointInfo, ClientConfiguration, Configuration, WifiController, WifiDevice, WifiEvent,
+        WifiStaDevice,
+    },
+    EspWifiController,
 };
 use gui::widgets::wifi_client::WifiClientState;
 use macros as cardio;
@@ -263,7 +266,7 @@ impl<'a> HttpsClientResources<'a> {
 }
 
 pub(super) struct StaState {
-    init: EspWifiInitialization,
+    init: EspWifiController<'static>,
     connection_task_control: TaskController<(), StaTaskResources>,
     net_task_control: TaskController<!>,
     handle: Sta,
@@ -271,7 +274,7 @@ pub(super) struct StaState {
 
 impl StaState {
     pub(super) fn init(
-        init: EspWifiInitialization,
+        init: EspWifiController<'static>,
         config: Config,
         wifi: &'static mut WIFI,
         rng: Rng,
@@ -279,8 +282,11 @@ impl StaState {
     ) -> Self {
         info!("Configuring STA");
 
-        let (sta_device, controller) =
-            unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiStaDevice));
+        let (sta_device, controller) = unwrap!(esp_wifi::wifi::new_with_mode(
+            unsafe { core::mem::transmute(&init) },
+            wifi,
+            WifiStaDevice
+        ));
 
         info!("Starting STA");
 
@@ -325,7 +331,7 @@ impl StaState {
         }
     }
 
-    pub(super) async fn stop(mut self) -> EspWifiInitialization {
+    pub(super) async fn stop(mut self) -> EspWifiController<'static> {
         info!("Stopping STA");
 
         let _ = join(
