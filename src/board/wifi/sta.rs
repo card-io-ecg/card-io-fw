@@ -336,7 +336,7 @@ impl StaState {
 
         let controller = &mut self.connection_task_control.resources_mut().controller;
         if matches!(controller.is_started(), Ok(true)) {
-            unwrap!(controller.stop().await);
+            unwrap!(controller.stop_async().await);
         }
 
         info!("Stopped STA");
@@ -420,7 +420,7 @@ impl StaController {
 
     async fn do_scan(&mut self, controller: &mut WifiController<'_>) {
         info!("Scanning...");
-        let mut scan_results = Box::new(controller.scan_n::<SCAN_RESULTS>().await);
+        let mut scan_results = Box::new(controller.scan_n_async::<SCAN_RESULTS>().await);
 
         match scan_results.as_mut() {
             Ok((ref mut visible_networks, network_count)) => {
@@ -512,7 +512,7 @@ impl StaController {
         controller: &mut WifiController<'_>,
     ) -> Result<(), ConnectError> {
         self.state.update(InternalConnectionState::Connecting);
-        match with_timeout(Duration::from_secs(30), controller.connect()).await {
+        match with_timeout(Duration::from_secs(30), controller.connect_async()).await {
             Ok(Ok(_)) => {
                 self.state.update(InternalConnectionState::WaitingForIp);
                 Ok(())
@@ -664,7 +664,7 @@ async fn sta_task(
     task_control
         .run_cancellable(|resources| async {
             info!("Starting wifi");
-            unwrap!(resources.controller.start().await);
+            unwrap!(resources.controller.start_async().await);
             info!("Wifi started!");
 
             loop {

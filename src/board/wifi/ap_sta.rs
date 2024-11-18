@@ -111,7 +111,7 @@ impl ApStaState {
 
         let controller = &mut self.connection_task_control.resources_mut().controller;
         if matches!(controller.is_started(), Ok(true)) {
-            unwrap!(controller.stop().await);
+            unwrap!(controller.stop_async().await);
         }
 
         info!("Stopped AP-STA");
@@ -141,7 +141,7 @@ async fn ap_sta_task(
             ap_controller.setup(&mut resources.controller).await;
 
             info!("Starting wifi");
-            unwrap!(resources.controller.start().await);
+            unwrap!(resources.controller.start_async().await);
             info!("Wifi started!");
 
             loop {
