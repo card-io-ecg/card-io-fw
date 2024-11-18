@@ -56,8 +56,6 @@ impl super::startup::StartupResources {
         let systimer = SystemTimer::new(peripherals.SYSTIMER).split::<Target>();
         esp_hal_embassy::init(systimer.alarm0);
 
-        let io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
-
         let dma = Dma::new(peripherals.DMA);
 
         let display = Self::create_display_driver(

@@ -133,7 +133,7 @@ impl StartupResources {
         adc_spi: impl Peripheral<P = impl esp_hal::spi::master::Instance> + 'static,
         adc_sclk: impl Peripheral<P = impl OutputPin> + 'static,
         adc_mosi: impl Peripheral<P = impl OutputPin> + 'static,
-        adc_miso: impl Peripheral<P = impl InputPin> + 'static,
+        adc_miso: impl Peripheral<P = impl OutputPin> + 'static,
         adc_cs: impl Peripheral<P = impl OutputPin> + 'static,
     ) -> AdcSpi {
         let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(4092);

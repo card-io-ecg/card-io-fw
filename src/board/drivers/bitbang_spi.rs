@@ -53,8 +53,12 @@ where
         }
     }
 
-    pub fn change_bus_frequency(&mut self, frequency: HertzU32) {
-        self.half_bit_delay = Self::frequency_to_duration(frequency);
+    pub fn apply_config(
+        &mut self,
+        config: &esp_hal::spi::master::Config,
+    ) -> Result<(), esp_hal::spi::master::ConfigError> {
+        self.half_bit_delay = Self::frequency_to_duration(config.frequency);
+        Ok(())
     }
 }
 

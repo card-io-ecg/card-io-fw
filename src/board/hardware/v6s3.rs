@@ -12,10 +12,9 @@ use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
     dma::*,
-    gpio::{Input,  Output},
+    gpio::{Input, Output},
     i2c::master::I2c,
     interrupt::software::SoftwareInterruptControl,
-    peripherals,
     rtc_cntl::Rtc,
     spi::master::SpiDmaBus,
     timer::{
@@ -55,8 +54,6 @@ impl super::startup::StartupResources {
 
         let systimer = SystemTimer::new(peripherals.SYSTIMER).split::<Target>();
         esp_hal_embassy::init(systimer.alarm0);
-
-        let io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
 
         let dma = Dma::new(peripherals.DMA);
 
