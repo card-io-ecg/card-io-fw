@@ -11,7 +11,7 @@ use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
     dma::*,
-    gpio::{Input, Io, Level, Output},
+    gpio::{Input, Level, Output},
     i2c::master::I2c,
     interrupt::software::SoftwareInterruptControl,
     rtc_cntl::Rtc,
