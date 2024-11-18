@@ -14,11 +14,15 @@ use esp_hal::{
     dma::*,
     dma_buffers,
     gpio::{Input, InputPin, Level, Output, OutputPin, Pull},
+    i2c,
     interrupt::software::SoftwareInterrupt,
     peripheral::Peripheral,
     peripherals::Peripherals,
     rtc_cntl::Rtc,
-    spi::{master::Spi, SpiMode},
+    spi::{
+        master::{Config as SpiConfig, Spi},
+        SpiMode,
+    },
 };
 
 #[cfg(feature = "esp32s3")]
@@ -99,12 +103,18 @@ impl StartupResources {
         let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(4092);
         let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
         let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
-        let display_spi = Spi::new(display_spi, 40u32.MHz(), SpiMode::Mode0)
-            .with_sck(display_sclk)
-            .with_mosi(display_mosi)
-            .with_cs(display_cs)
-            .with_dma(display_dma_channel.configure_for_async(false, DmaPriority::Priority0))
-            .with_buffers(dma_rx_buf, dma_tx_buf);
+        let display_spi = Spi::new_with_config(display_spi, {
+            let mut config = SpiConfig::default();
+            config.frequency = 40u32.MHz();
+            config.mode = SpiMode::Mode0;
+            config
+        })
+        .with_sck(display_sclk)
+        .with_mosi(display_mosi)
+        .with_cs(display_cs)
+        .with_dma(display_dma_channel.configure(false, DmaPriority::Priority0))
+        .with_buffers(dma_rx_buf, dma_tx_buf)
+        .into_async();
 
         Display::new(
             SPIInterface::new(
@@ -131,12 +141,18 @@ impl StartupResources {
         let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
 
         ExclusiveDevice::new(
-            Spi::new(adc_spi, 1u32.MHz(), SpiMode::Mode1)
-                .with_sck(adc_sclk)
-                .with_mosi(adc_mosi)
-                .with_miso(adc_miso)
-                .with_dma(adc_dma_channel.configure_for_async(false, DmaPriority::Priority1))
-                .with_buffers(dma_rx_buf, dma_tx_buf),
+            Spi::new_with_config(adc_spi, {
+                let mut config = SpiConfig::default();
+                config.frequency = 1u32.MHz();
+                config.mode = SpiMode::Mode1;
+                config
+            })
+            .with_sck(adc_sclk)
+            .with_mosi(adc_mosi)
+            .with_miso(adc_miso)
+            .with_dma(adc_dma_channel.configure(false, DmaPriority::Priority1))
+            .with_buffers(dma_rx_buf, dma_tx_buf)
+            .into_async(),
             Output::new(adc_cs, Level::High),
             Delay,
         )
@@ -169,7 +185,7 @@ impl StartupResources {
         SDA: InputPin + OutputPin,
         SCL: InputPin + OutputPin,
     >(
-        i2c: impl Peripheral<P = impl esp_hal::i2c::Instance> + 'static,
+        i2c: impl Peripheral<P = impl i2c::master::Instance> + 'static,
         sda: impl Peripheral<P = SDA> + 'static,
         scl: impl Peripheral<P = SCL> + 'static,
         vbus_detect: impl Peripheral<P = impl InputPin> + 'static,
@@ -197,7 +213,19 @@ impl StartupResources {
             Input::new(vbus_detect, Pull::None),
             Input::new(charger_status, Pull::Up),
             BatteryFg::new(
-                Max17055::new(I2c::new_async(i2c, sda, scl, 100u32.kHz()), design),
+                Max17055::new(
+                    I2c::new(
+                        i2c,
+                        i2c::master::Config {
+                            frequency: 100u32.kHz(),
+                            ..Default::default()
+                        },
+                    )
+                    .with_sda(sda)
+                    .with_scl(scl)
+                    .into_async(),
+                    design,
+                ),
                 fg_enable,
             ),
         )

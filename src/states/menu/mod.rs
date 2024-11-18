@@ -13,6 +13,7 @@ use crate::{
     board::initialized::Context,
     states::{TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
     timeout::Timeout,
+    AppState,
 };
 
 pub mod about;
@@ -152,5 +153,18 @@ pub trait MenuScreen {
 
         info!("Menu timeout");
         None
+    }
+}
+
+pub async fn display_menu_screen(menu: AppMenu, board: &mut Context) -> AppState {
+    match menu {
+        AppMenu::Main => main::main_menu(board).await,
+        AppMenu::Display => display::display_menu(board).await,
+        AppMenu::Storage => storage::storage_menu(board).await,
+        AppMenu::DeviceInfo => about::about_menu(board).await,
+        AppMenu::WifiAP => wifi_ap::wifi_ap(board).await,
+        AppMenu::WifiListVisible => wifi_sta::wifi_sta(board).await,
+        #[cfg(feature = "battery_max17055")]
+        AppMenu::BatteryInfo => battery_info::battery_info_menu(board).await,
     }
 }

@@ -120,13 +120,13 @@ crc = "3.0.1"
 enumset = "1.1.3"
 
 [patch.crates-io]
-esp-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "2472e362322c95f6ffa451ff80b6c1867c1cfdf4" }
-esp-hal-embassy = { git = "https://github.com/esp-rs/esp-hal.git", rev = "2472e362322c95f6ffa451ff80b6c1867c1cfdf4" }
-esp-wifi = { git = "https://github.com/esp-rs/esp-hal.git", rev = "2472e362322c95f6ffa451ff80b6c1867c1cfdf4" }
-esp-backtrace = { git = "https://github.com/esp-rs/esp-hal.git", rev = "2472e362322c95f6ffa451ff80b6c1867c1cfdf4" }
-esp-println = { git = "https://github.com/esp-rs/esp-hal.git", rev = "2472e362322c95f6ffa451ff80b6c1867c1cfdf4" }
-esp-alloc = { git = "https://github.com/esp-rs/esp-hal.git", rev = "2472e362322c95f6ffa451ff80b6c1867c1cfdf4" }
-xtensa-lx-rt = { git = "https://github.com/esp-rs/esp-hal.git", rev = "2472e362322c95f6ffa451ff80b6c1867c1cfdf4" }
+esp-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "deaebc76a7e347f956ca46785e093febfa230358" }
+esp-hal-embassy = { git = "https://github.com/esp-rs/esp-hal.git", rev = "deaebc76a7e347f956ca46785e093febfa230358" }
+esp-wifi = { git = "https://github.com/esp-rs/esp-hal.git", rev = "deaebc76a7e347f956ca46785e093febfa230358" }
+esp-backtrace = { git = "https://github.com/esp-rs/esp-hal.git", rev = "deaebc76a7e347f956ca46785e093febfa230358" }
+esp-println = { git = "https://github.com/esp-rs/esp-hal.git", rev = "deaebc76a7e347f956ca46785e093febfa230358" }
+esp-alloc = { git = "https://github.com/esp-rs/esp-hal.git", rev = "deaebc76a7e347f956ca46785e093febfa230358" }
+xtensa-lx-rt = { git = "https://github.com/esp-rs/esp-hal.git", rev = "deaebc76a7e347f956ca46785e093febfa230358" }
 
 [features]
 default = ["defmt"]

@@ -23,9 +23,6 @@ use norfs::{medium::StorageMedium, Storage, StorageError};
 use signal_processing::compressing_buffer::CompressingBuffer;
 use static_cell::{make_static, StaticCell};
 
-#[cfg(feature = "battery_max17055")]
-pub use crate::states::menu::battery_info::battery_info_menu;
-
 use crate::{
     board::{
         config::{Config, ConfigFile},
@@ -39,10 +36,7 @@ use crate::{
         firmware_update::firmware_update,
         init::initialize,
         measure::{measure, ECG_BUFFER_SIZE},
-        menu::{
-            about::about_menu, display::display_menu, main::main_menu, storage::storage_menu,
-            wifi_ap::wifi_ap, wifi_sta::wifi_sta, AppMenu,
-        },
+        menu::{display_menu_screen, AppMenu},
         throughput::throughput,
         upload_or_store_measurement::{upload_or_store_measurement, upload_stored_measurements},
         MESSAGE_DURATION,
@@ -254,14 +248,7 @@ async fn main(_spawner: Spawner) {
             AppState::Initialize => initialize(&mut board).await,
             AppState::Charging => charging(&mut board).await,
             AppState::Measure => measure(&mut board).await,
-            AppState::Menu(AppMenu::Main) => main_menu(&mut board).await,
-            AppState::Menu(AppMenu::Display) => display_menu(&mut board).await,
-            AppState::Menu(AppMenu::Storage) => storage_menu(&mut board).await,
-            AppState::Menu(AppMenu::DeviceInfo) => about_menu(&mut board).await,
-            AppState::Menu(AppMenu::WifiAP) => wifi_ap(&mut board).await,
-            AppState::Menu(AppMenu::WifiListVisible) => wifi_sta(&mut board).await,
-            #[cfg(feature = "battery_max17055")]
-            AppState::Menu(AppMenu::BatteryInfo) => battery_info_menu(&mut board).await,
+            AppState::Menu(menu) => display_menu_screen(menu, &mut board).await,
             AppState::DisplaySerial => display_serial(&mut board).await,
             AppState::FirmwareUpdate => firmware_update(&mut board).await,
             AppState::Throughput => throughput(&mut board).await,

@@ -16,7 +16,7 @@ use esp_wifi::{
         AccessPointConfiguration, Configuration, WifiApDevice, WifiController, WifiDevice,
         WifiEvent,
     },
-    EspWifiInitialization,
+    EspWifiController,
 };
 use macros as cardio;
 
@@ -61,7 +61,7 @@ impl Ap {
 }
 
 pub(super) struct ApState {
-    init: EspWifiInitialization,
+    init: EspWifiController,
     connection_task_control: TaskController<(), ApTaskResources>,
     net_task_control: TaskController<!>,
     handle: Ap,
@@ -69,7 +69,7 @@ pub(super) struct ApState {
 
 impl ApState {
     pub(super) fn init(
-        init: EspWifiInitialization,
+        init: EspWifiController,
         config: Config,
         wifi: &'static mut WIFI,
         rng: Rng,

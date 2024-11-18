@@ -16,10 +16,7 @@ use esp_hal::{
     rng::Rng,
     timer::AnyTimer,
 };
-use esp_wifi::{
-    wifi::{WifiApDevice, WifiDevice, WifiDeviceMode, WifiStaDevice},
-    EspWifiInitFor, EspWifiInitialization,
-};
+use esp_wifi::wifi::{WifiApDevice, WifiDevice, WifiDeviceMode, WifiStaDevice};
 use gui::widgets::{wifi_access_point::WifiAccessPointState, wifi_client::WifiClientState};
 use macros as cardio;
 
@@ -102,7 +99,6 @@ impl WifiDriverState {
                 Self::Uninitialized(resources) => {
                     info!("Initializing Wifi driver");
                     let token = unwrap!(esp_wifi::init(
-                        EspWifiInitFor::Wifi,
                         resources.timer,
                         resources.rng,
                         resources.radio_clk,

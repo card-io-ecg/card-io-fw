@@ -18,7 +18,7 @@ use embassy_futures::{
 };
 use embassy_net::Config;
 use esp_hal::{peripherals::WIFI, rng::Rng};
-use esp_wifi::{wifi::WifiController, EspWifiInitialization};
+use esp_wifi::wifi::WifiController;
 use macros as cardio;
 
 pub(super) struct ApStaState {

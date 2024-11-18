@@ -25,12 +25,9 @@ use embassy_sync::{
 use embassy_time::{with_timeout, Duration};
 use enumset::EnumSet;
 use esp_hal::{peripherals::WIFI, rng::Rng};
-use esp_wifi::{
-    wifi::{
-        AccessPointInfo, ClientConfiguration, Configuration, WifiController, WifiDevice, WifiEvent,
-        WifiStaDevice,
-    },
-    EspWifiInitialization,
+use esp_wifi::wifi::{
+    AccessPointInfo, ClientConfiguration, Configuration, WifiController, WifiDevice, WifiEvent,
+    WifiStaDevice,
 };
 use gui::widgets::wifi_client::WifiClientState;
 use macros as cardio;
