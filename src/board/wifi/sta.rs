@@ -533,7 +533,7 @@ impl StaController {
     }
 
     async fn deprioritize_current(&self, controller: &mut WifiController<'_>) {
-        match controller.get_configuration() {
+        match controller.configuration() {
             Ok(config) => match &config {
                 Configuration::Client(config) | Configuration::Mixed(config, _) => {
                     let mut known_networks = self.known_networks.lock().await;

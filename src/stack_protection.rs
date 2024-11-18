@@ -92,13 +92,13 @@ fn interrupt_handler() {
     match cpu {
         Cpu::ProCpu => {
             is_overflow = da.is_region0_monitor_interrupt_set();
-            pc = da.get_region_monitor_pc();
+            pc = da.region_monitor_pc();
             da.clear_region0_monitor_interrupt();
         }
         #[cfg(feature = "esp32s3")]
         Cpu::AppCpu => {
             is_overflow = da.is_core1_region0_monitor_interrupt_set();
-            pc = da.get_core1_region_monitor_pc();
+            pc = da.core1_region_monitor_pc();
             da.clear_core1_region0_monitor_interrupt();
         }
     }

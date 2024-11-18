@@ -74,7 +74,7 @@ pub struct SerialNumber;
 
 impl SerialNumber {
     pub fn bytes() -> [u8; 6] {
-        esp_hal::efuse::Efuse::get_mac_address()
+        esp_hal::efuse::Efuse::mac_address()
     }
 }
 
