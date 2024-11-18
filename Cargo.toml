@@ -131,8 +131,8 @@ esp-alloc = { git = "https://github.com/esp-rs/esp-hal.git", rev = "deaebc76a7e3
 xtensa-lx-rt = { git = "https://github.com/esp-rs/esp-hal.git", rev = "deaebc76a7e347f956ca46785e093febfa230358" }
 
 [features]
-#default = ["defmt", "rtt"]
-default = ["defmt", "esp-println"]
+default = ["defmt", "rtt"]
+#default = ["defmt", "esp-println"]
 
 battery_max17055 = ["dep:max17055"]
 
