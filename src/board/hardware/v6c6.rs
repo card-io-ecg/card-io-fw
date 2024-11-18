@@ -57,8 +57,11 @@ impl super::startup::StartupResources {
     pub async fn initialize() -> Self {
         let peripherals = Self::common_init();
 
-        let timg0 = TimerGroup::new(peripherals.TIMG0);
-        esp_hal_embassy::init(timg0.timer0);
+        let systimer = SystemTimer::new(peripherals.SYSTIMER).split::<Target>();
+        esp_hal_embassy::init([
+            AnyTimer::from(systimer.alarm0),
+            AnyTimer::from(systimer.alarm1),
+        ]);
 
         let dma = Dma::new(peripherals.DMA);
 
@@ -109,7 +112,7 @@ impl super::startup::StartupResources {
             wifi: static_cell::make_static! {
                 WifiDriver::new(
                     peripherals.WIFI,
-                    AnyTimer::from(SystemTimer::new(peripherals.SYSTIMER).split::<Target>().alarm0),
+                    AnyTimer::from(systimer.alarm2),
                     peripherals.RNG,
                     peripherals.RADIO_CLK,
                 )

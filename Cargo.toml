@@ -50,14 +50,16 @@ embassy-executor = { workspace = true, features = ["nightly"] }
 embassy-time = { version = "0.3.0" }
 
 embedded-hal-old = { package = "embedded-hal", version = "0.2.7" }
-rtt-target = { version = "0.6.0", git = "https://github.com/probe-rs/rtt-target" }
+rtt-target = { version = "0.6.0", git = "https://github.com/probe-rs/rtt-target", optional = true }
 
 esp-hal = { version = "0.21.0" }
 esp-hal-embassy = { version = "0.4.0" }
 esp-backtrace = { version = "0.14.2", features = [
     "panic-handler",
-    "exception-handler",
-    "defmt"
+    "exception-handler"
+] }
+esp-println = { version = "0.12.0", default-features = false, optional = true, features = [
+    "critical-section",
 ] }
 esp-alloc = "0.5.0"
 esp-wifi = { version = "0.10.1", features = ["wifi"] }
@@ -129,7 +131,8 @@ esp-alloc = { git = "https://github.com/esp-rs/esp-hal.git", rev = "deaebc76a7e3
 xtensa-lx-rt = { git = "https://github.com/esp-rs/esp-hal.git", rev = "deaebc76a7e347f956ca46785e093febfa230358" }
 
 [features]
-default = ["defmt"]
+#default = ["defmt", "rtt"]
+default = ["defmt", "esp-println"]
 
 battery_max17055 = ["dep:max17055"]
 
@@ -144,6 +147,7 @@ esp32s3 = [
     "esp-backtrace/esp32s3",
     "esp-wifi/esp32s3",
     "esp-hal-embassy/esp32s3",
+    "esp-println?/esp32s3",
 ]
 esp32c6 = [
     "esp-hal/esp32c6",
@@ -152,6 +156,7 @@ esp32c6 = [
     "esp-backtrace/esp32c6",
     "esp-wifi/esp32c6",
     "esp-hal-embassy/esp32c6",
+    "esp-println?/esp32c6",
 ]
 
 # Signal processing
@@ -163,6 +168,8 @@ defmt = [
     "embedded-graphics/defmt",
     "esp-wifi/defmt",
     "esp-hal/defmt",
+    "esp-backtrace/defmt",
+    "esp-println?/defmt-espflash",
 
     "logger/defmt",
     "config-site/defmt",
@@ -176,8 +183,11 @@ defmt = [
 
     "embassy-net/defmt",
     "smoltcp/defmt",
-    "rtt-target/defmt",
+    "rtt-target?/defmt",
 ]
+
+rtt = ["dep:rtt-target"]
+esp-println = ["dep:esp-println", "esp-println/jtag-serial"]
 
 [package.metadata.espflash]
 partition_table = "partitions.csv"

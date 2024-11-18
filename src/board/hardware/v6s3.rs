@@ -53,7 +53,10 @@ impl super::startup::StartupResources {
         let peripherals = Self::common_init();
 
         let systimer = SystemTimer::new(peripherals.SYSTIMER).split::<Target>();
-        esp_hal_embassy::init(systimer.alarm0);
+        esp_hal_embassy::init([
+            AnyTimer::from(systimer.alarm0),
+            AnyTimer::from(systimer.alarm1),
+        ]);
 
         let dma = Dma::new(peripherals.DMA);
 
