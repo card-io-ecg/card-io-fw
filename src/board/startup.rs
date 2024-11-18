@@ -25,7 +25,7 @@ use esp_hal::{
 use crate::board::AdcDmaChannel;
 
 #[cfg(feature = "battery_max17055")]
-use esp_hal::i2c::I2c;
+use esp_hal::i2c::master::I2c;
 #[cfg(feature = "battery_max17055")]
 use {
     crate::board::{BatteryAdcEnablePin, BatteryFg},

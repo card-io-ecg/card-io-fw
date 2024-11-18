@@ -13,7 +13,7 @@ use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
     dma::*,
     gpio::{Input, Io, Output},
-    i2c::I2c,
+    i2c::master::I2c,
     interrupt::software::SoftwareInterruptControl,
     peripherals,
     rtc_cntl::Rtc,
@@ -63,34 +63,34 @@ impl super::startup::StartupResources {
         let display = Self::create_display_driver(
             dma.channel0,
             peripherals.SPI2,
-            io.pins.gpio18,
-            io.pins.gpio17,
-            io.pins.gpio8,
-            io.pins.gpio39,
-            io.pins.gpio38,
+            peripherals.GPIO18,
+            peripherals.GPIO17,
+            peripherals.GPIO8,
+            peripherals.GPIO39,
+            peripherals.GPIO38,
         );
 
         let adc = Self::create_frontend_driver(
             Self::create_frontend_spi(
                 dma.channel1,
                 peripherals.SPI3,
-                io.pins.gpio6,
-                io.pins.gpio7,
-                io.pins.gpio5,
-                io.pins.gpio0,
+                peripherals.GPIO6,
+                peripherals.GPIO7,
+                peripherals.GPIO5,
+                peripherals.GPIO0,
             ),
-            io.pins.gpio4,
-            io.pins.gpio42,
-            io.pins.gpio40,
-            io.pins.gpio1,
+            peripherals.GPIO4,
+            peripherals.GPIO42,
+            peripherals.GPIO40,
+            peripherals.GPIO1,
         );
 
         let battery_monitor = Self::setup_battery_monitor_fg(
             peripherals.I2C0,
-            io.pins.gpio36,
-            io.pins.gpio35,
-            io.pins.gpio2,
-            io.pins.gpio37,
+            peripherals.GPIO36,
+            peripherals.GPIO35,
+            peripherals.GPIO2,
+            peripherals.GPIO37,
             DummyOutputPin,
         )
         .await;

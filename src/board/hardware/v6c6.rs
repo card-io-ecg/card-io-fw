@@ -13,7 +13,7 @@ use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
     dma::*,
     gpio::{Input, Io, Level, Output, Pull},
-    i2c::I2c,
+    i2c::master::I2c,
     interrupt::software::SoftwareInterruptControl,
     prelude::*,
     rtc_cntl::Rtc,
@@ -60,44 +60,42 @@ impl super::startup::StartupResources {
         let timg0 = TimerGroup::new(peripherals.TIMG0);
         esp_hal_embassy::init(timg0.timer0);
 
-        let io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
-
         let dma = Dma::new(peripherals.DMA);
 
         let display = Self::create_display_driver(
             dma.channel0,
             peripherals.SPI2,
-            io.pins.gpio10,
-            io.pins.gpio8,
-            io.pins.gpio11,
-            io.pins.gpio22,
-            io.pins.gpio21,
+            peripherals.GPIO10,
+            peripherals.GPIO8,
+            peripherals.GPIO11,
+            peripherals.GPIO22,
+            peripherals.GPIO21,
         );
 
         let adc = Self::create_frontend_driver(
             ExclusiveDevice::new(
                 BitbangSpi::new(
-                    Output::new(io.pins.gpio7, Level::Low),
-                    Input::new(io.pins.gpio5, Pull::None),
-                    Output::new(io.pins.gpio6, Level::Low),
+                    Output::new(peripherals.GPIO7, Level::Low),
+                    Input::new(peripherals.GPIO5, Pull::None),
+                    Output::new(peripherals.GPIO6, Level::Low),
                     1u32.MHz(),
                 ),
-                Output::new(io.pins.gpio9, Level::High),
+                Output::new(peripherals.GPIO9, Level::High),
                 Delay,
             )
             .unwrap(),
-            io.pins.gpio4,
-            io.pins.gpio15,
-            io.pins.gpio23,
-            io.pins.gpio2,
+            peripherals.GPIO4,
+            peripherals.GPIO15,
+            peripherals.GPIO23,
+            peripherals.GPIO2,
         );
 
         let battery_monitor = Self::setup_battery_monitor_fg(
             peripherals.I2C0,
-            io.pins.gpio19,
-            io.pins.gpio18,
-            io.pins.gpio3,
-            io.pins.gpio20,
+            peripherals.GPIO19,
+            peripherals.GPIO18,
+            peripherals.GPIO3,
+            peripherals.GPIO20,
             DummyOutputPin,
         )
         .await;
