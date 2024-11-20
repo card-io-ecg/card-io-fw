@@ -12,12 +12,11 @@ use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
     dma::*,
-    gpio::{Input, Io, Output},
-    i2c::I2c,
+    gpio::{Input, Output},
+    i2c::master::I2c,
     interrupt::software::SoftwareInterruptControl,
-    peripherals,
     rtc_cntl::Rtc,
-    spi::{master::SpiDmaBus, FullDuplexMode},
+    spi::master::SpiDmaBus,
     timer::{
         systimer::{SystemTimer, Target},
         timg::TimerGroup,
@@ -26,24 +25,14 @@ use esp_hal::{
     Async,
 };
 
-pub type DisplaySpiInstance = peripherals::SPI2;
 pub type DisplayDmaChannel = ChannelCreator<0>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, Output<'static>>;
-pub type DisplaySpi<'d> = ExclusiveDevice<
-    SpiDmaBus<'d, DisplaySpiInstance, FullDuplexMode, Async>,
-    DummyOutputPin,
-    Delay,
->;
+pub type DisplaySpi<'d> = ExclusiveDevice<SpiDmaBus<'d, Async>, DummyOutputPin, Delay>;
 
 pub type AdcDmaChannel = ChannelCreator<1>;
-pub type AdcSpiInstance = peripherals::SPI3;
 
-pub type AdcSpi = ExclusiveDevice<
-    SpiDmaBus<'static, AdcSpiInstance, FullDuplexMode, Async>,
-    Output<'static>,
-    Delay,
->;
+pub type AdcSpi = ExclusiveDevice<SpiDmaBus<'static, Async>, Output<'static>, Delay>;
 
 pub type BatteryAdcEnablePin = DummyOutputPin;
 pub type VbusDetectPin = Input<'static>;
@@ -56,8 +45,7 @@ pub type PoweredEcgFrontend =
 
 pub type Display = DisplayType<Output<'static>>;
 
-pub type BatteryFgI2cInstance = peripherals::I2C0;
-pub type BatteryFgI2c = I2c<'static, BatteryFgI2cInstance, Async>;
+pub type BatteryFgI2c = I2c<'static, Async>;
 pub type BatteryFg = BatteryFgType<BatteryFgI2c, BatteryAdcEnablePin>;
 
 impl super::startup::StartupResources {
@@ -65,43 +53,44 @@ impl super::startup::StartupResources {
         let peripherals = Self::common_init();
 
         let systimer = SystemTimer::new(peripherals.SYSTIMER).split::<Target>();
-        esp_hal_embassy::init(systimer.alarm0);
-
-        let io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
+        esp_hal_embassy::init([
+            AnyTimer::from(systimer.alarm0),
+            AnyTimer::from(systimer.alarm1),
+        ]);
 
         let dma = Dma::new(peripherals.DMA);
 
         let display = Self::create_display_driver(
             dma.channel0,
             peripherals.SPI2,
-            io.pins.gpio18,
-            io.pins.gpio17,
-            io.pins.gpio8,
-            io.pins.gpio39,
-            io.pins.gpio38,
+            peripherals.GPIO18,
+            peripherals.GPIO17,
+            peripherals.GPIO8,
+            peripherals.GPIO39,
+            peripherals.GPIO38,
         );
 
         let adc = Self::create_frontend_driver(
             Self::create_frontend_spi(
                 dma.channel1,
                 peripherals.SPI3,
-                io.pins.gpio6,
-                io.pins.gpio7,
-                io.pins.gpio5,
-                io.pins.gpio0,
+                peripherals.GPIO6,
+                peripherals.GPIO7,
+                peripherals.GPIO5,
+                peripherals.GPIO0,
             ),
-            io.pins.gpio4,
-            io.pins.gpio42,
-            io.pins.gpio40,
-            io.pins.gpio1,
+            peripherals.GPIO4,
+            peripherals.GPIO42,
+            peripherals.GPIO40,
+            peripherals.GPIO1,
         );
 
         let battery_monitor = Self::setup_battery_monitor_fg(
             peripherals.I2C0,
-            io.pins.gpio36,
-            io.pins.gpio35,
-            io.pins.gpio2,
-            io.pins.gpio37,
+            peripherals.GPIO36,
+            peripherals.GPIO35,
+            peripherals.GPIO2,
+            peripherals.GPIO37,
             DummyOutputPin,
         )
         .await;

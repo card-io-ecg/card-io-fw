@@ -30,7 +30,7 @@ use esp_wifi::{
         AccessPointInfo, ClientConfiguration, Configuration, WifiController, WifiDevice, WifiEvent,
         WifiStaDevice,
     },
-    EspWifiInitialization,
+    EspWifiController,
 };
 use gui::widgets::wifi_client::WifiClientState;
 use macros as cardio;
@@ -266,7 +266,7 @@ impl<'a> HttpsClientResources<'a> {
 }
 
 pub(super) struct StaState {
-    init: EspWifiInitialization,
+    init: EspWifiController<'static>,
     connection_task_control: TaskController<(), StaTaskResources>,
     net_task_control: TaskController<!>,
     handle: Sta,
@@ -274,7 +274,7 @@ pub(super) struct StaState {
 
 impl StaState {
     pub(super) fn init(
-        init: EspWifiInitialization,
+        init: EspWifiController<'static>,
         config: Config,
         wifi: &'static mut WIFI,
         rng: Rng,
@@ -282,8 +282,11 @@ impl StaState {
     ) -> Self {
         info!("Configuring STA");
 
-        let (sta_device, controller) =
-            unwrap!(esp_wifi::wifi::new_with_mode(&init, wifi, WifiStaDevice));
+        let (sta_device, controller) = unwrap!(esp_wifi::wifi::new_with_mode(
+            unsafe { core::mem::transmute(&init) },
+            wifi,
+            WifiStaDevice
+        ));
 
         info!("Starting STA");
 
@@ -328,7 +331,7 @@ impl StaState {
         }
     }
 
-    pub(super) async fn stop(mut self) -> EspWifiInitialization {
+    pub(super) async fn stop(mut self) -> EspWifiController<'static> {
         info!("Stopping STA");
 
         let _ = join(
@@ -339,7 +342,7 @@ impl StaState {
 
         let controller = &mut self.connection_task_control.resources_mut().controller;
         if matches!(controller.is_started(), Ok(true)) {
-            unwrap!(controller.stop().await);
+            unwrap!(controller.stop_async().await);
         }
 
         info!("Stopped STA");
@@ -423,7 +426,7 @@ impl StaController {
 
     async fn do_scan(&mut self, controller: &mut WifiController<'_>) {
         info!("Scanning...");
-        let mut scan_results = Box::new(controller.scan_n::<SCAN_RESULTS>().await);
+        let mut scan_results = Box::new(controller.scan_n_async::<SCAN_RESULTS>().await);
 
         match scan_results.as_mut() {
             Ok((ref mut visible_networks, network_count)) => {
@@ -515,7 +518,7 @@ impl StaController {
         controller: &mut WifiController<'_>,
     ) -> Result<(), ConnectError> {
         self.state.update(InternalConnectionState::Connecting);
-        match with_timeout(Duration::from_secs(30), controller.connect()).await {
+        match with_timeout(Duration::from_secs(30), controller.connect_async()).await {
             Ok(Ok(_)) => {
                 self.state.update(InternalConnectionState::WaitingForIp);
                 Ok(())
@@ -533,7 +536,7 @@ impl StaController {
     }
 
     async fn deprioritize_current(&self, controller: &mut WifiController<'_>) {
-        match controller.get_configuration() {
+        match controller.configuration() {
             Ok(config) => match &config {
                 Configuration::Client(config) | Configuration::Mixed(config, _) => {
                     let mut known_networks = self.known_networks.lock().await;
@@ -667,7 +670,7 @@ async fn sta_task(
     task_control
         .run_cancellable(|resources| async {
             info!("Starting wifi");
-            unwrap!(resources.controller.start().await);
+            unwrap!(resources.controller.start_async().await);
             info!("Wifi started!");
 
             loop {

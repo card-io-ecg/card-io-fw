@@ -2,7 +2,7 @@ use core::ops::Range;
 
 use esp_hal::{
     assist_debug::DebugAssist,
-    get_core, interrupt,
+    interrupt,
     peripherals::{self, ASSIST_DEBUG},
     prelude::*,
     Cpu,
@@ -46,7 +46,7 @@ impl StackMonitor {
         const CANARY_GRANULARITY: u32 = 16;
 
         // We watch writes to the last word in the stack.
-        match get_core() {
+        match Cpu::current() {
             Cpu::ProCpu => assist.enable_region0_monitor(
                 bottom as u32 + CANARY_GRANULARITY,
                 bottom as u32 + CANARY_GRANULARITY + CANARY_UNITS * CANARY_GRANULARITY,
@@ -73,7 +73,7 @@ impl StackMonitor {
 
 impl Drop for StackMonitor {
     fn drop(&mut self) {
-        match get_core() {
+        match Cpu::current() {
             Cpu::ProCpu => self.assist.disable_region0_monitor(),
             #[cfg(feature = "esp32s3")]
             Cpu::AppCpu => self.assist.disable_core1_region0_monitor(),
@@ -84,7 +84,7 @@ impl Drop for StackMonitor {
 #[handler(priority = esp_hal::interrupt::Priority::max())]
 fn interrupt_handler() {
     let mut da = conjure();
-    let cpu = get_core();
+    let cpu = Cpu::current();
 
     let pc;
     let is_overflow;
@@ -92,13 +92,13 @@ fn interrupt_handler() {
     match cpu {
         Cpu::ProCpu => {
             is_overflow = da.is_region0_monitor_interrupt_set();
-            pc = da.get_region_monitor_pc();
+            pc = da.region_monitor_pc();
             da.clear_region0_monitor_interrupt();
         }
         #[cfg(feature = "esp32s3")]
         Cpu::AppCpu => {
             is_overflow = da.is_core1_region0_monitor_interrupt_set();
-            pc = da.get_core1_region_monitor_pc();
+            pc = da.core1_region_monitor_pc();
             da.clear_core1_region0_monitor_interrupt();
         }
     }

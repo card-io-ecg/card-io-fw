@@ -18,7 +18,7 @@ use esp_hal::{
 };
 use esp_wifi::{
     wifi::{WifiApDevice, WifiDevice, WifiDeviceMode, WifiStaDevice},
-    EspWifiInitFor, EspWifiInitialization,
+    EspWifiController,
 };
 use gui::widgets::{wifi_access_point::WifiAccessPointState, wifi_client::WifiClientState};
 use macros as cardio;
@@ -88,27 +88,28 @@ struct WifiInitResources {
 
 enum WifiDriverState {
     Uninitialized(WifiInitResources),
-    Initialized(EspWifiInitialization),
+    Initialized(EspWifiController<'static>),
     Ap(ApState),
     Sta(StaState),
     ApSta(ApStaState),
 }
 
 impl WifiDriverState {
-    async fn initialize(&mut self, callback: impl FnOnce(EspWifiInitialization) -> Self) {
+    async fn initialize(&mut self, callback: impl FnOnce(EspWifiController<'static>) -> Self) {
         self.uninit().await;
         replace_with::replace_with_or_abort(self, |this| {
             let token = match this {
                 Self::Uninitialized(resources) => {
                     info!("Initializing Wifi driver");
                     let token = unwrap!(esp_wifi::init(
-                        EspWifiInitFor::Wifi,
                         resources.timer,
                         resources.rng,
                         resources.radio_clk,
                     ));
                     info!("Wifi driver initialized");
-                    token
+                    // FIXME: this is not safe at all, but I can't be bothered to rearchitect
+                    // this firmware.
+                    unsafe { core::mem::transmute(token) }
                 }
                 Self::Initialized(token) => token,
                 _ => unreachable!(),
