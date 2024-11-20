@@ -1,5 +1,5 @@
 [target.xtensa-esp32s3-none-elf]
-runner    = "probe-rs run --preverify"
+runner    = "probe-rs run  --preverify --always-print-stacktrace"
 #runner = "espflash flash -M --erase-parts=otadata --log-format=defmt -T partitions.csv -s 8mb"
 rustflags = [
   "-C", "link-arg=-nostartfiles",
@@ -7,7 +7,7 @@ rustflags = [
 ]
 
 [target.riscv32imac-unknown-none-elf]
-runner    = "probe-rs run --preverify"
+runner    = "probe-rs run --preverify --always-print-stacktrace"
 #runner = "espflash flash -M --erase-parts=otadata --log-format=defmt -T partitions.csv -s 8mb"
 rustflags = [
   "-C", "force-frame-pointers",

@@ -189,18 +189,8 @@ where
 
 #[main]
 async fn main(_spawner: Spawner) {
-    #[cfg(feature = "rtt")]
-    {
-        let channels = rtt_target::rtt_init! {
-            up: {
-                0: {
-                    size: 1024,
-                    name: "defmt"
-                }
-            }
-        };
-        rtt_target::set_defmt_channel(channels.up.0);
-    }
+    #[cfg(all(feature = "rtt", feature = "defmt"))]
+    rtt_target::rtt_init_defmt!();
 
     esp_alloc::heap_allocator!((48 + 96) * 1024);
 

@@ -20,7 +20,11 @@ pub mod storage;
 pub mod utils;
 pub mod wifi;
 
+#[cfg(feature = "esp-println")]
 use esp_backtrace as _;
+
+#[cfg(feature = "rtt")]
+use panic_rtt_target as _;
 
 pub use hardware::*;
 

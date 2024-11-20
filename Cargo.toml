@@ -50,11 +50,12 @@ embassy-executor = { workspace = true, features = ["nightly"] }
 embassy-time = { version = "0.3.0" }
 
 embedded-hal-old = { package = "embedded-hal", version = "0.2.7" }
-rtt-target = { version = "0.6.0", git = "https://github.com/probe-rs/rtt-target", optional = true }
+rtt-target = { version = "0.6.0", git = "https://github.com/probe-rs/rtt-target", branch = "prep", optional = true }
+panic-rtt-target = { version = "0.2.0", git = "https://github.com/probe-rs/rtt-target", branch = "prep", optional = true }
 
 esp-hal = { version = "0.22.0" }
 esp-hal-embassy = { version = "0.5.0" }
-esp-backtrace = { version = "0.14.2", features = [
+esp-backtrace = { version = "0.14.2", optional = true, features = [
     "panic-handler",
     "exception-handler"
 ] }
@@ -144,7 +145,7 @@ esp32s3 = [
     "esp-hal/esp32s3",
     "embassy-executor/integrated-timers",
     "dep:norfs-esp32s3",
-    "esp-backtrace/esp32s3",
+    "esp-backtrace?/esp32s3",
     "esp-wifi/esp32s3",
     "esp-hal-embassy/esp32s3",
     "esp-println?/esp32s3",
@@ -153,7 +154,7 @@ esp32c6 = [
     "esp-hal/esp32c6",
     "embassy-time/generic-queue-8",
     "dep:norfs-esp32c6",
-    "esp-backtrace/esp32c6",
+    "esp-backtrace?/esp32c6",
     "esp-wifi/esp32c6",
     "esp-hal-embassy/esp32c6",
     "esp-println?/esp32c6",
@@ -168,7 +169,7 @@ defmt = [
     "embedded-graphics/defmt",
     "esp-wifi/defmt",
     "esp-hal/defmt",
-    "esp-backtrace/defmt",
+    "esp-backtrace?/defmt",
     "esp-println?/defmt-espflash",
 
     "logger/defmt",
@@ -184,10 +185,11 @@ defmt = [
     "embassy-net/defmt",
     "smoltcp/defmt",
     "rtt-target?/defmt",
+    "panic-rtt-target?/defmt",
 ]
 
-rtt = ["dep:rtt-target"]
-esp-println = ["dep:esp-println", "esp-println/jtag-serial"]
+rtt = ["dep:panic-rtt-target", "dep:rtt-target"]
+esp-println = ["dep:esp-backtrace", "dep:esp-println", "esp-println/jtag-serial"]
 
 [package.metadata.espflash]
 partition_table = "partitions.csv"
