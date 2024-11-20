@@ -52,8 +52,8 @@ embassy-time = { version = "0.3.0" }
 embedded-hal-old = { package = "embedded-hal", version = "0.2.7" }
 rtt-target = { version = "0.6.0", git = "https://github.com/probe-rs/rtt-target", optional = true }
 
-esp-hal = { version = "0.21.0" }
-esp-hal-embassy = { version = "0.4.0" }
+esp-hal = { version = "0.22.0" }
+esp-hal-embassy = { version = "0.5.0" }
 esp-backtrace = { version = "0.14.2", features = [
     "panic-handler",
     "exception-handler"
@@ -62,7 +62,7 @@ esp-println = { version = "0.12.0", default-features = false, optional = true, f
     "critical-section",
 ] }
 esp-alloc = "0.5.0"
-esp-wifi = { version = "0.10.1", features = ["wifi"] }
+esp-wifi = { version = "0.11.0", features = ["wifi"] }
 
 display-interface = "0.5"
 display-interface-spi = "0.5"
@@ -121,14 +121,14 @@ smoltcp.workspace = true
 crc = "3.0.1"
 enumset = "1.1.3"
 
-[patch.crates-io]
-esp-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "deaebc76a7e347f956ca46785e093febfa230358" }
-esp-hal-embassy = { git = "https://github.com/esp-rs/esp-hal.git", rev = "deaebc76a7e347f956ca46785e093febfa230358" }
-esp-wifi = { git = "https://github.com/esp-rs/esp-hal.git", rev = "deaebc76a7e347f956ca46785e093febfa230358" }
-esp-backtrace = { git = "https://github.com/esp-rs/esp-hal.git", rev = "deaebc76a7e347f956ca46785e093febfa230358" }
-esp-println = { git = "https://github.com/esp-rs/esp-hal.git", rev = "deaebc76a7e347f956ca46785e093febfa230358" }
-esp-alloc = { git = "https://github.com/esp-rs/esp-hal.git", rev = "deaebc76a7e347f956ca46785e093febfa230358" }
-xtensa-lx-rt = { git = "https://github.com/esp-rs/esp-hal.git", rev = "deaebc76a7e347f956ca46785e093febfa230358" }
+# [patch.crates-io]
+# esp-hal = { git = "https://github.com/jessebraham/esp-hal.git", rev = "a80385a20a85592a0466311da24f4d5ec8c7ea71" }
+# esp-hal-embassy = { git = "https://github.com/jessebraham/esp-hal.git", rev = "a80385a20a85592a0466311da24f4d5ec8c7ea71" }
+# esp-wifi = { git = "https://github.com/jessebraham/esp-hal.git", rev = "a80385a20a85592a0466311da24f4d5ec8c7ea71" }
+# esp-backtrace = { git = "https://github.com/jessebraham/esp-hal.git", rev = "a80385a20a85592a0466311da24f4d5ec8c7ea71" }
+# esp-println = { git = "https://github.com/jessebraham/esp-hal.git", rev = "a80385a20a85592a0466311da24f4d5ec8c7ea71" }
+# esp-alloc = { git = "https://github.com/jessebraham/esp-hal.git", rev = "a80385a20a85592a0466311da24f4d5ec8c7ea71" }
+# xtensa-lx-rt = { git = "https://github.com/jessebraham/esp-hal.git", rev = "a80385a20a85592a0466311da24f4d5ec8c7ea71" }
 
 [features]
 default = ["defmt", "rtt"]
