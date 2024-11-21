@@ -50,8 +50,8 @@ embassy-executor = { workspace = true, features = ["nightly"] }
 embassy-time = { version = "0.3.0" }
 
 embedded-hal-old = { package = "embedded-hal", version = "0.2.7" }
-rtt-target = { version = "0.6.0", git = "https://github.com/probe-rs/rtt-target", branch = "prep", optional = true }
-panic-rtt-target = { version = "0.2.0", git = "https://github.com/probe-rs/rtt-target", branch = "prep", optional = true }
+rtt-target = { version = "0.6.0", optional = true }
+panic-rtt-target = { version = "0.2.0", optional = true }
 
 esp-hal = { version = "0.22.0" }
 esp-hal-embassy = { version = "0.5.0" }
