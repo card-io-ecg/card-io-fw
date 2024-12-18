@@ -53,7 +53,7 @@ embedded-hal-old = { package = "embedded-hal", version = "0.2.7" }
 rtt-target = { version = "0.6.0", optional = true }
 panic-rtt-target = { version = "0.2.0", optional = true }
 
-esp-hal = { version = "0.22.0" }
+esp-hal = { version = "0.22.0", features = ["unstable"] }
 esp-hal-embassy = { version = "0.5.0" }
 esp-backtrace = { version = "0.14.2", optional = true, features = [
     "panic-handler",
@@ -87,7 +87,7 @@ signal-processing = { workspace = true, features = ["alloc"] }
 replace_with = { version = "0.1", default-features = false, features = [
     "nightly",
 ] }
-static_cell = { version = "2.0.0", features = ["nightly"] }
+static_cell = { version = "2.0.0" }
 bad-server = { path = "bad-server", features = ["embassy"] }
 embedded-tls = { version = "0.17.0", default-features = false }
 reqwless = "0.12.1"
@@ -143,7 +143,6 @@ hw_v6 = ["battery_max17055"] # skipped v5, v6 has S3 and C6 options
 # MCU options
 esp32s3 = [
     "esp-hal/esp32s3",
-    "embassy-executor/integrated-timers",
     "dep:norfs-esp32s3",
     "esp-backtrace?/esp32s3",
     "esp-wifi/esp32s3",
@@ -152,7 +151,6 @@ esp32s3 = [
 ]
 esp32c6 = [
     "esp-hal/esp32c6",
-    "embassy-time/generic-queue-8",
     "dep:norfs-esp32c6",
     "esp-backtrace?/esp32c6",
     "esp-wifi/esp32c6",
@@ -222,3 +220,17 @@ lto = "fat"
 [profile.lto]
 inherits = "release"
 lto = "fat"
+
+[patch.crates-io]
+esp-alloc = { git = "https://github.com/bugadani/esp-hal", branch = "time-driver-redo" }
+esp-hal = { git = "https://github.com/bugadani/esp-hal", branch = "time-driver-redo" }
+esp-hal-embassy = { git = "https://github.com/bugadani/esp-hal", branch = "time-driver-redo" }
+esp-hal-procmacros = { git = "https://github.com/bugadani/esp-hal", branch = "time-driver-redo" }
+esp-wifi = { git = "https://github.com/bugadani/esp-hal", branch = "time-driver-redo" }
+xtensa-lx-rt = { git = "https://github.com/bugadani/esp-hal", branch = "time-driver-redo" }
+xtensa-lx = { git = "https://github.com/bugadani/esp-hal", branch = "time-driver-redo" }
+
+embassy-executor    = { git = "https://github.com/embassy-rs/embassy", rev = "0c245892c6812538f4f51b784ed8afa1ce47f25d" }
+embassy-time        = { git = "https://github.com/embassy-rs/embassy", rev = "0c245892c6812538f4f51b784ed8afa1ce47f25d" }
+embassy-time-driver = { git = "https://github.com/embassy-rs/embassy", rev = "0c245892c6812538f4f51b784ed8afa1ce47f25d" }
+embassy-time-queue-driver = { git = "https://github.com/embassy-rs/embassy", rev = "0c245892c6812538f4f51b784ed8afa1ce47f25d" }

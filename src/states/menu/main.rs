@@ -3,10 +3,15 @@ use crate::{
     states::menu::{AppMenu, MenuScreen},
     AppState,
 };
-use embedded_menu::items::menu_item::{MenuItem, SelectValue};
-use gui::screens::create_menu;
-
-use super::AppMenuBuilder;
+use embedded_graphics::pixelcolor::BinaryColor;
+use embedded_menu::{
+    builder::MenuBuilder,
+    collection::MenuItems,
+    interaction::single_touch::SingleTouch,
+    items::menu_item::{MenuItem, SelectValue},
+    selection_indicator::{style::AnimatedTriangle, AnimatedPosition},
+};
+use gui::{embedded_layout::object_chain, screens::create_menu};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum MainMenuEvents {
@@ -37,7 +42,36 @@ pub async fn main_menu(context: &mut Context) -> AppState {
 }
 
 struct MainMenu;
-type MainMenuBuilder = impl AppMenuBuilder<MainMenuEvents>;
+type MainMenuBuilder = MenuBuilder<
+    &'static str,
+    SingleTouch,
+    object_chain::Link<
+        MenuItem<&'static str, MainMenuEvents, MainMenuEvents, true>,
+        object_chain::Link<
+            MenuItems<
+                heapless::Vec<MenuItem<&'static str, MainMenuEvents, MainMenuEvents, true>, 4>,
+                MenuItem<&'static str, MainMenuEvents, MainMenuEvents, true>,
+                MainMenuEvents,
+            >,
+            object_chain::Link<
+                MenuItem<&'static str, MainMenuEvents, MainMenuEvents, true>,
+                object_chain::Link<
+                    MenuItem<&'static str, MainMenuEvents, MainMenuEvents, true>,
+                    object_chain::Link<
+                        MenuItem<&'static str, MainMenuEvents, MainMenuEvents, true>,
+                        object_chain::Chain<
+                            MenuItem<&'static str, MainMenuEvents, MainMenuEvents, true>,
+                        >,
+                    >,
+                >,
+            >,
+        >,
+    >,
+    MainMenuEvents,
+    AnimatedPosition,
+    AnimatedTriangle,
+    BinaryColor,
+>;
 
 fn main_menu_builder(context: &mut Context) -> MainMenuBuilder {
     let mut optional_items = heapless::Vec::<_, 4>::new();

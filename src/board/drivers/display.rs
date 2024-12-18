@@ -11,16 +11,18 @@ use ssd1306::{
     mode::BufferedGraphicsModeAsync, prelude::*, rotation::DisplayRotation,
     size::DisplaySize128x64, Ssd1306Async,
 };
-use static_cell::make_static;
+use static_cell::StaticCell;
 
 use crate::board::DisplayInterface;
 
+type D = Ssd1306Async<
+    DisplayInterface<'static>,
+    DisplaySize128x64,
+    BufferedGraphicsModeAsync<DisplaySize128x64>,
+>;
+
 pub struct Display<RESET> {
-    display: &'static mut Ssd1306Async<
-        DisplayInterface<'static>,
-        DisplaySize128x64,
-        BufferedGraphicsModeAsync<DisplaySize128x64>,
-    >,
+    display: &'static mut D,
     reset: RESET,
 }
 
@@ -29,10 +31,11 @@ where
     RESET: OutputPin,
 {
     pub fn new(spi: DisplayInterface<'static>, reset: RESET) -> Self {
-        let display = make_static! {
+        static DISPLAY: StaticCell<D> = StaticCell::new();
+        let display = DISPLAY.init(
             Ssd1306Async::new(spi, DisplaySize128x64, DisplayRotation::Rotate0)
-                .into_buffered_graphics_mode()
-        };
+                .into_buffered_graphics_mode(),
+        );
 
         Self { display, reset }
     }

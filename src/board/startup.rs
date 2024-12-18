@@ -1,13 +1,16 @@
 use display_interface_spi::SPIInterface;
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
-use static_cell::make_static;
+use static_cell::StaticCell;
 
-use crate::board::{
-    drivers::{battery_monitor::BatteryMonitor, frontend::Frontend},
-    utils::DummyOutputPin,
-    wifi::WifiDriver,
-    AdcSpi, ChargerStatusPin, Display, DisplayDmaChannel, EcgFrontend, VbusDetectPin,
+use crate::{
+    board::{
+        drivers::{battery_monitor::BatteryMonitor, frontend::Frontend},
+        utils::DummyOutputPin,
+        wifi::WifiDriver,
+        AdcSpi, ChargerStatusPin, Display, DisplayDmaChannel, EcgFrontend, VbusDetectPin,
+    },
+    stack_protection::StackMonitor,
 };
 use esp_hal::{
     clock::CpuClock,
@@ -61,8 +64,8 @@ impl StartupResources {
             }
 
             // We only use a single core for now, so we can write both stack regions.
-            let stack_start = unsafe { addr_of!(_stack_start_cpu0) as usize };
-            let stack_end = unsafe { addr_of!(_stack_end_cpu0) as usize };
+            let stack_start = addr_of!(_stack_start_cpu0) as usize;
+            let stack_end = addr_of!(_stack_end_cpu0) as usize;
 
             stack_start..stack_end
         };
@@ -74,13 +77,14 @@ impl StartupResources {
             }
 
             // We only use a single core for now, so we can write both stack regions.
-            let stack_start = unsafe { addr_of!(_stack_start) as usize };
-            let stack_end = unsafe { addr_of!(_stack_end) as usize };
+            let stack_start = addr_of!(_stack_start) as usize;
+            let stack_end = addr_of!(_stack_end) as usize;
 
             stack_start..stack_end
         };
-        let _stack_protection =
-            make_static!(crate::stack_protection::StackMonitor::protect(stack_range));
+
+        static STACK_PROTECTION: StaticCell<StackMonitor> = StaticCell::new();
+        let _stack_protection = STACK_PROTECTION.init(StackMonitor::protect(stack_range));
 
         esp_hal::init({
             let mut config = esp_hal::Config::default();
@@ -103,16 +107,17 @@ impl StartupResources {
         let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(4092);
         let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
         let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
-        let display_spi = Spi::new_with_config(display_spi, {
-            let mut config = SpiConfig::default();
-            config.frequency = 40u32.MHz();
-            config.mode = SpiMode::Mode0;
-            config
-        })
+        let display_spi = Spi::new(
+            display_spi,
+            SpiConfig::default()
+                .with_frequency(40u32.MHz())
+                .with_mode(SpiMode::Mode0),
+        )
+        .unwrap()
         .with_sck(display_sclk)
         .with_mosi(display_mosi)
         .with_cs(display_cs)
-        .with_dma(display_dma_channel.configure(false, DmaPriority::Priority0))
+        .with_dma(display_dma_channel)
         .with_buffers(dma_rx_buf, dma_tx_buf)
         .into_async();
 
@@ -141,16 +146,17 @@ impl StartupResources {
         let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
 
         ExclusiveDevice::new(
-            Spi::new_with_config(adc_spi, {
-                let mut config = SpiConfig::default();
-                config.frequency = 1u32.MHz();
-                config.mode = SpiMode::Mode1;
-                config
-            })
+            Spi::new(
+                adc_spi,
+                SpiConfig::default()
+                    .with_frequency(1u32.MHz())
+                    .with_mode(SpiMode::Mode1),
+            )
+            .unwrap()
             .with_sck(adc_sclk)
             .with_mosi(adc_mosi)
             .with_miso(adc_miso)
-            .with_dma(adc_dma_channel.configure(false, DmaPriority::Priority1))
+            .with_dma(adc_dma_channel)
             .with_buffers(dma_rx_buf, dma_tx_buf)
             .into_async(),
             Output::new(adc_cs, Level::High),
@@ -216,11 +222,9 @@ impl StartupResources {
                 Max17055::new(
                     I2c::new(
                         i2c,
-                        i2c::master::Config {
-                            frequency: 100u32.kHz(),
-                            ..Default::default()
-                        },
+                        i2c::master::Config::default().with_frequency(100u32.kHz()),
                     )
+                    .unwrap()
                     .with_sda(sda)
                     .with_scl(scl)
                     .into_async(),

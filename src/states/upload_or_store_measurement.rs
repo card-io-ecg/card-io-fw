@@ -5,9 +5,16 @@ use core::{
 
 use alloc::{boxed::Box, vec::Vec};
 use embassy_time::{with_timeout, Duration};
-use embedded_menu::items::menu_item::{MenuItem, SelectValue};
+use embedded_graphics::pixelcolor::BinaryColor;
+use embedded_menu::{
+    builder::MenuBuilder,
+    collection::MenuItems,
+    interaction::single_touch::SingleTouch,
+    items::menu_item::{MenuItem, SelectValue},
+    selection_indicator::{style::AnimatedTriangle, AnimatedPosition},
+};
 use embedded_nal_async::{Dns, TcpConnect};
-use gui::screens::create_menu;
+use gui::{embedded_layout::object_chain, screens::create_menu};
 use norfs::{
     medium::StorageMedium, read_dir::DirEntry, writer::FileDataWriter, OnCollision, Storage,
     StorageError,
@@ -131,7 +138,24 @@ impl SelectValue for UploadOrStore {
     }
 }
 
-type AskForMeasurementActionMenuBuilder = impl AppMenuBuilder<(bool, bool)>;
+type AskForMeasurementActionMenuBuilder = MenuBuilder<
+    &'static str,
+    SingleTouch,
+    object_chain::Link<
+        MenuItem<&'static str, (bool, bool), UploadOrStore, true>,
+        object_chain::Chain<
+            MenuItems<
+                heapless::Vec<MenuItem<&'static str, (bool, bool), UploadOrStore, true>, 3>,
+                MenuItem<&'static str, (bool, bool), UploadOrStore, true>,
+                (bool, bool),
+            >,
+        >,
+    >,
+    (bool, bool),
+    AnimatedPosition,
+    AnimatedTriangle,
+    BinaryColor,
+>;
 
 fn ask_for_action_builder(context: &mut Context) -> AskForMeasurementActionMenuBuilder {
     let mut items = heapless::Vec::<_, 3>::new();

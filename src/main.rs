@@ -24,7 +24,7 @@ use embassy_sync::{
 use embassy_time::{Duration, Timer};
 use norfs::{medium::StorageMedium, Storage, StorageError};
 use signal_processing::compressing_buffer::CompressingBuffer;
-use static_cell::{make_static, StaticCell};
+use static_cell::StaticCell;
 
 use crate::{
     board::{
@@ -196,7 +196,9 @@ async fn main(_spawner: Spawner) {
 
     let resources = StartupResources::initialize().await;
 
-    let interrupt_executor = make_static!(InterruptExecutor::new(resources.software_interrupt1));
+    static INTERRUPT_EXECUTOR: StaticCell<InterruptExecutor<1>> = StaticCell::new();
+    let interrupt_executor =
+        INTERRUPT_EXECUTOR.init(InterruptExecutor::new(resources.software_interrupt1));
 
     #[cfg(feature = "hw_v4")]
     info!("Hardware version: v4");

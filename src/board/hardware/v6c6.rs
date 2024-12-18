@@ -18,17 +18,14 @@ use esp_hal::{
     prelude::*,
     rtc_cntl::Rtc,
     spi::master::SpiDmaBus,
-    timer::{
-        systimer::{SystemTimer, Target},
-        timg::TimerGroup,
-        AnyTimer,
-    },
+    timer::{systimer::SystemTimer, timg::TimerGroup, AnyTimer},
     Async,
 };
+use static_cell::StaticCell;
 
 pub use crate::board::drivers::bitbang_spi::BitbangSpi;
 
-pub type DisplayDmaChannel = ChannelCreator<0>;
+pub type DisplayDmaChannel = DmaChannel0;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, Output<'static>>;
 pub type DisplaySpi<'d> = ExclusiveDevice<SpiDmaBus<'d, Async>, DummyOutputPin, Delay>;
@@ -57,16 +54,14 @@ impl super::startup::StartupResources {
     pub async fn initialize() -> Self {
         let peripherals = Self::common_init();
 
-        let systimer = SystemTimer::new(peripherals.SYSTIMER).split::<Target>();
+        let systimer = SystemTimer::new(peripherals.SYSTIMER);
         esp_hal_embassy::init([
             AnyTimer::from(systimer.alarm0),
             AnyTimer::from(systimer.alarm1),
         ]);
 
-        let dma = Dma::new(peripherals.DMA);
-
         let display = Self::create_display_driver(
-            dma.channel0,
+            peripherals.DMA_CH0,
             peripherals.SPI2,
             peripherals.GPIO10,
             peripherals.GPIO8,
@@ -105,18 +100,19 @@ impl super::startup::StartupResources {
 
         let sw_int = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
 
+        static WIFI: StaticCell<WifiDriver> = StaticCell::new();
+        let wifi = WIFI.init(WifiDriver::new(
+            peripherals.WIFI,
+            AnyTimer::from(systimer.alarm2),
+            peripherals.RNG,
+            peripherals.RADIO_CLK,
+        ));
+
         Self {
             display,
             frontend: adc,
             battery_monitor,
-            wifi: static_cell::make_static! {
-                WifiDriver::new(
-                    peripherals.WIFI,
-                    AnyTimer::from(systimer.alarm2),
-                    peripherals.RNG,
-                    peripherals.RADIO_CLK,
-                )
-            },
+            wifi,
             rtc: Rtc::new(peripherals.LPWR),
             software_interrupt1: sw_int.software_interrupt1,
         }

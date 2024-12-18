@@ -6,7 +6,16 @@ use crate::{
     states::menu::{AppMenu, AppMenuBuilder, MenuScreen},
     AppState,
 };
-use gui::{screens::create_menu, widgets::battery_small::BatteryStyle};
+use embedded_graphics::pixelcolor::BinaryColor;
+use embedded_menu::{
+    builder::MenuBuilder,
+    interaction::single_touch::SingleTouch,
+    items::MenuItem,
+    selection_indicator::{style::AnimatedTriangle, AnimatedPosition},
+};
+use gui::{
+    embedded_layout::object_chain, screens::create_menu, widgets::battery_small::BatteryStyle,
+};
 
 pub async fn display_menu(context: &mut Context) -> AppState {
     let result = DisplayMenu
@@ -28,7 +37,26 @@ pub enum DisplayMenuEvents {
 }
 
 struct DisplayMenu;
-type DisplayMenuBuilder = impl AppMenuBuilder<DisplayMenuEvents>;
+type DisplayMenuBuilder = MenuBuilder<
+    &'static str,
+    SingleTouch,
+    object_chain::Link<
+        MenuItem<&'static str, DisplayMenuEvents, &'static str, true>,
+        object_chain::Link<
+            MenuItem<&'static str, DisplayMenuEvents, FilterStrength, true>,
+            object_chain::Link<
+                MenuItem<&'static str, DisplayMenuEvents, BatteryStyle, true>,
+                object_chain::Chain<
+                    MenuItem<&'static str, DisplayMenuEvents, DisplayBrightness, true>,
+                >,
+            >,
+        >,
+    >,
+    DisplayMenuEvents,
+    AnimatedPosition,
+    AnimatedTriangle,
+    BinaryColor,
+>;
 
 fn display_menu_builder(context: &mut Context) -> DisplayMenuBuilder {
     create_menu("Display")
