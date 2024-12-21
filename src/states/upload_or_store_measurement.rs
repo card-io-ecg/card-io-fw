@@ -33,7 +33,7 @@ use crate::{
         initialized::{Context, InnerContext, StaMode},
     },
     human_readable::BinarySize,
-    states::menu::{AppMenuBuilder, MenuScreen},
+    states::menu::MenuScreen,
     uformat, AppState, SerialNumber,
 };
 

@@ -54,7 +54,7 @@ rtt-target = { version = "0.6.0", optional = true }
 panic-rtt-target = { version = "0.2.0", optional = true }
 
 esp-hal = { version = "0.22.0", features = ["unstable"] }
-esp-hal-embassy = { version = "0.5.0" }
+esp-hal-embassy = { version = "0.5.0", features = ["integrated-timers"] }
 esp-backtrace = { version = "0.14.2", optional = true, features = [
     "panic-handler",
     "exception-handler"
@@ -122,14 +122,14 @@ smoltcp.workspace = true
 crc = "3.0.1"
 enumset = "1.1.3"
 
-# [patch.crates-io]
-# esp-hal = { git = "https://github.com/jessebraham/esp-hal.git", rev = "a80385a20a85592a0466311da24f4d5ec8c7ea71" }
-# esp-hal-embassy = { git = "https://github.com/jessebraham/esp-hal.git", rev = "a80385a20a85592a0466311da24f4d5ec8c7ea71" }
-# esp-wifi = { git = "https://github.com/jessebraham/esp-hal.git", rev = "a80385a20a85592a0466311da24f4d5ec8c7ea71" }
-# esp-backtrace = { git = "https://github.com/jessebraham/esp-hal.git", rev = "a80385a20a85592a0466311da24f4d5ec8c7ea71" }
-# esp-println = { git = "https://github.com/jessebraham/esp-hal.git", rev = "a80385a20a85592a0466311da24f4d5ec8c7ea71" }
-# esp-alloc = { git = "https://github.com/jessebraham/esp-hal.git", rev = "a80385a20a85592a0466311da24f4d5ec8c7ea71" }
-# xtensa-lx-rt = { git = "https://github.com/jessebraham/esp-hal.git", rev = "a80385a20a85592a0466311da24f4d5ec8c7ea71" }
+[patch.crates-io]
+esp-hal = { git = "https://github.com/bugadani/esp-hal.git", branch = "gpio" }
+esp-hal-embassy = { git = "https://github.com/bugadani/esp-hal.git", branch = "gpio" }
+esp-wifi = { git = "https://github.com/bugadani/esp-hal.git", branch = "gpio" }
+esp-backtrace = { git = "https://github.com/bugadani/esp-hal.git", branch = "gpio" }
+esp-println = { git = "https://github.com/bugadani/esp-hal.git", branch = "gpio" }
+esp-alloc = { git = "https://github.com/bugadani/esp-hal.git", branch = "gpio" }
+xtensa-lx-rt = { git = "https://github.com/bugadani/esp-hal.git", branch = "gpio" }
 
 [features]
 default = ["defmt", "rtt"]
@@ -220,17 +220,3 @@ lto = "fat"
 [profile.lto]
 inherits = "release"
 lto = "fat"
-
-[patch.crates-io]
-esp-alloc = { git = "https://github.com/bugadani/esp-hal", branch = "time-driver-redo" }
-esp-hal = { git = "https://github.com/bugadani/esp-hal", branch = "time-driver-redo" }
-esp-hal-embassy = { git = "https://github.com/bugadani/esp-hal", branch = "time-driver-redo" }
-esp-hal-procmacros = { git = "https://github.com/bugadani/esp-hal", branch = "time-driver-redo" }
-esp-wifi = { git = "https://github.com/bugadani/esp-hal", branch = "time-driver-redo" }
-xtensa-lx-rt = { git = "https://github.com/bugadani/esp-hal", branch = "time-driver-redo" }
-xtensa-lx = { git = "https://github.com/bugadani/esp-hal", branch = "time-driver-redo" }
-
-embassy-executor    = { git = "https://github.com/embassy-rs/embassy", rev = "0c245892c6812538f4f51b784ed8afa1ce47f25d" }
-embassy-time        = { git = "https://github.com/embassy-rs/embassy", rev = "0c245892c6812538f4f51b784ed8afa1ce47f25d" }
-embassy-time-driver = { git = "https://github.com/embassy-rs/embassy", rev = "0c245892c6812538f4f51b784ed8afa1ce47f25d" }
-embassy-time-queue-driver = { git = "https://github.com/embassy-rs/embassy", rev = "0c245892c6812538f4f51b784ed8afa1ce47f25d" }

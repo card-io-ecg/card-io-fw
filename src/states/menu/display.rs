@@ -3,7 +3,7 @@ use crate::{
         config::types::{DisplayBrightness, FilterStrength},
         initialized::Context,
     },
-    states::menu::{AppMenu, AppMenuBuilder, MenuScreen},
+    states::menu::{AppMenu, MenuScreen},
     AppState,
 };
 use embedded_graphics::pixelcolor::BinaryColor;

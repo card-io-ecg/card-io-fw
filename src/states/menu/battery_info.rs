@@ -1,7 +1,7 @@
 use crate::{
     board::initialized::Context,
     human_readable::LeftPad,
-    states::menu::{AppMenu, AppMenuBuilder, MenuScreen},
+    states::menu::{AppMenu, MenuScreen},
     uformat, AppState,
 };
 use embassy_time::Duration;

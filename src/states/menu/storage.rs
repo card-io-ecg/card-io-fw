@@ -18,8 +18,6 @@ use embedded_menu::{
 };
 use gui::{embedded_layout::object_chain, screens::create_menu};
 
-use super::AppMenuBuilder;
-
 #[derive(Clone, Copy)]
 pub enum StorageMenuEvents {
     ChangeMeasurementAction(MeasurementAction),
