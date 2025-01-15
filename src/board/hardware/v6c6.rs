@@ -15,12 +15,12 @@ use esp_hal::{
     gpio::{Input, Level, Output, Pull},
     i2c::master::I2c,
     interrupt::software::SoftwareInterruptControl,
-    prelude::*,
     rtc_cntl::Rtc,
     spi::master::SpiDmaBus,
-    timer::{systimer::SystemTimer, timg::TimerGroup, AnyTimer},
+    timer::{systimer::SystemTimer, AnyTimer},
     Async,
 };
+use fugit::RateExtU32;
 use static_cell::StaticCell;
 
 pub use crate::board::drivers::bitbang_spi::BitbangSpi;

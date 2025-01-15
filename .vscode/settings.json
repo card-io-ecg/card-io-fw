@@ -2,6 +2,7 @@
     "rust-analyzer.check.allTargets": false,
     "rust-analyzer.showUnlinkedFileNotification": false,
     "cortex-debug.variableUseNaturalFormat": false,
+    "rust-analyzer.cargo.targetDir": "target/rust-analyzer",
     "rust-analyzer.cargo.features": [
         "esp32s3",
         "hw_v4"

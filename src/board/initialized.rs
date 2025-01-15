@@ -176,6 +176,7 @@ impl InnerContext {
         Some(sta)
     }
 
+    #[allow(unused)]
     pub async fn enable_wifi_ap(&mut self) -> Option<Ap> {
         if !self.can_enable_wifi() {
             self.wifi.stop_if().await;
@@ -186,7 +187,7 @@ impl InnerContext {
             .wifi
             .configure_ap(NetConfig::ipv4_static(StaticConfigV4 {
                 address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
-                gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
+                gateway: Some(Ipv4Address::new(192, 168, 2, 1)),
                 dns_servers: Default::default(),
             }))
             .await;
@@ -205,7 +206,7 @@ impl InnerContext {
             .configure_ap_sta(
                 NetConfig::ipv4_static(StaticConfigV4 {
                     address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
-                    gateway: Some(Ipv4Address::from_bytes(&[192, 168, 2, 1])),
+                    gateway: Some(Ipv4Address::new(192, 168, 2, 1)),
                     dns_servers: Default::default(),
                 }),
                 NetConfig::dhcpv4(Default::default()),

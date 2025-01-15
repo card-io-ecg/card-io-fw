@@ -24,7 +24,7 @@ use esp_hal::{
     rtc_cntl::Rtc,
     spi::{
         master::{Config as SpiConfig, Spi},
-        SpiMode,
+        Mode,
     },
 };
 
@@ -111,7 +111,7 @@ impl StartupResources {
             display_spi,
             SpiConfig::default()
                 .with_frequency(40u32.MHz())
-                .with_mode(SpiMode::Mode0),
+                .with_mode(Mode::_0),
         )
         .unwrap()
         .with_sck(display_sclk)
@@ -138,7 +138,7 @@ impl StartupResources {
         adc_spi: impl Peripheral<P = impl esp_hal::spi::master::Instance> + 'static,
         adc_sclk: impl Peripheral<P = impl OutputPin> + 'static,
         adc_mosi: impl Peripheral<P = impl OutputPin> + 'static,
-        adc_miso: impl Peripheral<P = impl OutputPin> + 'static,
+        adc_miso: impl Peripheral<P = impl InputPin> + 'static,
         adc_cs: impl Peripheral<P = impl OutputPin> + 'static,
     ) -> AdcSpi {
         let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(4092);
@@ -150,7 +150,7 @@ impl StartupResources {
                 adc_spi,
                 SpiConfig::default()
                     .with_frequency(1u32.MHz())
-                    .with_mode(SpiMode::Mode1),
+                    .with_mode(Mode::_1),
             )
             .unwrap()
             .with_sck(adc_sclk)

@@ -1,4 +1,4 @@
-use core::{hint::unreachable_unchecked, mem, ops::Deref, ptr::NonNull};
+use core::{hint::unreachable_unchecked, mem};
 
 use crate::{
     board::wifi::{
@@ -8,16 +8,15 @@ use crate::{
     },
     task_control::TaskControlToken,
 };
-use alloc::{boxed::Box, rc::Rc};
 use embassy_executor::Spawner;
-use embassy_net::{Config, Stack, StackResources};
+use embassy_net::{Config, Runner, StackResources};
 use esp_hal::{
     peripherals::{RADIO_CLK, RNG, WIFI},
     rng::Rng,
     timer::AnyTimer,
 };
 use esp_wifi::{
-    wifi::{WifiApDevice, WifiDevice, WifiDeviceMode, WifiStaDevice},
+    wifi::{WifiApDevice, WifiDevice, WifiStaDevice},
     EspWifiController,
 };
 use gui::widgets::{wifi_access_point::WifiAccessPointState, wifi_client::WifiClientState};
@@ -28,47 +27,6 @@ pub unsafe fn as_static_mut<T>(what: &mut T) -> &'static mut T {
 }
 
 const STACK_SOCKET_COUNT: usize = 3;
-
-struct StackWrapper<MODE: WifiDeviceMode>(
-    NonNull<StackResources<STACK_SOCKET_COUNT>>,
-    Stack<WifiDevice<'static, MODE>>,
-);
-
-impl<MODE: WifiDeviceMode + 'static> StackWrapper<MODE> {
-    fn new(wifi_interface: WifiDevice<'static, MODE>, config: Config, mut rng: Rng) -> Rc<Self> {
-        const RESOURCES: StackResources<STACK_SOCKET_COUNT> = StackResources::new();
-
-        let lower = rng.random() as u64;
-        let upper = rng.random() as u64;
-
-        let random_seed = upper << 32 | lower;
-
-        let resources = Box::new(RESOURCES);
-        let resources_ref = Box::leak(resources);
-
-        Rc::new(Self(
-            NonNull::from(&mut *resources_ref),
-            Stack::new(wifi_interface, config, resources_ref, random_seed),
-        ))
-    }
-}
-
-impl<MODE: WifiDeviceMode> Deref for StackWrapper<MODE> {
-    type Target = Stack<WifiDevice<'static, MODE>>;
-
-    #[inline(always)]
-    fn deref(&self) -> &Self::Target {
-        &self.1
-    }
-}
-
-impl<MODE: WifiDeviceMode> Drop for StackWrapper<MODE> {
-    fn drop(&mut self) {
-        unsafe {
-            _ = Box::from_raw(self.0.as_mut());
-        }
-    }
-}
 
 pub mod ap;
 pub mod ap_sta;
@@ -84,21 +42,35 @@ struct WifiInitResources {
     timer: AnyTimer,
     rng: Rng,
     radio_clk: RADIO_CLK,
+    ap_resources: &'static mut StackResources<STACK_SOCKET_COUNT>,
+    sta_resources: &'static mut StackResources<STACK_SOCKET_COUNT>,
 }
 
 enum WifiDriverState {
     Uninitialized(WifiInitResources),
-    Initialized(EspWifiController<'static>),
-    Ap(ApState),
-    Sta(StaState),
+    Initialized {
+        controller: EspWifiController<'static>,
+        ap_resources: &'static mut StackResources<STACK_SOCKET_COUNT>,
+        sta_resources: &'static mut StackResources<STACK_SOCKET_COUNT>,
+    },
+    Ap(ApState, &'static mut StackResources<STACK_SOCKET_COUNT>),
+    Sta(StaState, &'static mut StackResources<STACK_SOCKET_COUNT>),
     ApSta(ApStaState),
 }
 
 impl WifiDriverState {
-    async fn initialize(&mut self, callback: impl FnOnce(EspWifiController<'static>) -> Self) {
+    async fn initialize(
+        &mut self,
+        callback: impl FnOnce(
+                EspWifiController<'static>,
+                &'static mut StackResources<STACK_SOCKET_COUNT>,
+                &'static mut StackResources<STACK_SOCKET_COUNT>,
+            ) -> Self
+            + 'static,
+    ) {
         self.uninit().await;
         replace_with::replace_with_or_abort(self, |this| {
-            let token = match this {
+            let (controller, ap_resources, sta_resources) = match this {
                 Self::Uninitialized(resources) => {
                     info!("Initializing Wifi driver");
                     let token = unwrap!(esp_wifi::init(
@@ -109,22 +81,49 @@ impl WifiDriverState {
                     info!("Wifi driver initialized");
                     // FIXME: this is not safe at all, but I can't be bothered to rearchitect
                     // this firmware.
-                    unsafe { core::mem::transmute(token) }
+                    let token = unsafe { core::mem::transmute(token) };
+
+                    (token, resources.ap_resources, resources.sta_resources)
                 }
-                Self::Initialized(token) => token,
+                Self::Initialized {
+                    controller,
+                    ap_resources,
+                    sta_resources,
+                } => (controller, ap_resources, sta_resources),
                 _ => unreachable!(),
             };
 
-            callback(token)
+            callback(controller, ap_resources, sta_resources)
         });
     }
 
     async fn uninit(&mut self) {
         unsafe {
             let new = match core::ptr::read(self) {
-                Self::Sta(sta) => Self::Initialized(sta.stop().await),
-                Self::Ap(ap) => Self::Initialized(ap.stop().await),
-                Self::ApSta(apsta) => Self::Initialized(apsta.stop().await),
+                Self::Sta(sta, ap_resources) => {
+                    let (controller, sta_resources) = sta.stop().await;
+                    Self::Initialized {
+                        controller,
+                        ap_resources,
+                        sta_resources,
+                    }
+                }
+                Self::Ap(ap, sta_resources) => {
+                    let (controller, ap_resources) = ap.stop().await;
+                    Self::Initialized {
+                        controller,
+                        ap_resources,
+                        sta_resources,
+                    }
+                }
+                Self::ApSta(apsta) => {
+                    let (controller, ap_resources, sta_resources) = apsta.stop().await;
+                    Self::Initialized {
+                        controller,
+                        ap_resources,
+                        sta_resources,
+                    }
+                }
                 state => state,
             };
             core::ptr::write(self, new);
@@ -132,9 +131,28 @@ impl WifiDriverState {
     }
 }
 
+macro_rules! mk_static {
+    ($t:ty,$val:expr) => {{
+        static STATIC_CELL: static_cell::StaticCell<$t> = static_cell::StaticCell::new();
+        #[deny(unused_attributes)]
+        let x = STATIC_CELL.uninit().write(($val));
+        x
+    }};
+}
+
 impl WifiDriver {
     pub fn new(wifi: WIFI, timer: AnyTimer, rng: RNG, radio_clk: RADIO_CLK) -> Self {
         let rng = Rng::new(rng);
+
+        let ap_resources = mk_static!(
+            StackResources<STACK_SOCKET_COUNT>,
+            StackResources::<STACK_SOCKET_COUNT>::new()
+        );
+        let sta_resources = mk_static!(
+            StackResources<STACK_SOCKET_COUNT>,
+            StackResources::<STACK_SOCKET_COUNT>::new()
+        );
+
         Self {
             wifi,
             rng,
@@ -142,28 +160,30 @@ impl WifiDriver {
                 timer,
                 rng,
                 radio_clk,
+                ap_resources,
+                sta_resources,
             }),
         }
     }
 
+    #[allow(unused)]
     pub async fn configure_ap(&mut self, ap_config: Config) -> Ap {
         // Prepare, stop STA if running
-        if !matches!(self.state, WifiDriverState::Ap(_)) {
+        if !matches!(self.state, WifiDriverState::Ap(_, _)) {
             let spawner = Spawner::for_current_executor().await;
+            let wifi = unsafe { as_static_mut(&mut self.wifi) };
+            let rng = self.rng.clone();
             self.state
-                .initialize(|init| {
-                    WifiDriverState::Ap(ApState::init(
-                        init,
-                        ap_config,
-                        unsafe { as_static_mut(&mut self.wifi) },
-                        self.rng,
-                        spawner,
-                    ))
+                .initialize(move |init, sta_resources, ap_resources| {
+                    WifiDriverState::Ap(
+                        ApState::init(init, ap_config, wifi, rng, ap_resources, spawner),
+                        sta_resources,
+                    )
                 })
                 .await;
         };
 
-        if let WifiDriverState::Ap(ap) = &self.state {
+        if let WifiDriverState::Ap(ap, _) = &self.state {
             ap.handle().clone()
         } else {
             unsafe { unreachable_unchecked() }
@@ -174,14 +194,18 @@ impl WifiDriver {
         // Prepare, stop STA if running
         if !matches!(self.state, WifiDriverState::ApSta(_)) {
             let spawner = Spawner::for_current_executor().await;
+            let wifi = unsafe { as_static_mut(&mut self.wifi) };
+            let rng = self.rng.clone();
             self.state
-                .initialize(|init| {
+                .initialize(move |init, sta_resources, ap_resources| {
                     WifiDriverState::ApSta(ApStaState::init(
                         init,
                         ap_config,
                         sta_config,
-                        unsafe { as_static_mut(&mut self.wifi) },
-                        self.rng,
+                        wifi,
+                        rng,
+                        sta_resources,
+                        ap_resources,
                         spawner,
                     ))
                 })
@@ -198,22 +222,21 @@ impl WifiDriver {
 
     pub async fn configure_sta(&mut self, sta_config: Config) -> Sta {
         // Prepare, stop AP if running
-        if !matches!(self.state, WifiDriverState::Sta(_)) {
+        if !matches!(self.state, WifiDriverState::Sta(_, _)) {
             let spawner = Spawner::for_current_executor().await;
+            let wifi = unsafe { as_static_mut(&mut self.wifi) };
+            let rng = self.rng.clone();
             self.state
-                .initialize(|init| {
-                    WifiDriverState::Sta(StaState::init(
-                        init,
-                        sta_config,
-                        unsafe { as_static_mut(&mut self.wifi) },
-                        self.rng,
-                        spawner,
-                    ))
+                .initialize(move |init, sta_resources, ap_resources| {
+                    WifiDriverState::Sta(
+                        StaState::init(init, sta_config, wifi, rng, sta_resources, spawner),
+                        ap_resources,
+                    )
                 })
                 .await;
         };
 
-        if let WifiDriverState::Sta(sta) = &self.state {
+        if let WifiDriverState::Sta(sta, _) = &self.state {
             sta.handle().clone()
         } else {
             unsafe { unreachable_unchecked() }
@@ -222,7 +245,7 @@ impl WifiDriver {
 
     pub fn ap_handle(&self) -> Option<&Ap> {
         match &self.state {
-            WifiDriverState::Ap(ap) => Some(ap.handle()),
+            WifiDriverState::Ap(ap, _) => Some(ap.handle()),
             WifiDriverState::ApSta(ap_sta) => Some(&ap_sta.handles().0),
             _ => None,
         }
@@ -230,7 +253,7 @@ impl WifiDriver {
 
     pub fn sta_handle(&self) -> Option<&Sta> {
         match &self.state {
-            WifiDriverState::Sta(sta) => Some(sta.handle()),
+            WifiDriverState::Sta(sta, _) => Some(sta.handle()),
             WifiDriverState::ApSta(ap_sta) => Some(&ap_sta.handles().1),
             _ => None,
         }
@@ -250,14 +273,17 @@ impl WifiDriver {
 }
 
 #[cardio::task]
-async fn ap_net_task(stack: Rc<StackWrapper<WifiApDevice>>, mut task_control: TaskControlToken<!>) {
-    task_control.run_cancellable(|_| stack.run()).await;
+async fn ap_net_task(
+    mut runner: Runner<'static, WifiDevice<'static, WifiApDevice>>,
+    mut task_control: TaskControlToken<!>,
+) {
+    task_control.run_cancellable(|_| runner.run()).await;
 }
 
 #[cardio::task]
 async fn sta_net_task(
-    stack: Rc<StackWrapper<WifiStaDevice>>,
+    mut runner: Runner<'static, WifiDevice<'static, WifiStaDevice>>,
     mut task_control: TaskControlToken<!>,
 ) {
-    task_control.run_cancellable(|_| stack.run()).await;
+    task_control.run_cancellable(|_| runner.run()).await;
 }

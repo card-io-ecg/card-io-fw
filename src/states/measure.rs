@@ -15,7 +15,7 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channe
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
 use embedded_hal::spi::ErrorType;
-use esp_hal::prelude::*;
+use fugit::RateExtU32;
 use gui::screens::{init::StartupScreen, measure::EcgScreen};
 use macros as cardio;
 use object_chain::{chain, Chain, ChainElement, Link};
@@ -197,7 +197,7 @@ async fn measure_impl(
             unwrap!(frontend.spi_mut().bus_mut().apply_config(&{
                 let mut config = esp_hal::spi::master::Config::default();
                 config.frequency = 4u32.MHz();
-                config.mode = esp_hal::spi::SpiMode::Mode1;
+                config.mode = esp_hal::spi::Mode::_1;
                 config
             }));
         }

@@ -2,9 +2,9 @@ use core::ops::Range;
 
 use esp_hal::{
     assist_debug::DebugAssist,
-    interrupt,
+    handler,
+    interrupt::{self, InterruptConfigurable},
     peripherals::{self, ASSIST_DEBUG},
-    prelude::*,
     Cpu,
 };
 

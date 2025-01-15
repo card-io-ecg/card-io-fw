@@ -49,7 +49,6 @@ use crate::{
 use esp_hal::{
     interrupt::Priority,
     peripheral::Peripheral,
-    prelude::main,
     rtc_cntl::sleep::{self, WakeupLevel},
 };
 use esp_hal_embassy::InterruptExecutor;
@@ -187,7 +186,7 @@ where
     }
 }
 
-#[main]
+#[esp_hal_embassy::main]
 async fn main(_spawner: Spawner) {
     #[cfg(all(feature = "rtt", feature = "defmt"))]
     rtt_target::rtt_init_defmt!();

@@ -2,12 +2,13 @@ use alloc::{rc::Rc, vec::Vec};
 use embassy_sync::mutex::Mutex;
 use embassy_time::{with_timeout, Duration};
 
+use super::STACK_SOCKET_COUNT;
 use crate::{
     board::wifi::{
         ap::{Ap, ApConnectionState, ApController},
         ap_net_task,
         sta::{CommandQueue, InitialStaControllerState, Sta, StaConnectionState, StaController},
-        sta_net_task, StackWrapper,
+        sta_net_task,
     },
     task_control::{TaskControlToken, TaskController},
 };
@@ -16,7 +17,7 @@ use embassy_futures::{
     join::join3,
     select::{select, Either},
 };
-use embassy_net::Config;
+use embassy_net::{Config, StackResources};
 use esp_hal::{peripherals::WIFI, rng::Rng};
 use esp_wifi::{wifi::WifiController, EspWifiController};
 use macros as cardio;
@@ -36,7 +37,9 @@ impl ApStaState {
         ap_config: Config,
         sta_config: Config,
         wifi: &'static mut WIFI,
-        rng: Rng,
+        mut rng: Rng,
+        sta_resources: &'static mut StackResources<STACK_SOCKET_COUNT>,
+        ap_resources: &'static mut StackResources<STACK_SOCKET_COUNT>,
         spawner: Spawner,
     ) -> Self {
         info!("Configuring AP-STA");
@@ -48,8 +51,18 @@ impl ApStaState {
 
         info!("Starting AP-STA");
 
-        let ap_stack = StackWrapper::new(ap_device, ap_config, rng);
-        let sta_stack = StackWrapper::new(sta_device, sta_config, rng);
+        let lower = rng.random() as u64;
+        let upper = rng.random() as u64;
+
+        let random_seed = upper << 32 | lower;
+
+        let ap_ptr = ap_resources as *mut _;
+        let sta_ptr = sta_resources as *mut _;
+
+        let (ap_stack, ap_runner) =
+            embassy_net::new(ap_device, ap_config, ap_resources, random_seed);
+        let (sta_stack, sta_runner) =
+            embassy_net::new(sta_device, sta_config, sta_resources, random_seed);
         let ap_net_task_control = TaskController::new();
         let sta_net_task_control = TaskController::new();
         let ap_state = Rc::new(ApConnectionState::new());
@@ -58,8 +71,11 @@ impl ApStaState {
         let known_networks = Rc::new(Mutex::new(Vec::new()));
         let command_queue = Rc::new(CommandQueue::new());
 
-        let connection_task_control =
-            TaskController::from_resources(ApStaTaskResources { controller });
+        let connection_task_control = TaskController::from_resources(ApStaTaskResources {
+            controller,
+            ap_resources: ap_ptr,
+            sta_resources: sta_ptr,
+        });
 
         info!("Starting AP-STA task");
         spawner.must_spawn(ap_sta_task(
@@ -76,11 +92,8 @@ impl ApStaState {
         ));
 
         info!("Starting NET tasks");
-        spawner.must_spawn(ap_net_task(ap_stack.clone(), ap_net_task_control.token()));
-        spawner.must_spawn(sta_net_task(
-            sta_stack.clone(),
-            sta_net_task_control.token(),
-        ));
+        spawner.must_spawn(ap_net_task(ap_runner, ap_net_task_control.token()));
+        spawner.must_spawn(sta_net_task(sta_runner, sta_net_task_control.token()));
 
         Self {
             init,
@@ -103,7 +116,13 @@ impl ApStaState {
         }
     }
 
-    pub(super) async fn stop(mut self) -> EspWifiController<'static> {
+    pub(super) async fn stop(
+        mut self,
+    ) -> (
+        EspWifiController<'static>,
+        &'static mut StackResources<STACK_SOCKET_COUNT>,
+        &'static mut StackResources<STACK_SOCKET_COUNT>,
+    ) {
         info!("Stopping AP-STA");
         let _ = join3(
             self.connection_task_control.stop(),
@@ -112,6 +131,8 @@ impl ApStaState {
         )
         .await;
 
+        let ap_resources = self.connection_task_control.resources_mut().ap_resources;
+        let sta_resources = self.connection_task_control.resources_mut().sta_resources;
         let controller = &mut self.connection_task_control.resources_mut().controller;
         if matches!(controller.is_started(), Ok(true)) {
             unwrap!(controller.stop_async().await);
@@ -119,7 +140,11 @@ impl ApStaState {
 
         info!("Stopped AP-STA");
 
-        self.init
+        (
+            self.init,
+            unsafe { unwrap!(ap_resources.as_mut()) },
+            unsafe { unwrap!(sta_resources.as_mut()) },
+        )
     }
 
     pub(crate) fn handles(&self) -> (&Ap, &Sta) {
@@ -129,7 +154,10 @@ impl ApStaState {
 
 struct ApStaTaskResources {
     controller: WifiController<'static>,
+    ap_resources: *mut StackResources<STACK_SOCKET_COUNT>,
+    sta_resources: *mut StackResources<STACK_SOCKET_COUNT>,
 }
+unsafe impl Send for ApStaTaskResources {}
 
 const NO_TIMEOUT: Duration = Duration::MAX;
 

@@ -1,10 +1,8 @@
 use core::{alloc::AllocError, ptr::addr_of, sync::atomic::Ordering};
 
+use super::STACK_SOCKET_COUNT;
 use crate::{
-    board::{
-        initialized::Context,
-        wifi::{sta_net_task, StackWrapper},
-    },
+    board::{initialized::Context, wifi::sta_net_task},
     task_control::{TaskControlToken, TaskController},
     Shared,
 };
@@ -15,7 +13,7 @@ use embassy_futures::{
     join::join,
     select::{select, Either},
 };
-use embassy_net::{dns::DnsSocket, Config};
+use embassy_net::{dns::DnsSocket, Config, Stack, StackResources};
 use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
     channel::Channel,
@@ -27,7 +25,7 @@ use enumset::EnumSet;
 use esp_hal::{peripherals::WIFI, rng::Rng};
 use esp_wifi::{
     wifi::{
-        AccessPointInfo, ClientConfiguration, Configuration, WifiController, WifiDevice, WifiEvent,
+        AccessPointInfo, ClientConfiguration, Configuration, WifiController, WifiEvent,
         WifiStaDevice,
     },
     EspWifiController,
@@ -105,7 +103,7 @@ impl From<InternalConnectionState> for WifiClientState {
 
 #[derive(Clone)]
 pub struct Sta {
-    pub(super) sta_stack: Rc<StackWrapper<WifiStaDevice>>,
+    pub(super) sta_stack: Stack<'static>,
     pub(super) networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     pub(super) known_networks: Shared<Vec<KnownNetwork>>,
     pub(super) state: Rc<StaConnectionState>,
@@ -185,8 +183,8 @@ impl Sta {
 
         Ok(HttpsClientResources {
             resources,
-            tcp_client: TcpClient::new(&self.sta_stack, client_state),
-            dns_client: DnsSocket::new(&self.sta_stack),
+            tcp_client: TcpClient::new(self.sta_stack.clone(), client_state),
+            dns_client: DnsSocket::new(self.sta_stack.clone()),
             rng: self.rng,
         })
     }
@@ -215,13 +213,8 @@ const TLS_WRITE_BUFFER: usize = 4096;
 
 type TcpClientState =
     embassy_net::tcp::client::TcpClientState<SOCKET_COUNT, SOCKET_TX_BUFFER, SOCKET_RX_BUFFER>;
-type TcpClient<'a> = embassy_net::tcp::client::TcpClient<
-    'a,
-    WifiDevice<'static, WifiStaDevice>,
-    SOCKET_COUNT,
-    SOCKET_TX_BUFFER,
-    SOCKET_RX_BUFFER,
->;
+type TcpClient<'a> =
+    embassy_net::tcp::client::TcpClient<'a, SOCKET_COUNT, SOCKET_TX_BUFFER, SOCKET_RX_BUFFER>;
 
 struct TlsClientState {
     tcp_state: TcpClientState,
@@ -240,14 +233,12 @@ impl TlsClientState {
 pub struct HttpsClientResources<'a> {
     resources: Box<TlsClientState>,
     tcp_client: TcpClient<'a>,
-    dns_client: DnsSocket<'a, WifiDevice<'static, WifiStaDevice>>,
+    dns_client: DnsSocket<'a>,
     rng: Rng,
 }
 
 impl<'a> HttpsClientResources<'a> {
-    pub fn client(
-        &mut self,
-    ) -> HttpClient<'_, TcpClient<'a>, DnsSocket<'a, WifiDevice<'static, WifiStaDevice>>> {
+    pub fn client(&mut self) -> HttpClient<'_, TcpClient<'a>, DnsSocket<'a>> {
         let upper = self.rng.random() as u64;
         let lower = self.rng.random() as u64;
         let seed = (upper << 32) | lower;
@@ -277,7 +268,8 @@ impl StaState {
         init: EspWifiController<'static>,
         config: Config,
         wifi: &'static mut WIFI,
-        rng: Rng,
+        mut rng: Rng,
+        sta_resources: &'static mut StackResources<STACK_SOCKET_COUNT>,
         spawner: Spawner,
     ) -> Self {
         info!("Configuring STA");
@@ -290,15 +282,24 @@ impl StaState {
 
         info!("Starting STA");
 
-        let sta_stack = StackWrapper::new(sta_device, config, rng);
+        let lower = rng.random() as u64;
+        let upper = rng.random() as u64;
+
+        let random_seed = upper << 32 | lower;
+
+        let ptr = sta_resources as *mut _;
+        let (sta_stack, sta_runner) =
+            embassy_net::new(sta_device, config, sta_resources, random_seed);
         let networks = Rc::new(Mutex::new(heapless::Vec::new()));
         let known_networks = Rc::new(Mutex::new(Vec::new()));
         let state = Rc::new(StaConnectionState::new());
         let net_task_control = TaskController::new();
         let command_queue = Rc::new(CommandQueue::new());
 
-        let connection_task_control =
-            TaskController::from_resources(StaTaskResources { controller });
+        let connection_task_control = TaskController::from_resources(StaTaskResources {
+            controller,
+            sta_resources: ptr,
+        });
 
         info!("Starting STA task");
         spawner.must_spawn(sta_task(
@@ -314,7 +315,7 @@ impl StaState {
         ));
 
         info!("Starting NET task");
-        spawner.must_spawn(sta_net_task(sta_stack.clone(), net_task_control.token()));
+        spawner.must_spawn(sta_net_task(sta_runner, net_task_control.token()));
 
         Self {
             init,
@@ -331,7 +332,12 @@ impl StaState {
         }
     }
 
-    pub(super) async fn stop(mut self) -> EspWifiController<'static> {
+    pub(super) async fn stop(
+        mut self,
+    ) -> (
+        EspWifiController<'static>,
+        &'static mut StackResources<STACK_SOCKET_COUNT>,
+    ) {
         info!("Stopping STA");
 
         let _ = join(
@@ -340,6 +346,7 @@ impl StaState {
         )
         .await;
 
+        let resources = self.connection_task_control.resources_mut().sta_resources;
         let controller = &mut self.connection_task_control.resources_mut().controller;
         if matches!(controller.is_started(), Ok(true)) {
             unwrap!(controller.stop_async().await);
@@ -347,7 +354,7 @@ impl StaState {
 
         info!("Stopped STA");
 
-        self.init
+        (self.init, unsafe { unwrap!(resources.as_mut()) })
     }
 
     pub(crate) fn handle(&self) -> &Sta {
@@ -357,7 +364,10 @@ impl StaState {
 
 struct StaTaskResources {
     controller: WifiController<'static>,
+    sta_resources: *mut StackResources<STACK_SOCKET_COUNT>,
 }
+
+unsafe impl Send for StaTaskResources {}
 
 pub(super) enum InitialStaControllerState {
     Idle,
@@ -400,7 +410,7 @@ pub(super) struct StaController {
 
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
-    stack: Rc<StackWrapper<WifiStaDevice>>,
+    stack: Stack<'static>,
 
     command_queue: Rc<CommandQueue>,
 }
@@ -410,7 +420,7 @@ impl StaController {
         state: Rc<StaConnectionState>,
         networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
         known_networks: Shared<Vec<KnownNetwork>>,
-        stack: Rc<StackWrapper<WifiStaDevice>>,
+        stack: Stack<'static>,
         command_queue: Rc<CommandQueue>,
         initial_state: InitialStaControllerState,
     ) -> Self {
