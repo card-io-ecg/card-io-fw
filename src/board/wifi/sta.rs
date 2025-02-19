@@ -2,7 +2,7 @@ use core::{alloc::AllocError, ptr::addr_of, sync::atomic::Ordering};
 
 use super::STACK_SOCKET_COUNT;
 use crate::{
-    board::{initialized::Context, wifi::sta_net_task},
+    board::{initialized::Context, wifi::net_task},
     task_control::{TaskControlToken, TaskController},
     Shared,
 };
@@ -24,13 +24,11 @@ use embassy_time::{with_timeout, Duration};
 use enumset::EnumSet;
 use esp_hal::{peripherals::WIFI, rng::Rng};
 use esp_wifi::{
-    wifi::{
-        AccessPointInfo, ClientConfiguration, Configuration, WifiController, WifiEvent,
-        WifiStaDevice,
-    },
+    wifi::{AccessPointInfo, ClientConfiguration, Configuration, WifiController, WifiEvent},
     EspWifiController,
 };
 use gui::widgets::wifi_client::WifiClientState;
+use heapless::String;
 use macros as cardio;
 use reqwless::client::{HttpClient, TlsConfig, TlsVerify};
 
@@ -274,11 +272,12 @@ impl StaState {
     ) -> Self {
         info!("Configuring STA");
 
-        let (sta_device, controller) = unwrap!(esp_wifi::wifi::new_with_mode(
+        let (controller, interfaces) = unwrap!(esp_wifi::wifi::new(
             unsafe { core::mem::transmute(&init) },
             wifi,
-            WifiStaDevice
         ));
+
+        let sta_device = interfaces.sta;
 
         info!("Starting STA");
 
@@ -315,7 +314,7 @@ impl StaState {
         ));
 
         info!("Starting NET task");
-        spawner.must_spawn(sta_net_task(sta_runner, net_task_control.token()));
+        spawner.must_spawn(net_task(sta_runner, net_task_control.token()));
 
         Self {
             init,
@@ -411,6 +410,7 @@ pub(super) struct StaController {
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
     stack: Stack<'static>,
+    current_ssid: Option<String<32>>,
 
     command_queue: Rc<CommandQueue>,
 }
@@ -430,8 +430,18 @@ impl StaController {
             known_networks,
             stack,
             command_queue,
+            current_ssid: None,
             controller_state: initial_state.into(),
         }
+    }
+
+    async fn setup(&mut self, controller: &mut WifiController<'_>) {
+        info!("Configuring STA");
+
+        let client_config = Configuration::Client(ClientConfiguration {
+            ..Default::default()
+        });
+        unwrap!(controller.set_configuration(&client_config));
     }
 
     async fn do_scan(&mut self, controller: &mut WifiController<'_>) {
@@ -512,6 +522,8 @@ impl StaController {
         info!("Connecting to {}...", connect_to.ssid);
         self.state.update(InternalConnectionState::Connecting);
 
+        self.current_ssid = Some(connect_to.ssid.clone());
+
         unwrap!(
             controller.set_configuration(&Configuration::Client(ClientConfiguration {
                 ssid: connect_to.ssid.clone(),
@@ -545,24 +557,14 @@ impl StaController {
         }
     }
 
-    async fn deprioritize_current(&self, controller: &mut WifiController<'_>) {
-        match controller.configuration() {
-            Ok(config) => match &config {
-                Configuration::Client(config) | Configuration::Mixed(config, _) => {
-                    let mut known_networks = self.known_networks.lock().await;
-                    if let Some((_, preference)) =
-                        known_networks.iter_mut().find(|(kn, preference)| {
-                            kn.ssid == config.ssid && *preference == NetworkPreference::Preferred
-                        })
-                    {
-                        *preference = NetworkPreference::Deprioritized;
-                    }
-                }
-                Configuration::EapClient(_)
-                | Configuration::AccessPoint(_)
-                | Configuration::None => unreachable!(),
-            },
-            Err(_) => unreachable!(),
+    async fn deprioritize_current(&self) {
+        if let Some(ssid) = self.current_ssid.as_deref() {
+            let mut known_networks = self.known_networks.lock().await;
+            if let Some((_, preference)) = known_networks.iter_mut().find(|(kn, preference)| {
+                kn.ssid == ssid && *preference == NetworkPreference::Preferred
+            }) {
+                *preference = NetworkPreference::Deprioritized;
+            }
         }
     }
 
@@ -645,7 +647,7 @@ impl StaController {
                         }
 
                         self.controller_state = StaControllerState::ScanAndConnect;
-                        self.deprioritize_current(controller).await;
+                        self.deprioritize_current().await;
 
                         SCAN_PERIOD
                     }
@@ -679,6 +681,8 @@ async fn sta_task(
 ) {
     task_control
         .run_cancellable(|resources| async {
+            sta_controller.setup(&mut resources.controller).await;
+
             info!("Starting wifi");
             unwrap!(resources.controller.start_async().await);
             info!("Wifi started!");

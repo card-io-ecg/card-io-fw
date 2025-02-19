@@ -87,7 +87,7 @@ impl super::startup::StartupResources {
             peripherals.GPIO35,
             peripherals.GPIO17,
             peripherals.GPIO47,
-            Output::new(peripherals.GPIO8, Level::Low),
+            Output::new(peripherals.GPIO8, Level::Low, Default::default()),
         )
         .await;
 

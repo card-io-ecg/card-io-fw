@@ -47,14 +47,10 @@ where
     }
 
     #[cfg(all(feature = "esp32s3", not(feature = "hw_v6")))]
-    pub fn disable<R>(&mut self)
-    where
-        EN: esp_hal::peripheral::Peripheral<P = R>,
-        R: esp_hal::gpio::RtcPinWithResistors,
-    {
-        use esp_hal::peripheral::Peripheral;
+    pub fn disable(&mut self) {
+        use esp_hal::gpio::{AnyPin, RtcPin, RtcPinWithResistors};
         // We want to keep the fuel gauge out of shutdown mode
-        let mut enable = (&mut self.enable).into_ref();
+        let enable = unsafe { AnyPin::steal(8) };
         enable.rtcio_pad_hold(true);
         enable.rtcio_pullup(true);
     }

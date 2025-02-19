@@ -12,15 +12,15 @@ use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
     dma::*,
-    gpio::{Input, Level, Output, Pull},
+    gpio::{Input, Level, Output},
     i2c::master::I2c,
     interrupt::software::SoftwareInterruptControl,
     rtc_cntl::Rtc,
     spi::master::SpiDmaBus,
+    time::Rate,
     timer::{systimer::SystemTimer, AnyTimer},
     Async,
 };
-use fugit::RateExtU32;
 use static_cell::StaticCell;
 
 pub use crate::board::drivers::bitbang_spi::BitbangSpi;
@@ -73,12 +73,12 @@ impl super::startup::StartupResources {
         let adc = Self::create_frontend_driver(
             ExclusiveDevice::new(
                 BitbangSpi::new(
-                    Output::new(peripherals.GPIO7, Level::Low),
-                    Input::new(peripherals.GPIO5, Pull::None),
-                    Output::new(peripherals.GPIO6, Level::Low),
-                    1u32.MHz(),
+                    Output::new(peripherals.GPIO7, Level::Low, Default::default()),
+                    Input::new(peripherals.GPIO5, Default::default()),
+                    Output::new(peripherals.GPIO6, Level::Low, Default::default()),
+                    Rate::from_mhz(1),
                 ),
-                Output::new(peripherals.GPIO9, Level::High),
+                Output::new(peripherals.GPIO9, Level::High, Default::default()),
                 Delay,
             )
             .unwrap(),

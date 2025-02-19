@@ -15,10 +15,7 @@ use esp_hal::{
     rng::Rng,
     timer::AnyTimer,
 };
-use esp_wifi::{
-    wifi::{WifiApDevice, WifiDevice, WifiStaDevice},
-    EspWifiController,
-};
+use esp_wifi::{wifi::WifiDevice, EspWifiController};
 use gui::widgets::{wifi_access_point::WifiAccessPointState, wifi_client::WifiClientState};
 use macros as cardio;
 
@@ -272,17 +269,9 @@ impl WifiDriver {
     }
 }
 
-#[cardio::task]
-async fn ap_net_task(
-    mut runner: Runner<'static, WifiDevice<'static, WifiApDevice>>,
-    mut task_control: TaskControlToken<!>,
-) {
-    task_control.run_cancellable(|_| runner.run()).await;
-}
-
-#[cardio::task]
-async fn sta_net_task(
-    mut runner: Runner<'static, WifiDevice<'static, WifiStaDevice>>,
+#[cardio::task(pool_size = 2)]
+async fn net_task(
+    mut runner: Runner<'static, WifiDevice<'static>>,
     mut task_control: TaskControlToken<!>,
 ) {
     task_control.run_cancellable(|_| runner.run()).await;

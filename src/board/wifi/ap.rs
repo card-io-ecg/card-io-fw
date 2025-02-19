@@ -5,7 +5,7 @@ use gui::widgets::wifi_access_point::WifiAccessPointState;
 
 use super::STACK_SOCKET_COUNT;
 use crate::{
-    board::wifi::ap_net_task,
+    board::wifi::net_task,
     task_control::{TaskControlToken, TaskController},
 };
 use embassy_executor::Spawner;
@@ -13,7 +13,7 @@ use embassy_futures::join::join;
 use embassy_net::{Config, Stack, StackResources};
 use esp_hal::{peripherals::WIFI, rng::Rng};
 use esp_wifi::{
-    wifi::{AccessPointConfiguration, Configuration, WifiApDevice, WifiController, WifiEvent},
+    wifi::{AccessPointConfiguration, Configuration, WifiController, WifiEvent},
     EspWifiController,
 };
 use macros as cardio;
@@ -76,11 +76,12 @@ impl ApState {
     ) -> Self {
         info!("Configuring AP");
 
-        let (ap_device, controller) = unwrap!(esp_wifi::wifi::new_with_mode(
+        let (controller, interfaces) = unwrap!(esp_wifi::wifi::new(
             unsafe { core::mem::transmute(&init) },
             wifi,
-            WifiApDevice
         ));
+
+        let ap_device = interfaces.ap;
 
         info!("Starting AP");
 
@@ -106,7 +107,7 @@ impl ApState {
         ));
 
         info!("Starting NET task");
-        spawner.must_spawn(ap_net_task(runner, net_task_control.token()));
+        spawner.must_spawn(net_task(runner, net_task_control.token()));
 
         Self {
             init,
@@ -170,12 +171,12 @@ impl ApController {
     pub async fn setup(&mut self, controller: &mut WifiController<'static>) {
         info!("Configuring AP");
 
-        let client_config = Configuration::AccessPoint(AccessPointConfiguration {
+        let ap_config = Configuration::AccessPoint(AccessPointConfiguration {
             ssid: "Card/IO".try_into().unwrap(),
             max_connections: 1,
             ..Default::default()
         });
-        unwrap!(controller.set_configuration(&client_config));
+        unwrap!(controller.set_configuration(&ap_config));
     }
 
     pub fn handle_events(&mut self, events: EnumSet<WifiEvent>) -> bool {

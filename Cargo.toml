@@ -123,13 +123,13 @@ crc = "3.0.1"
 enumset = "1.1.3"
 
 [patch.crates-io]
-esp-hal = { git = "https://github.com/jessebraham/esp-hal.git", rev = "00043f9" }
-esp-hal-embassy = { git = "https://github.com/jessebraham/esp-hal.git", rev = "00043f9" }
-esp-wifi = { git = "https://github.com/jessebraham/esp-hal.git", rev = "00043f9" }
-esp-backtrace = { git = "https://github.com/jessebraham/esp-hal.git", rev = "00043f9" }
-esp-println = { git = "https://github.com/jessebraham/esp-hal.git", rev = "00043f9" }
-esp-alloc = { git = "https://github.com/jessebraham/esp-hal.git", rev = "00043f9" }
-xtensa-lx-rt = { git = "https://github.com/jessebraham/esp-hal.git", rev = "00043f9" }
+esp-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "26cf556cde2b7a78358f440b362608b3264d30bd" }
+esp-hal-embassy = { git = "https://github.com/esp-rs/esp-hal.git", rev = "26cf556cde2b7a78358f440b362608b3264d30bd" }
+esp-wifi = { git = "https://github.com/esp-rs/esp-hal.git", rev = "26cf556cde2b7a78358f440b362608b3264d30bd" }
+esp-backtrace = { git = "https://github.com/esp-rs/esp-hal.git", rev = "26cf556cde2b7a78358f440b362608b3264d30bd" }
+esp-println = { git = "https://github.com/esp-rs/esp-hal.git", rev = "26cf556cde2b7a78358f440b362608b3264d30bd" }
+esp-alloc = { git = "https://github.com/esp-rs/esp-hal.git", rev = "26cf556cde2b7a78358f440b362608b3264d30bd" }
+xtensa-lx-rt = { git = "https://github.com/esp-rs/esp-hal.git", rev = "26cf556cde2b7a78358f440b362608b3264d30bd" }
 
 [features]
 default = ["defmt", "rtt"]

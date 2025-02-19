@@ -6,9 +6,8 @@ use super::STACK_SOCKET_COUNT;
 use crate::{
     board::wifi::{
         ap::{Ap, ApConnectionState, ApController},
-        ap_net_task,
+        net_task,
         sta::{CommandQueue, InitialStaControllerState, Sta, StaConnectionState, StaController},
-        sta_net_task,
     },
     task_control::{TaskControlToken, TaskController},
 };
@@ -19,7 +18,10 @@ use embassy_futures::{
 };
 use embassy_net::{Config, StackResources};
 use esp_hal::{peripherals::WIFI, rng::Rng};
-use esp_wifi::{wifi::WifiController, EspWifiController};
+use esp_wifi::{
+    wifi::{AccessPointConfiguration, ClientConfiguration, Configuration, WifiController},
+    EspWifiController,
+};
 use macros as cardio;
 
 pub(super) struct ApStaState {
@@ -44,10 +46,13 @@ impl ApStaState {
     ) -> Self {
         info!("Configuring AP-STA");
 
-        let (ap_device, sta_device, controller) = unwrap!(esp_wifi::wifi::new_ap_sta(
+        let (controller, interfaces) = unwrap!(esp_wifi::wifi::new(
             unsafe { core::mem::transmute(&init) },
-            wifi
+            wifi,
         ));
+
+        let sta_device = interfaces.sta;
+        let ap_device = interfaces.ap;
 
         info!("Starting AP-STA");
 
@@ -92,8 +97,8 @@ impl ApStaState {
         ));
 
         info!("Starting NET tasks");
-        spawner.must_spawn(ap_net_task(ap_runner, ap_net_task_control.token()));
-        spawner.must_spawn(sta_net_task(sta_runner, sta_net_task_control.token()));
+        spawner.must_spawn(net_task(ap_runner, ap_net_task_control.token()));
+        spawner.must_spawn(net_task(sta_runner, sta_net_task_control.token()));
 
         Self {
             init,
@@ -169,7 +174,17 @@ async fn ap_sta_task(
 ) {
     task_control
         .run_cancellable(|resources| async {
-            ap_controller.setup(&mut resources.controller).await;
+            let ap_config = AccessPointConfiguration {
+                ssid: "Card/IO".try_into().unwrap(),
+                max_connections: 1,
+                ..Default::default()
+            };
+            let client_config = ClientConfiguration {
+                ..Default::default()
+            };
+            unwrap!(resources
+                .controller
+                .set_configuration(&Configuration::Mixed(client_config, ap_config)));
 
             info!("Starting wifi");
             unwrap!(resources.controller.start_async().await);

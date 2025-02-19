@@ -47,8 +47,8 @@ use crate::{
 };
 
 use esp_hal::{
+    gpio::AnyPin,
     interrupt::Priority,
-    peripheral::Peripheral,
     rtc_cntl::sleep::{self, WakeupLevel},
 };
 use esp_hal_embassy::InterruptExecutor;
@@ -191,7 +191,7 @@ async fn main(_spawner: Spawner) {
     #[cfg(all(feature = "rtt", feature = "defmt"))]
     rtt_target::rtt_init_defmt!();
 
-    esp_alloc::heap_allocator!((48 + 96) * 1024);
+    esp_alloc::heap_allocator!(size: (48 + 96) * 1024);
 
     let resources = StartupResources::initialize().await;
 
@@ -270,22 +270,16 @@ async fn main(_spawner: Spawner) {
 
     let is_charging = battery_monitor.is_plugged();
 
-    let (charger_pin, _) = battery_monitor.stop().await;
+    let (_charger_pin, _) = battery_monitor.stop().await;
+    let (_, _, _, _touch) = board.frontend.split();
 
-    let (_, _, _, touch) = board.frontend.split();
-
-    enter_sleep(resources.rtc, touch, charger_pin, is_charging);
+    enter_sleep(resources.rtc, is_charging);
     // Shouldn't reach this. If we do, we just exit the task, which means the executor
     // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
 }
 
 #[cfg(any(feature = "hw_v4", all(feature = "hw_v6", feature = "esp32s3")))]
-fn enter_sleep(
-    mut rtc: esp_hal::rtc_cntl::Rtc,
-    touch: impl Peripheral<P = impl RtcWakeupPin>,
-    charger_pin: impl Peripheral<P = impl RtcWakeupPin>,
-    is_charging: bool,
-) {
+fn enter_sleep(mut rtc: esp_hal::rtc_cntl::Rtc, is_charging: bool) {
     let charger_level = if is_charging {
         // Wake up momentarily when charger is disconnected
         WakeupLevel::Low
@@ -297,9 +291,15 @@ fn enter_sleep(
         WakeupLevel::High
     };
 
+    let mut touch = unsafe { AnyPin::steal(1) };
+    #[cfg(feature = "hw_v4")]
+    let mut charger_pin = unsafe { AnyPin::steal(17) };
+    #[cfg(feature = "hw_v6")]
+    let mut charger_pin = unsafe { AnyPin::steal(2) };
+
     let mut wakeup_pins: [(&mut dyn RtcWakeupPin, WakeupLevel); 2] = [
-        (&mut *touch.into_ref(), WakeupLevel::Low),
-        (&mut *charger_pin.into_ref(), charger_level),
+        (&mut touch, WakeupLevel::Low),
+        (&mut charger_pin, charger_level),
     ];
     let wakeup_source = sleep::RtcioWakeupSource::new(&mut wakeup_pins);
 
@@ -307,12 +307,7 @@ fn enter_sleep(
 }
 
 #[cfg(all(feature = "hw_v6", feature = "esp32c6"))]
-fn enter_sleep(
-    mut rtc: esp_hal::rtc_cntl::Rtc,
-    touch: impl Peripheral<P = impl RtcWakeupPin>,
-    charger_pin: impl Peripheral<P = impl RtcWakeupPin>,
-    is_charging: bool,
-) {
+fn enter_sleep(mut rtc: esp_hal::rtc_cntl::Rtc, is_charging: bool) {
     let charger_level = if is_charging {
         // Wake up momentarily when charger is disconnected
         WakeupLevel::Low
@@ -324,9 +319,12 @@ fn enter_sleep(
         WakeupLevel::High
     };
 
+    let mut touch = unsafe { AnyPin::steal(2) };
+    let mut charger_pin = unsafe { AnyPin::steal(3) };
+
     let mut wakeup_pins: [(&mut dyn RtcWakeupPin, WakeupLevel); 2] = [
-        (&mut *touch.into_ref(), WakeupLevel::Low),
-        (&mut *charger_pin.into_ref(), charger_level),
+        (&mut touch, WakeupLevel::Low),
+        (&mut charger_pin, charger_level),
     ];
 
     let wakeup_source = sleep::Ext1WakeupSource::new(&mut wakeup_pins);

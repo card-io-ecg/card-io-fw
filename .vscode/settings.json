@@ -4,7 +4,7 @@
     "cortex-debug.variableUseNaturalFormat": false,
     "rust-analyzer.cargo.targetDir": "target/rust-analyzer",
     "rust-analyzer.cargo.features": [
-        "esp32s3",
-        "hw_v4"
+        "esp32c6",
+        "hw_v6"
     ]
 }

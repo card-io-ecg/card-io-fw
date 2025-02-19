@@ -26,6 +26,7 @@ use esp_hal::{
         master::{Config as SpiConfig, Spi},
         Mode,
     },
+    time::Rate,
 };
 
 #[cfg(feature = "esp32s3")]
@@ -38,8 +39,6 @@ use {
     crate::board::{BatteryAdcEnablePin, BatteryFg},
     max17055::{DesignData, Max17055},
 };
-
-use fugit::RateExtU32;
 
 pub struct StartupResources {
     pub display: Display,
@@ -86,11 +85,7 @@ impl StartupResources {
         static STACK_PROTECTION: StaticCell<StackMonitor> = StaticCell::new();
         let _stack_protection = STACK_PROTECTION.init(StackMonitor::protect(stack_range));
 
-        esp_hal::init({
-            let mut config = esp_hal::Config::default();
-            config.cpu_clock = CpuClock::max();
-            config
-        })
+        esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()))
     }
 
     #[inline(always)]
@@ -110,7 +105,7 @@ impl StartupResources {
         let display_spi = Spi::new(
             display_spi,
             SpiConfig::default()
-                .with_frequency(40u32.MHz())
+                .with_frequency(Rate::from_mhz(40))
                 .with_mode(Mode::_0),
         )
         .unwrap()
@@ -124,9 +119,9 @@ impl StartupResources {
         Display::new(
             SPIInterface::new(
                 ExclusiveDevice::new(display_spi, DummyOutputPin, Delay).unwrap(),
-                Output::new(display_dc, Level::Low),
+                Output::new(display_dc, Level::Low, Default::default()),
             ),
-            Output::new(display_reset, Level::Low),
+            Output::new(display_reset, Level::Low, Default::default()),
         )
     }
 
@@ -141,6 +136,8 @@ impl StartupResources {
         adc_miso: impl Peripheral<P = impl InputPin> + 'static,
         adc_cs: impl Peripheral<P = impl OutputPin> + 'static,
     ) -> AdcSpi {
+        use esp_hal::time::Rate;
+
         let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(4092);
         let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
         let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
@@ -149,7 +146,7 @@ impl StartupResources {
             Spi::new(
                 adc_spi,
                 SpiConfig::default()
-                    .with_frequency(1u32.MHz())
+                    .with_frequency(Rate::from_mhz(1))
                     .with_mode(Mode::_1),
             )
             .unwrap()
@@ -159,7 +156,7 @@ impl StartupResources {
             .with_dma(adc_dma_channel)
             .with_buffers(dma_rx_buf, dma_tx_buf)
             .into_async(),
-            Output::new(adc_cs, Level::High),
+            Output::new(adc_cs, Level::High, Default::default()),
             Delay,
         )
         .unwrap()
@@ -177,10 +174,10 @@ impl StartupResources {
 
         Frontend::new(
             adc_spi,
-            Input::new(adc_drdy, Pull::None),
-            Output::new(adc_reset, Level::Low),
-            Output::new(adc_clock_enable, Level::Low),
-            Input::new(touch_detect, Pull::None),
+            Input::new(adc_drdy, Default::default()),
+            Output::new(adc_reset, Level::Low, Default::default()),
+            Output::new(adc_clock_enable, Level::Low, Default::default()),
+            Input::new(touch_detect, Default::default()),
         )
     }
 
@@ -206,6 +203,8 @@ impl StartupResources {
         // i_chg_term = 212 * 0.0075 = 1.59mA
         // LSB = 1.5625μV/20mOhm = 78.125μA/LSB
         // 1.59mA / 78.125μA/LSB ~~ 20 LSB
+
+        use esp_hal::{gpio::InputConfig, time::Rate};
         let design = DesignData {
             capacity: 320,
             i_chg_term: 20,
@@ -216,13 +215,13 @@ impl StartupResources {
         };
 
         BatteryMonitor::start(
-            Input::new(vbus_detect, Pull::None),
-            Input::new(charger_status, Pull::Up),
+            Input::new(vbus_detect, Default::default()),
+            Input::new(charger_status, InputConfig::default().with_pull(Pull::Up)),
             BatteryFg::new(
                 Max17055::new(
                     I2c::new(
                         i2c,
-                        i2c::master::Config::default().with_frequency(100u32.kHz()),
+                        i2c::master::Config::default().with_frequency(Rate::from_khz(100)),
                     )
                     .unwrap()
                     .with_sda(sda)
