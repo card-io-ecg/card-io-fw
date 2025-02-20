@@ -3,19 +3,10 @@ use core::sync::atomic::{AtomicU32, Ordering};
 use enumset::EnumSet;
 use gui::widgets::wifi_access_point::WifiAccessPointState;
 
-use super::STACK_SOCKET_COUNT;
-use crate::{
-    board::wifi::net_task,
-    task_control::{TaskControlToken, TaskController},
-};
+use crate::task_control::{TaskControlToken, TaskController};
 use embassy_executor::Spawner;
-use embassy_futures::join::join;
-use embassy_net::{Config, Stack, StackResources};
-use esp_hal::{peripherals::WIFI, rng::Rng};
-use esp_wifi::{
-    wifi::{AccessPointConfiguration, Configuration, WifiController, WifiEvent},
-    EspWifiController,
-};
+use embassy_net::Stack;
+use esp_wifi::wifi::{AccessPointConfiguration, Configuration, WifiController, WifiEvent};
 use macros as cardio;
 
 pub(super) struct ApConnectionState {
@@ -59,46 +50,22 @@ impl Ap {
 }
 
 pub(super) struct ApState {
-    init: EspWifiController<'static>,
     connection_task_control: TaskController<(), ApTaskResources>,
-    net_task_control: TaskController<!>,
     handle: Ap,
 }
 
 impl ApState {
     pub(super) fn init(
-        init: EspWifiController<'static>,
-        config: Config,
-        wifi: &'static mut WIFI,
-        mut rng: Rng,
-        resources: &'static mut StackResources<STACK_SOCKET_COUNT>,
+        controller: WifiController<'static>,
+        ap_stack: Stack<'static>,
         spawner: Spawner,
     ) -> Self {
-        info!("Configuring AP");
-
-        let (controller, interfaces) = unwrap!(esp_wifi::wifi::new(
-            unsafe { core::mem::transmute(&init) },
-            wifi,
-        ));
-
-        let ap_device = interfaces.ap;
-
         info!("Starting AP");
 
-        let lower = rng.random() as u64;
-        let upper = rng.random() as u64;
-
-        let random_seed = upper << 32 | lower;
-
-        let ptr = resources as *mut _;
-        let (ap_stack, runner) = embassy_net::new(ap_device, config, resources, random_seed);
-        let net_task_control = TaskController::new();
         let state = Rc::new(ApConnectionState::new());
 
-        let connection_task_control = TaskController::from_resources(ApTaskResources {
-            controller,
-            ap_resources: ptr,
-        });
+        let connection_task_control =
+            TaskController::from_resources(ApTaskResources { controller });
 
         info!("Starting AP task");
         spawner.must_spawn(ap_task(
@@ -106,39 +73,24 @@ impl ApState {
             connection_task_control.token(),
         ));
 
-        info!("Starting NET task");
-        spawner.must_spawn(net_task(runner, net_task_control.token()));
-
         Self {
-            init,
-            net_task_control,
             connection_task_control,
             handle: Ap { ap_stack, state },
         }
     }
 
-    pub(super) async fn stop(
-        mut self,
-    ) -> (
-        EspWifiController<'static>,
-        &'static mut StackResources<STACK_SOCKET_COUNT>,
-    ) {
+    pub(super) async fn stop(self) -> (WifiController<'static>, Stack<'static>) {
         info!("Stopping AP");
-        let _ = join(
-            self.connection_task_control.stop(),
-            self.net_task_control.stop(),
-        )
-        .await;
+        let _ = self.connection_task_control.stop().await;
 
-        let resources = self.connection_task_control.resources_mut().ap_resources;
-        let controller = &mut self.connection_task_control.resources_mut().controller;
+        let mut controller = self.connection_task_control.unwrap().controller;
         if matches!(controller.is_started(), Ok(true)) {
             unwrap!(controller.stop_async().await);
         }
 
         info!("Stopped AP");
 
-        (self.init, unsafe { unwrap!(resources.as_mut()) })
+        (controller, self.handle.ap_stack)
     }
 
     pub(crate) fn handle(&self) -> &Ap {
@@ -148,7 +100,6 @@ impl ApState {
 
 struct ApTaskResources {
     controller: WifiController<'static>,
-    ap_resources: *mut StackResources<STACK_SOCKET_COUNT>,
 }
 unsafe impl Send for ApTaskResources {}
 

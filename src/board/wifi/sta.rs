@@ -1,19 +1,15 @@
 use core::{alloc::AllocError, ptr::addr_of, sync::atomic::Ordering};
 
-use super::STACK_SOCKET_COUNT;
 use crate::{
-    board::{initialized::Context, wifi::net_task},
+    board::initialized::Context,
     task_control::{TaskControlToken, TaskController},
     Shared,
 };
 use alloc::{boxed::Box, rc::Rc, vec::Vec};
 use config_site::data::network::WifiNetwork;
 use embassy_executor::Spawner;
-use embassy_futures::{
-    join::join,
-    select::{select, Either},
-};
-use embassy_net::{dns::DnsSocket, Config, Stack, StackResources};
+use embassy_futures::select::{select, Either};
+use embassy_net::{dns::DnsSocket, Stack};
 use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
     channel::Channel,
@@ -22,10 +18,9 @@ use embassy_sync::{
 };
 use embassy_time::{with_timeout, Duration};
 use enumset::EnumSet;
-use esp_hal::{peripherals::WIFI, rng::Rng};
-use esp_wifi::{
-    wifi::{AccessPointInfo, ClientConfiguration, Configuration, WifiController, WifiEvent},
-    EspWifiController,
+use esp_hal::rng::Rng;
+use esp_wifi::wifi::{
+    AccessPointInfo, ClientConfiguration, Configuration, WifiController, WifiEvent,
 };
 use gui::widgets::wifi_client::WifiClientState;
 use heapless::String;
@@ -255,50 +250,25 @@ impl<'a> HttpsClientResources<'a> {
 }
 
 pub(super) struct StaState {
-    init: EspWifiController<'static>,
     connection_task_control: TaskController<(), StaTaskResources>,
-    net_task_control: TaskController<!>,
     handle: Sta,
 }
 
 impl StaState {
     pub(super) fn init(
-        init: EspWifiController<'static>,
-        config: Config,
-        wifi: &'static mut WIFI,
-        mut rng: Rng,
-        sta_resources: &'static mut StackResources<STACK_SOCKET_COUNT>,
+        controller: WifiController<'static>,
+        sta_stack: Stack<'static>,
+        rng: Rng,
         spawner: Spawner,
     ) -> Self {
-        info!("Configuring STA");
-
-        let (controller, interfaces) = unwrap!(esp_wifi::wifi::new(
-            unsafe { core::mem::transmute(&init) },
-            wifi,
-        ));
-
-        let sta_device = interfaces.sta;
-
         info!("Starting STA");
-
-        let lower = rng.random() as u64;
-        let upper = rng.random() as u64;
-
-        let random_seed = upper << 32 | lower;
-
-        let ptr = sta_resources as *mut _;
-        let (sta_stack, sta_runner) =
-            embassy_net::new(sta_device, config, sta_resources, random_seed);
         let networks = Rc::new(Mutex::new(heapless::Vec::new()));
         let known_networks = Rc::new(Mutex::new(Vec::new()));
         let state = Rc::new(StaConnectionState::new());
-        let net_task_control = TaskController::new();
         let command_queue = Rc::new(CommandQueue::new());
 
-        let connection_task_control = TaskController::from_resources(StaTaskResources {
-            controller,
-            sta_resources: ptr,
-        });
+        let connection_task_control =
+            TaskController::from_resources(StaTaskResources { controller });
 
         info!("Starting STA task");
         spawner.must_spawn(sta_task(
@@ -313,12 +283,7 @@ impl StaState {
             connection_task_control.token(),
         ));
 
-        info!("Starting NET task");
-        spawner.must_spawn(net_task(sta_runner, net_task_control.token()));
-
         Self {
-            init,
-            net_task_control,
             connection_task_control,
             handle: Sta {
                 sta_stack,
@@ -331,29 +296,19 @@ impl StaState {
         }
     }
 
-    pub(super) async fn stop(
-        mut self,
-    ) -> (
-        EspWifiController<'static>,
-        &'static mut StackResources<STACK_SOCKET_COUNT>,
-    ) {
+    pub(super) async fn stop(self) -> (WifiController<'static>, Stack<'static>) {
         info!("Stopping STA");
 
-        let _ = join(
-            self.connection_task_control.stop(),
-            self.net_task_control.stop(),
-        )
-        .await;
+        let _ = self.connection_task_control.stop().await;
 
-        let resources = self.connection_task_control.resources_mut().sta_resources;
-        let controller = &mut self.connection_task_control.resources_mut().controller;
+        let mut controller = self.connection_task_control.unwrap().controller;
         if matches!(controller.is_started(), Ok(true)) {
             unwrap!(controller.stop_async().await);
         }
 
         info!("Stopped STA");
 
-        (self.init, unsafe { unwrap!(resources.as_mut()) })
+        (controller, self.handle.sta_stack)
     }
 
     pub(crate) fn handle(&self) -> &Sta {
@@ -363,7 +318,6 @@ impl StaState {
 
 struct StaTaskResources {
     controller: WifiController<'static>,
-    sta_resources: *mut StackResources<STACK_SOCKET_COUNT>,
 }
 
 unsafe impl Send for StaTaskResources {}

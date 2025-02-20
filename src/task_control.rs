@@ -104,12 +104,6 @@ impl<R: Send, D: Send> TaskController<R, D> {
         core::mem::drop(self);
         unwrap!(Arc::try_unwrap(inner).ok()).resources.into_inner()
     }
-
-    pub fn resources_mut(&mut self) -> &mut D {
-        let inner = unwrap!(Arc::get_mut(&mut self.inner));
-
-        inner.resources.get_mut()
-    }
 }
 
 impl<R: Send, D: Send> Drop for TaskController<R, D> {
