@@ -2,10 +2,9 @@ use core::ops::Range;
 
 use esp_hal::{
     assist_debug::DebugAssist,
-    interrupt,
+    handler, interrupt,
     peripherals::{self, ASSIST_DEBUG},
-    prelude::*,
-    Cpu,
+    system::Cpu,
 };
 
 pub struct StackMonitor {

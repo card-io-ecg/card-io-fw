@@ -1,12 +1,19 @@
 use crate::{
     board::initialized::Context,
     human_readable::LeftPadAny,
-    states::menu::{AppMenu, AppMenuBuilder, MenuScreen},
+    states::menu::{AppMenu, MenuScreen},
     uformat, AppState, SerialNumber,
 };
 
-use embedded_menu::items::menu_item::MenuItem;
-use gui::screens::create_menu;
+use embedded_graphics::pixelcolor::BinaryColor;
+use embedded_menu::{
+    builder::MenuBuilder,
+    collection::MenuItems,
+    interaction::single_touch::SingleTouch,
+    items::menu_item::MenuItem,
+    selection_indicator::{style::AnimatedTriangle, AnimatedPosition},
+};
+use gui::{embedded_layout::object_chain, screens::create_menu};
 
 #[derive(Clone, Copy)]
 pub enum AboutMenuEvents {
@@ -25,7 +32,27 @@ pub async fn about_menu(context: &mut Context) -> AppState {
 }
 
 struct AboutAppMenu;
-type AboutMenuBuilder = impl AppMenuBuilder<AboutMenuEvents>;
+type AboutMenuBuilder = MenuBuilder<
+    &'static str,
+    SingleTouch,
+    object_chain::Link<
+        MenuItem<&'static str, AboutMenuEvents, &'static str, true>,
+        object_chain::Chain<
+            MenuItems<
+                heapless::Vec<
+                    MenuItem<heapless::String<20>, AboutMenuEvents, &'static str, true>,
+                    5,
+                >,
+                MenuItem<heapless::String<20>, AboutMenuEvents, &'static str, true>,
+                AboutMenuEvents,
+            >,
+        >,
+    >,
+    AboutMenuEvents,
+    AnimatedPosition,
+    AnimatedTriangle,
+    BinaryColor,
+>;
 
 fn about_menu_builder(context: &mut Context) -> AboutMenuBuilder {
     let list_item =

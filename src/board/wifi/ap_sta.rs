@@ -5,53 +5,35 @@ use embassy_time::{with_timeout, Duration};
 use crate::{
     board::wifi::{
         ap::{Ap, ApConnectionState, ApController},
-        ap_net_task,
         sta::{CommandQueue, InitialStaControllerState, Sta, StaConnectionState, StaController},
-        sta_net_task, StackWrapper,
     },
     task_control::{TaskControlToken, TaskController},
 };
 use embassy_executor::Spawner;
-use embassy_futures::{
-    join::join3,
-    select::{select, Either},
+use embassy_futures::select::{select, Either};
+use embassy_net::Stack;
+use esp_hal::rng::Rng;
+use esp_wifi::wifi::{
+    AccessPointConfiguration, ClientConfiguration, Configuration, WifiController,
 };
-use embassy_net::Config;
-use esp_hal::{peripherals::WIFI, rng::Rng};
-use esp_wifi::{wifi::WifiController, EspWifiController};
 use macros as cardio;
 
 pub(super) struct ApStaState {
-    init: EspWifiController<'static>,
     connection_task_control: TaskController<(), ApStaTaskResources>,
-    ap_net_task_control: TaskController<!>,
-    sta_net_task_control: TaskController<!>,
     ap_handle: Ap,
     sta_handle: Sta,
 }
 
 impl ApStaState {
     pub(super) fn init(
-        init: EspWifiController<'static>,
-        ap_config: Config,
-        sta_config: Config,
-        wifi: &'static mut WIFI,
+        controller: WifiController<'static>,
+        ap_stack: Stack<'static>,
+        sta_stack: Stack<'static>,
         rng: Rng,
         spawner: Spawner,
     ) -> Self {
         info!("Configuring AP-STA");
 
-        let (ap_device, sta_device, controller) = unwrap!(esp_wifi::wifi::new_ap_sta(
-            unsafe { core::mem::transmute(&init) },
-            wifi
-        ));
-
-        info!("Starting AP-STA");
-
-        let ap_stack = StackWrapper::new(ap_device, ap_config, rng);
-        let sta_stack = StackWrapper::new(sta_device, sta_config, rng);
-        let ap_net_task_control = TaskController::new();
-        let sta_net_task_control = TaskController::new();
         let ap_state = Rc::new(ApConnectionState::new());
         let sta_state = Rc::new(StaConnectionState::new());
         let networks = Rc::new(Mutex::new(heapless::Vec::new()));
@@ -75,18 +57,8 @@ impl ApStaState {
             connection_task_control.token(),
         ));
 
-        info!("Starting NET tasks");
-        spawner.must_spawn(ap_net_task(ap_stack.clone(), ap_net_task_control.token()));
-        spawner.must_spawn(sta_net_task(
-            sta_stack.clone(),
-            sta_net_task_control.token(),
-        ));
-
         Self {
-            init,
             connection_task_control,
-            ap_net_task_control,
-            sta_net_task_control,
 
             ap_handle: Ap {
                 ap_stack,
@@ -103,23 +75,22 @@ impl ApStaState {
         }
     }
 
-    pub(super) async fn stop(mut self) -> EspWifiController<'static> {
+    pub(super) async fn stop(self) -> (WifiController<'static>, Stack<'static>, Stack<'static>) {
         info!("Stopping AP-STA");
-        let _ = join3(
-            self.connection_task_control.stop(),
-            self.ap_net_task_control.stop(),
-            self.sta_net_task_control.stop(),
-        )
-        .await;
+        let _ = self.connection_task_control.stop().await;
 
-        let controller = &mut self.connection_task_control.resources_mut().controller;
+        let mut controller = self.connection_task_control.unwrap().controller;
         if matches!(controller.is_started(), Ok(true)) {
             unwrap!(controller.stop_async().await);
         }
 
         info!("Stopped AP-STA");
 
-        self.init
+        (
+            controller,
+            self.ap_handle.ap_stack,
+            self.sta_handle.sta_stack,
+        )
     }
 
     pub(crate) fn handles(&self) -> (&Ap, &Sta) {
@@ -130,6 +101,7 @@ impl ApStaState {
 struct ApStaTaskResources {
     controller: WifiController<'static>,
 }
+unsafe impl Send for ApStaTaskResources {}
 
 const NO_TIMEOUT: Duration = Duration::MAX;
 
@@ -141,7 +113,17 @@ async fn ap_sta_task(
 ) {
     task_control
         .run_cancellable(|resources| async {
-            ap_controller.setup(&mut resources.controller).await;
+            let ap_config = AccessPointConfiguration {
+                ssid: "Card/IO".try_into().unwrap(),
+                max_connections: 1,
+                ..Default::default()
+            };
+            let client_config = ClientConfiguration {
+                ..Default::default()
+            };
+            unwrap!(resources
+                .controller
+                .set_configuration(&Configuration::Mixed(client_config, ap_config)));
 
             info!("Starting wifi");
             unwrap!(resources.controller.start_async().await);

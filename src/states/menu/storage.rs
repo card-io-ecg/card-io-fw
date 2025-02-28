@@ -8,10 +8,15 @@ use crate::{
     states::menu::{AppMenu, MenuScreen},
     uformat, AppState,
 };
-use embedded_menu::items::menu_item::{MenuItem, SelectValue};
-use gui::screens::create_menu;
-
-use super::AppMenuBuilder;
+use embedded_graphics::pixelcolor::BinaryColor;
+use embedded_menu::{
+    builder::MenuBuilder,
+    collection::MenuItems,
+    interaction::single_touch::SingleTouch,
+    items::menu_item::{MenuItem, SelectValue},
+    selection_indicator::{style::AnimatedTriangle, AnimatedPosition},
+};
+use gui::{embedded_layout::object_chain, screens::create_menu};
 
 #[derive(Clone, Copy)]
 pub enum StorageMenuEvents {
@@ -43,7 +48,40 @@ impl SelectValue for UsedStorage {
 }
 
 struct StorageMenu;
-type StorageMenuBuilder = impl AppMenuBuilder<StorageMenuEvents>;
+type StorageMenuBuilder = MenuBuilder<
+    &'static str,
+    SingleTouch,
+    object_chain::Link<
+        MenuItem<&'static str, StorageMenuEvents, &'static str, true>,
+        object_chain::Link<
+            MenuItem<&'static str, StorageMenuEvents, &'static str, true>,
+            object_chain::Link<
+                MenuItems<
+                    heapless::Vec<MenuItem<&'static str, StorageMenuEvents, &'static str, true>, 2>,
+                    MenuItem<&'static str, StorageMenuEvents, &'static str, true>,
+                    StorageMenuEvents,
+                >,
+                object_chain::Link<
+                    MenuItems<
+                        heapless::Vec<
+                            MenuItem<&'static str, StorageMenuEvents, UsedStorage, true>,
+                            2,
+                        >,
+                        MenuItem<&'static str, StorageMenuEvents, UsedStorage, true>,
+                        StorageMenuEvents,
+                    >,
+                    object_chain::Chain<
+                        MenuItem<&'static str, StorageMenuEvents, MeasurementAction, true>,
+                    >,
+                >,
+            >,
+        >,
+    >,
+    StorageMenuEvents,
+    AnimatedPosition,
+    AnimatedTriangle,
+    BinaryColor,
+>;
 
 async fn storage_menu_builder(context: &mut Context) -> StorageMenuBuilder {
     let mut used_item = heapless::Vec::<_, 2>::new();

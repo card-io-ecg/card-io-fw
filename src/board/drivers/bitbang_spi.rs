@@ -6,7 +6,7 @@ use embedded_hal::{
     spi::ErrorType,
 };
 use embedded_hal_async::spi::SpiBus;
-use fugit::HertzU32;
+use esp_hal::time::Rate;
 
 pub struct BitbangSpi<MOSI, MISO, SCLK> {
     mosi: MOSI,
@@ -21,7 +21,7 @@ where
     MISO: InputPin,
     SCLK: OutputPin,
 {
-    pub const fn new(mosi: MOSI, miso: MISO, sclk: SCLK, frequency: HertzU32) -> Self {
+    pub const fn new(mosi: MOSI, miso: MISO, sclk: SCLK, frequency: Rate) -> Self {
         Self {
             mosi,
             miso,
@@ -30,11 +30,8 @@ where
         }
     }
 
-    const fn frequency_to_duration(frequency: HertzU32) -> Duration {
-        let bit_duration: fugit::Duration<u32, 1, { embassy_time::TICK_HZ as u32 }> =
-            frequency.into_duration();
-        let clock_ticks = bit_duration.ticks() / 2;
-        Duration::from_ticks(clock_ticks as u64)
+    const fn frequency_to_duration(frequency: Rate) -> Duration {
+        Duration::from_micros(frequency.as_duration().as_micros() / 2)
     }
 
     pub async fn transfer_byte(&mut self, write: u8, out: &mut u8) {
@@ -57,7 +54,7 @@ where
         &mut self,
         config: &esp_hal::spi::master::Config,
     ) -> Result<(), esp_hal::spi::master::ConfigError> {
-        self.half_bit_delay = Self::frequency_to_duration(config.frequency);
+        self.half_bit_delay = Self::frequency_to_duration(config.frequency());
         Ok(())
     }
 }

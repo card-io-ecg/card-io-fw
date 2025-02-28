@@ -3,21 +3,10 @@ use core::sync::atomic::{AtomicU32, Ordering};
 use enumset::EnumSet;
 use gui::widgets::wifi_access_point::WifiAccessPointState;
 
-use crate::{
-    board::wifi::{ap_net_task, StackWrapper},
-    task_control::{TaskControlToken, TaskController},
-};
+use crate::task_control::{TaskControlToken, TaskController};
 use embassy_executor::Spawner;
-use embassy_futures::join::join;
-use embassy_net::{Config, Stack};
-use esp_hal::{peripherals::WIFI, rng::Rng};
-use esp_wifi::{
-    wifi::{
-        AccessPointConfiguration, Configuration, WifiApDevice, WifiController, WifiDevice,
-        WifiEvent,
-    },
-    EspWifiController,
-};
+use embassy_net::Stack;
+use esp_wifi::wifi::{AccessPointConfiguration, Configuration, WifiController, WifiEvent};
 use macros as cardio;
 
 pub(super) struct ApConnectionState {
@@ -34,7 +23,7 @@ impl ApConnectionState {
 
 #[derive(Clone)]
 pub struct Ap {
-    pub(super) ap_stack: Rc<StackWrapper<WifiApDevice>>,
+    pub(super) ap_stack: Stack<'static>,
     pub(super) state: Rc<ApConnectionState>,
 }
 
@@ -43,8 +32,8 @@ impl Ap {
         self.ap_stack.is_link_up()
     }
 
-    pub fn stack(&self) -> &Stack<WifiDevice<'static, WifiApDevice>> {
-        &self.ap_stack
+    pub fn stack(&self) -> Stack<'static> {
+        self.ap_stack.clone()
     }
 
     pub fn client_count(&self) -> u32 {
@@ -61,32 +50,18 @@ impl Ap {
 }
 
 pub(super) struct ApState {
-    init: EspWifiController<'static>,
     connection_task_control: TaskController<(), ApTaskResources>,
-    net_task_control: TaskController<!>,
     handle: Ap,
 }
 
 impl ApState {
     pub(super) fn init(
-        init: EspWifiController<'static>,
-        config: Config,
-        wifi: &'static mut WIFI,
-        rng: Rng,
+        controller: WifiController<'static>,
+        ap_stack: Stack<'static>,
         spawner: Spawner,
     ) -> Self {
-        info!("Configuring AP");
-
-        let (ap_device, controller) = unwrap!(esp_wifi::wifi::new_with_mode(
-            unsafe { core::mem::transmute(&init) },
-            wifi,
-            WifiApDevice
-        ));
-
         info!("Starting AP");
 
-        let ap_stack = StackWrapper::new(ap_device, config, rng);
-        let net_task_control = TaskController::new();
         let state = Rc::new(ApConnectionState::new());
 
         let connection_task_control =
@@ -98,33 +73,24 @@ impl ApState {
             connection_task_control.token(),
         ));
 
-        info!("Starting NET task");
-        spawner.must_spawn(ap_net_task(ap_stack.clone(), net_task_control.token()));
-
         Self {
-            init,
-            net_task_control,
             connection_task_control,
             handle: Ap { ap_stack, state },
         }
     }
 
-    pub(super) async fn stop(mut self) -> EspWifiController<'static> {
+    pub(super) async fn stop(self) -> (WifiController<'static>, Stack<'static>) {
         info!("Stopping AP");
-        let _ = join(
-            self.connection_task_control.stop(),
-            self.net_task_control.stop(),
-        )
-        .await;
+        let _ = self.connection_task_control.stop().await;
 
-        let controller = &mut self.connection_task_control.resources_mut().controller;
+        let mut controller = self.connection_task_control.unwrap().controller;
         if matches!(controller.is_started(), Ok(true)) {
             unwrap!(controller.stop_async().await);
         }
 
         info!("Stopped AP");
 
-        self.init
+        (controller, self.handle.ap_stack)
     }
 
     pub(crate) fn handle(&self) -> &Ap {
@@ -135,6 +101,7 @@ impl ApState {
 struct ApTaskResources {
     controller: WifiController<'static>,
 }
+unsafe impl Send for ApTaskResources {}
 
 pub(super) struct ApController {
     state: Rc<ApConnectionState>,
@@ -155,12 +122,12 @@ impl ApController {
     pub async fn setup(&mut self, controller: &mut WifiController<'static>) {
         info!("Configuring AP");
 
-        let client_config = Configuration::AccessPoint(AccessPointConfiguration {
+        let ap_config = Configuration::AccessPoint(AccessPointConfiguration {
             ssid: "Card/IO".try_into().unwrap(),
             max_connections: 1,
             ..Default::default()
         });
-        unwrap!(controller.set_configuration(&client_config));
+        unwrap!(controller.set_configuration(&ap_config));
     }
 
     pub fn handle_events(&mut self, events: EnumSet<WifiEvent>) -> bool {

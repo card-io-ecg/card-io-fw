@@ -12,23 +12,20 @@ use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
     dma::*,
-    gpio::{Input, Level, Output, Pull},
+    gpio::{Input, Level, Output},
     i2c::master::I2c,
     interrupt::software::SoftwareInterruptControl,
-    prelude::*,
     rtc_cntl::Rtc,
     spi::master::SpiDmaBus,
-    timer::{
-        systimer::{SystemTimer, Target},
-        timg::TimerGroup,
-        AnyTimer,
-    },
+    time::Rate,
+    timer::{systimer::SystemTimer, AnyTimer},
     Async,
 };
+use static_cell::StaticCell;
 
 pub use crate::board::drivers::bitbang_spi::BitbangSpi;
 
-pub type DisplayDmaChannel = ChannelCreator<0>;
+pub type DisplayDmaChannel = DmaChannel0;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, Output<'static>>;
 pub type DisplaySpi<'d> = ExclusiveDevice<SpiDmaBus<'d, Async>, DummyOutputPin, Delay>;
@@ -57,16 +54,14 @@ impl super::startup::StartupResources {
     pub async fn initialize() -> Self {
         let peripherals = Self::common_init();
 
-        let systimer = SystemTimer::new(peripherals.SYSTIMER).split::<Target>();
+        let systimer = SystemTimer::new(peripherals.SYSTIMER);
         esp_hal_embassy::init([
             AnyTimer::from(systimer.alarm0),
             AnyTimer::from(systimer.alarm1),
         ]);
 
-        let dma = Dma::new(peripherals.DMA);
-
         let display = Self::create_display_driver(
-            dma.channel0,
+            peripherals.DMA_CH0,
             peripherals.SPI2,
             peripherals.GPIO10,
             peripherals.GPIO8,
@@ -78,12 +73,12 @@ impl super::startup::StartupResources {
         let adc = Self::create_frontend_driver(
             ExclusiveDevice::new(
                 BitbangSpi::new(
-                    Output::new(peripherals.GPIO7, Level::Low),
-                    Input::new(peripherals.GPIO5, Pull::None),
-                    Output::new(peripherals.GPIO6, Level::Low),
-                    1u32.MHz(),
+                    Output::new(peripherals.GPIO7, Level::Low, Default::default()),
+                    Input::new(peripherals.GPIO5, Default::default()),
+                    Output::new(peripherals.GPIO6, Level::Low, Default::default()),
+                    Rate::from_mhz(1),
                 ),
-                Output::new(peripherals.GPIO9, Level::High),
+                Output::new(peripherals.GPIO9, Level::High, Default::default()),
                 Delay,
             )
             .unwrap(),
@@ -105,18 +100,19 @@ impl super::startup::StartupResources {
 
         let sw_int = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
 
+        static WIFI: StaticCell<WifiDriver> = StaticCell::new();
+        let wifi = WIFI.init(WifiDriver::new(
+            peripherals.WIFI,
+            AnyTimer::from(systimer.alarm2),
+            peripherals.RNG,
+            peripherals.RADIO_CLK,
+        ));
+
         Self {
             display,
             frontend: adc,
             battery_monitor,
-            wifi: static_cell::make_static! {
-                WifiDriver::new(
-                    peripherals.WIFI,
-                    AnyTimer::from(systimer.alarm2),
-                    peripherals.RNG,
-                    peripherals.RADIO_CLK,
-                )
-            },
+            wifi,
             rtc: Rtc::new(peripherals.LPWR),
             software_interrupt1: sw_int.software_interrupt1,
         }

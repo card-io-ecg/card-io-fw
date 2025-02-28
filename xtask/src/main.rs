@@ -282,7 +282,7 @@ impl SocConfig {
     fn toolchain(self) -> &'static str {
         match self {
             SocConfig::S3 => "esp",
-            SocConfig::C6 => "nightly-2024-06-01",
+            SocConfig::C6 => "nightly",
         }
     }
 }
