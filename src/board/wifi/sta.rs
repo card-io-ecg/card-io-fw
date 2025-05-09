@@ -27,6 +27,8 @@ use heapless::String;
 use macros as cardio;
 use reqwless::client::{HttpClient, TlsConfig, TlsVerify};
 
+use alloc::string::ToString;
+
 pub(super) const SCAN_RESULTS: usize = 20;
 
 pub(super) struct StaConnectionState {
@@ -97,7 +99,7 @@ impl From<InternalConnectionState> for WifiClientState {
 #[derive(Clone)]
 pub struct Sta {
     pub(super) sta_stack: Stack<'static>,
-    pub(super) networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
+    pub(super) networks: Shared<Vec<AccessPointInfo>>,
     pub(super) known_networks: Shared<Vec<KnownNetwork>>,
     pub(super) state: Rc<StaConnectionState>,
     pub(super) command_queue: Rc<CommandQueue>,
@@ -109,9 +111,7 @@ impl Sta {
         self.state.read().into()
     }
 
-    pub async fn visible_networks(
-        &self,
-    ) -> MutexGuard<'_, NoopRawMutex, heapless::Vec<AccessPointInfo, SCAN_RESULTS>> {
+    pub async fn visible_networks(&self) -> MutexGuard<'_, NoopRawMutex, Vec<AccessPointInfo>> {
         self.networks.lock().await
     }
 
@@ -262,7 +262,7 @@ impl StaState {
         spawner: Spawner,
     ) -> Self {
         info!("Starting STA");
-        let networks = Rc::new(Mutex::new(heapless::Vec::new()));
+        let networks = Rc::new(Mutex::new(Vec::new()));
         let known_networks = Rc::new(Mutex::new(Vec::new()));
         let state = Rc::new(StaConnectionState::new());
         let command_queue = Rc::new(CommandQueue::new());
@@ -361,7 +361,7 @@ pub(super) struct StaController {
     state: Rc<StaConnectionState>,
     controller_state: StaControllerState,
 
-    networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
+    networks: Shared<Vec<AccessPointInfo>>,
     known_networks: Shared<Vec<KnownNetwork>>,
     stack: Stack<'static>,
     current_ssid: Option<String<32>>,
@@ -372,7 +372,7 @@ pub(super) struct StaController {
 impl StaController {
     pub fn new(
         state: Rc<StaConnectionState>,
-        networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
+        networks: Shared<Vec<AccessPointInfo>>,
         known_networks: Shared<Vec<KnownNetwork>>,
         stack: Stack<'static>,
         command_queue: Rc<CommandQueue>,
@@ -400,11 +400,11 @@ impl StaController {
 
     async fn do_scan(&mut self, controller: &mut WifiController<'_>) {
         info!("Scanning...");
-        let mut scan_results = Box::new(controller.scan_n_async::<SCAN_RESULTS>().await);
+        let mut scan_results = Box::new(controller.scan_n_async(SCAN_RESULTS).await);
 
         match scan_results.as_mut() {
-            Ok((ref mut visible_networks, network_count)) => {
-                info!("Found {} access points", network_count);
+            Ok(ref mut visible_networks) => {
+                info!("Found {} access points", visible_networks.len());
 
                 // Sort by signal strength, descending
                 visible_networks.sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
@@ -423,10 +423,9 @@ impl StaController {
             preference: NetworkPreference,
         ) -> Option<&'a WifiNetwork> {
             for network in visible_networks {
-                if let Some((known_network, _)) = known_networks
-                    .iter()
-                    .find(|(kn, pref)| kn.ssid == network.ssid && *pref == preference)
-                {
+                if let Some((known_network, _)) = known_networks.iter().find(|(kn, pref)| {
+                    kn.ssid.as_str() == network.ssid.as_str() && *pref == preference
+                }) {
                     return Some(known_network);
                 }
             }
@@ -480,8 +479,8 @@ impl StaController {
 
         unwrap!(
             controller.set_configuration(&Configuration::Client(ClientConfiguration {
-                ssid: connect_to.ssid.clone(),
-                password: connect_to.pass,
+                ssid: connect_to.ssid.to_string(),
+                password: connect_to.pass.to_string(),
                 ..Default::default()
             }))
         );

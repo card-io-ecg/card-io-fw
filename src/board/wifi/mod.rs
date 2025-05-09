@@ -42,10 +42,10 @@ pub struct WifiDriver {
 }
 
 struct WifiInitResources {
-    timer: AnyTimer,
+    timer: AnyTimer<'static>,
     rng: Rng,
-    radio_clk: RADIO_CLK,
-    wifi: WIFI,
+    radio_clk: RADIO_CLK<'static>,
+    wifi: WIFI<'static>,
 }
 
 enum WifiDriverState {
@@ -156,7 +156,12 @@ impl WifiDriverState {
 }
 
 impl WifiDriver {
-    pub fn new(wifi: WIFI, timer: AnyTimer, rng: RNG, radio_clk: RADIO_CLK) -> Self {
+    pub fn new(
+        wifi: WIFI<'static>,
+        timer: AnyTimer<'static>,
+        rng: RNG<'static>,
+        radio_clk: RADIO_CLK<'static>,
+    ) -> Self {
         let rng = Rng::new(rng);
 
         let ap_resources = mk_static!(

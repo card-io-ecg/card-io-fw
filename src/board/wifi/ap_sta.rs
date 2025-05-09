@@ -36,7 +36,7 @@ impl ApStaState {
 
         let ap_state = Rc::new(ApConnectionState::new());
         let sta_state = Rc::new(StaConnectionState::new());
-        let networks = Rc::new(Mutex::new(heapless::Vec::new()));
+        let networks = Rc::new(Mutex::new(Vec::new()));
         let known_networks = Rc::new(Mutex::new(Vec::new()));
         let command_queue = Rc::new(CommandQueue::new());
 

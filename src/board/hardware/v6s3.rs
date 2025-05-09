@@ -11,10 +11,10 @@ use display_interface_spi::SPIInterface;
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
-    dma::*,
     gpio::{Input, Output},
     i2c::master::I2c,
     interrupt::software::SoftwareInterruptControl,
+    peripherals::{DMA_CH0, DMA_CH1},
     rtc_cntl::Rtc,
     spi::master::SpiDmaBus,
     timer::{systimer::SystemTimer, timg::TimerGroup, AnyTimer},
@@ -22,12 +22,12 @@ use esp_hal::{
 };
 use static_cell::StaticCell;
 
-pub type DisplayDmaChannel = DmaChannel0;
+pub type DisplayDmaChannel = DMA_CH0<'static>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, Output<'static>>;
 pub type DisplaySpi<'d> = ExclusiveDevice<SpiDmaBus<'d, Async>, DummyOutputPin, Delay>;
 
-pub type AdcDmaChannel = DmaChannel1;
+pub type AdcDmaChannel = DMA_CH1<'static>;
 
 pub type AdcSpi = ExclusiveDevice<SpiDmaBus<'static, Async>, Output<'static>, Delay>;
 
