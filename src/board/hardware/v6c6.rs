@@ -105,7 +105,6 @@ impl super::startup::StartupResources {
             peripherals.WIFI,
             AnyTimer::from(systimer.alarm2),
             peripherals.RNG,
-            peripherals.RADIO_CLK,
         ));
 
         Self {

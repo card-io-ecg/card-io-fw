@@ -98,7 +98,6 @@ impl super::startup::StartupResources {
             peripherals.WIFI,
             AnyTimer::from(TimerGroup::new(peripherals.TIMG0).timer0),
             peripherals.RNG,
-            peripherals.RADIO_CLK,
         ));
 
         Self {
