@@ -19,7 +19,6 @@ use esp_hal::{
     gpio::{Input, InputPin, Level, Output, OutputPin, Pull},
     i2c,
     interrupt::software::SoftwareInterrupt,
-    peripheral::Peripheral,
     peripherals::Peripherals,
     rtc_cntl::Rtc,
     spi::{
@@ -48,7 +47,7 @@ pub struct StartupResources {
     pub wifi: &'static mut WifiDriver,
     pub rtc: Rtc<'static>,
 
-    pub software_interrupt1: SoftwareInterrupt<1>,
+    pub software_interrupt1: SoftwareInterrupt<'static, 1>,
 }
 
 impl StartupResources {
@@ -91,13 +90,13 @@ impl StartupResources {
     #[inline(always)]
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_display_driver(
-        display_dma_channel: DisplayDmaChannel,
-        display_spi: impl Peripheral<P = impl esp_hal::spi::master::Instance> + 'static,
-        display_reset: impl Peripheral<P = impl OutputPin> + 'static,
-        display_dc: impl Peripheral<P = impl OutputPin> + 'static,
-        display_cs: impl Peripheral<P = impl OutputPin> + 'static,
-        display_sclk: impl Peripheral<P = impl OutputPin> + 'static,
-        display_mosi: impl Peripheral<P = impl OutputPin> + 'static,
+        display_dma_channel: DisplayDmaChannel<'static>,
+        display_spi: impl esp_hal::spi::master::Instance + 'static,
+        display_reset: impl OutputPin + 'static,
+        display_dc: impl OutputPin + 'static,
+        display_cs: impl OutputPin + 'static,
+        display_sclk: impl OutputPin + 'static,
+        display_mosi: impl OutputPin + 'static,
     ) -> Display {
         let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(4092);
         let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
@@ -129,12 +128,12 @@ impl StartupResources {
     #[allow(clippy::too_many_arguments)]
     #[cfg(feature = "esp32s3")]
     pub(crate) fn create_frontend_spi(
-        adc_dma_channel: AdcDmaChannel,
-        adc_spi: impl Peripheral<P = impl esp_hal::spi::master::Instance> + 'static,
-        adc_sclk: impl Peripheral<P = impl OutputPin> + 'static,
-        adc_mosi: impl Peripheral<P = impl OutputPin> + 'static,
-        adc_miso: impl Peripheral<P = impl InputPin> + 'static,
-        adc_cs: impl Peripheral<P = impl OutputPin> + 'static,
+        adc_dma_channel: AdcDmaChannel<'static>,
+        adc_spi: impl esp_hal::spi::master::Instance + 'static,
+        adc_sclk: impl OutputPin + 'static,
+        adc_mosi: impl OutputPin + 'static,
+        adc_miso: impl InputPin + 'static,
+        adc_cs: impl OutputPin + 'static,
     ) -> AdcSpi {
         use esp_hal::time::Rate;
 
@@ -165,10 +164,10 @@ impl StartupResources {
     #[inline(always)]
     pub(crate) fn create_frontend_driver(
         adc_spi: AdcSpi,
-        adc_drdy: impl Peripheral<P = impl InputPin> + 'static,
-        adc_reset: impl Peripheral<P = impl OutputPin> + 'static,
-        adc_clock_enable: impl Peripheral<P = impl OutputPin> + 'static,
-        touch_detect: impl Peripheral<P = impl InputPin> + 'static,
+        adc_drdy: impl InputPin + 'static,
+        adc_reset: impl OutputPin + 'static,
+        adc_clock_enable: impl OutputPin + 'static,
+        touch_detect: impl InputPin + 'static,
     ) -> EcgFrontend {
         // DRDY
 
@@ -184,15 +183,12 @@ impl StartupResources {
     #[cfg(feature = "battery_max17055")]
     #[inline(always)]
     #[allow(clippy::too_many_arguments)]
-    pub(crate) async fn setup_battery_monitor_fg<
-        SDA: InputPin + OutputPin,
-        SCL: InputPin + OutputPin,
-    >(
-        i2c: impl Peripheral<P = impl i2c::master::Instance> + 'static,
-        sda: impl Peripheral<P = SDA> + 'static,
-        scl: impl Peripheral<P = SCL> + 'static,
-        vbus_detect: impl Peripheral<P = impl InputPin> + 'static,
-        charger_status: impl Peripheral<P = impl InputPin> + 'static,
+    pub(crate) async fn setup_battery_monitor_fg(
+        i2c: impl i2c::master::Instance + 'static,
+        sda: impl InputPin + OutputPin + 'static,
+        scl: impl InputPin + OutputPin + 'static,
+        vbus_detect: impl InputPin + 'static,
+        charger_status: impl InputPin + 'static,
         fg_enable: BatteryAdcEnablePin,
     ) -> BatteryMonitor<VbusDetectPin, ChargerStatusPin> {
         // MCP73832T-2ACI/OT

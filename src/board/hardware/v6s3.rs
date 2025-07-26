@@ -11,10 +11,10 @@ use display_interface_spi::SPIInterface;
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
-    dma::*,
     gpio::{Input, Output},
     i2c::master::I2c,
     interrupt::software::SoftwareInterruptControl,
+    peripherals::{DMA_CH0, DMA_CH1},
     rtc_cntl::Rtc,
     spi::master::SpiDmaBus,
     timer::{systimer::SystemTimer, timg::TimerGroup, AnyTimer},
@@ -22,12 +22,12 @@ use esp_hal::{
 };
 use static_cell::StaticCell;
 
-pub type DisplayDmaChannel = DmaChannel0;
+pub type DisplayDmaChannel<'a> = DMA_CH0<'a>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, Output<'static>>;
 pub type DisplaySpi<'d> = ExclusiveDevice<SpiDmaBus<'d, Async>, DummyOutputPin, Delay>;
 
-pub type AdcDmaChannel = DmaChannel1;
+pub type AdcDmaChannel<'a> = DMA_CH1<'a>;
 
 pub type AdcSpi = ExclusiveDevice<SpiDmaBus<'static, Async>, Output<'static>, Delay>;
 
@@ -97,7 +97,6 @@ impl super::startup::StartupResources {
             peripherals.WIFI,
             AnyTimer::from(TimerGroup::new(peripherals.TIMG0).timer0),
             peripherals.RNG,
-            peripherals.RADIO_CLK,
         ));
 
         Self {

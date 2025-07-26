@@ -8,7 +8,7 @@ use crate::board::wifi::{
 use embassy_executor::Spawner;
 use embassy_net::{Config, Runner, Stack, StackResources};
 use esp_hal::{
-    peripherals::{RADIO_CLK, RNG, WIFI},
+    peripherals::{RNG, WIFI},
     rng::Rng,
     timer::AnyTimer,
 };
@@ -42,10 +42,9 @@ pub struct WifiDriver {
 }
 
 struct WifiInitResources {
-    timer: AnyTimer,
+    timer: AnyTimer<'static>,
     rng: Rng,
-    radio_clk: RADIO_CLK,
-    wifi: WIFI,
+    wifi: WIFI<'static>,
 }
 
 enum WifiDriverState {
@@ -80,11 +79,7 @@ impl WifiDriverState {
                     info!("Initializing Wifi driver");
                     let wifi_controller = mk_static!(
                         EspWifiController<'static>,
-                        unwrap!(esp_wifi::init::<'static>(
-                            resources.timer,
-                            resources.rng,
-                            resources.radio_clk
-                        ))
+                        unwrap!(esp_wifi::init::<'static>(resources.timer, resources.rng))
                     );
                     info!("Wifi driver initialized");
 
@@ -156,7 +151,7 @@ impl WifiDriverState {
 }
 
 impl WifiDriver {
-    pub fn new(wifi: WIFI, timer: AnyTimer, rng: RNG, radio_clk: RADIO_CLK) -> Self {
+    pub fn new(wifi: WIFI<'static>, timer: AnyTimer<'static>, rng: RNG) -> Self {
         let rng = Rng::new(rng);
 
         let ap_resources = mk_static!(
@@ -172,12 +167,7 @@ impl WifiDriver {
             rng,
             ap_resources,
             sta_resources,
-            state: WifiDriverState::Uninitialized(WifiInitResources {
-                timer,
-                rng,
-                radio_clk,
-                wifi,
-            }),
+            state: WifiDriverState::Uninitialized(WifiInitResources { timer, rng, wifi }),
         }
     }
 

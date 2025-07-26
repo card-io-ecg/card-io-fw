@@ -49,21 +49,20 @@ embassy-futures = { version = "0.1.0" }
 embassy-executor = { workspace = true, features = ["nightly"] }
 embassy-time = { version = "0.4.0" }
 
-embedded-hal-old = { package = "embedded-hal", version = "0.2.7" }
 rtt-target = { version = "0.6.0", optional = true }
 panic-rtt-target = { version = "0.2.0", optional = true }
 
-esp-hal = { version = "1.0.0-beta.0", features = ["unstable"] }
-esp-hal-embassy = { version = "0.7.0" }
-esp-backtrace = { version = "0.15.1", optional = true, features = [
+esp-hal = { version = "1.0.0-rc.0", features = ["unstable"] }
+esp-hal-embassy = { version = "0.9" }
+esp-backtrace = { version = "0.17", optional = true, features = [
     "panic-handler",
     "exception-handler"
 ] }
-esp-println = { version = "0.13.1", default-features = false, optional = true, features = [
+esp-println = { version = "0.15", default-features = false, optional = true, features = [
     "critical-section",
 ] }
-esp-alloc = "0.7.0"
-esp-wifi = { version = "0.13.0", features = ["wifi"] }
+esp-alloc = "0.8"
+esp-wifi = { version = "0.15", features = ["wifi"] }
 
 display-interface = "0.5"
 display-interface-spi = "0.5"

@@ -5,7 +5,7 @@ use crate::{
     task_control::{TaskControlToken, TaskController},
     Shared,
 };
-use alloc::{boxed::Box, rc::Rc, vec::Vec};
+use alloc::{boxed::Box, rc::Rc, string::ToString, vec::Vec};
 use config_site::data::network::WifiNetwork;
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
@@ -400,16 +400,29 @@ impl StaController {
 
     async fn do_scan(&mut self, controller: &mut WifiController<'_>) {
         info!("Scanning...");
-        let mut scan_results = Box::new(controller.scan_n_async::<SCAN_RESULTS>().await);
+        let mut scan_results = Box::new(controller.scan_n_async(SCAN_RESULTS).await);
 
         match scan_results.as_mut() {
-            Ok((ref mut visible_networks, network_count)) => {
-                info!("Found {} access points", network_count);
+            Ok(ref mut visible_networks) => {
+                info!("Found {} access points", visible_networks.len());
 
                 // Sort by signal strength, descending
                 visible_networks.sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
 
-                self.networks.lock().await.clone_from(visible_networks);
+                let mut networks = self.networks.lock().await;
+
+                networks.clear();
+                if networks
+                    .extend_from_slice(
+                        &visible_networks[0..SCAN_RESULTS.min(visible_networks.len())],
+                    )
+                    .is_err()
+                {
+                    error!(
+                        "Failed to store {} visible networks",
+                        visible_networks.len()
+                    );
+                }
             }
 
             Err(err) => warn!("Scan failed: {:?}", err),
@@ -425,7 +438,7 @@ impl StaController {
             for network in visible_networks {
                 if let Some((known_network, _)) = known_networks
                     .iter()
-                    .find(|(kn, pref)| kn.ssid == network.ssid && *pref == preference)
+                    .find(|(kn, pref)| kn.ssid == network.ssid.as_str() && *pref == preference)
                 {
                     return Some(known_network);
                 }
@@ -480,8 +493,8 @@ impl StaController {
 
         unwrap!(
             controller.set_configuration(&Configuration::Client(ClientConfiguration {
-                ssid: connect_to.ssid.clone(),
-                password: connect_to.pass,
+                ssid: connect_to.ssid.as_str().to_string(),
+                password: connect_to.pass.as_str().to_string(),
                 ..Default::default()
             }))
         );

@@ -11,10 +11,10 @@ use display_interface_spi::SPIInterface;
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
-    dma::*,
     gpio::{Input, Level, Output},
     i2c::master::I2c,
     interrupt::software::SoftwareInterruptControl,
+    peripherals::DMA_CH0,
     rtc_cntl::Rtc,
     spi::master::SpiDmaBus,
     time::Rate,
@@ -25,7 +25,7 @@ use static_cell::StaticCell;
 
 pub use crate::board::drivers::bitbang_spi::BitbangSpi;
 
-pub type DisplayDmaChannel = DmaChannel0;
+pub type DisplayDmaChannel<'a> = DMA_CH0<'a>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, Output<'static>>;
 pub type DisplaySpi<'d> = ExclusiveDevice<SpiDmaBus<'d, Async>, DummyOutputPin, Delay>;
@@ -105,7 +105,6 @@ impl super::startup::StartupResources {
             peripherals.WIFI,
             AnyTimer::from(systimer.alarm2),
             peripherals.RNG,
-            peripherals.RADIO_CLK,
         ));
 
         Self {
