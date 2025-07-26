@@ -13,6 +13,7 @@ struct Inner<R: Send, D: Send = ()> {
     /// Used to indicate that the controlled task has exited, and may include a return value.
     exited: Signal<NoopRawMutex, Result<R, Aborted>>,
 
+    /// Data provided by the task that starts the controlled task. Accessed by `run_cancellable`.
     resources: UnsafeCell<D>,
 }
 
@@ -45,7 +46,11 @@ impl<R: Send, D: Send> Inner<R, D> {
 
     /// Runs a cancellable task. The task ends when either the future completes, or the task is
     /// cancelled.
-    async fn run_cancellable<'a, F>(&'a self, f: impl FnOnce(&'a mut D) -> F)
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure this function is not called reentrantly.
+    async unsafe fn run_cancellable<'a, F>(&'a self, f: impl FnOnce(&'a mut D) -> F)
     where
         F: Future<Output = R> + 'a,
     {
@@ -125,6 +130,10 @@ impl<R: Send, D: Send> TaskControlToken<R, D> {
     where
         F: Future<Output = R> + 'a,
     {
-        self.inner.run_cancellable(f).await
+        unsafe {
+            // Safety: this is the only call site of `Inner::run_cancellable` and
+            // `Self::run_cancellable` takes `&mut self`.
+            self.inner.run_cancellable(f).await
+        }
     }
 }
