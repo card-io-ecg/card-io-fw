@@ -1,11 +1,31 @@
+//! Alloc-based task control and shared resource management
+//!
+//! This module implements a way to share data with tasks, and to allow cancelling them.
+//!
+//! [`TaskController`] wraps a set of resources that are passed to the spawned task, and are
+//! passed back to the spawner when the task finishes, and can be retrieved by [`TaskController::unwrap`].
+//! It is useful when the short-lived task needs exclusive access to hardware.
+//!
+//! [`TaskController`] also provides a way to cancel tasks and observe if they are still running.
+//!
+//! This is implemented with an [`Arc`][alloc::sync::Arc] so that the resources and signals don't
+//! need to be stored in a `'static`.
+
+// TODO: task_control should be split in two:
+// - The actual signal pair to control tasks
+// - The shared resource management part
+
 use core::{cell::UnsafeCell, future::Future};
 
 use alloc::sync::Arc;
 use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 
+/// The return value of the task, when cancelled.
 #[non_exhaustive]
 pub struct Aborted {}
+
+/// Implementation details.
 struct Inner<R: Send, D: Send = ()> {
     /// Used to signal the controlled task to stop.
     token: Signal<NoopRawMutex, ()>,
@@ -14,9 +34,14 @@ struct Inner<R: Send, D: Send = ()> {
     exited: Signal<NoopRawMutex, Result<R, Aborted>>,
 
     /// Data provided by the task that starts the controlled task. Accessed by `run_cancellable`.
+    /// While the task is running, the task is considered to be the owner of `D`. Once the task
+    /// has stopped (either it finished or it was cancelled), the resources are sent back to the
+    /// task that created the [`TaskController`].
     resources: UnsafeCell<D>,
 }
 
+// TODO: Using NoopRawMutex makes this unsound. When the resource/control parts are split apart,
+// the control struct shouldn't need an unsafe impl.
 unsafe impl<R: Send, D: Send> Send for Inner<R, D> {}
 unsafe impl<R: Send, D: Send> Sync for Inner<R, D> {}
 
@@ -79,7 +104,7 @@ impl<R: Send> TaskController<R, ()> {
 }
 
 impl<R: Send, D: Send> TaskController<R, D> {
-    /// Creates a new signal pair.
+    /// Creates a new signal pair with a set of resources.
     pub fn from_resources(resources: D) -> Self {
         Self {
             inner: Arc::new(Inner::new(resources)),
@@ -92,6 +117,8 @@ impl<R: Send, D: Send> TaskController<R, D> {
     }
 
     /// Returns whether the controlled task has exited.
+    // FIXME: `TaskControlToken::run_cancellable` can be called multiple times, so
+    // this fn returning `true` doesn't guarantee that the async task itself has stopped.
     pub fn has_exited(&self) -> bool {
         self.inner.has_exited()
     }
