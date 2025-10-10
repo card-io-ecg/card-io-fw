@@ -4,4 +4,5 @@ Cargo.lock
 .vscode/esp32s3.base.svd
 .vscode/launch.json
 .vscode/.cortex-debug.peripherals.state.json
+.zed/
 cfg.toml
