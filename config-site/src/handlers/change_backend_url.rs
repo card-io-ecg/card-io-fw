@@ -2,7 +2,6 @@ use bad_server::{
     connector::Connection, handler::RequestHandler, request::Request, response::ResponseStatus,
     HandleError,
 };
-use logger::{debug, warn};
 
 use crate::data::SharedWebContext;
 

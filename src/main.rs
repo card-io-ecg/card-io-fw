@@ -2,15 +2,15 @@
 #![no_main]
 #![feature(allocator_api)] // Box::try_new
 #![feature(type_alias_impl_trait)]
-#![feature(let_chains)]
 #![feature(never_type)] // Wifi net_task
 #![feature(generic_const_exprs)] // norfs needs this
 #![feature(impl_trait_in_assoc_type)]
 #![allow(incomplete_features)] // generic_const_exprs
 
 extern crate alloc;
-#[macro_use]
-extern crate logger;
+
+// MUST be the first module
+mod fmt;
 
 #[cfg(feature = "esp-println")]
 use esp_println as _;

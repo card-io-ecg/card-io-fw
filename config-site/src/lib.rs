@@ -21,8 +21,8 @@ use crate::{
     },
 };
 
-#[macro_use]
-extern crate logger;
+// MUST be the first module
+mod fmt;
 
 pub mod data;
 pub mod handlers;

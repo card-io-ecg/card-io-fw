@@ -11,9 +11,6 @@ use config_site::data::{network::WifiNetwork, SharedWebContext, WebContext};
 use log::LevelFilter;
 
 fn main() {
-    simple_logger::SimpleLogger::new()
-        .with_level(LevelFilter::Debug)
-        .env()
         .init()
         .unwrap();
 

@@ -3,8 +3,8 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-#[macro_use]
-extern crate logger;
+// MUST be the first module
+mod fmt;
 
 pub mod battery;
 pub mod buffer;

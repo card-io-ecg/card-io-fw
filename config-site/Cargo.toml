@@ -7,12 +7,11 @@ edition = "2021"
 
 [dependencies]
 bad-server = { workspace = true }
+cfg-if = "1"
 defmt = { workspace = true, optional = true }
 embassy-sync = { workspace = true, optional = true }
 embedded-io-async = { workspace = true, optional = true }
 heapless = { workspace = true }
-logger = { workspace = true }
-log = { workspace = true, optional = true }
 norfs = { workspace = true, optional = true }
 smol = { version = "1.3", optional = true }
 object-chain.workspace = true
@@ -26,7 +25,6 @@ name = "simple"
 required-features = ["bad-server/std", "bad-server/log"]
 
 [dev-dependencies]
-simple_logger = "4.1"
 smol = "1"
 smoltcp = { workspace = true, features = ["proto-ipv4"] }
 
@@ -34,5 +32,4 @@ smoltcp = { workspace = true, features = ["proto-ipv4"] }
 default = []
 embedded = ["dep:norfs", "dep:embassy-sync", "dep:embedded-io-async", "bad-server/embassy"]
 std = ["dep:smol", "bad-server/std"]
-log = ["dep:log", "bad-server/log"]
 defmt = ["dep:defmt", "bad-server/defmt"]
