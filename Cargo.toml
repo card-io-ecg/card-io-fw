@@ -114,25 +114,25 @@ crc = "3.0.1"
 enumset = "1.1.3"
 
 [patch.crates-io]
-#esp-bootloader-esp-idf = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
-#esp-rom-sys = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
-#esp-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
-#esp-rtos = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
-#esp-radio = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
-#esp-backtrace = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
-#esp-println = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
-#esp-alloc = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
-#xtensa-lx-rt = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
+esp-bootloader-esp-idf = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
+esp-rom-sys = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
+esp-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
+esp-rtos = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
+esp-radio = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
+esp-backtrace = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
+esp-println = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
+esp-alloc = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
+xtensa-lx-rt = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
 
-esp-bootloader-esp-idf = { path = "C:/_Espressif/esp-hal/esp-bootloader-esp-idf" }
-esp-rom-sys = { path = "C:/_Espressif/esp-hal/esp-rom-sys" }
-esp-hal = { path = "C:/_Espressif/esp-hal/esp-hal" }
-esp-rtos = { path = "C:/_Espressif/esp-hal/esp-rtos" }
-esp-radio = { path = "C:/_Espressif/esp-hal/esp-radio" }
-esp-backtrace = { path = "C:/_Espressif/esp-hal/esp-backtrace" }
-esp-println = { path = "C:/_Espressif/esp-hal/esp-println" }
-esp-alloc = { path = "C:/_Espressif/esp-hal/esp-alloc" }
-xtensa-lx-rt = { path = "C:/_Espressif/esp-hal/xtensa-lx-rt" }
+# esp-bootloader-esp-idf = { path = "C:/_Espressif/esp-hal/esp-bootloader-esp-idf" }
+# esp-rom-sys = { path = "C:/_Espressif/esp-hal/esp-rom-sys" }
+# esp-hal = { path = "C:/_Espressif/esp-hal/esp-hal" }
+# esp-rtos = { path = "C:/_Espressif/esp-hal/esp-rtos" }
+# esp-radio = { path = "C:/_Espressif/esp-hal/esp-radio" }
+# esp-backtrace = { path = "C:/_Espressif/esp-hal/esp-backtrace" }
+# esp-println = { path = "C:/_Espressif/esp-hal/esp-println" }
+# esp-alloc = { path = "C:/_Espressif/esp-hal/esp-alloc" }
+# xtensa-lx-rt = { path = "C:/_Espressif/esp-hal/xtensa-lx-rt" }
 
 heapless = { git = "https://github.com/rust-embedded/heapless.git" }
 

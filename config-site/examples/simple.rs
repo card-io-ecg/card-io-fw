@@ -11,9 +11,6 @@ use config_site::data::{network::WifiNetwork, SharedWebContext, WebContext};
 use log::LevelFilter;
 
 fn main() {
-        .init()
-        .unwrap();
-
     smol::block_on(run());
 }
 
