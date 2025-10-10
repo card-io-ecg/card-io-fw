@@ -63,7 +63,6 @@ use esp_hal::gpio::RtcPinWithResistors as RtcWakeupPin;
 
 mod board;
 pub mod human_readable;
-mod stack_protection;
 mod states;
 mod task_control;
 mod timeout;

@@ -1,16 +1,12 @@
 use display_interface_spi::SPIInterface;
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
-use static_cell::StaticCell;
 
-use crate::{
-    board::{
-        drivers::{battery_monitor::BatteryMonitor, frontend::Frontend},
-        utils::DummyOutputPin,
-        wifi::WifiDriver,
-        AdcSpi, ChargerStatusPin, Display, DisplayDmaChannel, EcgFrontend, VbusDetectPin,
-    },
-    stack_protection::StackMonitor,
+use crate::board::{
+    drivers::{battery_monitor::BatteryMonitor, frontend::Frontend},
+    utils::DummyOutputPin,
+    wifi::WifiDriver,
+    AdcSpi, ChargerStatusPin, Display, DisplayDmaChannel, EcgFrontend, VbusDetectPin,
 };
 use esp_hal::{
     clock::CpuClock,
@@ -52,38 +48,6 @@ pub struct StartupResources {
 
 impl StartupResources {
     pub(super) fn common_init() -> Peripherals {
-        use core::ptr::addr_of;
-
-        #[cfg(feature = "esp32s3")]
-        let stack_range = {
-            extern "C" {
-                static mut _stack_start_cpu0: u8;
-                static mut _stack_end_cpu0: u8;
-            }
-
-            // We only use a single core for now, so we can write both stack regions.
-            let stack_start = addr_of!(_stack_start_cpu0) as usize;
-            let stack_end = addr_of!(_stack_end_cpu0) as usize;
-
-            stack_start..stack_end
-        };
-        #[cfg(feature = "esp32c6")]
-        let stack_range = {
-            extern "C" {
-                static mut _stack_start: u8;
-                static mut _stack_end: u8;
-            }
-
-            // We only use a single core for now, so we can write both stack regions.
-            let stack_start = addr_of!(_stack_start) as usize;
-            let stack_end = addr_of!(_stack_end) as usize;
-
-            stack_start..stack_end
-        };
-
-        static STACK_PROTECTION: StaticCell<StackMonitor> = StaticCell::new();
-        let _stack_protection = STACK_PROTECTION.init(StackMonitor::protect(stack_range));
-
         esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()))
     }
 
