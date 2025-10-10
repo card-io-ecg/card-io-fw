@@ -15,21 +15,21 @@ embedded-nal-async = "0.8.0"
 embedded-io = "0.6"
 embedded-io-async = "0.6"
 embedded-menu = "0.6.0"
-embassy-net = { version = "0.6", features = [
+embassy-net = { version = "0.7", features = [
     "tcp",
     "dhcpv4",
     "dns",
     "medium-ethernet",
 ] }
-embassy-sync = { version = "0.6.0" }
-embassy-executor = { version = "0.7" }
+embassy-sync = { version = "0.7.0" }
+embassy-executor = { version = "0.9" }
 
-heapless = "0.8"
+heapless = "0.9"
 signal-processing = { path = "signal-processing" }
-norfs = { git = "https://github.com/card-io-ecg/norfs.git", rev = "00103fd" }
-norfs-driver = { git = "https://github.com/card-io-ecg/norfs.git", rev = "00103fd" }
-norfs-esp32s3 = { git = "https://github.com/card-io-ecg/norfs.git", rev = "00103fd" }
-norfs-esp32c6 = { git = "https://github.com/card-io-ecg/norfs.git", rev = "00103fd" }
+norfs = { git = "https://github.com/card-io-ecg/norfs.git", rev = "4d7f5ea" }
+norfs-driver = { git = "https://github.com/card-io-ecg/norfs.git", rev = "4d7f5ea" }
+norfs-esp32s3 = { git = "https://github.com/card-io-ecg/norfs.git", rev = "4d7f5ea" }
+norfs-esp32c6 = { git = "https://github.com/card-io-ecg/norfs.git", rev = "4d7f5ea" }
 object-chain = "0.1.3"
 bad-server = { path = "bad-server" }
 defmt = "1"
@@ -44,22 +44,19 @@ cfg-if = "1"
 
 embassy-futures = { version = "0.1.0" }
 embassy-executor = { workspace = true, features = ["nightly"] }
-embassy-time = { version = "0.4.0" }
+embassy-time = { version = "0.5.0" }
 
 rtt-target = { version = "0.6.0", optional = true }
-panic-rtt-target = { version = "0.2.0", optional = true }
 
+esp-bootloader-esp-idf = "0.2.0"
 esp-hal = { version = "1.0.0-rc.0", features = ["unstable"] }
-esp-hal-embassy = { version = "0.9" }
-esp-backtrace = { version = "0.17", optional = true, features = [
-    "panic-handler",
-    "exception-handler"
-] }
+esp-rtos = { version = "0.0", features = ["esp-radio", "embassy", "esp-alloc"] }
+esp-backtrace = { version = "0.17", features = ["panic-handler", "semihosting"] }
 esp-println = { version = "0.15", default-features = false, optional = true, features = [
     "critical-section",
 ] }
 esp-alloc = "0.8"
-esp-wifi = { version = "0.15", features = ["wifi"] }
+esp-radio = { version = "0.15", features = ["wifi"] }
 
 display-interface = "0.5"
 display-interface-spi = "0.5"
@@ -70,9 +67,8 @@ portable_atomic_enum = "0.3.1"
 config-site = { path = "config-site", default-features = false, features = [
     "embedded",
 ] }
-critical-section = "1.1"
+critical-section = "1.2"
 device-descriptor = { path = "device-descriptor" }
-fugit = "0.3.7"
 register-access = { path = "register-access" }
 gui = { path = "gui" }
 macros = { path = "macros" }
@@ -118,13 +114,27 @@ crc = "3.0.1"
 enumset = "1.1.3"
 
 [patch.crates-io]
-# esp-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "26cf556cde2b7a78358f440b362608b3264d30bd" }
-# esp-hal-embassy = { git = "https://github.com/esp-rs/esp-hal.git", rev = "26cf556cde2b7a78358f440b362608b3264d30bd" }
-# esp-wifi = { git = "https://github.com/esp-rs/esp-hal.git", rev = "26cf556cde2b7a78358f440b362608b3264d30bd" }
-# esp-backtrace = { git = "https://github.com/esp-rs/esp-hal.git", rev = "26cf556cde2b7a78358f440b362608b3264d30bd" }
-# esp-println = { git = "https://github.com/esp-rs/esp-hal.git", rev = "26cf556cde2b7a78358f440b362608b3264d30bd" }
-# esp-alloc = { git = "https://github.com/esp-rs/esp-hal.git", rev = "26cf556cde2b7a78358f440b362608b3264d30bd" }
-# xtensa-lx-rt = { git = "https://github.com/esp-rs/esp-hal.git", rev = "26cf556cde2b7a78358f440b362608b3264d30bd" }
+#esp-bootloader-esp-idf = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
+#esp-rom-sys = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
+#esp-hal = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
+#esp-rtos = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
+#esp-radio = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
+#esp-backtrace = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
+#esp-println = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
+#esp-alloc = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
+#xtensa-lx-rt = { git = "https://github.com/esp-rs/esp-hal.git", rev = "d4ea007ae0036c5fbbae2b6c0f83ff57f6656b25" }
+
+esp-bootloader-esp-idf = { path = "C:/_Espressif/esp-hal/esp-bootloader-esp-idf" }
+esp-rom-sys = { path = "C:/_Espressif/esp-hal/esp-rom-sys" }
+esp-hal = { path = "C:/_Espressif/esp-hal/esp-hal" }
+esp-rtos = { path = "C:/_Espressif/esp-hal/esp-rtos" }
+esp-radio = { path = "C:/_Espressif/esp-hal/esp-radio" }
+esp-backtrace = { path = "C:/_Espressif/esp-hal/esp-backtrace" }
+esp-println = { path = "C:/_Espressif/esp-hal/esp-println" }
+esp-alloc = { path = "C:/_Espressif/esp-hal/esp-alloc" }
+xtensa-lx-rt = { path = "C:/_Espressif/esp-hal/xtensa-lx-rt" }
+
+heapless = { git = "https://github.com/rust-embedded/heapless.git" }
 
 [features]
 default = ["defmt", "rtt"]
@@ -139,18 +149,20 @@ hw_v6 = ["battery_max17055"] # skipped v5, v6 has S3 and C6 options
 esp32s3 = [
     "esp-hal/esp32s3",
     "dep:norfs-esp32s3",
-    "esp-backtrace?/esp32s3",
-    "esp-wifi/esp32s3",
-    "esp-hal-embassy/esp32s3",
+    "esp-backtrace/esp32s3",
+    "esp-radio/esp32s3",
+    "esp-rtos/esp32s3",
     "esp-println?/esp32s3",
+    "esp-bootloader-esp-idf/esp32s3",
 ]
 esp32c6 = [
     "esp-hal/esp32c6",
     "dep:norfs-esp32c6",
-    "esp-backtrace?/esp32c6",
-    "esp-wifi/esp32c6",
-    "esp-hal-embassy/esp32c6",
+    "esp-backtrace/esp32c6",
+    "esp-radio/esp32c6",
+    "esp-rtos/esp32c6",
     "esp-println?/esp32c6",
+    "esp-bootloader-esp-idf/esp32c6",
 ]
 
 # Signal processing
@@ -160,9 +172,11 @@ defmt = [
     "norfs/defmt",
     "embedded-io/defmt-03",
     "embedded-graphics/defmt",
-    "esp-wifi/defmt",
+    "esp-radio/defmt",
+    "esp-rtos/defmt",
     "esp-hal/defmt",
-    "esp-backtrace?/defmt",
+    "esp-hal/defmt",
+    "esp-backtrace/defmt",
     "esp-println?/defmt-espflash",
 
     "config-site/defmt",
@@ -173,15 +187,15 @@ defmt = [
     "signal-processing/defmt",
     "reqwless/defmt",
     "embedded-tls/defmt",
+    "heapless/defmt",
 
     "embassy-net/defmt",
     "smoltcp/defmt",
     "rtt-target?/defmt",
-    "panic-rtt-target?/defmt",
 ]
 
-rtt = ["dep:panic-rtt-target", "dep:rtt-target"]
-esp-println = ["dep:esp-backtrace", "dep:esp-println", "esp-println/jtag-serial"]
+rtt = ["dep:rtt-target"]
+esp-println = ["dep:esp-println", "esp-println/jtag-serial"]
 
 [package.metadata.espflash]
 partition_table = "partitions.csv"

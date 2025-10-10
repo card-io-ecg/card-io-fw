@@ -6,7 +6,7 @@ use gui::widgets::wifi_access_point::WifiAccessPointState;
 use crate::task_control::{TaskControlToken, TaskController};
 use embassy_executor::Spawner;
 use embassy_net::Stack;
-use esp_wifi::wifi::{AccessPointConfiguration, Configuration, WifiController, WifiEvent};
+use esp_radio::wifi::{AccessPointConfig, ModeConfig, WifiController, WifiEvent};
 use macros as cardio;
 
 pub(super) struct ApConnectionState {
@@ -115,30 +115,30 @@ impl ApController {
     pub fn events(&self) -> EnumSet<WifiEvent> {
         WifiEvent::ApStart
             | WifiEvent::ApStop
-            | WifiEvent::ApStaconnected
-            | WifiEvent::ApStadisconnected
+            | WifiEvent::ApStaConnected
+            | WifiEvent::ApStaDisconnected
     }
 
     pub async fn setup(&mut self, controller: &mut WifiController<'static>) {
         info!("Configuring AP");
 
-        let ap_config = Configuration::AccessPoint(AccessPointConfiguration {
-            ssid: "Card/IO".try_into().unwrap(),
-            max_connections: 1,
-            ..Default::default()
-        });
-        unwrap!(controller.set_configuration(&ap_config));
+        let ap_config = ModeConfig::AccessPoint(
+            AccessPointConfig::default()
+                .with_ssid(alloc::string::String::from("Card/IO"))
+                .with_max_connections(1),
+        );
+        unwrap!(controller.set_config(&ap_config));
     }
 
     pub fn handle_events(&mut self, events: EnumSet<WifiEvent>) -> bool {
-        if events.contains(WifiEvent::ApStaconnected) {
+        if events.contains(WifiEvent::ApStaConnected) {
             let old_count = self.state.client_count.load(Ordering::Acquire);
             let new_count = old_count.saturating_add(1);
             self.state.client_count.store(new_count, Ordering::Relaxed);
             info!("Client connected, {} total", new_count);
         }
 
-        if events.contains(WifiEvent::ApStadisconnected) {
+        if events.contains(WifiEvent::ApStaDisconnected) {
             let old_count = self.state.client_count.load(Ordering::Acquire);
             let new_count = old_count.saturating_sub(1);
             self.state.client_count.store(new_count, Ordering::Relaxed);

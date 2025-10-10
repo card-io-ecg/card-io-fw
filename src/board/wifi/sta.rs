@@ -19,8 +19,8 @@ use embassy_sync::{
 use embassy_time::{with_timeout, Duration};
 use enumset::EnumSet;
 use esp_hal::rng::Rng;
-use esp_wifi::wifi::{
-    AccessPointInfo, ClientConfiguration, Configuration, WifiController, WifiEvent,
+use esp_radio::wifi::{
+    AccessPointInfo, ClientConfig, ModeConfig, ScanConfig, WifiController, WifiEvent,
 };
 use gui::widgets::wifi_client::WifiClientState;
 use heapless::String;
@@ -101,7 +101,6 @@ pub struct Sta {
     pub(super) known_networks: Shared<Vec<KnownNetwork>>,
     pub(super) state: Rc<StaConnectionState>,
     pub(super) command_queue: Rc<CommandQueue>,
-    pub(super) rng: Rng,
 }
 
 impl Sta {
@@ -178,7 +177,6 @@ impl Sta {
             resources,
             tcp_client: TcpClient::new(self.sta_stack.clone(), client_state),
             dns_client: DnsSocket::new(self.sta_stack.clone()),
-            rng: self.rng,
         })
     }
 
@@ -227,13 +225,13 @@ pub struct HttpsClientResources<'a> {
     resources: Box<TlsClientState>,
     tcp_client: TcpClient<'a>,
     dns_client: DnsSocket<'a>,
-    rng: Rng,
 }
 
 impl<'a> HttpsClientResources<'a> {
     pub fn client(&mut self) -> HttpClient<'_, TcpClient<'a>, DnsSocket<'a>> {
-        let upper = self.rng.random() as u64;
-        let lower = self.rng.random() as u64;
+        let rng = Rng::new();
+        let upper = rng.random() as u64;
+        let lower = rng.random() as u64;
         let seed = (upper << 32) | lower;
 
         HttpClient::new_with_tls(
@@ -258,7 +256,6 @@ impl StaState {
     pub(super) fn init(
         controller: WifiController<'static>,
         sta_stack: Stack<'static>,
-        rng: Rng,
         spawner: Spawner,
     ) -> Self {
         info!("Starting STA");
@@ -291,7 +288,6 @@ impl StaState {
                 known_networks,
                 state,
                 command_queue,
-                rng,
             },
         }
     }
@@ -392,15 +388,15 @@ impl StaController {
     async fn setup(&mut self, controller: &mut WifiController<'_>) {
         info!("Configuring STA");
 
-        let client_config = Configuration::Client(ClientConfiguration {
-            ..Default::default()
-        });
-        unwrap!(controller.set_configuration(&client_config));
+        let client_config = ModeConfig::Client(ClientConfig::default());
+        unwrap!(controller.set_config(&client_config));
     }
 
     async fn do_scan(&mut self, controller: &mut WifiController<'_>) {
         info!("Scanning...");
-        let mut scan_results = Box::new(controller.scan_n_async(SCAN_RESULTS).await);
+        let mut scan_results = controller
+            .scan_with_config_async(ScanConfig::default().with_max(SCAN_RESULTS))
+            .await;
 
         match scan_results.as_mut() {
             Ok(ref mut visible_networks) => {
@@ -491,13 +487,11 @@ impl StaController {
 
         self.current_ssid = Some(connect_to.ssid.clone());
 
-        unwrap!(
-            controller.set_configuration(&Configuration::Client(ClientConfiguration {
-                ssid: connect_to.ssid.as_str().to_string(),
-                password: connect_to.pass.as_str().to_string(),
-                ..Default::default()
-            }))
-        );
+        unwrap!(controller.set_config(&ModeConfig::Client(
+            ClientConfig::default()
+                .with_ssid(connect_to.ssid.as_str().to_string())
+                .with_password(connect_to.pass.as_str().to_string())
+        )));
 
         Ok(())
     }

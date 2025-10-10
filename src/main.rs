@@ -51,7 +51,9 @@ use esp_hal::{
     interrupt::Priority,
     rtc_cntl::sleep::{self, WakeupLevel},
 };
-use esp_hal_embassy::InterruptExecutor;
+use esp_rtos::embassy::InterruptExecutor;
+
+esp_bootloader_esp_idf::esp_app_desc!();
 
 #[cfg(feature = "esp32s3")]
 use esp_hal::gpio::RtcPin as RtcWakeupPin;
@@ -186,7 +188,7 @@ where
     }
 }
 
-#[esp_hal_embassy::main]
+#[esp_rtos::main]
 async fn main(_spawner: Spawner) {
     #[cfg(all(feature = "rtt", feature = "defmt"))]
     rtt_target::rtt_init_defmt!();

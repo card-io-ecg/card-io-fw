@@ -217,7 +217,7 @@ impl Drawable for EcgScreen {
             status_loc += Point::new(HEART.size().width as i32, 0);
 
             str_buffer.clear();
-            unwrap!(uwrite!(&mut str_buffer, "{}", hr));
+            unwrap!(uwrite!(&mut str_buffer, "{}", hr).ok());
 
             Text::with_baseline(&str_buffer, status_loc, NORMAL_TEXT, Baseline::Top)
                 .draw(display)?;

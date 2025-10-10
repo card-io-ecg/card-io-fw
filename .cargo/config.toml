@@ -1,6 +1,6 @@
 [target.xtensa-esp32s3-none-elf]
 runner    = "probe-rs run  --preverify --always-print-stacktrace"
-#runner = "espflash flash -M --erase-parts=otadata --log-format=defmt -T partitions.csv -s 8mb"
+#runner = "espflash flash -M --erase-parts=otadata --log-format=defmt --partition-table partitions.csv -s 8mb"
 rustflags = [
   "-C", "link-arg=-nostartfiles",
   "-C", "link-arg=-Wl,-Tlinkall.x",
@@ -8,7 +8,7 @@ rustflags = [
 
 [target.riscv32imac-unknown-none-elf]
 runner    = "probe-rs run --preverify --always-print-stacktrace"
-#runner = "espflash flash -M --erase-parts=otadata --log-format=defmt -T partitions.csv -s 8mb"
+#runner = "espflash flash -M --erase-parts=otadata --log-format=defmt --partition-table partitions.csv -s 8mb"
 rustflags = [
   "-C", "force-frame-pointers",
   "-C", "link-arg=-Tlinkall.x",
@@ -27,20 +27,4 @@ monitor = "xtask monitor"
 
 [env]
 DEFMT_LOG = "card_io_fw=debug,info"
-
-#ESP_HAL_EMBASSY_CONFIG_TIMER_QUEUE = "multiple-integrated"
-ESP_HAL_EMBASSY_CONFIG_TIMER_QUEUE = "single-integrated"
-
-ESP_WIFI_CONFIG_RX_QUEUE_SIZE = "16"
-ESP_WIFI_CONFIG_STATIC_RX_BUF_NUM = "32"
-ESP_WIFI_CONFIG_DYNAMIC_RX_BUF_NUM = "16"
-
-ESP_WIFI_CONFIG_TX_QUEUE_SIZE = "16"
-ESP_WIFI_CONFIG_STATIC_TX_BUF_NUM = "12"
-ESP_WIFI_CONFIG_DYNAMIC_TX_BUF_NUM = "16"
-
-ESP_WIFI_CONFIG_AMPDU_RX_ENABLE = "true"
-ESP_WIFI_CONFIG_AMPDU_TX_ENABLE = "true"
-ESP_WIFI_CONFIG_RX_BA_WIN = "8"
-ESP_WIFI_CONFIG_MAX_BURST_SIZE = "0" # 0 means no limit
-ESP_WIFI_CONFIG_TICK_RATE_HZ = "200"
+ESP_ALLOC_CONFIG_HEAP_ALGORITHM = "LLFF"
