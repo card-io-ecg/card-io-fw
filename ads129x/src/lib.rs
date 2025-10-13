@@ -2,9 +2,6 @@
 #![feature(async_fn_in_trait)]
 #![allow(unknown_lints, stable_features, async_fn_in_trait)]
 
-#[macro_use]
-extern crate logger;
-
 use byteorder::{BigEndian, ByteOrder};
 use device_descriptor::{ReadOnlyRegister, ReaderProxy, Register};
 use embedded_hal::{
@@ -15,6 +12,9 @@ use embedded_hal_async::spi::SpiDevice as AsyncSpiDevice;
 use register_access::{AsyncRegisterAccess, RegisterAccess};
 
 use crate::descriptors::*;
+
+// MUST be the first module
+mod fmt;
 
 pub mod descriptors;
 

@@ -7,15 +7,8 @@ use bad_server::{
     response::ResponseStatus,
     BadServer, HandleError,
 };
-use log::LevelFilter;
 
 fn main() {
-    simple_logger::SimpleLogger::new()
-        .with_level(LevelFilter::Info)
-        .env()
-        .init()
-        .unwrap();
-
     smol::block_on(run());
 }
 

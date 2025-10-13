@@ -12,10 +12,7 @@ use crate::{
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
 use embassy_net::Stack;
-use esp_hal::rng::Rng;
-use esp_wifi::wifi::{
-    AccessPointConfiguration, ClientConfiguration, Configuration, WifiController,
-};
+use esp_radio::wifi::{AccessPointConfig, ClientConfig, ModeConfig, WifiController};
 use macros as cardio;
 
 pub(super) struct ApStaState {
@@ -29,7 +26,6 @@ impl ApStaState {
         controller: WifiController<'static>,
         ap_stack: Stack<'static>,
         sta_stack: Stack<'static>,
-        rng: Rng,
         spawner: Spawner,
     ) -> Self {
         info!("Configuring AP-STA");
@@ -70,7 +66,6 @@ impl ApStaState {
                 known_networks,
                 state: sta_state,
                 command_queue,
-                rng,
             },
         }
     }
@@ -113,17 +108,13 @@ async fn ap_sta_task(
 ) {
     task_control
         .run_cancellable(|resources| async {
-            let ap_config = AccessPointConfiguration {
-                ssid: "Card/IO".try_into().unwrap(),
-                max_connections: 1,
-                ..Default::default()
-            };
-            let client_config = ClientConfiguration {
-                ..Default::default()
-            };
+            let ap_config = AccessPointConfig::default()
+                .with_ssid(alloc::string::String::from("Card/IO"))
+                .with_max_connections(1);
+            let client_config = ClientConfig::default();
             unwrap!(resources
                 .controller
-                .set_configuration(&Configuration::Mixed(client_config, ap_config)));
+                .set_config(&ModeConfig::ApSta(client_config, ap_config)));
 
             info!("Starting wifi");
             unwrap!(resources.controller.start_async().await);

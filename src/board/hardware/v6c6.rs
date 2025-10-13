@@ -18,7 +18,7 @@ use esp_hal::{
     rtc_cntl::Rtc,
     spi::master::SpiDmaBus,
     time::Rate,
-    timer::{systimer::SystemTimer, AnyTimer},
+    timer::systimer::SystemTimer,
     Async,
 };
 use static_cell::StaticCell;
@@ -54,11 +54,10 @@ impl super::startup::StartupResources {
     pub async fn initialize() -> Self {
         let peripherals = Self::common_init();
 
+        let sw_int = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
+
         let systimer = SystemTimer::new(peripherals.SYSTIMER);
-        esp_hal_embassy::init([
-            AnyTimer::from(systimer.alarm0),
-            AnyTimer::from(systimer.alarm1),
-        ]);
+        esp_rtos::start(systimer.alarm0, sw_int.software_interrupt0);
 
         let display = Self::create_display_driver(
             peripherals.DMA_CH0,
@@ -98,14 +97,8 @@ impl super::startup::StartupResources {
         )
         .await;
 
-        let sw_int = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
-
         static WIFI: StaticCell<WifiDriver> = StaticCell::new();
-        let wifi = WIFI.init(WifiDriver::new(
-            peripherals.WIFI,
-            AnyTimer::from(systimer.alarm2),
-            peripherals.RNG,
-        ));
+        let wifi = WIFI.init(WifiDriver::new(peripherals.WIFI));
 
         Self {
             display,

@@ -4,9 +4,6 @@
 #![feature(impl_trait_projections)]
 #![allow(unknown_lints, async_fn_in_trait)]
 
-#[macro_use]
-extern crate logger;
-
 use core::{fmt::Debug, marker::PhantomData};
 
 use embedded_io_async::{ErrorType, Read, Write as _};
@@ -23,6 +20,9 @@ use crate::{
 };
 
 pub use httparse::Header;
+
+// MUST be the first module
+mod fmt;
 
 pub mod connector;
 pub mod error_handler;

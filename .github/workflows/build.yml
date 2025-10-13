@@ -31,7 +31,7 @@ jobs:
         with:
           default: true
           buildtargets: esp32s3
-          version: "1.85.0.0"
+          version: "1.90.0.0"
           ldproxy: false
       - uses: dtolnay/rust-toolchain@master
         with:

@@ -5,12 +5,12 @@
 #![allow(unknown_lints, async_fn_in_trait)]
 #![allow(incomplete_features)] // generic_const_exprs
 
-#[macro_use]
-extern crate logger;
-
 extern crate alloc;
 
 pub use embedded_layout;
+
+// MUST be the first module
+mod fmt;
 
 pub mod screens;
 pub mod utils;

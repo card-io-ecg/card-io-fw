@@ -50,10 +50,7 @@ impl super::startup::StartupResources {
         let peripherals = Self::common_init();
 
         let systimer = SystemTimer::new(peripherals.SYSTIMER);
-        esp_hal_embassy::init([
-            AnyTimer::from(systimer.alarm0),
-            AnyTimer::from(systimer.alarm1),
-        ]);
+        esp_rtos::start(systimer.alarm0);
 
         let display = Self::create_display_driver(
             peripherals.DMA_CH0,
@@ -93,11 +90,7 @@ impl super::startup::StartupResources {
         let sw_int = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
 
         static WIFI: StaticCell<WifiDriver> = StaticCell::new();
-        let wifi = WIFI.init(WifiDriver::new(
-            peripherals.WIFI,
-            AnyTimer::from(TimerGroup::new(peripherals.TIMG0).timer0),
-            peripherals.RNG,
-        ));
+        let wifi = WIFI.init(WifiDriver::new(peripherals.WIFI));
 
         Self {
             display,

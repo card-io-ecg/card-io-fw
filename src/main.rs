@@ -2,15 +2,15 @@
 #![no_main]
 #![feature(allocator_api)] // Box::try_new
 #![feature(type_alias_impl_trait)]
-#![feature(let_chains)]
 #![feature(never_type)] // Wifi net_task
 #![feature(generic_const_exprs)] // norfs needs this
 #![feature(impl_trait_in_assoc_type)]
 #![allow(incomplete_features)] // generic_const_exprs
 
 extern crate alloc;
-#[macro_use]
-extern crate logger;
+
+// MUST be the first module
+mod fmt;
 
 #[cfg(feature = "esp-println")]
 use esp_println as _;
@@ -51,7 +51,9 @@ use esp_hal::{
     interrupt::Priority,
     rtc_cntl::sleep::{self, WakeupLevel},
 };
-use esp_hal_embassy::InterruptExecutor;
+use esp_rtos::embassy::InterruptExecutor;
+
+esp_bootloader_esp_idf::esp_app_desc!();
 
 #[cfg(feature = "esp32s3")]
 use esp_hal::gpio::RtcPin as RtcWakeupPin;
@@ -61,7 +63,6 @@ use esp_hal::gpio::RtcPinWithResistors as RtcWakeupPin;
 
 mod board;
 pub mod human_readable;
-mod stack_protection;
 mod states;
 mod task_control;
 mod timeout;
@@ -186,7 +187,7 @@ where
     }
 }
 
-#[esp_hal_embassy::main]
+#[esp_rtos::main]
 async fn main(_spawner: Spawner) {
     #[cfg(all(feature = "rtt", feature = "defmt"))]
     rtt_target::rtt_init_defmt!();

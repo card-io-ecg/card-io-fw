@@ -39,7 +39,7 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
         return AppState::Menu(AppMenu::Main);
     };
 
-    let spawner = Spawner::for_current_executor().await;
+    let spawner = unsafe { Spawner::for_current_executor().await };
 
     let web_context = Rc::new(SharedWebContext::new(WebContext {
         known_networks: context.config.known_networks.clone(),

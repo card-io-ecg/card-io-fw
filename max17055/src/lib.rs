@@ -2,8 +2,8 @@
 #![feature(async_fn_in_trait)]
 #![allow(stable_features, unknown_lints, async_fn_in_trait)]
 
-#[macro_use]
-extern crate logger;
+// MUST be the first module
+mod fmt;
 
 use byte_slice_cast::AsMutByteSlice;
 use device_descriptor::{ReadOnlyRegister, ReaderProxy, Register};

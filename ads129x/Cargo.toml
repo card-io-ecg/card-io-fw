@@ -7,17 +7,15 @@ edition = "2021"
 
 [dependencies]
 byteorder = { version = "1.4.3", default-features = false }
+cfg-if = "1"
 device-descriptor = { path = "../device-descriptor" }
 embedded-hal = { workspace = true }
 embedded-hal-async = { workspace = true }
 register-access = { path = "../register-access" }
-logger = { workspace = true }
-log = { workspace = true, optional = true }
 defmt = { workspace = true, optional = true }
 ufmt = { workspace = true, optional = true }
 
 [features]
 default = []
-defmt = ["dep:defmt", "logger/defmt", "device-descriptor/defmt"]
-log = ["dep:log", "logger/log"]
+defmt = ["dep:defmt", "device-descriptor/defmt"]
 ufmt-impl = ["dep:ufmt", "device-descriptor/ufmt-impl"]
