@@ -1,8 +1,6 @@
 #![no_std]
 #![no_main]
 #![feature(allocator_api)] // Box::try_new
-#![feature(type_alias_impl_trait)]
-#![feature(never_type)] // Wifi net_task
 #![feature(generic_const_exprs)] // norfs needs this
 #![feature(impl_trait_in_assoc_type)]
 #![allow(incomplete_features)] // generic_const_exprs
