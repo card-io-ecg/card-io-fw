@@ -1,24 +1,19 @@
 #![no_std]
-#![feature(async_fn_in_trait)]
-#![allow(stable_features, unknown_lints, async_fn_in_trait)]
 
-// MUST be the first module
-mod fmt;
+use embedded_hal_async::{
+    delay::DelayNs as AsyncDelayNs,
+    i2c::{ErrorType, I2c as AsyncI2c},
+};
 
-use byte_slice_cast::AsMutByteSlice;
-use device_descriptor::{ReadOnlyRegister, ReaderProxy, Register};
-use embedded_hal::i2c::I2c;
-use embedded_hal_async::{delay::DelayNs as AsyncDelayNs, i2c::I2c as AsyncI2c};
-use register_access::{AsyncRegisterAccess, RegisterAccess};
-
-use crate::descriptors::*;
-
-pub mod descriptors;
+pub mod ll;
 
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum Error<I2cE> {
-    Transfer(I2cE),
+pub enum ConfigError<I>
+where
+    I: ErrorType,
+{
+    Transfer(I::Error),
     Verify,
 }
 
@@ -145,379 +140,276 @@ impl DesignData {
     }
 }
 
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
+//#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct LearnedParams {
-    pub rcomp0: u16,
-    pub temp_co: u16,
-    pub full_cap_rep: u16,
-    pub cycles: u16,
-    pub full_cap_nom: u16,
+    pub rcomp0: ll::Rcomp0fieldSet,
+    pub temp_co: ll::TempCoFieldSet,
+    pub full_cap_rep: ll::FullCapRepFieldSet,
+    pub cycles: ll::CyclesFieldSet,
+    pub full_cap_nom: ll::FullCapNomFieldSet,
 }
 
-pub struct Max17055<I2C> {
-    i2c: I2C,
+pub struct Max17055<I> {
+    driver: ll::Max17055<ll::Max17055I2cInterface<I>>,
     config: DesignData,
 }
 
-impl<I2C> RegisterAccess<u16> for Max17055<I2C>
-where
-    I2C: I2c,
-{
-    type Error = Error<I2C::Error>;
-
-    fn read_register<R>(&mut self) -> Result<R, Self::Error>
-    where
-        R: ReadOnlyRegister<RegisterWidth = u16>,
-    {
-        let mut buffer = [0];
-        self.read_sequential::<R>(&mut buffer)
-            .map(|_| R::from_bits(buffer[0]))
-    }
-
-    fn read_sequential<R>(&mut self, buffer: &mut [u16]) -> Result<(), Self::Error>
-    where
-        R: ReadOnlyRegister<RegisterWidth = u16>,
-    {
-        self.i2c
-            .write_read(Self::DEVICE_ADDR, &[R::ADDRESS], buffer.as_mut_byte_slice())
-            .map_err(Error::Transfer)?;
-
-        for el in buffer.iter_mut() {
-            *el = u16::from_le(*el);
+impl<I> Max17055<I> {
+    pub const fn new(i2c: I, config: DesignData) -> Self {
+        Self {
+            driver: ll::Max17055::new(ll::Max17055I2cInterface { i2c }),
+            config,
         }
-
-        Ok(())
-    }
-
-    fn write_register<R>(&mut self, reg: R) -> Result<(), Self::Error>
-    where
-        R: Register<RegisterWidth = u16>,
-    {
-        self.write_sequential::<R>(&mut [reg.bits()])
-    }
-
-    fn write_sequential<R>(&mut self, buffer: &mut [u16]) -> Result<(), Self::Error>
-    where
-        R: Register<RegisterWidth = u16>,
-    {
-        for (i, el) in buffer.iter_mut().enumerate() {
-            self.write_one((R::ADDRESS as usize + i) as u8, *el)?;
-        }
-        Ok(())
     }
 }
 
-impl<I2C> AsyncRegisterAccess<u16> for Max17055<I2C>
+impl<I> Max17055<I>
 where
-    I2C: AsyncI2c,
+    I: AsyncI2c,
 {
-    type Error = Error<I2C::Error>;
-
-    async fn read_register_async<R>(&mut self) -> Result<R, Self::Error>
-    where
-        R: ReadOnlyRegister<RegisterWidth = u16>,
-    {
-        let mut buffer = [0];
-        self.read_sequential_async::<R>(&mut buffer)
-            .await
-            .map(|_| R::from_bits(buffer[0]))
-    }
-
-    async fn read_sequential_async<R>(&mut self, buffer: &mut [u16]) -> Result<(), Self::Error>
-    where
-        R: ReadOnlyRegister<RegisterWidth = u16>,
-    {
-        self.i2c
-            .write_read(Self::DEVICE_ADDR, &[R::ADDRESS], buffer.as_mut_byte_slice())
-            .await
-            .map_err(Error::Transfer)?;
-
-        for el in buffer.iter_mut() {
-            *el = u16::from_le(*el);
-        }
-
-        Ok(())
-    }
-
-    async fn write_register_async<R>(&mut self, reg: R) -> Result<(), Self::Error>
-    where
-        R: Register<RegisterWidth = u16>,
-    {
-        self.write_sequential_async::<R>(&mut [reg.bits()]).await
-    }
-
-    async fn write_sequential_async<R>(&mut self, buffer: &mut [u16]) -> Result<(), Self::Error>
-    where
-        R: Register<RegisterWidth = u16>,
-    {
-        for (i, el) in buffer.iter_mut().enumerate() {
-            self.write_one_async((R::ADDRESS as usize + i) as u8, *el)
-                .await?;
-        }
-
-        Ok(())
-    }
-}
-
-impl<I2C> Max17055<I2C> {
-    const DEVICE_ADDR: u8 = 0x36;
-
-    pub fn new(i2c: I2C, config: DesignData) -> Self {
-        debug!("Design data: {:?}", config);
-        Self { i2c, config }
-    }
-
-    fn write_register_data(addr: u8, value: u16) -> [u8; 3] {
-        let [lower, upper] = value.to_le_bytes();
-        [addr, lower, upper]
-    }
-}
-
-impl<I2C> Max17055<I2C>
-where
-    I2C: I2c,
-{
-    fn write_one(&mut self, addr: u8, value: u16) -> Result<(), Error<I2C::Error>> {
-        let data = Self::write_register_data(addr, value);
-        self.i2c
-            .write(Self::DEVICE_ADDR, &data)
-            .map_err(Error::Transfer)
-    }
-}
-
-impl<I2C> Max17055<I2C>
-where
-    I2C: AsyncI2c,
-{
-    async fn write_one_async(&mut self, addr: u8, value: u16) -> Result<(), Error<I2C::Error>> {
-        let data = Self::write_register_data(addr, value);
-        self.i2c
-            .write(Self::DEVICE_ADDR, &data)
-            .await
-            .map_err(Error::Transfer)
-    }
-
-    async fn write_and_verify_register_async<R>(
-        &mut self,
-        reg: R,
-        delay: &mut impl AsyncDelayNs,
-    ) -> Result<(), Error<I2C::Error>>
-    where
-        R: Register<RegisterWidth = u16>,
-    {
-        for _ in 0..3 {
-            self.write_register_async(reg).await?;
-            delay.delay_ms(1).await;
-            let value = self.read_register_async::<R>().await?;
-            if value.bits() == reg.bits() {
-                return Ok(());
-            }
-        }
-        Err(Error::Verify)
-    }
-
-    async fn poll_async<R: ReadOnlyRegister<RegisterWidth = u16>>(
-        &mut self,
-        delay: &mut impl AsyncDelayNs,
-        predicate: impl Fn(&R) -> bool,
-    ) -> Result<(), Error<I2C::Error>> {
-        loop {
-            let register = self.read_register_async::<R>().await?;
-            if predicate(&register) {
-                break;
-            }
-
-            delay.delay_ms(10).await;
-        }
-
-        Ok(())
-    }
-
     /// This function implements the Initialize Registers to Recommended Configuration
     /// procedure from the datasheet.
     pub async fn load_initial_config_async(
         &mut self,
         delay: &mut impl AsyncDelayNs,
-    ) -> Result<(), Error<I2C::Error>> {
-        trace!("Loading initial configuration");
-
-        let por_status = match self.read_register_async::<Status>().await {
-            Ok(por_status) => por_status,
-            Err(e) => {
-                error!("Failed to read status register");
-                return Err(e);
-            }
-        };
-
-        if por_status.por().read() != Some(PowerOnReset::Reset) {
-            debug!("No power-on reset");
+    ) -> Result<(), ConfigError<I>> {
+        if self
+            .driver
+            .status()
+            .read_async()
+            .await
+            .map_err(ConfigError::Transfer)?
+            .por()
+            != ll::PowerOnReset::Reset
+        {
             return Ok(());
         }
 
-        debug!("Power-on reset, initializing");
-        self.poll_async::<FStat>(delay, |reg| reg.dnr().read() == Some(DataNotReady::Ready))
-            .await?;
+        while self
+            .driver
+            .fstat()
+            .read_async()
+            .await
+            .map_err(ConfigError::Transfer)?
+            .dnr()
+            != ll::DataNotReady::Ready
+        {
+            delay.delay_ms(10).await;
+        }
 
-        let hib_cfg = self.force_exit_hiberation().await?;
+        let hib_cfg = self
+            .force_exit_hiberation()
+            .await
+            .map_err(ConfigError::Transfer)?;
 
-        self.ez_config(self.config).await?;
-        self.poll_async::<ModelCfg>(delay, |reg| reg.refresh().read() == Some(Bit::NotSet))
-            .await?;
+        self.ez_config(self.config)
+            .await
+            .map_err(ConfigError::Transfer)?;
 
-        self.write_register_async(hib_cfg).await?;
+        while self
+            .driver
+            .model_cfg()
+            .read_async()
+            .await
+            .map_err(ConfigError::Transfer)?
+            .refresh()
+        {
+            delay.delay_ms(10).await;
+        }
+
+        self.driver
+            .hib_cfg()
+            .write_async(|reg| *reg = hib_cfg)
+            .await
+            .map_err(ConfigError::Transfer)?;
 
         // Clear POR flag
-        let status = self.read_register_async::<Status>().await?;
-        self.write_and_verify_register_async(
-            status.modify(|reg| reg.por().write(PowerOnReset::NoReset)),
-            delay,
-        )
-        .await?;
+        'success: loop {
+            let status = self
+                .driver
+                .status()
+                .read_async()
+                .await
+                .map_err(ConfigError::Transfer)?;
+
+            for _ in 0..3 {
+                self.driver
+                    .status()
+                    .write_async(|reg| {
+                        *reg = status;
+                        reg.set_por(ll::PowerOnReset::NoReset);
+                    })
+                    .await
+                    .map_err(ConfigError::Transfer)?;
+
+                if self
+                    .driver
+                    .status()
+                    .read_async()
+                    .await
+                    .map_err(ConfigError::Transfer)?
+                    .por()
+                    == ll::PowerOnReset::NoReset
+                {
+                    break 'success;
+                }
+
+                delay.delay_ms(1).await;
+            }
+
+            return Err(ConfigError::Verify);
+        }
 
         Ok(())
     }
 
-    async fn force_exit_hiberation(&mut self) -> Result<HibCfg, Error<I2C::Error>> {
-        let hib_cfg = self.read_register_async::<HibCfg>().await?;
+    async fn force_exit_hiberation(&mut self) -> Result<ll::HibCfgFieldSet, I::Error> {
+        let hib_cfg = self.driver.hib_cfg().read_async().await?;
 
-        self.write_register_async(Command::new(|w| w.command().write(CommandKind::SoftWakeup)))
+        self.driver.soft_wakeup().dispatch_async().await?;
+
+        self.driver
+            .hib_cfg()
+            .write_async(|reg| {
+                reg.set_en_hib(false);
+                reg.set_hib_config(0);
+            })
             .await?;
 
-        self.write_register_async(HibCfg::new(|w| {
-            w.en_hib().write(Bit::NotSet).hib_config().write(0)
-        }))
-        .await?;
-
-        self.write_register_async(Command::new(|w| w.command().write(CommandKind::Clear)))
-            .await?;
+        self.driver.clear().dispatch_async().await?;
 
         Ok(hib_cfg)
     }
 
-    async fn ez_config(&mut self, config: DesignData) -> Result<(), Error<I2C::Error>> {
+    async fn ez_config(&mut self, config: DesignData) -> Result<(), I::Error> {
         const CHG_V_LOW: u32 = 44138;
         const CHG_V_HIGH: u32 = 51200;
         const CHG_THRESHOLD: u16 = 4275;
 
         let raw_capacity = config.uAh_to_raw_capacity(config.capacity as u32 * 1_000);
 
-        self.write_register_async(DesignCap::new(|w| w.capacity().write(raw_capacity)))
+        self.driver
+            .design_cap()
+            .write_async(|reg| reg.set_capacity(raw_capacity))
             .await?;
-        self.write_register_async(dQAcc::new(|w| w.capacity().write(raw_capacity / 32)))
+        self.driver
+            .d_qacc()
+            .write_async(|reg| reg.set_capacity(raw_capacity / 32))
             .await?;
-        self.write_register_async(IChgTerm::new(|w| {
-            w.current().write(config.i_chg_term as u16)
-        }))
-        .await?;
-        self.write_register_async(VEmpty::new(|w| {
-            w.ve()
-                .write(config.v_empty / 10)
-                .vr()
-                .write(config.v_recovery / 40)
-        }))
-        .await?;
+        self.driver
+            .ichg_term()
+            .write_async(|reg| {
+                reg.set_current(config.i_chg_term as u16);
+            })
+            .await?;
 
-        if config.v_charge > CHG_THRESHOLD {
-            debug!("Configuring 4.4V battery");
-            self.write_register_async(dPAcc::new(|w| {
-                w.percentage().write((CHG_V_HIGH / 32) as u16)
-            }))
+        self.driver
+            .vempty()
+            .write_async(|reg| {
+                reg.set_ve(config.v_empty / 10);
+                reg.set_vr(config.v_recovery / 40);
+            })
             .await?;
-            self.write_register_async(ModelCfg::new(|w| {
-                w.refresh()
-                    .write(Bit::Set)
-                    .v_chg()
-                    .write(VChg::_4_4V)
-                    .model_id()
-                    .write(ModelID::Default)
-            }))
-            .await?;
+
+        let vchg = if config.v_charge > CHG_THRESHOLD {
+            ll::Vchg::_4_4v
         } else {
-            debug!("Configuring 4.2V battery");
-            self.write_register_async(dPAcc::new(|w| {
-                w.percentage().write((CHG_V_LOW / 32) as u16)
-            }))
+            ll::Vchg::_4_2v
+        };
+
+        let dpacc = if vchg == ll::Vchg::_4_4v {
+            (CHG_V_HIGH / 32) as u16
+        } else {
+            (CHG_V_LOW / 32) as u16
+        };
+
+        self.driver
+            .d_pacc()
+            .write_async(|reg| {
+                reg.set_percentage(dpacc);
+            })
             .await?;
-            self.write_register_async(ModelCfg::new(|w| {
-                w.refresh()
-                    .write(Bit::Set)
-                    .v_chg()
-                    .write(VChg::_4_2V)
-                    .model_id()
-                    .write(ModelID::Default)
-            }))
+
+        self.driver
+            .model_cfg()
+            .write_async(|reg| {
+                reg.set_refresh(true);
+                reg.set_v_chg(vchg);
+                reg.set_model_id(ll::ModelId::Default);
+            })
             .await?;
-        }
 
         Ok(())
     }
 
     /// Returns the reported capacity in μAh.
-    pub async fn read_design_capacity(&mut self) -> Result<u32, Error<I2C::Error>> {
-        let reg = self.read_register_async::<DesignCap>().await?;
-        let raw = reg.capacity().read().unwrap_or(0);
+    pub async fn read_design_capacity(&mut self) -> Result<u32, I::Error> {
+        let reg = self.driver.design_cap().read_async().await?;
+        let raw = reg.capacity();
         Ok(self.config.raw_capacity_to_uAh(raw))
     }
 
     /// Returns the reported remaining capacity in μAh.
-    pub async fn read_reported_remaining_capacity(&mut self) -> Result<u32, Error<I2C::Error>> {
-        let reg = self.read_register_async::<RepCap>().await?;
-        let raw = reg.capacity().read().unwrap_or(0);
+    pub async fn read_reported_remaining_capacity(&mut self) -> Result<u32, I::Error> {
+        let reg = self.driver.rep_cap().read_async().await?;
+        let raw = reg.capacity();
         Ok(self.config.raw_capacity_to_uAh(raw))
     }
 
     /// Returns the reported full capacity in μAh.
-    pub async fn read_reported_capacity(&mut self) -> Result<u32, Error<I2C::Error>> {
-        let reg = self.read_register_async::<FullCapRep>().await?;
-        let raw = reg.capacity().read().unwrap_or(0);
+    pub async fn read_reported_capacity(&mut self) -> Result<u32, I::Error> {
+        let reg = self.driver.full_cap_rep().read_async().await?;
+        let raw = reg.capacity();
         Ok(self.config.raw_capacity_to_uAh(raw))
     }
 
     /// Returns the cell age in %.
-    pub async fn read_cell_age(&mut self) -> Result<u8, Error<I2C::Error>> {
-        let reg = self.read_register_async::<Age>().await?;
-        let raw = reg.percentage().read().unwrap_or(0);
+    pub async fn read_cell_age(&mut self) -> Result<u8, I::Error> {
+        let reg = self.driver.age().read_async().await?;
+        let raw = reg.percentage();
         Ok((raw >> 8) as u8)
     }
 
     /// Returns the reported state of charge %.
-    pub async fn read_reported_soc(&mut self) -> Result<u8, Error<I2C::Error>> {
-        let reg = self.read_register_async::<RepSOC>().await?;
-        let raw = reg.percentage().read().unwrap_or(0);
+    pub async fn read_reported_soc(&mut self) -> Result<u8, I::Error> {
+        let reg = self.driver.rep_soc().read_async().await?;
+        let raw = reg.percentage();
         Ok((raw >> 8) as u8)
     }
 
     /// Returns the number of charge cycles in %.
-    pub async fn read_charge_cycles(&mut self) -> Result<u16, Error<I2C::Error>> {
-        let reg = self.read_register_async::<Cycles>().await?;
-        let raw = reg.cycles_percentage().read().unwrap_or(0);
+    pub async fn read_charge_cycles(&mut self) -> Result<u16, I::Error> {
+        let reg = self.driver.cycles().read_async().await?;
+        let raw = reg.cycles_percentage();
         Ok((raw / 100) as u16)
     }
 
     /// Returns the cell voltage in μV.
-    pub async fn read_vcell(&mut self) -> Result<u32, Error<I2C::Error>> {
-        let reg = self.read_register_async::<VCell>().await?;
-        let raw = reg.voltage().read().unwrap_or(0);
+    pub async fn read_vcell(&mut self) -> Result<u32, I::Error> {
+        let reg = self.driver.vcell().read_async().await?;
+        let raw = reg.voltage();
         Ok(self.config.raw_voltage_to_uV(raw))
     }
 
     /// Returns the average cell voltage in μV.
-    pub async fn read_avg_vcell(&mut self) -> Result<u32, Error<I2C::Error>> {
-        let reg = self.read_register_async::<AvgVCell>().await?;
-        let raw = reg.voltage().read().unwrap_or(0);
+    pub async fn read_avg_vcell(&mut self) -> Result<u32, I::Error> {
+        let reg = self.driver.avg_vcell().read_async().await?;
+        let raw = reg.voltage();
         Ok(self.config.raw_voltage_to_uV(raw))
     }
 
     /// Returns the battery current in μA.
-    pub async fn read_current(&mut self) -> Result<i32, Error<I2C::Error>> {
-        let reg = self.read_register_async::<Current>().await?;
-        let taw = reg.current().read().unwrap_or(0);
+    pub async fn read_current(&mut self) -> Result<i32, I::Error> {
+        let reg = self.driver.current().read_async().await?;
+        let taw = reg.current();
         Ok(self.config.raw_current_to_uA(taw))
     }
 
     /// Returns the average battery current in μA.
-    pub async fn read_avg_current(&mut self) -> Result<i32, Error<I2C::Error>> {
-        let reg = self.read_register_async::<AvgCurrent>().await?;
-        let taw = reg.current().read().unwrap_or(0);
+    pub async fn read_avg_current(&mut self) -> Result<i32, I::Error> {
+        let reg = self.driver.avg_current().read_async().await?;
+        let taw = reg.current();
         Ok(self.config.raw_current_to_uA(taw))
     }
 
@@ -530,14 +422,69 @@ where
     /// the data is saved on a non-volatile memory. Call this function after first initialization
     /// for reference in future function calls.
     /// Max number of cycles is 655.35 cycles with a LSB of 1% for the cycles register
-    pub async fn read_learned_params(&mut self) -> Result<LearnedParams, Error<I2C::Error>> {
+    pub async fn read_learned_params(&mut self) -> Result<LearnedParams, I::Error> {
         Ok(LearnedParams {
-            rcomp0: self.read_register_async::<RComp0>().await?.value(),
-            temp_co: self.read_register_async::<TempCo>().await?.value(),
-            full_cap_rep: self.read_register_async::<FullCap>().await?.value(),
-            cycles: self.read_register_async::<Cycles>().await?.value(),
-            full_cap_nom: self.read_register_async::<FullCapNom>().await?.value(),
+            rcomp0: self.driver.rcomp_0().read_async().await?,
+            temp_co: self.driver.temp_co().read_async().await?,
+            full_cap_rep: self.driver.full_cap_rep().read_async().await?,
+            cycles: self.driver.cycles().read_async().await?,
+            full_cap_nom: self.driver.full_cap_nom().read_async().await?,
         })
+    }
+
+    async fn attempt_restore_learned_params(
+        &mut self,
+        params: &LearnedParams,
+        delay: &mut impl AsyncDelayNs,
+    ) -> Result<(), I::Error> {
+        self.driver
+            .rcomp_0()
+            .write_async(|reg| *reg = params.rcomp0)
+            .await?;
+
+        self.driver
+            .temp_co()
+            .write_async(|reg| *reg = params.temp_co)
+            .await?;
+        self.driver
+            .full_cap_nom()
+            .write_async(|reg| *reg = params.full_cap_nom)
+            .await?;
+
+        delay.delay_ms(350).await;
+
+        let full_cap_nom = self.driver.full_cap_nom().read_async().await?;
+        let mixsoc = self.driver.mix_soc().read_async().await?;
+
+        let mix_cap_calc = (mixsoc.percentage() as u32 * full_cap_nom.capacity() as u32) / 25600;
+
+        self.driver
+            .mix_cap()
+            .write_async(|reg| reg.set_capacity(mix_cap_calc as u16))
+            .await?;
+        self.driver
+            .full_cap_rep()
+            .write_async(|reg| *reg = params.full_cap_rep)
+            .await?;
+
+        // 200%
+        self.driver
+            .d_pacc()
+            .write_async(|reg| reg.set_percentage(0x0C80))
+            .await?;
+        self.driver
+            .d_qacc()
+            .write_async(|reg| reg.set_capacity(params.full_cap_nom.capacity() / 16))
+            .await?;
+
+        delay.delay_ms(350).await;
+
+        self.driver
+            .cycles()
+            .write_async(|reg| *reg = params.cycles)
+            .await?;
+
+        Ok(())
     }
 
     /// Restore Parameters Function for battery Fuel Gauge model.
@@ -547,37 +494,22 @@ where
         &mut self,
         params: &LearnedParams,
         delay: &mut impl AsyncDelayNs,
-    ) -> Result<(), Error<I2C::Error>> {
-        self.write_and_verify_register_async(RComp0::from_bits(params.rcomp0), delay)
-            .await?;
-        self.write_and_verify_register_async(TempCo::from_bits(params.temp_co), delay)
-            .await?;
-        self.write_and_verify_register_async(FullCapNom::from_bits(params.full_cap_nom), delay)
-            .await?;
-        delay.delay_ms(350).await;
+    ) -> Result<(), ConfigError<I>> {
+        for _ in 0..3 {
+            self.attempt_restore_learned_params(params, delay)
+                .await
+                .map_err(ConfigError::Transfer)?;
+            let readback = self
+                .read_learned_params()
+                .await
+                .map_err(ConfigError::Transfer)?;
 
-        let full_cap_nom = self.read_register_async::<FullCapNom>().await?;
-        let mixsoc = self.read_register_async::<MixSOC>().await?;
+            if readback == *params {
+                return Ok(());
+            }
+            delay.delay_ms(1).await;
+        }
 
-        let mix_cap_calc = (mixsoc.percentage().read_field_bits() as u32
-            * full_cap_nom.capacity().read_field_bits() as u32)
-            / 25600;
-
-        self.write_and_verify_register_async(MixCap::from_bits(mix_cap_calc as u16), delay)
-            .await?;
-        self.write_and_verify_register_async(FullCapRep::from_bits(params.full_cap_rep), delay)
-            .await?;
-
-        self.write_and_verify_register_async(dPAcc::from_bits(0x0C80), delay)
-            .await?; // 200%
-        self.write_and_verify_register_async(dQAcc::from_bits(params.full_cap_nom / 16), delay)
-            .await?;
-
-        delay.delay_ms(350).await;
-
-        self.write_and_verify_register_async(Cycles::from_bits(params.cycles), delay)
-            .await?;
-
-        Ok(())
+        Err(ConfigError::Verify)
     }
 }

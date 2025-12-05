@@ -9,7 +9,7 @@ use crate::{
     timeout::Timeout,
     AppState,
 };
-use ads129x::{Error, Sample};
+use ads129x::Sample;
 use alloc::{boxed::Box, sync::Arc};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Instant, Ticker};
@@ -38,7 +38,7 @@ type MessageQueue = Channel<CriticalSectionRawMutex, Sample, 32>;
 unsafe impl Send for PoweredEcgFrontend {}
 
 struct EcgTaskParams {
-    token: TaskControlToken<Result<(), Error<<AdcSpi as ErrorType>::Error>>, PoweredEcgFrontend>,
+    token: TaskControlToken<Result<(), <AdcSpi as ErrorType>::Error>, PoweredEcgFrontend>,
     sender: Arc<MessageQueue>,
 }
 
@@ -185,8 +185,12 @@ async fn measure_impl(
 ) -> (AppState, EcgFrontend) {
     let mut frontend = match frontend.enable_async().await {
         Ok(frontend) => frontend,
-        Err((fe, _err)) => {
-            context.display_message("ADC error").await;
+        Err((fe, err)) => {
+            let err_str = match err {
+                ads129x::AdsConfigError::ReadbackMismatch => "Failed to start ADC: config error",
+                ads129x::AdsConfigError::Spi(_) => "Failed to start ADC: SPI error",
+            };
+            context.display_message(err_str).await;
 
             // Enter main menu in case of an init error, so that the device is not entirely unusable.
             return (AppState::Menu(AppMenu::Main), fe);
@@ -335,20 +339,17 @@ async fn reader_task(params: EcgTaskParams) {
 async fn read_ecg(
     queue: &MessageQueue,
     frontend: &mut PoweredEcgFrontend,
-) -> Result<(), Error<<AdcSpi as ErrorType>::Error>> {
+) -> Result<(), <AdcSpi as ErrorType>::Error> {
     loop {
-        match frontend.read().await {
-            Ok(sample) => {
-                if !frontend.is_touched() {
-                    info!("Not touched, stopping");
-                    return Ok(());
-                }
+        let sample = frontend.read().await?;
 
-                if queue.try_send(sample.ch1_sample()).is_err() {
-                    warn!("Sample lost");
-                }
-            }
-            Err(e) => return Err(e),
+        if !frontend.is_touched() {
+            info!("Not touched, stopping");
+            return Ok(());
+        }
+
+        if queue.try_send(sample.ch1_sample()).is_err() {
+            warn!("Sample lost");
         }
     }
 }

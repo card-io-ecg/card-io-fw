@@ -1,0 +1,308 @@
+device Ads129x {
+    byte-order BE
+    command-address-type u8
+    register-address-type u8
+    name-word-boundaries LowerUpper
+
+    command Wakeup    { address 0x2 }
+    command Standby   { address 0x4 }
+    command Reset     { address 0x6 }
+    command Start     { address 0x8 }
+    command Stop      { address 0xA }
+    command OffsetCal { address 0x1A }
+    command RDataC    { address 0x10 }
+    command SDataC    { address 0x11 }
+    command RData     {
+        address 0x12
+
+        out size-bits = 72 {
+            (u8) preamble @71:68
+            (u8:LeadStatus) rld @67
+            (u8:LeadStatus) in2n @66
+            (u8:LeadStatus) in2p @65
+            (u8:LeadStatus) in1n @64
+            (u8:LeadStatus) in1p @63
+            (u8:PinState) gpio_d2 @62
+            (u8:PinState) gpio_d1 @61
+            (i32) ch1 @47:24
+            (i32) ch2 @23:0
+        }
+    }
+
+    register Id {
+        address 0
+        access  RO
+
+        fields size-bits = 8 {
+            (u8:DeviceId?) device_id @7:0 {
+                ADS1191  0x50
+                ADS1192  0x51
+                ADS1291  0x52
+                ADS1292  0x53
+                ADS1292R 0x73
+            }
+        }
+    }
+
+    register Config1 {
+        address     1
+        reset-value 2
+
+        fields size-bits = 8 {
+            (u8:Sampling) sampling @7 {
+                Continuous 0
+                SingleShot 1
+            }
+            (u8:DataRate?) data_rate @3:0 {
+                _125sps 0
+                _250sps 1
+                _500sps 2
+                _1ksps  3
+                _2ksps  4
+                _4ksps  5
+                _8ksps  6
+            }
+        }
+    }
+
+    register Config2 {
+        address     2
+        reset-value 0x80
+
+        fields size-bits = 8 {
+            (u8:Buffer) pdb_loff_comp @6 {
+                PoweredDown 0
+                Enabled 1
+            }
+            (u8:ReferenceVoltage?) ref_voltage @5:4 {
+                External 0
+                _2_42V   2
+                _4_033V  3
+            }
+            (u8:ClockPin) clock_pin @3 {
+                Disabled 0
+                Enabled  1
+            }
+            (u8:TestSignal?) test_signal @1:0 {
+                Disabled 0
+                Dc       1
+                Ac       2
+            }
+        }
+    }
+
+    register Loff {
+        address     0x03
+        reset-value 0x10
+
+        fields size-bits = 8 {
+            (u8:ComparatorThreshold) comp_th @7:5 {
+                _95   0
+                _92_5 1
+                _90   2
+                _87_5 3
+                _85   4
+                _80   5
+                _75   6
+                _70   7
+            }
+            (u8:LeadOffCurrent) leadoff_current @3:2 {
+                _6nA  0
+                _22nA 1
+                _6uA  2
+                _22uA 3
+            }
+            (u8:LeadOffFrequency) leadoff_frequency @0 {
+                DC 0
+                AC 1
+            }
+        }
+    }
+
+    register Ch1Set {
+        address     0x04
+        reset-value 0
+
+        fields size-bits = 8 {
+            (u8:Channel) enabled @7 {
+                Enabled   0
+                PowerDown 1
+            }
+            (u8:Gain?) gain @6:4 {
+                X6  0
+                X1  1
+                X2  2
+                X3  3
+                X4  4
+                X8  5
+                X12 6
+            }
+            (u8:Ch1Mux?) mux @3:0 {
+                Normal      0
+                Shorted     1
+                Rld         2
+                HalfAvdd    3
+                Temperature 4
+                TestSignal  5
+                RldDrp      6
+                RldDrm      7
+                RldDrpm     8
+                In3         9
+            }
+        }
+    }
+
+    register Ch2Set {
+        address     0x05
+        reset-value 0
+
+        fields size-bits = 8 {
+            (u8:Channel) enabled @7
+            (u8:Gain?)   gain    @6:4
+            (u8:Ch2Mux?) mux     @3:0 {
+                Normal      0
+                Shorted     1
+                Rld         2
+                QuarterDvdd 3
+                Temperature 4
+                TestSignal  5
+                RldDrp      6
+                RldDrm      7
+                RldDrpm     8
+                In3         9
+            }
+        }
+    }
+
+    register RldSens {
+        address     0x06
+        reset-value 0
+
+        fields size-bits = 8 {
+            (u8:ChopFrequency?) chop @7:6 {
+                Fmod16 0
+                Fmod2  2
+                Fmod4  3
+            }
+            (u8:Buffer) pdb_rld    @5
+            (u8:Input)  loff_sense @4 {
+                NotConnected 0
+                Connected    1
+            }
+            (u8:Input) rld2n @3
+            (u8:Input) rld2p @2
+            (u8:Input) rld1n @1
+            (u8:Input) rld1p @0
+        }
+    }
+
+    register LoffSens {
+        address     0x07
+        reset-value 0
+
+        fields size-bits = 8 {
+            (u8:CurrentDirection?) flip2 @5 {
+                Normal  0
+                Flipped 1
+            }
+            (u8:CurrentDirection) flip1 @4
+            (u8:Input) loff2n @3
+            (u8:Input) loff2p @2
+            (u8:Input) loff1n @1
+            (u8:Input) loff1p @0
+        }
+    }
+
+    register LoffStat {
+        address     0x08
+        reset-value 0
+
+        fields size-bits = 8 {
+            (u8:ClockDivider) clk_div @6 {
+                External512kHz 0
+                External2MHz   1
+            }
+            (u8:LeadStatus) rld @4 {
+                Connected    0
+                NotConnected 1
+            }
+            (u8:LeadStatus) in2n @3
+            (u8:LeadStatus) in2p @2
+            (u8:LeadStatus) in1n @1
+            (u8:LeadStatus) in1p @0
+        }
+    }
+
+    register Resp1 {
+        address     0x09
+        reset-value 0x02
+
+        fields size-bits = 8 {
+        (u8:Respiration) demod_en @7 {
+                Disabled 0
+                Enabled  1
+            }
+            (u8:Respiration) mod_en @6
+            (u8:Phase) phase @5:2 {
+                _0deg   0
+                _11deg  1
+                _22deg  2
+                _33deg  3
+                _45deg  4
+                _56deg  5
+                _67deg  6
+                _78deg  7
+                _90deg  8
+                _101deg 9
+                _112deg 10
+                _123deg 11
+                _135deg 12
+                _146deg 13
+                _157deg 14
+                _168deg 15
+            }
+            (u8:RespirationClock) clock @0 {
+                Internal 0
+                External 1
+            }
+        }
+    }
+
+    register Resp2 {
+        address     0x0A
+        reset-value 0x05
+
+        fields size-bits = 8 {
+            (u8:Calibration) calibration @7 {
+                Disabled 0
+                Enabled  1
+            }
+            (u8:RespirationFrequency) frequency @2 {
+                _32kHz 0
+                _64kHz 1
+            }
+            (u8:RldReference) rld_reference @1 {
+                External  0
+                MidSupply 1
+            }
+        }
+    }
+
+    register Gpio {
+        address     0x0B
+        reset-value 0x0C
+
+        fields size-bits = 8 {
+            (u8:PinDirection) c2 @3 {
+                Output 0
+                Input  1
+            }
+            (u8:PinDirection) c1 @2
+            (u8:PinState) d2 @1 {
+                Low  0
+                High 1
+            }
+            (u8:PinState) d1 @0
+        }
+    }
+}

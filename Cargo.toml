@@ -69,13 +69,11 @@ config-site = { path = "config-site", default-features = false, features = [
     "embedded",
 ] }
 critical-section = "1.2"
-device-descriptor = { path = "device-descriptor" }
-register-access = { path = "register-access" }
 gui = { path = "gui" }
 macros = { path = "macros" }
 embassy-alloc-taskpool = { path = "embassy-alloc-taskpool" }
-ads129x = { path = "ads129x", features = ["ufmt-impl"] }
-max17055 = { path = "max17055", optional = true, features = ["ufmt-impl"] }
+ads129x = { path = "ads129x" }
+max17055 = { path = "max17055", optional = true }
 signal-processing = { workspace = true, features = ["alloc"] }
 replace_with = { version = "0.1", default-features = false, features = [
     "nightly",
@@ -208,11 +206,9 @@ members = [
     ".",
     "ads129x",
     "bad-server",
-    "device-descriptor",
     "embassy-alloc-taskpool",
     "gui",
     "macros",
-    "register-access",
     "signal-processing",
     "xtask",
 ]

@@ -4,6 +4,7 @@ use crate::{
     states::menu::{AppMenu, MenuScreen},
     uformat, AppState, SerialNumber,
 };
+use ads129x::ll;
 
 use embedded_graphics::pixelcolor::BinaryColor;
 use embedded_menu::{
@@ -65,7 +66,16 @@ fn about_menu_builder(context: &mut Context) -> AboutMenuBuilder {
         list_item(uformat!(20, "Serial  {}", SerialNumber))
             .with_value_converter(|_| AboutMenuEvents::ToSerial),
         list_item(match context.frontend.device_id() {
-            Some(id) => uformat!(20, "ADC {:?}", LeftPadAny(16, id)),
+            Some(id) => {
+                let adc_device_id = match id {
+                    ll::DeviceId::Ads1191 => "ADS1191",
+                    ll::DeviceId::Ads1192 => "ADS1192",
+                    ll::DeviceId::Ads1291 => "ADS1291",
+                    ll::DeviceId::Ads1292 => "ADS1292",
+                    ll::DeviceId::Ads1292r => "ADS1292R",
+                };
+                uformat!(20, "ADC {}", LeftPadAny(16, adc_device_id))
+            }
             None => uformat!(20, "ADC          Unknown"),
         }),
     ]);

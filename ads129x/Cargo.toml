@@ -3,19 +3,12 @@ name = "ads129x"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-byteorder = { version = "1.4.3", default-features = false }
-cfg-if = "1"
-device-descriptor = { path = "../device-descriptor" }
+device-driver = { git = "https://github.com/diondokter/device-driver" }
+defmt = { workspace = true, optional = true }
 embedded-hal = { workspace = true }
 embedded-hal-async = { workspace = true }
-register-access = { path = "../register-access" }
-defmt = { workspace = true, optional = true }
-ufmt = { workspace = true, optional = true }
 
 [features]
 default = []
-defmt = ["dep:defmt", "device-descriptor/defmt"]
-ufmt-impl = ["dep:ufmt", "device-descriptor/ufmt-impl"]
+defmt = ["dep:defmt", "device-driver/defmt"]
