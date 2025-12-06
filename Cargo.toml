@@ -47,16 +47,17 @@ embassy-executor = { workspace = true, features = ["nightly"] }
 embassy-time = { version = "0.5.0" }
 
 rtt-target = { version = "0.6.0", optional = true }
+panic-rtt-target = { version = "0.2.0", optional = true }
 
 esp-bootloader-esp-idf = "0.3.0"
-esp-hal = { version = "1.0.0-rc.1", features = ["unstable"] }
-esp-rtos = { version = "0.1", features = ["esp-radio", "embassy", "esp-alloc"] }
-esp-backtrace = { version = "0.18", features = ["panic-handler", "semihosting"] }
+esp-hal = { version = "1.0.0", features = ["unstable"] }
+esp-rtos = { version = "0.2", features = ["esp-radio", "embassy", "esp-alloc"] }
+esp-backtrace = { version = "0.18", features = ["panic-handler", "semihosting"], optional = true }
 esp-println = { version = "0.16", default-features = false, optional = true, features = [
     "critical-section",
 ] }
 esp-alloc = "0.9"
-esp-radio = { version = "0.16", features = ["wifi"] }
+esp-radio = { version = "0.17", features = ["wifi"] }
 
 display-interface = "0.5"
 display-interface-spi = "0.5"
@@ -149,7 +150,7 @@ hw_v6 = ["battery_max17055"] # skipped v5, v6 has S3 and C6 options
 esp32s3 = [
     "esp-hal/esp32s3",
     "dep:norfs-esp32s3",
-    "esp-backtrace/esp32s3",
+    "esp-backtrace?/esp32s3",
     "esp-radio/esp32s3",
     "esp-rtos/esp32s3",
     "esp-println?/esp32s3",
@@ -158,7 +159,7 @@ esp32s3 = [
 esp32c6 = [
     "esp-hal/esp32c6",
     "dep:norfs-esp32c6",
-    "esp-backtrace/esp32c6",
+    "esp-backtrace?/esp32c6",
     "esp-radio/esp32c6",
     "esp-rtos/esp32c6",
     "esp-println?/esp32c6",
@@ -176,7 +177,7 @@ defmt = [
     "esp-rtos/defmt",
     "esp-hal/defmt",
     "esp-hal/defmt",
-    "esp-backtrace/defmt",
+    "esp-backtrace?/defmt",
     "esp-println?/defmt-espflash",
 
     "config-site/defmt",
@@ -192,10 +193,11 @@ defmt = [
     "embassy-net/defmt",
     "smoltcp/defmt",
     "rtt-target?/defmt",
+    "panic-rtt-target?/defmt",
 ]
 
-rtt = ["dep:rtt-target"]
-esp-println = ["dep:esp-println", "esp-println/jtag-serial"]
+rtt = ["dep:rtt-target", "dep:panic-rtt-target"]
+esp-println = ["dep:esp-println", "esp-println/jtag-serial", "dep:esp-backtrace"]
 
 [package.metadata.espflash]
 partition_table = "partitions.csv"
