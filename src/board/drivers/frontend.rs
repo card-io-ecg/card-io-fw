@@ -1,9 +1,7 @@
-use ads129x::{descriptors::*, *};
-use device_descriptor::Register;
+use ads129x::{ll, Ads129x, AdsConfigError, AdsData, ConfigRegisters};
 use embassy_time::{Delay, Duration, Timer};
 use embedded_hal::digital::{InputPin, OutputPin};
 use embedded_hal_async::{digital::Wait, spi::SpiDevice as AsyncSpiDevice};
-use register_access::AsyncRegisterAccess;
 
 pub struct Frontend<S, DRDY, RESET, CLKEN, TOUCH> {
     adc: Ads129x<S>,
@@ -11,7 +9,7 @@ pub struct Frontend<S, DRDY, RESET, CLKEN, TOUCH> {
     reset: RESET,
     clken: CLKEN,
     touch: TOUCH,
-    device_id: Option<DeviceId>,
+    device_id: Option<ll::DeviceId>,
 }
 
 impl<S, DRDY, RESET, CLKEN, TOUCH> Frontend<S, DRDY, RESET, CLKEN, TOUCH> {
@@ -30,7 +28,7 @@ impl<S, DRDY, RESET, CLKEN, TOUCH> Frontend<S, DRDY, RESET, CLKEN, TOUCH> {
         self.adc.inner_mut()
     }
 
-    pub fn device_id(&self) -> Option<DeviceId> {
+    pub fn device_id(&self) -> Option<ll::DeviceId> {
         self.device_id
     }
 }
@@ -42,82 +40,97 @@ where
     RESET: OutputPin,
     CLKEN: OutputPin,
 {
-    #[rustfmt::skip]
     fn config(&self) -> ConfigRegisters {
         ConfigRegisters {
-            config1: Config1::new(|r| {
+            config1: {
+                let mut r = ll::Config1fieldSet::new();
+                r.set_data_rate(ll::DataRate::_1ksps);
+                r.set_sampling(ll::Sampling::Continuous);
                 r
-                .data_rate().write(DataRate::_1ksps)
-                .sampling().write(Sampling::Continuous)
-            }),
+            },
 
-            config2: Config2::new(|r| {
+            config2: {
+                let mut r = ll::Config2fieldSet::new();
+                r.set_pdb_loff_comp(ll::Buffer::Enabled);
+                r.set_ref_voltage(ll::ReferenceVoltage::_2_42v);
+                r.set_clock_pin(ll::ClockPin::Disabled);
+                r.set_test_signal(ll::TestSignal::Disabled);
                 r
-                .pdb_loff_comp().write(Buffer::Enabled)
-                .ref_voltage().write(ReferenceVoltage::_2_42V)
-                .clock_pin().write(ClockPin::Disabled)
-                .test_signal().write(TestSignal::Disabled)
-            }),
+            },
 
-            loff: Loff::new(|r| {
+            loff: {
+                let mut r = ll::LoffFieldSet::new();
+                r.set_comp_th(ll::ComparatorThreshold::_95);
+                r.set_leadoff_current(ll::LeadOffCurrent::_22nA);
+                r.set_leadoff_frequency(ll::LeadOffFrequency::Dc);
                 r
-                .comp_th().write(ComparatorThreshold::_95)
-                .leadoff_current().write(LeadOffCurrent::_22nA)
-                .leadoff_frequency().write(LeadOffFrequency::DC)
-            }),
+            },
 
-            ch1set: Ch1Set::new(|r| {
+            ch1set: {
+                let mut r = ll::Ch1setFieldSet::new();
+                r.set_enabled(ll::Channel::Enabled);
+                r.set_gain(ll::Gain::X1);
+                r.set_mux(ll::Ch1mux::Normal);
                 r
-                .enabled().write(Channel::Enabled)
-                .gain().write(Gain::X1)
-                .mux().write(Ch1Mux::Normal)
-            }),
+            },
 
-            ch2set: Ch2Set::new(|r| {
+            ch2set: {
+                let mut r = ll::Ch2setFieldSet::new();
+                r.set_enabled(ll::Channel::PowerDown);
+                r.set_gain(ll::Gain::X1);
+                r.set_mux(ll::Ch2mux::Shorted);
                 r
-                .enabled().write(Channel::PowerDown)
-                .gain().write(Gain::X1)
-                .mux().write(Ch2Mux::Shorted)
-            }),
+            },
 
-            rldsens: RldSens::new(|r| {
+            rldsens: {
+                let mut r = ll::RldSensFieldSet::new();
+                r.set_chop(ll::ChopFrequency::Fmod2);
+                r.set_pdb_rld(ll::Buffer::Enabled);
+                r.set_loff_sense(ll::Input::NotConnected);
+                r.set_rld2n(ll::Input::NotConnected);
+                r.set_rld2p(ll::Input::NotConnected);
+                r.set_rld1n(ll::Input::Connected);
+                r.set_rld1p(ll::Input::Connected);
                 r
-                .chop().write(ChopFrequency::Fmod2)
-                .pdb_rld().write(Buffer::Enabled)
-                .loff_sense().write(Input::NotConnected)
-                .rld2n().write(Input::NotConnected)
-                .rld2p().write(Input::NotConnected)
-                .rld1n().write(Input::Connected)
-                .rld1p().write(Input::Connected)
-            }),
+            },
 
-            loffsens: LoffSens::new(|r| {
+            loffsens: {
+                let mut r = ll::LoffSensFieldSet::new();
+                r.set_flip2(ll::CurrentDirection::Normal);
+                r.set_flip1(ll::CurrentDirection::Normal);
+                r.set_loff2n(ll::Input::NotConnected);
+                r.set_loff2p(ll::Input::NotConnected);
+                r.set_loff1n(ll::Input::Connected);
+                r.set_loff1p(ll::Input::Connected);
                 r
-                .flip2().write(CurrentDirection::Normal)
-                .flip1().write(CurrentDirection::Normal)
-                .loff2n().write(Input::NotConnected)
-                .loff2p().write(Input::NotConnected)
-                .loff1n().write(Input::Connected)
-                .loff1p().write(Input::Connected)
-            }),
+            },
 
-            loffstat: LoffStat::new(|r| r.clk_div().write(ClockDivider::External512kHz)),
-
-            resp1: Resp1::default(),
-            resp2: Resp2::new(|r| r.rld_reference().write(RldReference::MidSupply)),
-
-            gpio: Gpio::new(|r| {
+            loffstat: {
+                let mut r = ll::LoffStatFieldSet::new();
+                r.set_clk_div(ll::ClockDivider::External512kHz);
                 r
-                .c2().write(PinDirection::Input)
-                .c1().write(PinDirection::Output)
-                .d1().write(PinState::High) // disable touch detector circuitry
-            }),
+            },
+
+            resp1: ll::Resp1fieldSet::default(),
+            resp2: {
+                let mut r = ll::Resp2fieldSet::new();
+                r.set_rld_reference(ll::RldReference::MidSupply);
+                r
+            },
+
+            gpio: {
+                let mut r = ll::GpioFieldSet::new();
+                r.set_c2(ll::PinDirection::Input);
+                r.set_c1(ll::PinDirection::Output);
+                r.set_d1(ll::PinState::High); // disable touch detector circuitry
+                r
+            },
         }
     }
 
     pub async fn enable_async(
         self,
-    ) -> Result<PoweredFrontend<S, DRDY, RESET, CLKEN, TOUCH>, (Self, Error<S::Error>)>
+    ) -> Result<PoweredFrontend<S, DRDY, RESET, CLKEN, TOUCH>, (Self, AdsConfigError<S>)>
     where
         S: AsyncSpiDevice,
     {
@@ -177,42 +190,63 @@ where
     TOUCH: InputPin,
     S: AsyncSpiDevice,
 {
-    async fn enable(&mut self) -> Result<(), Error<S::Error>> {
+    async fn enable(&mut self) -> Result<(), AdsConfigError<S>> {
         unwrap!(self.frontend.clken.set_high().ok());
 
         Timer::after(Duration::from_millis(1)).await;
 
         self.frontend
             .adc
-            .reset_async(&mut self.frontend.reset, &mut Delay)
-            .await?;
+            .pulse_reset_async(&mut self.frontend.reset, &mut Delay)
+            .await
+            .unwrap();
 
-        let device_id = self.frontend.adc.read_device_id_async().await?;
+        // Exit RDATAC so that the device does not ignore our commands.
+        self.frontend
+            .adc
+            .sdatac_command_async()
+            .await
+            .map_err(AdsConfigError::Spi)?;
 
-        self.frontend.device_id = Some(device_id);
+        let device_id = self
+            .frontend
+            .adc
+            .read_device_id_async()
+            .await
+            .map_err(AdsConfigError::Spi)?;
 
-        info!("ADC device id: {:?}", device_id);
+        match device_id.device_id() {
+            Ok(device_id) => {
+                //info!("ADC device id: {:?}", device_id);
+                self.frontend.device_id = Some(device_id);
+            }
+            Err(e) => {
+                warn!("Failed to read ADC device id: {:?}", e);
+                return Err(AdsConfigError::ReadbackMismatch);
+            }
+        }
 
         let config = self.frontend.config();
-        self.frontend.adc.apply_configuration_async(&config).await?;
+        self.frontend.adc.apply_config_async(config).await?;
 
         self.frontend
             .adc
-            .write_command_async(Command::START)
-            .await?;
+            .start_command_async()
+            .await
+            .map_err(AdsConfigError::Spi)?;
 
         Ok(())
     }
 
-    pub async fn set_clock_source(&mut self) -> Result<bool, Error<S::Error>> {
+    pub async fn set_clock_source(&mut self) -> Result<bool, S::Error> {
         match self.read_clksel().await {
-            Ok(PinState::Low) => {
+            Ok(ll::PinState::Low) => {
                 info!("CLKSEL low, enabling faster clock speeds");
                 self.enable_fast_clock().await?;
                 Ok(true)
             }
 
-            Ok(PinState::High) => Ok(false),
+            Ok(ll::PinState::High) => Ok(false),
             Err(e) => {
                 warn!("Failed to read CLKSEL");
                 Err(e)
@@ -221,31 +255,29 @@ where
     }
 
     #[allow(unused)]
-    pub async fn enable_rdatac(&mut self) -> Result<(), Error<S::Error>> {
-        self.frontend.adc.write_command_async(Command::RDATAC).await
+    pub async fn enable_rdatac(&mut self) -> Result<(), S::Error> {
+        self.frontend.adc.rdatac_command_async().await
     }
 
-    pub async fn read_clksel(&mut self) -> Result<PinState, Error<S::Error>> {
-        let register = self.frontend.adc.read_register_async::<Gpio>().await?;
-        Ok(unwrap!(register.d2().read()))
+    pub async fn read_clksel(&mut self) -> Result<ll::PinState, S::Error> {
+        let register = self.frontend.adc.read_gpio_async().await?;
+        Ok(register.d2())
     }
 
-    pub async fn enable_fast_clock(&mut self) -> Result<(), Error<S::Error>> {
+    pub async fn enable_fast_clock(&mut self) -> Result<(), S::Error> {
         self.frontend
             .adc
-            .write_register_async::<LoffStat>(LoffStat::new(|r| {
-                r.clk_div().write(ClockDivider::External2MHz)
-            }))
+            .change_clock_divider_async(ll::ClockDivider::External2mhz)
             .await
     }
 
-    pub async fn read(&mut self) -> Result<AdsData, Error<S::Error>>
+    pub async fn read(&mut self) -> Result<AdsData, S::Error>
     where
         DRDY: Wait,
     {
         unwrap!(self.frontend.drdy.wait_for_falling_edge().await.ok());
 
-        let sample = self.frontend.adc.read_data_1ch_async().await?;
+        let sample = self.frontend.adc.read_sample_async().await?;
         self.touched = sample.ch1_negative_lead_connected();
 
         Ok(sample)
@@ -256,8 +288,8 @@ where
     }
 
     pub async fn shut_down(mut self) -> Frontend<S, DRDY, RESET, CLKEN, TOUCH> {
-        let _ = self.frontend.adc.write_command_async(Command::STOP).await;
-        let _ = self.frontend.adc.write_command_async(Command::RESET).await;
+        let _ = self.frontend.adc.stop_command_async().await;
+        let _ = self.frontend.adc.reset_command_async().await;
 
         unwrap!(self.frontend.reset.set_low().ok());
 
