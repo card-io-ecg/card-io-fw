@@ -188,7 +188,8 @@ async fn measure_impl(
         Err((fe, _err)) => {
             context.display_message("ADC error").await;
 
-            return (AppState::Shutdown, fe);
+            // Enter main menu in case of an init error, so that the device is not entirely unusable.
+            return (AppState::Menu(AppMenu::Main), fe);
         }
     };
 
