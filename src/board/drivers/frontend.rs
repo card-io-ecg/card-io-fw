@@ -217,7 +217,7 @@ where
 
         match device_id.device_id() {
             Ok(device_id) => {
-                //info!("ADC device id: {:?}", device_id);
+                info!("ADC device id: {:?}", device_id);
                 self.frontend.device_id = Some(device_id);
             }
             Err(e) => {

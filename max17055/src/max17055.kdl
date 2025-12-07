@@ -3,6 +3,7 @@ device Max17055 {
     command-address-type  u16
     register-address-type u8
     name-word-boundaries LowerUpper
+    defmt-feature defmt
 
     /// The Status register maintains all flags related to
     /// alert thresholds and battery insertion or removal.

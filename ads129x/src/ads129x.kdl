@@ -3,6 +3,7 @@ device Ads129x {
     command-address-type u8
     register-address-type u8
     name-word-boundaries LowerUpper
+    defmt-feature defmt
 
     command Wakeup    { address 0x2 }
     command Standby   { address 0x4 }

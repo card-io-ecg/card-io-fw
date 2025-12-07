@@ -216,7 +216,7 @@ where
 // TODO: should not expose raw register types?
 
 #[derive(Copy, Clone, Default, Debug, PartialEq)]
-// #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct ConfigRegisters {
     pub config1: ll::Config1fieldSet,
     pub config2: ll::Config2fieldSet,
@@ -244,13 +244,13 @@ impl ConfigRegisters {
 }
 
 #[derive(Debug)]
-// #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct AdsData {
     raw: ll::RdataFieldSetOut,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
-// #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Sample {
     sample: i32,
 }
