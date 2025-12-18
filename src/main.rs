@@ -194,9 +194,9 @@ async fn main(_spawner: Spawner) {
 
     let resources = StartupResources::initialize().await;
 
-    static INTERRUPT_EXECUTOR: StaticCell<InterruptExecutor<1>> = StaticCell::new();
+    static INTERRUPT_EXECUTOR: StaticCell<InterruptExecutor<2>> = StaticCell::new();
     let interrupt_executor =
-        INTERRUPT_EXECUTOR.init(InterruptExecutor::new(resources.software_interrupt1));
+        INTERRUPT_EXECUTOR.init(InterruptExecutor::new(resources.software_interrupt2));
 
     #[cfg(feature = "hw_v4")]
     info!("Hardware version: v4");

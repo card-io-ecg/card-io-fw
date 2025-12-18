@@ -106,7 +106,7 @@ impl super::startup::StartupResources {
             battery_monitor,
             wifi,
             rtc: Rtc::new(peripherals.LPWR),
-            software_interrupt1: sw_int.software_interrupt1,
+            software_interrupt2: sw_int.software_interrupt2,
         }
     }
 }
