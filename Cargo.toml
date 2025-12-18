@@ -142,7 +142,10 @@ default = ["defmt", "rtt"]
 battery_max17055 = ["dep:max17055"]
 
 hw_v4 = ["battery_max17055", "esp32s3"]
-hw_v6 = ["battery_max17055"] # skipped v5, v6 has S3 and C6 options
+# hw_v5 skipped
+hw_v6 = ["battery_max17055"] # S3 and C6 options
+# hw_v7 skipped
+hw_v8 = ["battery_max17055"] # S3, C5, C6 and C61 options
 
 # MCU options
 esp32s3 = [

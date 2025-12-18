@@ -64,6 +64,7 @@ pub enum HardwareVersion {
     V6S3,
     #[default]
     V6C6,
+    V8S3,
 }
 
 impl HardwareVersion {
@@ -72,6 +73,7 @@ impl HardwareVersion {
             HardwareVersion::V4 => "hw_v4",
             HardwareVersion::V6S3 => "hw_v6,esp32s3",
             HardwareVersion::V6C6 => "hw_v6,esp32c6",
+            HardwareVersion::V8S3 => "hw_v8,esp32s3",
         }
     }
 
@@ -257,21 +259,25 @@ fn main() -> AnyResult<()> {
 #[derive(Clone, Copy, Parser, Debug)]
 enum SocConfig {
     S3,
+    C5,
     C6,
+    C61,
 }
 
 impl SocConfig {
     fn chip(self) -> &'static str {
         match self {
             SocConfig::S3 => "esp32s3",
+            SocConfig::C5 => "esp32c5",
             SocConfig::C6 => "esp32c6",
+            SocConfig::C61 => "esp32c61",
         }
     }
 
     fn triple(self) -> &'static str {
         match self {
             SocConfig::S3 => "xtensa-esp32s3-none",
-            SocConfig::C6 => "riscv32imac-unknown-none",
+            SocConfig::C5 | SocConfig::C6 | SocConfig::C61 => "riscv32imac-unknown-none",
         }
     }
 
@@ -282,7 +288,7 @@ impl SocConfig {
     fn toolchain(self) -> &'static str {
         match self {
             SocConfig::S3 => "esp",
-            SocConfig::C6 => "nightly",
+            SocConfig::C5 | SocConfig::C6 | SocConfig::C61 => "nightly",
         }
     }
 }

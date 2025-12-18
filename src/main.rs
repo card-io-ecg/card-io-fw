@@ -198,11 +198,7 @@ async fn main(_spawner: Spawner) {
     let interrupt_executor =
         INTERRUPT_EXECUTOR.init(InterruptExecutor::new(resources.software_interrupt2));
 
-    #[cfg(feature = "hw_v4")]
-    info!("Hardware version: v4");
-
-    #[cfg(feature = "hw_v6")]
-    info!("Hardware version: v6");
+    info!("Hardware version: {}", env!("HW_VERSION"));
 
     let mut storage = FileSystem::mount().await;
     let config = load_config(storage.as_deref_mut()).await;
@@ -277,7 +273,11 @@ async fn main(_spawner: Spawner) {
     // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
 }
 
-#[cfg(any(feature = "hw_v4", all(feature = "hw_v6", feature = "esp32s3")))]
+#[cfg(any(
+    feature = "hw_v4",
+    all(feature = "hw_v6", feature = "esp32s3"),
+    all(feature = "hw_v8", feature = "esp32s3")
+))]
 fn enter_sleep(mut rtc: esp_hal::rtc_cntl::Rtc, is_charging: bool) {
     let charger_level = if is_charging {
         // Wake up momentarily when charger is disconnected
@@ -290,11 +290,22 @@ fn enter_sleep(mut rtc: esp_hal::rtc_cntl::Rtc, is_charging: bool) {
         WakeupLevel::High
     };
 
-    let mut touch = unsafe { AnyPin::steal(1) };
-    #[cfg(feature = "hw_v4")]
-    let mut charger_pin = unsafe { AnyPin::steal(17) };
-    #[cfg(feature = "hw_v6")]
-    let mut charger_pin = unsafe { AnyPin::steal(2) };
+    let mut touch = unsafe {
+        AnyPin::steal(if cfg!(any(feature = "hw_v4", feature = "hw_v6")) {
+            1
+        } else {
+            4
+        })
+    };
+    let mut charger_pin = unsafe {
+        AnyPin::steal(if cfg!(feature = "hw_v4") {
+            17
+        } else if cfg!(feature = "hw_v6") {
+            2
+        } else {
+            7
+        })
+    };
 
     let mut wakeup_pins: [(&mut dyn RtcWakeupPin, WakeupLevel); 2] = [
         (&mut touch, WakeupLevel::Low),

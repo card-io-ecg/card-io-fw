@@ -1,14 +1,18 @@
 #[derive(Clone, Copy)]
 enum Mcu {
     ESP32S3,
+    // ESP32C5,
     ESP32C6,
+    // ESP32C61,
 }
 
 impl Mcu {
     fn as_str(self) -> &'static str {
         match self {
             Self::ESP32S3 => "ESP32-S3",
+            // Self::ESP32C5 => "ESP32-C5",
             Self::ESP32C6 => "ESP32-C6",
+            // Self::ESP32C61 => "ESP32-C61",
         }
     }
 }
@@ -17,6 +21,7 @@ impl Mcu {
 enum HwVersion {
     V4,
     V6,
+    V8,
 }
 
 impl HwVersion {
@@ -24,6 +29,7 @@ impl HwVersion {
         match self {
             Self::V4 => "v4",
             Self::V6 => "v6",
+            Self::V8 => "v8",
         }
     }
 }
@@ -38,7 +44,9 @@ impl BuildConfig {
         let mcu = if self.hw_version >= HwVersion::V6 {
             match self.mcu {
                 Mcu::ESP32S3 => "s3",
+                // Mcu::ESP32C5 => "c5",
                 Mcu::ESP32C6 => "c6",
+                // Mcu::ESP32C61 => "c61",
             }
         } else {
             ""
@@ -68,16 +76,19 @@ fn main() {
     let mcu_features = [
         (cfg!(feature = "esp32s3"), Mcu::ESP32S3),
         (cfg!(feature = "esp32c6"), Mcu::ESP32C6),
+        //(cfg!(feature = "esp32c61"), Mcu::ESP32C61),
+        //(cfg!(feature = "esp32c5"), Mcu::ESP32C5),
     ];
 
     let Some(mcu) = get_unique(mcu_features) else {
         panic!("Exactly 1 MCU must be selected via its Cargo feature (esp32s3, esp32c6)");
     };
 
-    // Ensure that only a single HW version
+    // Ensure that only a single HW version is selected.
     let hw_features = [
         (cfg!(feature = "hw_v4"), HwVersion::V4),
         (cfg!(feature = "hw_v6"), HwVersion::V6),
+        (cfg!(feature = "hw_v8"), HwVersion::V8),
     ];
 
     let Some(hw_version) = get_unique(hw_features) else {
