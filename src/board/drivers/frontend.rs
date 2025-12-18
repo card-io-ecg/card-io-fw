@@ -3,17 +3,17 @@ use embassy_time::{Delay, Duration, Timer};
 use embedded_hal::digital::{InputPin, OutputPin};
 use embedded_hal_async::{digital::Wait, spi::SpiDevice as AsyncSpiDevice};
 
-pub struct Frontend<S, DRDY, RESET, CLKEN, TOUCH> {
+pub struct Frontend<S, I, O> {
     adc: Ads129x<S>,
-    drdy: DRDY,
-    reset: RESET,
-    clken: CLKEN,
-    touch: TOUCH,
+    drdy: I,
+    reset: O,
+    clken: O,
+    touch: I,
     device_id: Option<ll::DeviceId>,
 }
 
-impl<S, DRDY, RESET, CLKEN, TOUCH> Frontend<S, DRDY, RESET, CLKEN, TOUCH> {
-    pub const fn new(spi: S, drdy: DRDY, reset: RESET, clken: CLKEN, touch: TOUCH) -> Self {
+impl<S, I, O> Frontend<S, I, O> {
+    pub const fn new(spi: S, drdy: I, reset: O, clken: O, touch: I) -> Self {
         Self {
             adc: Ads129x::new(spi),
             drdy,
@@ -33,12 +33,11 @@ impl<S, DRDY, RESET, CLKEN, TOUCH> Frontend<S, DRDY, RESET, CLKEN, TOUCH> {
     }
 }
 
-impl<S, DRDY, RESET, CLKEN, TOUCH> Frontend<S, DRDY, RESET, CLKEN, TOUCH>
+impl<S, I, O> Frontend<S, I, O>
 where
-    DRDY: InputPin,
-    TOUCH: InputPin,
-    RESET: OutputPin,
-    CLKEN: OutputPin,
+    S: AsyncSpiDevice,
+    I: InputPin + Wait,
+    O: OutputPin,
 {
     fn config(&self) -> ConfigRegisters {
         ConfigRegisters {
@@ -128,12 +127,7 @@ where
         }
     }
 
-    pub async fn enable_async(
-        self,
-    ) -> Result<PoweredFrontend<S, DRDY, RESET, CLKEN, TOUCH>, (Self, AdsConfigError<S>)>
-    where
-        S: AsyncSpiDevice,
-    {
+    pub async fn enable_async(self) -> Result<PoweredFrontend<S, I, O>, (Self, AdsConfigError<S>)> {
         let mut frontend = PoweredFrontend {
             frontend: self,
             touched: true,
@@ -149,46 +143,36 @@ where
         unwrap!(self.touch.is_low().ok())
     }
 
-    pub async fn wait_for_release(&mut self)
-    where
-        TOUCH: Wait,
-    {
+    pub async fn wait_for_release(&mut self) {
         unwrap!(self.touch.wait_for_high().await.ok());
     }
 
-    pub fn split(self) -> (S, DRDY, RESET, TOUCH) {
+    pub fn split(self) -> (S, I, O, I) {
         (self.adc.into_inner(), self.drdy, self.reset, self.touch)
     }
 }
 
-pub struct PoweredFrontend<S, DRDY, RESET, CLKEN, TOUCH>
-where
-    RESET: OutputPin,
-    CLKEN: OutputPin,
-{
-    frontend: Frontend<S, DRDY, RESET, CLKEN, TOUCH>,
+pub struct PoweredFrontend<S, I, O> {
+    frontend: Frontend<S, I, O>,
     touched: bool,
 }
 
-impl<S, DRDY, RESET, CLKEN, TOUCH> PoweredFrontend<S, DRDY, RESET, CLKEN, TOUCH>
+impl<S, I, O> PoweredFrontend<S, I, O>
 where
-    DRDY: InputPin,
-    TOUCH: InputPin,
-    RESET: OutputPin,
-    CLKEN: OutputPin,
+    S: AsyncSpiDevice,
+    I: InputPin,
+    O: OutputPin,
 {
     pub fn spi_mut(&mut self) -> &mut S {
         self.frontend.spi_mut()
     }
 }
 
-impl<S, DRDY, RESET, CLKEN, TOUCH> PoweredFrontend<S, DRDY, RESET, CLKEN, TOUCH>
+impl<S, I, O> PoweredFrontend<S, I, O>
 where
-    RESET: OutputPin,
-    CLKEN: OutputPin,
-    DRDY: InputPin,
-    TOUCH: InputPin,
     S: AsyncSpiDevice,
+    I: InputPin + Wait,
+    O: OutputPin,
 {
     async fn enable(&mut self) -> Result<(), AdsConfigError<S>> {
         unwrap!(self.frontend.clken.set_high().ok());
@@ -271,10 +255,7 @@ where
             .await
     }
 
-    pub async fn read(&mut self) -> Result<AdsData, S::Error>
-    where
-        DRDY: Wait,
-    {
+    pub async fn read(&mut self) -> Result<AdsData, S::Error> {
         unwrap!(self.frontend.drdy.wait_for_falling_edge().await.ok());
 
         let sample = self.frontend.adc.read_sample_async().await?;
@@ -287,7 +268,7 @@ where
         self.touched
     }
 
-    pub async fn shut_down(mut self) -> Frontend<S, DRDY, RESET, CLKEN, TOUCH> {
+    pub async fn shut_down(mut self) -> Frontend<S, I, O> {
         let _ = self.frontend.adc.stop_command_async().await;
         let _ = self.frontend.adc.reset_command_async().await;
 

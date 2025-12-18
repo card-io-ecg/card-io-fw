@@ -36,10 +36,8 @@ pub type BatteryAdcEnablePin = Output<'static>;
 pub type VbusDetectPin = Input<'static>;
 pub type ChargerStatusPin = Input<'static>;
 
-pub type EcgFrontend =
-    Frontend<AdcSpi, Input<'static>, Output<'static>, Output<'static>, Input<'static>>;
-pub type PoweredEcgFrontend =
-    PoweredFrontend<AdcSpi, Input<'static>, Output<'static>, Output<'static>, Input<'static>>;
+pub type EcgFrontend = Frontend<AdcSpi, Input<'static>, Output<'static>>;
+pub type PoweredEcgFrontend = PoweredFrontend<AdcSpi, Input<'static>, Output<'static>>;
 
 pub type Display = DisplayType<Output<'static>>;
 
