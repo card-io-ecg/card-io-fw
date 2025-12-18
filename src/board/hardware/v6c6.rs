@@ -81,7 +81,7 @@ impl super::startup::StartupResources {
             .unwrap(),
             peripherals.GPIO4,
             peripherals.GPIO15,
-            peripherals.GPIO23,
+            Some(peripherals.GPIO23),
             peripherals.GPIO2,
         );
 

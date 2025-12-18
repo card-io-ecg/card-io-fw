@@ -130,7 +130,7 @@ impl StartupResources {
         adc_spi: AdcSpi,
         adc_drdy: impl InputPin + 'static,
         adc_reset: impl OutputPin + 'static,
-        adc_clock_enable: impl OutputPin + 'static,
+        adc_clock_enable: Option<impl OutputPin + 'static>,
         touch_detect: impl InputPin + 'static,
     ) -> EcgFrontend {
         // DRDY
@@ -139,7 +139,7 @@ impl StartupResources {
             adc_spi,
             Input::new(adc_drdy, Default::default()),
             Output::new(adc_reset, Level::Low, Default::default()),
-            Output::new(adc_clock_enable, Level::Low, Default::default()),
+            adc_clock_enable.map(|en| Output::new(en, Level::Low, Default::default())),
             Input::new(touch_detect, Default::default()),
         )
     }

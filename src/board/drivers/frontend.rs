@@ -7,13 +7,18 @@ pub struct Frontend<S, I, O> {
     adc: Ads129x<S>,
     drdy: I,
     reset: O,
-    clken: O,
+    // External clock enable pin. Optional if the RESET pin is used to control the oscillator, too.
+    // TODO: verify power consumption. v1r7 devices have a
+    // common RESET/CLK enable pin, will it prevent low power
+    // mode with external oscillator? Modify CLKSEL so that a
+    // GPIO can write it to enable external clock by pulling it low?
+    clken: Option<O>,
     touch: I,
     device_id: Option<ll::DeviceId>,
 }
 
 impl<S, I, O> Frontend<S, I, O> {
-    pub const fn new(spi: S, drdy: I, reset: O, clken: O, touch: I) -> Self {
+    pub const fn new(spi: S, drdy: I, reset: O, clken: Option<O>, touch: I) -> Self {
         Self {
             adc: Ads129x::new(spi),
             drdy,
@@ -175,7 +180,10 @@ where
     O: OutputPin,
 {
     async fn enable(&mut self) -> Result<(), AdsConfigError<S>> {
-        unwrap!(self.frontend.clken.set_high().ok());
+        // Enable external clock if it is separately controlled.
+        if let Some(clken) = self.frontend.clken.as_mut() {
+            unwrap!(clken.set_high().ok());
+        }
 
         Timer::after(Duration::from_millis(1)).await;
 
@@ -223,6 +231,13 @@ where
     }
 
     pub async fn set_clock_source(&mut self) -> Result<bool, S::Error> {
+        // TODO: we may need to flip GPIO2 to output and pull it low, to
+        // manually enable the external clock. Required hw modification:
+        // - 1M pullup on CLKSEL. Internal clock by default.
+        // - Tie GPIO2 to GND if only internal oscillator, to CLKSEL if external is available.
+        // Then, if GPIO2 reads high, we can pull it low to enable the external clock.
+        // As this is not a backwards compatible change, we will need some additional software
+        // configuration option.
         match self.read_clksel().await {
             Ok(ll::PinState::Low) => {
                 info!("CLKSEL low, enabling faster clock speeds");
@@ -274,11 +289,13 @@ where
 
         unwrap!(self.frontend.reset.set_low().ok());
 
-        // Datasheet says to wait 2^10 clock cycles to enter power down mode. We give it a bit of
-        // extra time.
-        Timer::after(Duration::from_millis(5)).await;
+        if let Some(clken) = self.frontend.clken.as_mut() {
+            // Datasheet says to wait 2^10 clock cycles to enter power down mode. We give it a bit of
+            // extra time.
+            Timer::after(Duration::from_millis(5)).await;
 
-        unwrap!(self.frontend.clken.set_low().ok());
+            unwrap!(clken.set_low().ok());
+        }
 
         self.frontend
     }

@@ -71,7 +71,7 @@ impl super::startup::StartupResources {
             ),
             peripherals.GPIO4,
             peripherals.GPIO42,
-            peripherals.GPIO40,
+            Some(peripherals.GPIO40),
             peripherals.GPIO1,
         );
 
