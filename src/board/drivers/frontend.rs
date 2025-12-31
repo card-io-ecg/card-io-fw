@@ -238,19 +238,36 @@ where
         // Then, if GPIO2 reads high, we can pull it low to enable the external clock.
         // As this is not a backwards compatible change, we will need some additional software
         // configuration option.
-        match self.read_clksel().await {
-            Ok(ll::PinState::Low) => {
-                info!("CLKSEL low, enabling faster clock speeds");
-                self.enable_fast_clock().await?;
-                Ok(true)
-            }
+        let clksel = self
+            .read_clksel()
+            .await
+            .inspect_err(|_| warn!("Failed to read CLKSEL"))?;
 
-            Ok(ll::PinState::High) => Ok(false),
-            Err(e) => {
-                warn!("Failed to read CLKSEL");
-                Err(e)
+        let enable_fast_clk = if self.frontend.clken.is_some() {
+            // Separate CLK_EN and RESET pins, old module. External oscillator is present
+            // if GPIO2 reads low.
+            clksel == ll::PinState::Low
+        } else {
+            // Separate CLK_EN and RESET pins, old module. External oscillator is present
+            // if GPIO2 reads high. External oscillator can be enabled by pulling GPIO2 low.
+
+            if clksel == ll::PinState::High {
+                let mut register = self.frontend.adc.read_gpio_async().await?;
+                register.set_c2(ll::PinDirection::Output);
+                register.set_d2(ll::PinState::Low);
+                self.frontend.adc.write_gpio_async(register).await?;
+                true
+            } else {
+                false
             }
+        };
+
+        if enable_fast_clk {
+            info!("Enabling faster clock speeds");
+            self.enable_fast_clock().await?;
         }
+
+        Ok(enable_fast_clk)
     }
 
     #[allow(unused)]

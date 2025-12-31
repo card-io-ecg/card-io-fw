@@ -103,6 +103,10 @@ where
         self.driver.gpio().read_async().await
     }
 
+    pub async fn write_gpio_async(&mut self, register: ll::GpioFieldSet) -> Result<(), S::Error> {
+        self.driver.gpio().write_async(|reg| *reg = register).await
+    }
+
     pub async fn read_device_id_async(&mut self) -> Result<ll::IdFieldSet, S::Error> {
         self.driver.id().read_async().await
     }
