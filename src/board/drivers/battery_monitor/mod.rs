@@ -125,7 +125,6 @@ where
             .unwrap_or(false)
     }
 
-    #[allow(unused)]
     pub async fn sensor(&self) -> SharedGuard<'_, BatterySensor> {
         self.sensor.lock().await
     }
