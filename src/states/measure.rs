@@ -215,6 +215,13 @@ async fn measure_impl(
         _ => {}
     }
 
+    if let Err(e) = frontend.start().await {
+        error!("ADC start error: {}", e);
+        context.display_message("ADC start error").await;
+
+        return (AppState::Shutdown, frontend.shut_down().await);
+    }
+
     let queue = Arc::new(MessageQueue::new());
 
     let task_control = TaskController::from_resources(frontend);

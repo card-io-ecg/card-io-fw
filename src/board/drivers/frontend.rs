@@ -221,13 +221,11 @@ where
         let config = self.frontend.config();
         self.frontend.adc.apply_config_async(config).await?;
 
-        self.frontend
-            .adc
-            .start_command_async()
-            .await
-            .map_err(AdsConfigError::Spi)?;
-
         Ok(())
+    }
+
+    pub async fn start(&mut self) -> Result<(), S::Error> {
+        self.frontend.adc.start_command_async().await
     }
 
     pub async fn set_clock_source(&mut self) -> Result<bool, S::Error> {
@@ -252,6 +250,7 @@ where
             // if GPIO2 reads high. External oscillator can be enabled by pulling GPIO2 low.
 
             if clksel == ll::PinState::High {
+                info!("CLKSEL is high, enabling external clock input");
                 let mut register = self.frontend.adc.read_gpio_async().await?;
                 register.set_c2(ll::PinDirection::Output);
                 register.set_d2(ll::PinState::Low);
