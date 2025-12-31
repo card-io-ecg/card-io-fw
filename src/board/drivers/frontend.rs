@@ -229,13 +229,6 @@ where
     }
 
     pub async fn set_clock_source(&mut self) -> Result<bool, S::Error> {
-        // TODO: we may need to flip GPIO2 to output and pull it low, to
-        // manually enable the external clock. Required hw modification:
-        // - 1M pullup on CLKSEL. Internal clock by default.
-        // - Tie GPIO2 to GND if only internal oscillator, to CLKSEL if external is available.
-        // Then, if GPIO2 reads high, we can pull it low to enable the external clock.
-        // As this is not a backwards compatible change, we will need some additional software
-        // configuration option.
         let clksel = self
             .read_clksel()
             .await
