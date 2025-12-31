@@ -30,6 +30,7 @@ use crate::{
         initialized::{Context, InnerContext},
         startup::StartupResources,
         storage::FileSystem,
+        TOUCH_PIN, VBUS_DETECT_PIN,
     },
     states::{
         charging::charging,
@@ -273,11 +274,6 @@ async fn main(_spawner: Spawner) {
     // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
 }
 
-#[cfg(any(
-    feature = "hw_v4",
-    all(feature = "hw_v6", feature = "esp32s3"),
-    all(feature = "hw_v8", feature = "esp32s3")
-))]
 fn enter_sleep(mut rtc: esp_hal::rtc_cntl::Rtc, is_charging: bool) {
     let charger_level = if is_charging {
         // Wake up momentarily when charger is disconnected
@@ -290,53 +286,18 @@ fn enter_sleep(mut rtc: esp_hal::rtc_cntl::Rtc, is_charging: bool) {
         WakeupLevel::High
     };
 
-    let mut touch = unsafe {
-        AnyPin::steal(if cfg!(any(feature = "hw_v4", feature = "hw_v6")) {
-            1
-        } else {
-            4
-        })
-    };
-    let mut charger_pin = unsafe {
-        AnyPin::steal(if cfg!(feature = "hw_v4") {
-            17
-        } else if cfg!(feature = "hw_v6") {
-            2
-        } else {
-            7
-        })
-    };
+    let mut touch = unsafe { AnyPin::steal(TOUCH_PIN) };
+    let mut charger_pin = unsafe { AnyPin::steal(VBUS_DETECT_PIN) };
 
     let mut wakeup_pins: [(&mut dyn RtcWakeupPin, WakeupLevel); 2] = [
         (&mut touch, WakeupLevel::Low),
         (&mut charger_pin, charger_level),
     ];
+
+    #[cfg(feature = "esp32s3")]
     let wakeup_source = sleep::RtcioWakeupSource::new(&mut wakeup_pins);
 
-    rtc.sleep_deep(&[&wakeup_source]);
-}
-
-#[cfg(all(feature = "hw_v6", feature = "esp32c6"))]
-fn enter_sleep(mut rtc: esp_hal::rtc_cntl::Rtc, is_charging: bool) {
-    let charger_level = if is_charging {
-        // Wake up momentarily when charger is disconnected
-        WakeupLevel::Low
-    } else {
-        // We want to wake up when the charger is connected, or the electrodes are touched.
-
-        // In v2, the charger status is not connected to an RTC IO pin, so we use the VBUS
-        // detect pin instead. This is a high level signal when the charger is connected.
-        WakeupLevel::High
-    };
-
-    let mut touch = unsafe { AnyPin::steal(2) };
-    let mut charger_pin = unsafe { AnyPin::steal(3) };
-
-    let mut wakeup_pins: [(&mut dyn RtcWakeupPin, WakeupLevel); 2] = [
-        (&mut touch, WakeupLevel::Low),
-        (&mut charger_pin, charger_level),
-    ];
-
+    #[cfg(not(feature = "esp32s3"))]
     let wakeup_source = sleep::Ext1WakeupSource::new(&mut wakeup_pins);
 
     rtc.sleep_deep(&[&wakeup_source]);

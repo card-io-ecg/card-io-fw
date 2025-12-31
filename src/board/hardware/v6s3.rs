@@ -22,6 +22,9 @@ use esp_hal::{
 };
 use static_cell::StaticCell;
 
+pub const TOUCH_PIN: u8 = 1;
+pub const VBUS_DETECT_PIN: u8 = 2;
+
 pub type DisplayDmaChannel<'a> = DMA_CH0<'a>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, Output<'static>>;

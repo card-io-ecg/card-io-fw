@@ -23,6 +23,9 @@ use static_cell::StaticCell;
 
 use display_interface_spi::SPIInterface;
 
+pub const TOUCH_PIN: u8 = 1;
+pub const VBUS_DETECT_PIN: u8 = 17;
+
 pub type DisplayDmaChannel<'a> = DMA_CH0<'a>;
 
 pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, Output<'static>>;
