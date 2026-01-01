@@ -173,6 +173,14 @@ pub async fn measure(context: &mut Context) -> AppState {
             measure_impl(&mut context.inner, frontend, &mut ecg, ecg_buffer).await;
 
         core::ptr::write(&mut context.frontend, frontend);
+
+        // Reset SPI bus configuration
+        unwrap!(context.frontend.spi_mut().bus_mut().apply_config(
+            &esp_hal::spi::master::Config::default()
+                .with_frequency(Rate::from_mhz(1))
+                .with_mode(esp_hal::spi::Mode::_1)
+        ));
+
         next_state
     }
 }
