@@ -127,6 +127,8 @@ where
         readback.mask_off_status_bits();
 
         if readback != config {
+            #[cfg(feature = "defmt")]
+            defmt::warn!("Config mismatch: {:?} != {:?}", readback, config);
             return Err(AdsConfigError::ReadbackMismatch);
         }
 
