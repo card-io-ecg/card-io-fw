@@ -183,7 +183,7 @@ impl<D: uDebug> uDebug for LeftPadAny<D> {
 
 #[macro_export]
 macro_rules! uformat {
-    ($len:literal$(, $arg:expr)*) => {
+    ($len:expr$(, $arg:expr)*) => {
         {
             let mut s = heapless::String::<$len>::new();
             unwrap!(ufmt::uwrite!(&mut s $(, $arg)*));

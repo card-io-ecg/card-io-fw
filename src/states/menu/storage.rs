@@ -5,18 +5,17 @@ use crate::{
         storage::FileSystem,
     },
     human_readable::BinarySize,
-    states::menu::{AppMenu, MenuScreen},
+    states::menu::{AppMenu, MenuBuilder, MenuItems, MenuScreen},
     uformat, AppState,
 };
-use embedded_graphics::pixelcolor::BinaryColor;
-use embedded_menu::{
-    builder::MenuBuilder,
-    collection::MenuItems,
-    interaction::single_touch::SingleTouch,
-    items::menu_item::{MenuItem, SelectValue},
-    selection_indicator::{style::AnimatedTriangle, AnimatedPosition},
+use embedded_menu::items::menu_item::{MenuItem, SelectValue};
+use gui::{
+    embedded_layout::{
+        chain,
+        object_chain::{Chain, Link},
+    },
+    screens::create_menu,
 };
-use gui::{embedded_layout::object_chain, screens::create_menu};
 
 #[derive(Clone, Copy)]
 pub enum StorageMenuEvents {
@@ -47,40 +46,18 @@ impl SelectValue for UsedStorage {
     }
 }
 
+type StorageMenuItem<T> = MenuItem<&'static str, StorageMenuEvents, T, true>;
+
 struct StorageMenu;
 type StorageMenuBuilder = MenuBuilder<
-    &'static str,
-    SingleTouch,
-    object_chain::Link<
-        MenuItem<&'static str, StorageMenuEvents, &'static str, true>,
-        object_chain::Link<
-            MenuItem<&'static str, StorageMenuEvents, &'static str, true>,
-            object_chain::Link<
-                MenuItems<
-                    heapless::Vec<MenuItem<&'static str, StorageMenuEvents, &'static str, true>, 2>,
-                    MenuItem<&'static str, StorageMenuEvents, &'static str, true>,
-                    StorageMenuEvents,
-                >,
-                object_chain::Link<
-                    MenuItems<
-                        heapless::Vec<
-                            MenuItem<&'static str, StorageMenuEvents, UsedStorage, true>,
-                            2,
-                        >,
-                        MenuItem<&'static str, StorageMenuEvents, UsedStorage, true>,
-                        StorageMenuEvents,
-                    >,
-                    object_chain::Chain<
-                        MenuItem<&'static str, StorageMenuEvents, MeasurementAction, true>,
-                    >,
-                >,
-            >,
-        >,
-    >,
+    chain!(
+        StorageMenuItem<MeasurementAction>,
+        MenuItems<StorageMenuItem<UsedStorage>, StorageMenuEvents, 2>,
+        MenuItems<StorageMenuItem<&'static str>, StorageMenuEvents, 2>,
+        StorageMenuItem<&'static str>,
+        StorageMenuItem<&'static str>
+    ),
     StorageMenuEvents,
-    AnimatedPosition,
-    AnimatedTriangle,
-    BinaryColor,
 >;
 
 async fn storage_menu_builder(context: &mut Context) -> StorageMenuBuilder {

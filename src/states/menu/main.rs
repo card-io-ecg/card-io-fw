@@ -1,17 +1,16 @@
 use crate::{
     board::initialized::Context,
-    states::menu::{AppMenu, MenuScreen},
+    states::menu::{AppMenu, MenuBuilder, MenuItems, MenuScreen},
     AppState,
 };
-use embedded_graphics::pixelcolor::BinaryColor;
-use embedded_menu::{
-    builder::MenuBuilder,
-    collection::MenuItems,
-    interaction::single_touch::SingleTouch,
-    items::menu_item::{MenuItem, SelectValue},
-    selection_indicator::{style::AnimatedTriangle, AnimatedPosition},
+use embedded_menu::items::menu_item::{MenuItem, SelectValue};
+use gui::{
+    embedded_layout::{
+        chain,
+        object_chain::{Chain, Link},
+    },
+    screens::create_menu,
 };
-use gui::{embedded_layout::object_chain, screens::create_menu};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum MainMenuEvents {
@@ -41,36 +40,19 @@ pub async fn main_menu(context: &mut Context) -> AppState {
         .unwrap_or(AppState::Shutdown)
 }
 
+type MainMenuItem<T> = MenuItem<&'static str, MainMenuEvents, T, true>;
+
 struct MainMenu;
 type MainMenuBuilder = MenuBuilder<
-    &'static str,
-    SingleTouch,
-    object_chain::Link<
-        MenuItem<&'static str, MainMenuEvents, MainMenuEvents, true>,
-        object_chain::Link<
-            MenuItems<
-                heapless::Vec<MenuItem<&'static str, MainMenuEvents, MainMenuEvents, true>, 4>,
-                MenuItem<&'static str, MainMenuEvents, MainMenuEvents, true>,
-                MainMenuEvents,
-            >,
-            object_chain::Link<
-                MenuItem<&'static str, MainMenuEvents, MainMenuEvents, true>,
-                object_chain::Link<
-                    MenuItem<&'static str, MainMenuEvents, MainMenuEvents, true>,
-                    object_chain::Link<
-                        MenuItem<&'static str, MainMenuEvents, MainMenuEvents, true>,
-                        object_chain::Chain<
-                            MenuItem<&'static str, MainMenuEvents, MainMenuEvents, true>,
-                        >,
-                    >,
-                >,
-            >,
-        >,
-    >,
+    chain!(
+        MainMenuItem<MainMenuEvents>,
+        MainMenuItem<MainMenuEvents>,
+        MainMenuItem<MainMenuEvents>,
+        MainMenuItem<MainMenuEvents>,
+        MenuItems<MainMenuItem<MainMenuEvents>, MainMenuEvents, 4>,
+        MainMenuItem<MainMenuEvents>
+    ),
     MainMenuEvents,
-    AnimatedPosition,
-    AnimatedTriangle,
-    BinaryColor,
 >;
 
 fn main_menu_builder(context: &mut Context) -> MainMenuBuilder {

@@ -1,20 +1,19 @@
 use crate::{
     board::initialized::Context,
-    human_readable::LeftPadAny,
-    states::menu::{AppMenu, MenuScreen},
+    states::menu::{AppMenu, MenuBuilder, MenuItems, MenuScreen},
     uformat, AppState, SerialNumber,
 };
 use ads129x::ll;
 
-use embedded_graphics::pixelcolor::BinaryColor;
-use embedded_menu::{
-    builder::MenuBuilder,
-    collection::MenuItems,
-    interaction::single_touch::SingleTouch,
-    items::menu_item::MenuItem,
-    selection_indicator::{style::AnimatedTriangle, AnimatedPosition},
+use embedded_menu::items::menu_item::{MenuItem, SelectValue};
+use gui::{
+    embedded_layout::{
+        chain,
+        object_chain::{Chain, Link},
+    },
+    screens::create_menu,
 };
-use gui::{embedded_layout::object_chain, screens::create_menu};
+use ufmt::uDisplay;
 
 #[derive(Clone, Copy)]
 pub enum AboutMenuEvents {
@@ -32,66 +31,67 @@ pub async fn about_menu(context: &mut Context) -> AppState {
         .unwrap_or(AppState::Shutdown)
 }
 
+#[derive(Clone, PartialEq)]
+struct MenuString<const N: usize>(heapless::String<N>);
+
+impl<D: uDisplay, const N: usize> From<D> for MenuString<N> {
+    fn from(value: D) -> Self {
+        Self(uformat!(N, "{}", value))
+    }
+}
+
+impl<const N: usize> SelectValue for MenuString<N> {
+    fn marker(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+type AboutMenuItem<T> = MenuItem<&'static str, AboutMenuEvents, T, true>;
+
 struct AboutAppMenu;
 type AboutMenuBuilder = MenuBuilder<
-    &'static str,
-    SingleTouch,
-    object_chain::Link<
-        MenuItem<&'static str, AboutMenuEvents, &'static str, true>,
-        object_chain::Chain<
-            MenuItems<
-                heapless::Vec<
-                    MenuItem<heapless::String<20>, AboutMenuEvents, &'static str, true>,
-                    5,
-                >,
-                MenuItem<heapless::String<20>, AboutMenuEvents, &'static str, true>,
-                AboutMenuEvents,
-            >,
+    chain!(
+        AboutMenuItem<&'static str>,
+        AboutMenuItem<&'static str>,
+        AboutMenuItem<MenuString<12>>,
+        AboutMenuItem<&'static str>,
+        MenuItems<
+            AboutMenuItem<&'static str>,
+            AboutMenuEvents,
+            { cfg!(feature = "battery_max17055") as usize },
         >,
-    >,
+        AboutMenuItem<&'static str>
+    ),
     AboutMenuEvents,
-    AnimatedPosition,
-    AnimatedTriangle,
-    BinaryColor,
 >;
 
 fn about_menu_builder(context: &mut Context) -> AboutMenuBuilder {
-    let list_item =
-        |label| MenuItem::new(label, "").with_value_converter(|_| AboutMenuEvents::None);
+    let adc_model = match context.frontend.device_id() {
+        Some(id) => match id {
+            ll::DeviceId::Ads1191 => "ADS1191",
+            ll::DeviceId::Ads1192 => "ADS1192",
+            ll::DeviceId::Ads1291 => "ADS1291",
+            ll::DeviceId::Ads1292 => "ADS1292",
+            ll::DeviceId::Ads1292r => "ADS1292R",
+        },
+        None => "Unknown",
+    };
 
-    let mut items = heapless::Vec::<_, 5>::new();
-    items.extend([
-        list_item(uformat!(20, "{}", env!("FW_VERSION_MENU_ITEM"))),
-        list_item(uformat!(20, "{}", env!("HW_VERSION_MENU_ITEM"))),
-        list_item(uformat!(20, "Serial  {}", SerialNumber))
-            .with_value_converter(|_| AboutMenuEvents::ToSerial),
-        list_item(match context.frontend.device_id() {
-            Some(id) => {
-                let adc_device_id = match id {
-                    ll::DeviceId::Ads1191 => "ADS1191",
-                    ll::DeviceId::Ads1192 => "ADS1192",
-                    ll::DeviceId::Ads1291 => "ADS1291",
-                    ll::DeviceId::Ads1292 => "ADS1292",
-                    ll::DeviceId::Ads1292r => "ADS1292R",
-                };
-                uformat!(20, "ADC {}", LeftPadAny(16, adc_device_id))
-            }
-            None => uformat!(20, "ADC          Unknown"),
-        }),
-    ]);
-
-    #[cfg(feature = "battery_max17055")]
-    {
-        unwrap!(items
-            .push(
-                MenuItem::new(uformat!(20, "Fuel gauge"), "MAX17055")
-                    .with_value_converter(|_| AboutMenuEvents::ToBatteryInfo)
-            )
-            .ok());
-    }
+    let fuel_gauge = if cfg!(feature = "battery_max17055") {
+        heapless::Vec::from_array([MenuItem::new("Fuel gauge", "MAX17055")
+            .with_value_converter(|_| AboutMenuEvents::ToBatteryInfo)])
+    } else {
+        heapless::Vec::new()
+    };
 
     create_menu("Device info")
-        .add_menu_items(items)
+        .add_item("FW", env!("FW_VERSION"), |_| AboutMenuEvents::None)
+        .add_item("HW", env!("COMPLETE_HW_VERSION"), |_| AboutMenuEvents::None)
+        .add_item("Serial", MenuString::from(SerialNumber), |_| {
+            AboutMenuEvents::ToSerial
+        })
+        .add_item("ADC", adc_model, |_| AboutMenuEvents::None)
+        .add_menu_items(fuel_gauge)
         .add_item("Back", "<-", |_| AboutMenuEvents::Back)
 }
 

@@ -1,7 +1,7 @@
 use embassy_time::{Duration, Ticker};
 use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
 use embedded_menu::{
-    builder::MenuBuilder,
+    builder,
     collection::MenuItemCollection,
     interaction::single_touch::{SingleTouch, SingleTouchAdapter},
     selection_indicator::{style::AnimatedTriangle, AnimatedPosition},
@@ -38,6 +38,19 @@ pub enum AppMenu {
     WifiListVisible,
 }
 
+pub type MenuBuilder<CH, E> = builder::MenuBuilder<
+    &'static str,
+    SingleTouch,
+    CH,
+    E,
+    AnimatedPosition,
+    AnimatedTriangle,
+    BinaryColor,
+>;
+
+pub type MenuItems<T, E, const N: usize> =
+    embedded_menu::collection::MenuItems<heapless::Vec<T, N>, T, E>;
+
 pub trait AppMenuBuilder<E> {
     type Menu: AppMenuT<E>;
 
@@ -49,10 +62,8 @@ pub trait AppMenuBuilder<E> {
     ) -> Self::Menu;
 }
 
-impl<T, VG, E> AppMenuBuilder<E>
-    for MenuBuilder<T, SingleTouch, VG, E, AnimatedPosition, AnimatedTriangle, BinaryColor>
+impl<VG, E> AppMenuBuilder<E> for MenuBuilder<VG, E>
 where
-    T: AsRef<str>,
     VG: ViewGroup + MenuItemCollection<E>,
 {
     type Menu = impl AppMenuT<E>;

@@ -1,19 +1,18 @@
 use crate::{
     board::initialized::Context,
     human_readable::LeftPad,
-    states::menu::{AppMenu, MenuScreen},
+    states::menu::{AppMenu, MenuBuilder, MenuItems, MenuScreen},
     uformat, AppState,
 };
 use embassy_time::Duration;
-use embedded_graphics::pixelcolor::BinaryColor;
-use embedded_menu::{
-    builder::MenuBuilder,
-    collection::MenuItems,
-    interaction::single_touch::SingleTouch,
-    items::menu_item::MenuItem,
-    selection_indicator::{style::AnimatedTriangle, AnimatedPosition},
+use embedded_menu::items::menu_item::MenuItem;
+use gui::{
+    embedded_layout::{
+        chain,
+        object_chain::{Chain, Link},
+    },
+    screens::create_menu,
 };
-use gui::{embedded_layout::object_chain, screens::create_menu};
 
 #[derive(Clone, Copy)]
 pub enum BatteryEvents {
@@ -28,24 +27,15 @@ pub async fn battery_info_menu(context: &mut Context) -> AppState {
         .unwrap_or(AppState::Shutdown)
 }
 
+type BatteryInfoMenuItem<S> = MenuItem<S, BatteryEvents, &'static str, true>;
+
 struct BatteryInfoMenu;
 type BatteryInfoMenuBuilder = MenuBuilder<
-    &'static str,
-    SingleTouch,
-    object_chain::Link<
-        MenuItem<&'static str, BatteryEvents, &'static str, true>,
-        object_chain::Chain<
-            MenuItems<
-                heapless::Vec<MenuItem<heapless::String<20>, BatteryEvents, &'static str, true>, 6>,
-                MenuItem<heapless::String<20>, BatteryEvents, &'static str, true>,
-                BatteryEvents,
-            >,
-        >,
-    >,
+    chain!(
+        MenuItems<BatteryInfoMenuItem<heapless::String<20>>, BatteryEvents, 6>,
+        BatteryInfoMenuItem<&'static str>
+    ),
     BatteryEvents,
-    AnimatedPosition,
-    AnimatedTriangle,
-    BinaryColor,
 >;
 
 async fn battery_info_menu_builder(context: &mut Context) -> BatteryInfoMenuBuilder {

@@ -117,15 +117,9 @@ fn main() {
 
     println!("cargo:rustc-env=MCU_MODEL={}", mcu.as_str());
     println!("cargo:rustc-env=HW_VERSION={}", build_config.as_str());
-
-    // Device info list items
     println!(
-        "cargo:rustc-env=FW_VERSION_MENU_ITEM=FW {:>17}",
-        format!("{pkg_version}-{git_hash_str}")
-    );
-
-    println!(
-        "cargo:rustc-env=HW_VERSION_MENU_ITEM=HW {:>17}",
-        format!("{}/{}", mcu.as_str(), build_config.as_str())
+        "cargo:rustc-env=COMPLETE_HW_VERSION={}/{}",
+        mcu.as_str(),
+        build_config.as_str()
     );
 }

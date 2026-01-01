@@ -3,18 +3,17 @@ use crate::{
         config::types::{DisplayBrightness, FilterStrength},
         initialized::Context,
     },
-    states::menu::{AppMenu, MenuScreen},
+    states::menu::{AppMenu, MenuBuilder, MenuScreen},
     AppState,
 };
-use embedded_graphics::pixelcolor::BinaryColor;
-use embedded_menu::{
-    builder::MenuBuilder,
-    interaction::single_touch::SingleTouch,
-    items::MenuItem,
-    selection_indicator::{style::AnimatedTriangle, AnimatedPosition},
-};
+use embedded_menu::items::MenuItem;
 use gui::{
-    embedded_layout::object_chain, screens::create_menu, widgets::battery_small::BatteryStyle,
+    embedded_layout::{
+        chain,
+        object_chain::{Chain, Link},
+    },
+    screens::create_menu,
+    widgets::battery_small::BatteryStyle,
 };
 
 pub async fn display_menu(context: &mut Context) -> AppState {
@@ -36,26 +35,17 @@ pub enum DisplayMenuEvents {
     Back,
 }
 
+type DisplayMenuItem<T> = MenuItem<&'static str, DisplayMenuEvents, T, true>;
+
 struct DisplayMenu;
 type DisplayMenuBuilder = MenuBuilder<
-    &'static str,
-    SingleTouch,
-    object_chain::Link<
-        MenuItem<&'static str, DisplayMenuEvents, &'static str, true>,
-        object_chain::Link<
-            MenuItem<&'static str, DisplayMenuEvents, FilterStrength, true>,
-            object_chain::Link<
-                MenuItem<&'static str, DisplayMenuEvents, BatteryStyle, true>,
-                object_chain::Chain<
-                    MenuItem<&'static str, DisplayMenuEvents, DisplayBrightness, true>,
-                >,
-            >,
-        >,
-    >,
+    chain!(
+        DisplayMenuItem<DisplayBrightness>,
+        DisplayMenuItem<BatteryStyle>,
+        DisplayMenuItem<FilterStrength>,
+        DisplayMenuItem<&'static str>
+    ),
     DisplayMenuEvents,
-    AnimatedPosition,
-    AnimatedTriangle,
-    BinaryColor,
 >;
 
 fn display_menu_builder(context: &mut Context) -> DisplayMenuBuilder {
