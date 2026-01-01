@@ -1,6 +1,6 @@
 use crate::{
     board::{
-        config::types::FilterStrength,
+        config::types::{FilterStrength, Gain, LeadOffCurrent, LeadOffFrequency, LeadOffThreshold},
         initialized::{Context, InnerContext},
         AdcSpi, EcgFrontend, PoweredEcgFrontend,
     },
@@ -9,7 +9,7 @@ use crate::{
     timeout::Timeout,
     AppState,
 };
-use ads129x::Sample;
+use ads129x::{ll, ConfigRegisters, Sample};
 use alloc::{boxed::Box, sync::Arc};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Instant, Ticker};
@@ -183,7 +183,43 @@ async fn measure_impl(
     ecg: &mut EcgObjects,
     mut ecg_buffer: Option<Box<CompressingBuffer<ECG_BUFFER_SIZE>>>,
 ) -> (AppState, EcgFrontend) {
-    let mut frontend = match frontend.enable_async().await {
+    let apply_config = |config_regs: &mut ConfigRegisters| {
+        let loff_current_value = match context.config.lead_off_current {
+            LeadOffCurrent::Weak => ll::LeadOffCurrent::_6nA,
+            LeadOffCurrent::Normal => ll::LeadOffCurrent::_22nA,
+            LeadOffCurrent::Strong => ll::LeadOffCurrent::_6uA,
+            LeadOffCurrent::Strongest => ll::LeadOffCurrent::_22uA,
+        };
+        let loff_threshold_value = match context.config.lead_off_threshold {
+            LeadOffThreshold::_95 => ll::ComparatorThreshold::_95,
+            LeadOffThreshold::_92_5 => ll::ComparatorThreshold::_92_5,
+            LeadOffThreshold::_90 => ll::ComparatorThreshold::_90,
+            LeadOffThreshold::_87_5 => ll::ComparatorThreshold::_87_5,
+            LeadOffThreshold::_85 => ll::ComparatorThreshold::_85,
+            LeadOffThreshold::_80 => ll::ComparatorThreshold::_80,
+            LeadOffThreshold::_75 => ll::ComparatorThreshold::_75,
+            LeadOffThreshold::_70 => ll::ComparatorThreshold::_70,
+        };
+        let loff_frequency_value = match context.config.lead_off_frequency {
+            LeadOffFrequency::Dc => ll::LeadOffFrequency::Dc,
+            LeadOffFrequency::Ac => ll::LeadOffFrequency::Ac,
+        };
+        let gain_value = match context.config.gain {
+            Gain::X1 => ll::Gain::X1,
+            Gain::X2 => ll::Gain::X2,
+            Gain::X3 => ll::Gain::X3,
+            Gain::X4 => ll::Gain::X4,
+            Gain::X6 => ll::Gain::X6,
+            Gain::X8 => ll::Gain::X8,
+            Gain::X12 => ll::Gain::X12,
+        };
+
+        config_regs.loff.set_leadoff_current(loff_current_value);
+        config_regs.loff.set_comp_th(loff_threshold_value);
+        config_regs.loff.set_leadoff_frequency(loff_frequency_value);
+        config_regs.ch1set.set_gain(gain_value);
+    };
+    let mut frontend = match frontend.enable_async(apply_config).await {
         Ok(frontend) => frontend,
         Err((fe, err)) => {
             let err_str = match err {
@@ -197,7 +233,10 @@ async fn measure_impl(
         }
     };
 
-    match frontend.set_clock_source().await {
+    match frontend
+        .set_clock_source(context.config.use_external_clock)
+        .await
+    {
         Ok(true) => {
             unwrap!(frontend.spi_mut().bus_mut().apply_config(
                 &esp_hal::spi::master::Config::default()

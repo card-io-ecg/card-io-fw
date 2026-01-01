@@ -132,13 +132,16 @@ where
         }
     }
 
-    pub async fn enable_async(self) -> Result<PoweredFrontend<S, I, O>, (Self, AdsConfigError<S>)> {
+    pub async fn enable_async(
+        self,
+        config: impl Fn(&mut ConfigRegisters),
+    ) -> Result<PoweredFrontend<S, I, O>, (Self, AdsConfigError<S>)> {
         let mut frontend = PoweredFrontend {
             frontend: self,
             touched: true,
         };
 
-        match frontend.enable().await {
+        match frontend.enable(config).await {
             Ok(_) => Ok(frontend),
             Err(err) => Err((frontend.shut_down().await, err)),
         }
@@ -179,7 +182,10 @@ where
     I: InputPin + Wait,
     O: OutputPin,
 {
-    async fn enable(&mut self) -> Result<(), AdsConfigError<S>> {
+    async fn enable(
+        &mut self,
+        config: impl Fn(&mut ConfigRegisters),
+    ) -> Result<(), AdsConfigError<S>> {
         // Enable external clock if it is separately controlled.
         if let Some(clken) = self.frontend.clken.as_mut() {
             unwrap!(clken.set_high().ok());
@@ -218,8 +224,9 @@ where
             }
         }
 
-        let config = self.frontend.config();
-        self.frontend.adc.apply_config_async(config).await?;
+        let mut config_regs = self.frontend.config();
+        config(&mut config_regs);
+        self.frontend.adc.apply_config_async(config_regs).await?;
 
         Ok(())
     }
@@ -228,33 +235,39 @@ where
         self.frontend.adc.start_command_async().await
     }
 
-    pub async fn set_clock_source(&mut self) -> Result<bool, S::Error> {
+    pub async fn set_clock_source(&mut self, use_external_clock: bool) -> Result<bool, S::Error> {
         let clksel = self
             .read_clksel()
             .await
             .inspect_err(|_| warn!("Failed to read CLKSEL"))?;
 
-        let enable_fast_clk = if self.frontend.clken.is_some() {
+        let is_new_hardware = self.frontend.clken.is_none();
+
+        let has_external_clock = if !is_new_hardware {
+            info!("Hardware uses old frontend");
             // Separate CLK_EN and RESET pins, old module. External oscillator is present
             // if GPIO2 reads low.
             clksel == ll::PinState::Low
         } else {
-            // Separate CLK_EN and RESET pins, old module. External oscillator is present
+            info!("Hardware uses new frontend");
+            // Separate CLK_EN and RESET pins, new module. External oscillator is present
             // if GPIO2 reads high. External oscillator can be enabled by pulling GPIO2 low.
+            clksel == ll::PinState::High
+        };
 
-            if clksel == ll::PinState::High {
-                info!("CLKSEL is high, enabling external clock input");
+        info!("Hardware has external clock: {:?}", has_external_clock);
+
+        let enable_fast_clk = has_external_clock & use_external_clock;
+
+        if enable_fast_clk {
+            if is_new_hardware {
+                info!("Setting GPIO2 to low on new hardware");
                 let mut register = self.frontend.adc.read_gpio_async().await?;
                 register.set_c2(ll::PinDirection::Output);
                 register.set_d2(ll::PinState::Low);
                 self.frontend.adc.write_gpio_async(register).await?;
-                true
-            } else {
-                false
             }
-        };
 
-        if enable_fast_clk {
             info!("Enabling faster clock speeds");
             self.enable_fast_clock().await?;
         }

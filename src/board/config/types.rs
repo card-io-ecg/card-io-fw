@@ -2,88 +2,102 @@ use embedded_io_async::{Read, Write};
 use embedded_menu::SelectValue;
 use norfs::storable::{LoadError, Loadable, Storable};
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue)]
-pub enum DisplayBrightness {
-    Dimmest,
-    Dim,
-    Normal,
-    Bright,
-    Brightest,
-}
+macro_rules! implement_enum {
+    (
+        $(#[$enum_meta:meta])*
+        $vis:vis enum $enum_name:ident {
+            $( $(#[$meta:meta])* $variant_name:ident = $value:literal, )*
+        }
+    ) => {
+        $(#[$enum_meta])*
+        #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue)]
+        $vis enum $enum_name {
+            $( $(#[$meta])* $variant_name = $value ),*
+        }
 
-impl Loadable for DisplayBrightness {
-    async fn load<R: Read>(reader: &mut R) -> Result<Self, LoadError<R::Error>> {
-        let data = match u8::load(reader).await? {
-            0 => Self::Dimmest,
-            1 => Self::Dim,
-            2 => Self::Normal,
-            3 => Self::Bright,
-            4 => Self::Brightest,
-            _ => return Err(LoadError::InvalidValue),
-        };
+        impl Loadable for $enum_name {
+            async fn load<R: Read>(reader: &mut R) -> Result<Self, LoadError<R::Error>> {
+                let data = match u8::load(reader).await? {
+                    $( $value => Self::$variant_name, )*
+                    _ => return Err(LoadError::InvalidValue),
+                };
 
-        Ok(data)
+                Ok(data)
+            }
+        }
+
+        impl Storable for $enum_name {
+            async fn store<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
+                writer.write_all(&[*self as u8]).await
+            }
+        }
     }
 }
 
-impl Storable for DisplayBrightness {
-    async fn store<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
-        (*self as u8).store(writer).await
+implement_enum! {
+    pub enum DisplayBrightness {
+        Dimmest = 0,
+        Dim = 1,
+        Normal = 2,
+        Bright = 3,
+        Brightest = 4,
+    }
+}
+implement_enum! {
+    pub enum FilterStrength {
+        None = 0,
+        Weak = 1,
+        Strong = 2,
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue)]
-pub enum FilterStrength {
-    None = 0,
-    Weak = 1,
-    Strong = 2,
-}
-
-impl Loadable for FilterStrength {
-    async fn load<R: Read>(reader: &mut R) -> Result<Self, LoadError<R::Error>> {
-        let data = match u8::load(reader).await? {
-            0 => Self::None,
-            1 => Self::Weak,
-            2 => Self::Strong,
-            _ => return Err(LoadError::InvalidValue),
-        };
-
-        Ok(data)
+implement_enum! {
+    pub enum MeasurementAction {
+        Ask = 0,
+        Auto = 1,
+        Store = 2,
+        Upload = 3,
+        Discard = 4,
     }
 }
 
-impl Storable for FilterStrength {
-    async fn store<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
-        writer.write_all(&[*self as u8]).await
+implement_enum! {
+    pub enum LeadOffCurrent {
+        Weak = 0,
+        Normal = 1,
+        Strong = 2,
+        Strongest = 3,
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue)]
-pub enum MeasurementAction {
-    Ask = 0,
-    Auto = 1,
-    Store = 2,
-    Upload = 3,
-    Discard = 4,
-}
-
-impl Loadable for MeasurementAction {
-    async fn load<R: Read>(reader: &mut R) -> Result<Self, LoadError<R::Error>> {
-        let data = match u8::load(reader).await? {
-            0 => Self::Ask,
-            1 => Self::Auto,
-            2 => Self::Store,
-            3 => Self::Upload,
-            4 => Self::Discard,
-            _ => return Err(LoadError::InvalidValue),
-        };
-
-        Ok(data)
+implement_enum! {
+    pub enum LeadOffThreshold {
+        _95 = 0,
+        _92_5 = 1,
+        _90 = 2,
+        _87_5 = 3,
+        _85 = 4,
+        _80 = 5,
+        _75 = 6,
+        _70 = 7,
     }
 }
 
-impl Storable for MeasurementAction {
-    async fn store<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
-        writer.write_all(&[*self as u8]).await
+implement_enum! {
+    pub enum LeadOffFrequency {
+        Dc = 0,
+        Ac = 1,
+    }
+}
+
+implement_enum! {
+    pub enum Gain {
+        X1 = 0,
+        X2 = 1,
+        X3 = 2,
+        X4 = 3,
+        X6 = 4,
+        X8 = 5,
+        X12 = 6,
     }
 }

@@ -3,6 +3,7 @@ pub mod v1;
 pub mod v2;
 pub mod v3;
 pub mod v4;
+pub mod v5;
 
 pub mod types;
 
@@ -11,7 +12,7 @@ pub use current::Config;
 use embedded_io_async::Read;
 use norfs::storable::{LoadError, Loadable};
 
-const CURRENT_VERSION: u8 = 4;
+const CURRENT_VERSION: u8 = 5;
 
 #[derive(Clone)]
 #[allow(clippy::large_enum_variant)]
@@ -20,6 +21,7 @@ pub enum ConfigFile {
     V2(v2::Config),
     V3(v3::Config),
     V4(v4::Config),
+    V5(v5::Config),
     Current(Config),
 }
 
@@ -47,6 +49,9 @@ impl ConfigFile {
             self = Self::V4(v4::Config::from(config));
         }
         if let Self::V4(config) = self {
+            self = Self::V5(v5::Config::from(config));
+        }
+        if let Self::V5(config) = self {
             self = Self::Current(Config::from(config));
         }
 
@@ -64,6 +69,7 @@ impl Loadable for ConfigFile {
             1 => Self::V2(v2::Config::load(reader).await?),
             2 => Self::V3(v3::Config::load(reader).await?),
             3 => Self::V4(v4::Config::load(reader).await?),
+            4 => Self::V5(v5::Config::load(reader).await?),
             CURRENT_VERSION => Self::Current(Config::load(reader).await?),
             _ => return Err(LoadError::InvalidValue),
         };

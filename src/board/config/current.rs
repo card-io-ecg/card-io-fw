@@ -7,7 +7,10 @@ use ssd1306::prelude::Brightness;
 use crate::board::DEFAULT_BACKEND_URL;
 
 use super::{
-    types::{DisplayBrightness, FilterStrength, MeasurementAction},
+    types::{
+        DisplayBrightness, FilterStrength, Gain, LeadOffCurrent, LeadOffFrequency,
+        LeadOffThreshold, MeasurementAction,
+    },
     CURRENT_VERSION,
 };
 
@@ -19,21 +22,24 @@ pub struct Config {
     pub filter_strength: FilterStrength,
     pub backend_url: heapless::String<64>,
     pub measurement_action: MeasurementAction,
+    // ADC frontend config
+    pub use_external_clock: bool,
+    pub lead_off_current: LeadOffCurrent,
+    pub lead_off_threshold: LeadOffThreshold,
+    pub lead_off_frequency: LeadOffFrequency,
+    pub gain: Gain,
 }
 
-impl From<super::v4::Config> for Config {
-    fn from(value: super::v4::Config) -> Self {
+impl From<super::v5::Config> for Config {
+    fn from(value: super::v5::Config) -> Self {
         Self {
             battery_display_style: value.battery_display_style,
             display_brightness: value.display_brightness,
             known_networks: value.known_networks,
             filter_strength: value.filter_strength,
             backend_url: value.backend_url,
-            measurement_action: if value.store_measurement {
-                MeasurementAction::Auto
-            } else {
-                MeasurementAction::Upload
-            },
+            measurement_action: value.measurement_action,
+            ..Default::default()
         }
     }
 }
@@ -48,6 +54,11 @@ impl Default for Config {
             filter_strength: FilterStrength::Weak,
             backend_url: heapless::String::try_from(DEFAULT_BACKEND_URL).unwrap(),
             measurement_action: MeasurementAction::Auto,
+            use_external_clock: true,
+            lead_off_current: LeadOffCurrent::Weak,
+            lead_off_threshold: LeadOffThreshold::_95,
+            lead_off_frequency: LeadOffFrequency::Dc,
+            gain: Gain::X1,
         }
     }
 }
@@ -81,6 +92,11 @@ impl Loadable for Config {
             filter_strength: FilterStrength::load(reader).await?,
             backend_url: heapless::String::load(reader).await?,
             measurement_action: MeasurementAction::load(reader).await?,
+            use_external_clock: bool::load(reader).await?,
+            lead_off_current: LeadOffCurrent::load(reader).await?,
+            lead_off_threshold: LeadOffThreshold::load(reader).await?,
+            lead_off_frequency: LeadOffFrequency::load(reader).await?,
+            gain: Gain::load(reader).await?,
         };
 
         Ok(data)
@@ -97,6 +113,11 @@ impl Storable for Config {
         self.filter_strength.store(writer).await?;
         self.backend_url.store(writer).await?;
         self.measurement_action.store(writer).await?;
+        self.use_external_clock.store(writer).await?;
+        self.lead_off_current.store(writer).await?;
+        self.lead_off_threshold.store(writer).await?;
+        self.lead_off_frequency.store(writer).await?;
+        self.gain.store(writer).await?;
 
         Ok(())
     }
