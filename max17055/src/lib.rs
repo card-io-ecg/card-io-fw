@@ -294,7 +294,7 @@ where
             .write_async(|reg| reg.set_capacity(raw_capacity))
             .await?;
         self.driver
-            .d_qacc()
+            .dqacc()
             .write_async(|reg| reg.set_capacity(raw_capacity / 32))
             .await?;
         self.driver
@@ -325,7 +325,7 @@ where
         };
 
         self.driver
-            .d_pacc()
+            .dpacc()
             .write_async(|reg| {
                 reg.set_percentage(dpacc);
             })
@@ -424,7 +424,7 @@ where
     /// Max number of cycles is 655.35 cycles with a LSB of 1% for the cycles register
     pub async fn read_learned_params(&mut self) -> Result<LearnedParams, I::Error> {
         Ok(LearnedParams {
-            rcomp0: self.driver.rcomp_0().read_async().await?,
+            rcomp0: self.driver.rcomp0().read_async().await?,
             temp_co: self.driver.temp_co().read_async().await?,
             full_cap_rep: self.driver.full_cap_rep().read_async().await?,
             cycles: self.driver.cycles().read_async().await?,
@@ -438,7 +438,7 @@ where
         delay: &mut impl AsyncDelayNs,
     ) -> Result<(), I::Error> {
         self.driver
-            .rcomp_0()
+            .rcomp0()
             .write_async(|reg| *reg = params.rcomp0)
             .await?;
 
@@ -469,11 +469,11 @@ where
 
         // 200%
         self.driver
-            .d_pacc()
+            .dpacc()
             .write_async(|reg| reg.set_percentage(0x0C80))
             .await?;
         self.driver
-            .d_qacc()
+            .dqacc()
             .write_async(|reg| reg.set_capacity(params.full_cap_nom.capacity() / 16))
             .await?;
 

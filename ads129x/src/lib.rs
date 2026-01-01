@@ -137,11 +137,11 @@ where
 
     async fn write_config_async(&mut self, config: &ConfigRegisters) -> Result<(), S::Error> {
         self.driver
-            .config_1()
+            .config1()
             .write_async(|reg| *reg = config.config1)
             .await?;
         self.driver
-            .config_2()
+            .config2()
             .write_async(|reg| *reg = config.config2)
             .await?;
 
@@ -151,11 +151,11 @@ where
             .await?;
 
         self.driver
-            .ch_1_set()
+            .ch1set()
             .write_async(|reg| *reg = config.ch1set)
             .await?;
         self.driver
-            .ch_2_set()
+            .ch2set()
             .write_async(|reg| *reg = config.ch2set)
             .await?;
 
@@ -173,11 +173,11 @@ where
             .await?;
 
         self.driver
-            .resp_1()
+            .resp1()
             .write_async(|reg| *reg = config.resp1)
             .await?;
         self.driver
-            .resp_2()
+            .resp2()
             .write_async(|reg| *reg = config.resp2)
             .await?;
 
@@ -191,16 +191,16 @@ where
 
     async fn read_config_async(&mut self) -> Result<ConfigRegisters, S::Error> {
         Ok(ConfigRegisters {
-            config1: self.driver.config_1().read_async().await?,
-            config2: self.driver.config_2().read_async().await?,
+            config1: self.driver.config1().read_async().await?,
+            config2: self.driver.config2().read_async().await?,
             loff: self.driver.loff().read_async().await?,
-            ch1set: self.driver.ch_1_set().read_async().await?,
-            ch2set: self.driver.ch_2_set().read_async().await?,
+            ch1set: self.driver.ch1set().read_async().await?,
+            ch2set: self.driver.ch2set().read_async().await?,
             rldsens: self.driver.rld_sens().read_async().await?,
             loffsens: self.driver.loff_sens().read_async().await?,
             loffstat: self.driver.loff_stat().read_async().await?,
-            resp1: self.driver.resp_1().read_async().await?,
-            resp2: self.driver.resp_2().read_async().await?,
+            resp1: self.driver.resp1().read_async().await?,
+            resp2: self.driver.resp2().read_async().await?,
             gpio: self.driver.gpio().read_async().await?,
         })
     }
