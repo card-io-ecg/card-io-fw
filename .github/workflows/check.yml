@@ -18,17 +18,17 @@ jobs:
   check:
     strategy:
       matrix:
-        version: ["v4", "v6c6", "v6s3"]
+        version: ["v6c6", "v8s3"]
 
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: esp-rs/xtensa-toolchain@v1.5
+      - uses: actions/checkout@v6
+      - uses: esp-rs/xtensa-toolchain@v1.6
         with:
           default: true
           buildtargets: esp32s3
-          version: "1.90.0.0"
+          version: "1.92.0.0"
           ldproxy: false
       - uses: dtolnay/rust-toolchain@master
         with:
@@ -45,12 +45,12 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: esp-rs/xtensa-toolchain@v1.5
+      - uses: actions/checkout@v6
+      - uses: esp-rs/xtensa-toolchain@v1.6
         with:
           default: true
           buildtargets: esp32s3
-          version: "1.90.0.0"
+          version: "1.92.0.0"
           ldproxy: false
       - uses: Swatinem/rust-cache@v2
 
