@@ -55,7 +55,7 @@ impl Default for Config {
             backend_url: heapless::String::try_from(DEFAULT_BACKEND_URL).unwrap(),
             measurement_action: MeasurementAction::Auto,
             use_external_clock: true,
-            lead_off_current: LeadOffCurrent::Weak,
+            lead_off_current: LeadOffCurrent::Normal,
             lead_off_threshold: LeadOffThreshold::_95,
             lead_off_frequency: LeadOffFrequency::Dc,
             gain: Gain::X1,
