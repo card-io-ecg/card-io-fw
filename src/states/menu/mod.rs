@@ -20,6 +20,7 @@ pub mod about;
 #[cfg(feature = "battery_max17055")]
 pub mod battery_info;
 pub mod display;
+pub mod frontend;
 pub mod main;
 pub mod storage;
 pub mod wifi_ap;
@@ -30,6 +31,7 @@ pub mod wifi_sta;
 pub enum AppMenu {
     Main,
     Display,
+    Frontend,
     Storage,
     DeviceInfo,
     #[cfg(feature = "battery_max17055")]
@@ -172,6 +174,7 @@ pub async fn display_menu_screen(mut menu: AppMenu, board: &mut Context) -> AppS
         let next = match menu {
             AppMenu::Main => main::main_menu(board).await,
             AppMenu::Display => display::display_menu(board).await,
+            AppMenu::Frontend => frontend::frontend_menu(board).await,
             AppMenu::Storage => storage::storage_menu(board).await,
             AppMenu::DeviceInfo => about::about_menu(board).await,
             AppMenu::WifiAP => wifi_ap::wifi_ap(board).await,

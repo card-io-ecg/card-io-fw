@@ -16,6 +16,7 @@ use gui::{
 pub enum MainMenuEvents {
     Measure,
     Display,
+    Frontend,
     About,
     WifiSetup,
     WifiListVisible,
@@ -45,6 +46,7 @@ type MainMenuItem<T> = MenuItem<&'static str, MainMenuEvents, T, true>;
 struct MainMenu;
 type MainMenuBuilder = MenuBuilder<
     chain!(
+        MainMenuItem<MainMenuEvents>,
         MainMenuItem<MainMenuEvents>,
         MainMenuItem<MainMenuEvents>,
         MainMenuItem<MainMenuEvents>,
@@ -79,6 +81,7 @@ fn main_menu_builder(context: &mut Context) -> MainMenuBuilder {
     create_menu("Main menu")
         .add_item("Measure", MainMenuEvents::Measure, |evt| evt)
         .add_item("Display", MainMenuEvents::Display, |evt| evt)
+        .add_item("EKG", MainMenuEvents::Frontend, |evt| evt)
         .add_item("Storage", MainMenuEvents::Storage, |evt| evt)
         .add_item("Device info", MainMenuEvents::About, |evt| evt)
         .add_menu_items(optional_items)
@@ -102,6 +105,7 @@ impl MenuScreen for MainMenu {
         let event = match event {
             MainMenuEvents::Measure => AppState::Initialize,
             MainMenuEvents::Display => AppState::Menu(AppMenu::Display),
+            MainMenuEvents::Frontend => AppState::Menu(AppMenu::Frontend),
             MainMenuEvents::About => AppState::Menu(AppMenu::DeviceInfo),
             MainMenuEvents::WifiSetup => AppState::Menu(AppMenu::WifiAP),
             MainMenuEvents::WifiListVisible => AppState::Menu(AppMenu::WifiListVisible),
