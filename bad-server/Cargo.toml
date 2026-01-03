@@ -24,7 +24,7 @@ smoltcp = { workspace = true }
 default = []
 std = ["async-io", "smol"]
 embassy = ["embassy-net"]
-defmt = ["dep:defmt"]
+defmt = ["dep:defmt", "embassy-net?/defmt"]
 
 [[example]]
 name = "simple"

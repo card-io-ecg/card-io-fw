@@ -1,19 +1,23 @@
 use core::ops::{Deref, DerefMut};
 
+#[cfg(feature = "wifi")]
+use crate::{
+    board::wifi::{ap::Ap, sta::Sta, WifiDriver},
+    saved_measurement_exists,
+};
 use crate::{
     board::{
-        config::Config,
-        drivers::battery_monitor::BatteryMonitor,
-        storage::FileSystem,
-        wifi::{ap::Ap, sta::Sta, WifiDriver},
-        Display, EcgFrontend,
+        config::Config, drivers::battery_monitor::BatteryMonitor, storage::FileSystem, Display,
+        EcgFrontend,
     },
-    saved_measurement_exists,
     states::MESSAGE_MIN_DURATION,
 };
 use display_interface::DisplayError;
 use embassy_executor::SendSpawner;
+
+#[cfg(feature = "wifi")]
 use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
+
 use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
 use esp_hal::gpio::Input;
@@ -26,6 +30,7 @@ use gui::{
 };
 use norfs::OnCollision;
 
+#[cfg(feature = "wifi")]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum StaMode {
     Enable,
@@ -36,6 +41,7 @@ pub struct InnerContext {
     pub display: Display,
     pub high_prio_spawner: SendSpawner,
     pub battery_monitor: BatteryMonitor<Input<'static>, Input<'static>>,
+    #[cfg(feature = "wifi")]
     pub wifi: &'static mut WifiDriver,
     pub config: &'static mut Config,
     pub config_changed: bool,
@@ -84,6 +90,7 @@ impl Context {
         }
     }
 
+    #[cfg(feature = "wifi")]
     pub async fn sta_has_work(&mut self) -> bool {
         // TODO: we can do a flag that is true on boot, so that entering the menu will always
         // connect and look for update, etc. We can also use a flag to see if we have ongoing
@@ -101,6 +108,7 @@ impl Context {
         self.inner.sta_work_available.unwrap_or(false)
     }
 
+    #[cfg(feature = "wifi")]
     pub async fn enable_wifi_sta(&mut self, mode: StaMode) -> Option<Sta> {
         debug!("Enabling STA");
         let can_enable = self.can_enable_wifi()
@@ -113,6 +121,7 @@ impl Context {
         self.enable_sta(can_enable).await
     }
 
+    #[cfg(feature = "wifi")]
     pub async fn enable_wifi_sta_for_scan(&mut self) -> Option<Sta> {
         debug!("Enabling STA for scan");
         let can_enable = self.can_enable_wifi();
@@ -159,6 +168,7 @@ impl InnerContext {
             .await;
     }
 
+    #[cfg(feature = "wifi")]
     async fn enable_sta(&mut self, can_enable: bool) -> Option<Sta> {
         if !can_enable {
             warn!("Not enabling STA");
@@ -176,6 +186,7 @@ impl InnerContext {
         Some(sta)
     }
 
+    #[cfg(feature = "wifi")]
     #[allow(unused)]
     pub async fn enable_wifi_ap(&mut self) -> Option<Ap> {
         if !self.can_enable_wifi() {
@@ -195,6 +206,7 @@ impl InnerContext {
         Some(ap)
     }
 
+    #[cfg(feature = "wifi")]
     pub async fn enable_wifi_ap_sta(&mut self) -> Option<(Ap, Sta)> {
         if !self.can_enable_wifi() {
             self.wifi.stop_if().await;
@@ -217,10 +229,12 @@ impl InnerContext {
     }
 
     /// Note: make sure Sta/Ap is released before calling this.
+    #[cfg(feature = "wifi")]
     pub async fn disable_wifi(&mut self) {
         self.wifi.stop_if().await
     }
 
+    #[cfg(feature = "wifi")]
     pub fn can_enable_wifi(&mut self) -> bool {
         self.battery_monitor
             .battery_data()
@@ -264,8 +278,16 @@ impl InnerContext {
 
     pub fn status_bar(&mut self) -> StatusBar {
         let battery_data = self.battery_monitor.battery_data();
-        let sta_connection_state = self.wifi.sta_state();
-        let ap_connection_state = self.wifi.ap_state();
+
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "wifi")] {
+                let sta_connection_state = self.wifi.sta_state();
+                let ap_connection_state = self.wifi.ap_state();
+            } else {
+                let sta_connection_state = None::<gui::widgets::wifi_client::WifiClientState>;
+                let ap_connection_state = None::<gui::widgets::wifi_access_point::WifiAccessPointState>;
+            }
+        }
 
         StatusBar {
             battery: Battery::with_style(battery_data, self.config.battery_style()),

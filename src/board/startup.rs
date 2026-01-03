@@ -2,10 +2,11 @@ use display_interface_spi::SPIInterface;
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 
+#[cfg(feature = "wifi")]
+use crate::board::wifi::WifiDriver;
 use crate::board::{
     drivers::{battery_monitor::BatteryMonitor, frontend::Frontend},
     utils::DummyOutputPin,
-    wifi::WifiDriver,
     AdcSpi, ChargerStatusPin, Display, DisplayDmaChannel, EcgFrontend, VbusDetectPin,
 };
 use esp_hal::{
@@ -40,6 +41,7 @@ pub struct StartupResources {
     pub frontend: EcgFrontend,
     pub battery_monitor: BatteryMonitor<VbusDetectPin, ChargerStatusPin>,
 
+    #[cfg(feature = "wifi")]
     pub wifi: &'static mut WifiDriver,
     pub rtc: Rtc<'static>,
 

@@ -51,13 +51,13 @@ panic-rtt-target = { version = "0.2.0", optional = true }
 
 esp-bootloader-esp-idf = "0.3.0"
 esp-hal = { version = "1.0.0", features = ["unstable"] }
-esp-rtos = { version = "0.2", features = ["esp-radio", "embassy", "esp-alloc"] }
+esp-rtos = { version = "0.2", features = ["embassy", "esp-alloc"] }
 esp-backtrace = { version = "0.18", features = ["panic-handler", "semihosting"], optional = true }
 esp-println = { version = "0.16", default-features = false, optional = true, features = [
     "critical-section",
 ] }
 esp-alloc = "0.9"
-esp-radio = { version = "0.17", features = ["wifi"] }
+esp-radio = { version = "0.17", features = ["wifi"], optional = true }
 
 display-interface = "0.5"
 display-interface-spi = "0.5"
@@ -79,19 +79,19 @@ replace_with = { version = "0.1", default-features = false, features = [
     "nightly",
 ] }
 static_cell = { version = "2.0.0" }
-bad-server = { path = "bad-server", features = ["embassy"] }
+bad-server = { workspace = true, features = ["embassy"], optional = true }
 embedded-tls = { version = "0.17.0", default-features = false }
-reqwless = "0.13.0"
+reqwless = { version = "0.13.0", optional = true }
 
 embedded-graphics.workspace = true
 embedded-hal.workspace = true
 embedded-hal-async.workspace = true
 embedded-hal-bus.workspace = true
-embedded-nal-async.workspace = true
+embedded-nal-async = { workspace = true, optional = true }
 embedded-io.workspace = true
 embedded-io-async.workspace = true
 embedded-menu.workspace = true
-embassy-net.workspace = true
+embassy-net = {workspace = true, optional = true }
 embassy-sync.workspace = true
 
 norfs.workspace = true
@@ -108,7 +108,7 @@ ufmt.workspace = true
 
 defmt.workspace = true
 
-smoltcp.workspace = true
+smoltcp = { workspace = true, optional = true }
 crc = "3.0.1"
 enumset = "1.1.3"
 
@@ -136,8 +136,11 @@ enumset = "1.1.3"
 heapless = { git = "https://github.com/rust-embedded/heapless.git" }
 
 [features]
-default = ["defmt", "rtt"]
+default = ["defmt", "rtt", "wifi"]
 #default = ["defmt", "esp-println"]
+
+# Enable Wi-Fi features. The purpose of this feature is to shorten the debugging iteration time by removing a big chunk of the binary.
+wifi = ["dep:esp-radio", "dep:bad-server", "dep:embassy-net", "dep:smoltcp", "dep:reqwless", "dep:embedded-nal-async", "esp-rtos/esp-radio"]
 
 battery_max17055 = ["dep:max17055"]
 
@@ -152,7 +155,7 @@ esp32s3 = [
     "esp-hal/esp32s3",
     "dep:norfs-esp32s3",
     "esp-backtrace?/esp32s3",
-    "esp-radio/esp32s3",
+    "esp-radio?/esp32s3",
     "esp-rtos/esp32s3",
     "esp-println?/esp32s3",
     "esp-bootloader-esp-idf/esp32s3",
@@ -161,7 +164,7 @@ esp32c6 = [
     "esp-hal/esp32c6",
     "dep:norfs-esp32c6",
     "esp-backtrace?/esp32c6",
-    "esp-radio/esp32c6",
+    "esp-radio?/esp32c6",
     "esp-rtos/esp32c6",
     "esp-println?/esp32c6",
     "esp-bootloader-esp-idf/esp32c6",
@@ -175,9 +178,8 @@ defmt = [
     "embedded-io/defmt-03",
     "embedded-graphics/defmt",
     "embedded-hal-bus/defmt-03",
-    "esp-radio/defmt",
+    "esp-radio?/defmt",
     "esp-rtos/defmt",
-    "esp-hal/defmt",
     "esp-hal/defmt",
     "esp-backtrace?/defmt",
     "esp-println?/defmt-espflash",
@@ -185,15 +187,15 @@ defmt = [
     "config-site/defmt",
     "ads129x/defmt",
     "max17055?/defmt",
-    "bad-server/defmt",
+    "bad-server?/defmt",
     "gui/defmt",
     "signal-processing/defmt",
-    "reqwless/defmt",
+    "reqwless?/defmt",
     "embedded-tls/defmt",
     "heapless/defmt",
 
-    "embassy-net/defmt",
-    "smoltcp/defmt",
+    "embassy-net?/defmt",
+    "smoltcp?/defmt",
     "rtt-target?/defmt",
     "panic-rtt-target?/defmt",
 ]

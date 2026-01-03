@@ -21,6 +21,7 @@ use gui::{
 pub enum StorageMenuEvents {
     ChangeMeasurementAction(MeasurementAction),
     Format,
+    #[cfg(feature = "wifi")]
     Upload,
     Nothing,
     Back,
@@ -62,6 +63,8 @@ type StorageMenuBuilder = MenuBuilder<
 
 async fn storage_menu_builder(context: &mut Context) -> StorageMenuBuilder {
     let mut used_item = heapless::Vec::<_, 2>::new();
+
+    #[cfg_attr(not(feature = "wifi"), allow(unused_mut))]
     let mut items = heapless::Vec::<_, 2>::new();
 
     if let Some(storage) = context.storage.as_mut() {
@@ -82,6 +85,7 @@ async fn storage_menu_builder(context: &mut Context) -> StorageMenuBuilder {
         }
     }
 
+    #[cfg(feature = "wifi")]
     if context.can_enable_wifi()
         && !context.config.known_networks.is_empty()
         && !context.config.backend_url.is_empty()
@@ -141,6 +145,7 @@ impl MenuScreen for StorageMenu {
 
                 return Some(AppState::Menu(AppMenu::Main));
             }
+            #[cfg(feature = "wifi")]
             StorageMenuEvents::Upload => return Some(AppState::UploadStored(AppMenu::Storage)),
             StorageMenuEvents::Back => return Some(AppState::Menu(AppMenu::Main)),
             StorageMenuEvents::Nothing => {}

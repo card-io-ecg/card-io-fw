@@ -23,7 +23,9 @@ pub mod display;
 pub mod frontend;
 pub mod main;
 pub mod storage;
+#[cfg(feature = "wifi")]
 pub mod wifi_ap;
+#[cfg(feature = "wifi")]
 pub mod wifi_sta;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -36,7 +38,9 @@ pub enum AppMenu {
     DeviceInfo,
     #[cfg(feature = "battery_max17055")]
     BatteryInfo,
+    #[cfg(feature = "wifi")]
     WifiAP,
+    #[cfg(feature = "wifi")]
     WifiListVisible,
 }
 
@@ -177,7 +181,9 @@ pub async fn display_menu_screen(mut menu: AppMenu, board: &mut Context) -> AppS
             AppMenu::Frontend => frontend::frontend_menu(board).await,
             AppMenu::Storage => storage::storage_menu(board).await,
             AppMenu::DeviceInfo => about::about_menu(board).await,
+            #[cfg(feature = "wifi")]
             AppMenu::WifiAP => wifi_ap::wifi_ap(board).await,
+            #[cfg(feature = "wifi")]
             AppMenu::WifiListVisible => wifi_sta::wifi_sta(board).await,
             #[cfg(feature = "battery_max17055")]
             AppMenu::BatteryInfo => battery_info::battery_info_menu(board).await,

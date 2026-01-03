@@ -20,10 +20,17 @@ use embassy_sync::{
     mutex::{Mutex, MutexGuard},
 };
 use embassy_time::{Duration, Timer};
-use norfs::{medium::StorageMedium, Storage, StorageError};
+#[cfg(feature = "wifi")]
+use norfs::StorageError;
+use norfs::{medium::StorageMedium, Storage};
 use signal_processing::compressing_buffer::CompressingBuffer;
 use static_cell::StaticCell;
 
+#[cfg(feature = "wifi")]
+use crate::states::{
+    firmware_update::firmware_update, throughput::throughput,
+    upload_or_store_measurement::upload_stored_measurements,
+};
 use crate::{
     board::{
         config::{Config, ConfigFile},
@@ -35,12 +42,10 @@ use crate::{
     states::{
         charging::charging,
         display_serial::display_serial,
-        firmware_update::firmware_update,
         init::initialize,
         measure::{measure, ECG_BUFFER_SIZE},
         menu::{display_menu_screen, AppMenu},
-        throughput::throughput,
-        upload_or_store_measurement::{upload_or_store_measurement, upload_stored_measurements},
+        upload_or_store_measurement::upload_or_store_measurement,
         MESSAGE_DURATION,
     },
 };
@@ -105,9 +110,12 @@ pub enum AppState {
     Charging,
     Menu(AppMenu),
     DisplaySerial,
+    #[cfg(feature = "wifi")]
     FirmwareUpdate,
+    #[cfg(feature = "wifi")]
     Throughput,
     Shutdown,
+    #[cfg(feature = "wifi")]
     UploadStored(AppMenu),
     UploadOrStore(Box<CompressingBuffer<ECG_BUFFER_SIZE>>),
 }
@@ -142,6 +150,7 @@ where
     CONFIG.init(Config::default())
 }
 
+#[cfg(feature = "wifi")]
 async fn saved_measurement_exists<M>(storage: &mut Storage<M>) -> bool
 where
     M: StorageMedium,
@@ -213,6 +222,7 @@ async fn main(_spawner: Spawner) {
             display: resources.display,
             high_prio_spawner: interrupt_executor.start(Priority::Priority2),
             battery_monitor: resources.battery_monitor,
+            #[cfg(feature = "wifi")]
             wifi: resources.wifi,
             config,
             config_changed: true,
@@ -243,8 +253,11 @@ async fn main(_spawner: Spawner) {
             AppState::Measure => measure(&mut board).await,
             AppState::Menu(menu) => display_menu_screen(menu, &mut board).await,
             AppState::DisplaySerial => display_serial(&mut board).await,
+            #[cfg(feature = "wifi")]
             AppState::FirmwareUpdate => firmware_update(&mut board).await,
+            #[cfg(feature = "wifi")]
             AppState::Throughput => throughput(&mut board).await,
+            #[cfg(feature = "wifi")]
             AppState::UploadStored(next_state) => {
                 upload_stored_measurements(&mut board, AppState::Menu(next_state)).await
             }

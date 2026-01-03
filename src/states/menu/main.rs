@@ -18,9 +18,13 @@ pub enum MainMenuEvents {
     Display,
     Frontend,
     About,
+    #[cfg(feature = "wifi")]
     WifiSetup,
+    #[cfg(feature = "wifi")]
     WifiListVisible,
+    #[cfg(feature = "wifi")]
     FirmwareUpdate,
+    #[cfg(feature = "wifi")]
     Throughput,
     Storage,
     Shutdown,
@@ -57,17 +61,19 @@ type MainMenuBuilder = MenuBuilder<
     MainMenuEvents,
 >;
 
-fn main_menu_builder(context: &mut Context) -> MainMenuBuilder {
+fn main_menu_builder(_ctx: &mut Context) -> MainMenuBuilder {
+    #[allow(unused_mut)]
     let mut optional_items = heapless::Vec::<_, 4>::new();
 
-    if context.can_enable_wifi() {
+    #[cfg(feature = "wifi")]
+    if _ctx.can_enable_wifi() {
         let mut optional_item = |label, event| {
             unwrap!(optional_items
                 .push(MenuItem::new(label, event).with_value_converter(|evt| evt))
                 .ok())
         };
         let network_configured =
-            !context.config.backend_url.is_empty() && !context.config.known_networks.is_empty();
+            !_ctx.config.backend_url.is_empty() && !_ctx.config.known_networks.is_empty();
 
         optional_item("Wifi setup", MainMenuEvents::WifiSetup);
         optional_item("Wifi networks", MainMenuEvents::WifiListVisible);
@@ -107,10 +113,14 @@ impl MenuScreen for MainMenu {
             MainMenuEvents::Display => AppState::Menu(AppMenu::Display),
             MainMenuEvents::Frontend => AppState::Menu(AppMenu::Frontend),
             MainMenuEvents::About => AppState::Menu(AppMenu::DeviceInfo),
+            #[cfg(feature = "wifi")]
             MainMenuEvents::WifiSetup => AppState::Menu(AppMenu::WifiAP),
+            #[cfg(feature = "wifi")]
             MainMenuEvents::WifiListVisible => AppState::Menu(AppMenu::WifiListVisible),
             MainMenuEvents::Storage => AppState::Menu(AppMenu::Storage),
+            #[cfg(feature = "wifi")]
             MainMenuEvents::FirmwareUpdate => AppState::FirmwareUpdate,
+            #[cfg(feature = "wifi")]
             MainMenuEvents::Throughput => AppState::Throughput,
             MainMenuEvents::Shutdown => AppState::Shutdown,
         };

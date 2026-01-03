@@ -1,9 +1,11 @@
 pub mod charging;
 pub mod display_serial;
+#[cfg(feature = "wifi")]
 pub mod firmware_update;
 pub mod init;
 pub mod measure;
 pub mod menu;
+#[cfg(feature = "wifi")]
 pub mod throughput;
 pub mod upload_or_store_measurement;
 
@@ -22,6 +24,7 @@ pub const MESSAGE_MIN_DURATION: Duration = Duration::from_millis(300);
 pub const MESSAGE_DURATION: Duration = Duration::from_millis(1500);
 
 // The max number of webserver tasks.
+#[cfg(feature = "wifi")]
 const WEBSERVER_TASKS: usize = 2;
 
 /// Simple utility to process touch events in an interactive menu.

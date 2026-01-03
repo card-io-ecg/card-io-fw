@@ -1,3 +1,5 @@
+#[cfg(feature = "wifi")]
+use crate::board::wifi::WifiDriver;
 use crate::board::{
     drivers::{
         battery_monitor::battery_fg::BatteryFg as BatteryFgType,
@@ -5,7 +7,6 @@ use crate::board::{
         frontend::{Frontend, PoweredFrontend},
     },
     utils::DummyOutputPin,
-    wifi::WifiDriver,
 };
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
@@ -19,6 +20,7 @@ use esp_hal::{
     timer::systimer::SystemTimer,
     Async,
 };
+#[cfg(feature = "wifi")]
 use static_cell::StaticCell;
 
 use display_interface_spi::SPIInterface;
@@ -91,13 +93,16 @@ impl super::startup::StartupResources {
 
         let sw_int = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
 
+        #[cfg(feature = "wifi")]
         static WIFI: StaticCell<WifiDriver> = StaticCell::new();
+        #[cfg(feature = "wifi")]
         let wifi = WIFI.init(WifiDriver::new(peripherals.WIFI));
 
         Self {
             display,
             frontend: adc,
             battery_monitor,
+            #[cfg(feature = "wifi")]
             wifi,
             rtc: Rtc::new(peripherals.LPWR),
             software_interrupt2: sw_int.software_interrupt2,

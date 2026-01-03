@@ -16,10 +16,12 @@ pub mod hardware;
 pub mod config;
 pub mod drivers;
 pub mod initialized;
+#[cfg(feature = "wifi")]
 pub mod ota;
 pub mod startup;
 pub mod storage;
 pub mod utils;
+#[cfg(feature = "wifi")]
 pub mod wifi;
 
 #[cfg(feature = "esp-println")]
