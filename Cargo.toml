@@ -140,7 +140,7 @@ default = ["defmt", "rtt"]
 #default = ["defmt", "esp-println"]
 
 # Enable Wi-Fi features. The purpose of this feature is to shorten the debugging iteration time by removing a big chunk of the binary.
-wifi = ["dep:esp-radio", "dep:bad-server", "dep:embassy-net", "dep:smoltcp", "dep:reqwless", "dep:embedded-nal-async", "esp-rtos/esp-radio"]
+wifi = ["dep:esp-radio", "dep:bad-server", "dep:embassy-net", "dep:smoltcp", "dep:reqwless", "dep:embedded-nal-async", "esp-rtos/esp-radio", "config-site/compress"]
 
 battery_max17055 = ["dep:max17055"]
 
