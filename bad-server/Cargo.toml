@@ -28,4 +28,4 @@ defmt = ["dep:defmt", "embassy-net?/defmt"]
 
 [[example]]
 name = "simple"
-required-features = ["std", "log"]
+required-features = ["std"]

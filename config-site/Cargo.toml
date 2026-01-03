@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bad-server = { workspace = true }
+bad-server = { workspace = true, optional = true }
 cfg-if = "1"
 defmt = { workspace = true, optional = true }
 embassy-sync = { workspace = true, optional = true }
@@ -22,7 +22,7 @@ minify-html = { version = "0.11.1", optional = true }
 
 [[example]]
 name = "simple"
-required-features = ["bad-server/std", "bad-server/log"]
+required-features = ["bad-server/std", "serve", "compress"]
 
 [dev-dependencies]
 smol = "1"
@@ -30,7 +30,8 @@ smoltcp = { workspace = true, features = ["proto-ipv4"] }
 
 [features]
 default = []
-embedded = ["dep:norfs", "dep:embassy-sync", "dep:embedded-io-async", "bad-server/embassy"]
+embedded = ["dep:norfs", "dep:embassy-sync", "dep:embedded-io-async", "bad-server?/embassy"]
 compress = ["dep:minify-html", "dep:libflate"]
-std = ["dep:smol", "bad-server/std"]
-defmt = ["dep:defmt", "bad-server/defmt"]
+serve = ["dep:bad-server"]
+std = ["dep:smol", "bad-server?/std"]
+defmt = ["dep:defmt", "bad-server?/defmt"]

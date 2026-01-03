@@ -236,7 +236,7 @@ fn example(package: String, name: String, watch: bool) -> AnyResult<()> {
 
     // Add required features, etc.
     match (package.as_str(), name.as_str()) {
-        ("config-site", "simple") => args.extend_from_slice(&["--features=std,log"]),
+        ("config-site", "simple") => args.extend_from_slice(&["--features=std,compress,serve"]),
         _ => {}
     }
 

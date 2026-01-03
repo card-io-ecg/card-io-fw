@@ -5,6 +5,7 @@
 #![allow(unknown_lints, async_fn_in_trait)]
 #![allow(incomplete_features)] // generic_const_exprs
 
+#[cfg(feature = "serve")]
 use bad_server::{
     connector::Connection,
     error_handler::ErrorHandler,
@@ -12,6 +13,7 @@ use bad_server::{
     BadServer,
 };
 
+#[cfg(feature = "serve")]
 use crate::{
     data::SharedWebContext,
     handlers::{
@@ -25,9 +27,11 @@ use crate::{
 mod fmt;
 
 pub mod data;
+#[cfg(feature = "serve")]
 pub mod handlers;
 
 #[inline(always)]
+#[cfg(feature = "serve")]
 pub fn create<'a, CON>(
     context: &'a SharedWebContext,
     fw_version: &'a str,
