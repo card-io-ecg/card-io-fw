@@ -15,8 +15,6 @@ pub mod lerp;
 pub mod moving;
 pub mod sliding;
 
-pub use macros::designfilt;
-
 mod compat {
     pub use micromath::F32Ext;
 

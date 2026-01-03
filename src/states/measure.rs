@@ -24,7 +24,10 @@ use object_chain::{chain, Chain, ChainElement, Link};
 use signal_processing::{
     compressing_buffer::CompressingBuffer,
     filter::{
-        iir::{precomputed::ALL_PASS, HighPass, Iir, LowPass},
+        iir::{
+            precomputed::{ALL_PASS, HR_NOISE_FILTER, STRONG_EKG_1000HZ, WEAK_EKG_1000HZ},
+            HighPass, Iir, LowPass,
+        },
         pli::{adaptation_blocking::AdaptationBlocking, PowerLineFilter},
         Filter,
     },
@@ -93,14 +96,7 @@ impl EcgObjects {
             filter: Chain::new(PowerLineFilter::new_1ksps([50.0])).append(hpf),
             downsampler: create_downsampler(),
             heart_rate_calculator: HeartRateCalculator::new(1000.0),
-
-            #[rustfmt::skip]
-            hr_noise_filter: macros::designfilt!(
-                "lowpassiir",
-                "FilterOrder", 2,
-                "HalfPowerFrequency", 20,
-                "SampleRate", 1000
-            ),
+            hr_noise_filter: HR_NOISE_FILTER,
         }
     }
 }
@@ -108,20 +104,8 @@ impl EcgObjects {
 pub async fn measure(context: &mut Context) -> AppState {
     let filter = match context.config.filter_strength() {
         FilterStrength::None => ALL_PASS,
-        #[rustfmt::skip]
-        FilterStrength::Weak => macros::designfilt!(
-            "highpassiir",
-            "FilterOrder", 2,
-            "HalfPowerFrequency", 0.75,
-            "SampleRate", 1000
-        ),
-        #[rustfmt::skip]
-        FilterStrength::Strong => macros::designfilt!(
-            "highpassiir",
-            "FilterOrder", 2,
-            "HalfPowerFrequency", 1.5,
-            "SampleRate", 1000
-        ),
+        FilterStrength::Weak => WEAK_EKG_1000HZ,
+        FilterStrength::Strong => STRONG_EKG_1000HZ,
     };
 
     // We allocate two different objects because the filters don't need to outlive this app state.

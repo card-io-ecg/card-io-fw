@@ -8,9 +8,33 @@ use crate::{filter::Filter, sliding::SlidingWindow};
 use crate::compat::*;
 
 pub mod precomputed {
+    use crate::filter::iir::LowPass;
+
     use super::{HighPass, Iir};
 
     pub const ALL_PASS: Iir<'static, HighPass, 2> = Iir::new(&[1.], &[]);
+    #[rustfmt::skip]
+    pub const WEAK_EKG_1000HZ: Iir<'static, HighPass, 2> = macros::designfilt!(
+        "highpassiir",
+        "FilterOrder", 2,
+        "HalfPowerFrequency", 0.75,
+        "SampleRate", 1000
+    );
+    #[rustfmt::skip]
+    pub const STRONG_EKG_1000HZ: Iir<'static, HighPass, 2> = macros::designfilt!(
+        "highpassiir",
+        "FilterOrder", 2,
+        "HalfPowerFrequency", 1.5,
+        "SampleRate", 1000
+    );
+
+    #[rustfmt::skip]
+    pub const HR_NOISE_FILTER: Iir<'static, LowPass, 2> = macros::designfilt!(
+        "lowpassiir",
+        "FilterOrder", 2,
+        "HalfPowerFrequency", 20,
+        "SampleRate", 1000
+    );
 }
 
 pub trait IirFilter {
