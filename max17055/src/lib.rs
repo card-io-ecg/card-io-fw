@@ -143,7 +143,7 @@ impl DesignData {
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
 //#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct LearnedParams {
-    pub rcomp0: ll::Rcomp0fieldSet,
+    pub rcomp0: ll::Rcomp0FieldSet,
     pub temp_co: ll::TempCoFieldSet,
     pub full_cap_rep: ll::FullCapRepFieldSet,
     pub cycles: ll::CyclesFieldSet,
@@ -290,7 +290,7 @@ where
             .write_async(|reg| reg.set_capacity(raw_capacity))
             .await?;
         self.driver
-            .dqacc()
+            .d_qacc()
             .write_async(|reg| reg.set_capacity(raw_capacity / 32))
             .await?;
         self.driver
@@ -321,7 +321,7 @@ where
         };
 
         self.driver
-            .dpacc()
+            .d_pacc()
             .write_async(|reg| {
                 reg.set_percentage(dpacc);
             })
@@ -465,11 +465,11 @@ where
 
         // 200%
         self.driver
-            .dpacc()
+            .d_pacc()
             .write_async(|reg| reg.set_percentage(0x0C80))
             .await?;
         self.driver
-            .dqacc()
+            .d_qacc()
             .write_async(|reg| reg.set_capacity(params.full_cap_nom.capacity() / 16))
             .await?;
 

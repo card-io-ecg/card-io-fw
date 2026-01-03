@@ -11,13 +11,13 @@ const MIN_T_RST: u32 = 1; // >= 1 * t_mod >= 8us
 const MIN_RST_WAIT: u32 = 1; // >= 18 * t_mod >= 140us
 
 pub struct Ads129x<S> {
-    driver: ll::Ads129x<ll::Ads129xSpiInterface<S>>,
+    driver: ll::Ads129X<ll::Ads129xSpiInterface<S>>,
 }
 
 impl<S> Ads129x<S> {
     pub const fn new(spi_device: S) -> Self {
         Self {
-            driver: ll::Ads129x::new(ll::Ads129xSpiInterface { spi: spi_device }),
+            driver: ll::Ads129X::new(ll::Ads129xSpiInterface { spi: spi_device }),
         }
     }
 
@@ -224,16 +224,16 @@ where
 #[derive(Copy, Clone, Default, Debug, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct ConfigRegisters {
-    pub config1: ll::Config1fieldSet,
-    pub config2: ll::Config2fieldSet,
+    pub config1: ll::Config1FieldSet,
+    pub config2: ll::Config2FieldSet,
     pub loff: ll::LoffFieldSet,
     pub ch1set: ll::Ch1setFieldSet,
     pub ch2set: ll::Ch2setFieldSet,
     pub rldsens: ll::RldSensFieldSet,
     pub loffsens: ll::LoffSensFieldSet,
     pub loffstat: ll::LoffStatFieldSet,
-    pub resp1: ll::Resp1fieldSet,
-    pub resp2: ll::Resp2fieldSet,
+    pub resp1: ll::Resp1FieldSet,
+    pub resp2: ll::Resp2FieldSet,
     pub gpio: ll::GpioFieldSet,
 }
 impl ConfigRegisters {

@@ -47,14 +47,14 @@ where
     fn config(&self) -> ConfigRegisters {
         ConfigRegisters {
             config1: {
-                let mut r = ll::Config1fieldSet::new();
+                let mut r = ll::Config1FieldSet::new();
                 r.set_data_rate(ll::DataRate::_1ksps);
                 r.set_sampling(ll::Sampling::Continuous);
                 r
             },
 
             config2: {
-                let mut r = ll::Config2fieldSet::new();
+                let mut r = ll::Config2FieldSet::new();
                 r.set_pdb_loff_comp(ll::Buffer::Enabled);
                 r.set_ref_voltage(ll::ReferenceVoltage::_2_42v);
                 r.set_clock_pin(ll::ClockPin::Disabled);
@@ -115,9 +115,9 @@ where
                 r
             },
 
-            resp1: ll::Resp1fieldSet::default(),
+            resp1: ll::Resp1FieldSet::default(),
             resp2: {
-                let mut r = ll::Resp2fieldSet::new();
+                let mut r = ll::Resp2FieldSet::new();
                 r.set_rld_reference(ll::RldReference::MidSupply);
                 r
             },
