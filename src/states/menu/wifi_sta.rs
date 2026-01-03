@@ -67,7 +67,6 @@ pub async fn wifi_sta(context: &mut Context) -> AppState {
                 }
             }
 
-            #[cfg(feature = "battery_max17055")]
             if context.battery_monitor.is_low() {
                 break AppState::Shutdown;
             }
