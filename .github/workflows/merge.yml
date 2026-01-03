@@ -34,7 +34,7 @@ jobs:
         run: cargo binstall --no-confirm --force cargo-espflash
 
       - name: build
-        run: cargo xbuild ${{ matrix.version }}
+        run: cargo xbuild ${{ matrix.version }} --with-wifi
 
   test:
     runs-on: ubuntu-latest

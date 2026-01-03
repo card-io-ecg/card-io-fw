@@ -49,7 +49,7 @@ jobs:
 
       - name: build
         run: |
-          cargo xbuild ${{ matrix.version }}
+          cargo xbuild ${{ matrix.version }} --with-wifi
 
       - name: archive
         uses: actions/upload-artifact@v6

@@ -136,7 +136,7 @@ enumset = "1.1.3"
 heapless = { git = "https://github.com/rust-embedded/heapless.git" }
 
 [features]
-default = ["defmt", "rtt", "wifi"]
+default = ["defmt", "rtt"]
 #default = ["defmt", "esp-println"]
 
 # Enable Wi-Fi features. The purpose of this feature is to shorten the debugging iteration time by removing a big chunk of the binary.

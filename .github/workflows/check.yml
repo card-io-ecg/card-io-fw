@@ -42,6 +42,9 @@ jobs:
       - name: check
         run: cargo xcheck ${{ matrix.version }}
 
+      - name: check with wifi
+        run: cargo xcheck ${{ matrix.version }} --with-wifi
+
   test:
     runs-on: ubuntu-latest
     steps:

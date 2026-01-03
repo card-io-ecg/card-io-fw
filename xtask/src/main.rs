@@ -9,6 +9,10 @@ pub enum Subcommands {
     Build {
         /// Which hardware version to build for.
         hw: Option<HardwareVersion>,
+
+        /// Whether to build with Wi-Fi support.
+        #[arg(long)]
+        with_wifi: bool,
     },
 
     /// Runs tests.
@@ -20,12 +24,19 @@ pub enum Subcommands {
         hw: Option<HardwareVersion>,
 
         profile: Option<Profile>,
+
+        /// Whether to build with Wi-Fi support.
+        #[arg(long)]
+        with_wifi: bool,
     },
 
     /// Checks the project for errors.
     Check {
         /// Which hardware version to check for.
         hw: Option<HardwareVersion>,
+        /// Whether to check Wi-Fi code.
+        #[arg(long)]
+        with_wifi: bool,
     },
 
     /// Builds the documentation.
@@ -242,12 +253,16 @@ fn main() -> AnyResult<()> {
     let cli = Cli::parse();
 
     match cli.subcommand {
-        Subcommands::Build { hw } => build(BuildConfig::from(hw), false),
+        Subcommands::Build { hw, with_wifi } => build(BuildConfig::new(hw, None, with_wifi), false),
         Subcommands::Test => test(),
-        Subcommands::Run { hw, profile } => run(BuildConfig::new(hw, profile)),
-        Subcommands::Check { hw } => checks(BuildConfig::from(hw)),
-        Subcommands::Doc { hw, open } => docs(BuildConfig::from(hw), open),
-        Subcommands::ExtraCheck { hw } => extra_checks(BuildConfig::from(hw)),
+        Subcommands::Run {
+            hw,
+            profile,
+            with_wifi,
+        } => run(BuildConfig::new(hw, profile, with_wifi)),
+        Subcommands::Check { hw, with_wifi } => checks(BuildConfig::new(hw, None, with_wifi)),
+        Subcommands::Doc { hw, open } => docs(BuildConfig::new(hw, None, true), open),
+        Subcommands::ExtraCheck { hw } => extra_checks(BuildConfig::new(hw, None, true)),
         Subcommands::Example {
             package,
             name,
@@ -298,28 +313,31 @@ struct BuildConfig {
     version: HardwareVersion,
     profile: Profile,
     soc: SocConfig,
-}
-
-impl From<Option<HardwareVersion>> for BuildConfig {
-    fn from(hw: Option<HardwareVersion>) -> Self {
-        Self::new(hw, None)
-    }
+    with_wifi: bool,
 }
 
 impl BuildConfig {
-    fn new(hw: Option<HardwareVersion>, variant: Option<Profile>) -> BuildConfig {
+    fn new(hw: Option<HardwareVersion>, variant: Option<Profile>, with_wifi: bool) -> BuildConfig {
         let hw = hw.unwrap_or_default();
         Self {
             version: hw,
             soc: hw.soc(),
             profile: variant.unwrap_or(Profile::Debug),
+            with_wifi,
         }
     }
 
     fn build_flags(self) -> Vec<String> {
         let mut flags = vec![
             format!("--target={}", self.soc.target()),
-            format!("--features={}", self.version.feature()),
+            format!("--features={}", {
+                let mut features = vec![];
+                features.push(self.version.feature());
+                if self.with_wifi {
+                    features.push("wifi");
+                }
+                features.join(",")
+            }),
             String::from("-Zbuild-std=core,alloc"),
         ];
 
