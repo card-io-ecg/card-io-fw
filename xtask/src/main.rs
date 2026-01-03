@@ -10,6 +10,9 @@ pub enum Subcommands {
         /// Which hardware version to build for.
         hw: Option<HardwareVersion>,
 
+        #[arg(long)]
+        timings: bool,
+
         /// Whether to build with Wi-Fi support.
         #[arg(long)]
         with_wifi: bool,
@@ -253,7 +256,11 @@ fn main() -> AnyResult<()> {
     let cli = Cli::parse();
 
     match cli.subcommand {
-        Subcommands::Build { hw, with_wifi } => build(BuildConfig::new(hw, None, with_wifi), false),
+        Subcommands::Build {
+            hw,
+            with_wifi,
+            timings,
+        } => build(BuildConfig::new(hw, None, with_wifi), timings),
         Subcommands::Test => test(),
         Subcommands::Run {
             hw,
