@@ -6,9 +6,6 @@ use crate::board::{
     },
     utils::DummyOutputPin,
 };
-
-#[cfg(feature = "wifi")]
-use crate::board::wifi::WifiDriver;
 use display_interface_spi::SPIInterface;
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
@@ -23,8 +20,6 @@ use esp_hal::{
     timer::systimer::SystemTimer,
     Async,
 };
-#[cfg(feature = "wifi")]
-use static_cell::StaticCell;
 
 pub use crate::board::drivers::bitbang_spi::BitbangSpi;
 
@@ -73,7 +68,7 @@ impl super::startup::StartupResources {
             peripherals.GPIO21,
         );
 
-        let adc = Self::create_frontend_driver(
+        let frontend = Self::create_frontend_driver(
             ExclusiveDevice::new(
                 BitbangSpi::new(
                     Output::new(peripherals.GPIO7, Level::Low, Default::default()),
@@ -101,17 +96,12 @@ impl super::startup::StartupResources {
         )
         .await;
 
-        #[cfg(feature = "wifi")]
-        static WIFI: StaticCell<WifiDriver> = StaticCell::new();
-        #[cfg(feature = "wifi")]
-        let wifi = WIFI.init(WifiDriver::new(peripherals.WIFI));
-
         Self {
             display,
-            frontend: adc,
+            frontend,
             battery_monitor,
             #[cfg(feature = "wifi")]
-            wifi,
+            wifi: peripherals.WIFI,
             rtc: Rtc::new(peripherals.LPWR),
             software_interrupt2: sw_int.software_interrupt2,
         }

@@ -1,5 +1,3 @@
-#[cfg(feature = "wifi")]
-use crate::board::wifi::WifiDriver;
 use crate::board::{
     drivers::{
         battery_monitor::battery_fg::BatteryFg as BatteryFgType,
@@ -21,8 +19,6 @@ use esp_hal::{
     timer::systimer::SystemTimer,
     Async,
 };
-#[cfg(feature = "wifi")]
-use static_cell::StaticCell;
 
 pub const TOUCH_PIN: u8 = 4;
 pub const VBUS_DETECT_PIN: u8 = 7;
@@ -65,7 +61,7 @@ impl super::startup::StartupResources {
             peripherals.GPIO43,
         );
 
-        let adc = Self::create_frontend_driver(
+        let frontend = Self::create_frontend_driver(
             Self::create_frontend_spi(
                 peripherals.DMA_CH1,
                 peripherals.SPI3,
@@ -92,17 +88,12 @@ impl super::startup::StartupResources {
 
         let sw_int = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
 
-        #[cfg(feature = "wifi")]
-        static WIFI: StaticCell<WifiDriver> = StaticCell::new();
-        #[cfg(feature = "wifi")]
-        let wifi = WIFI.init(WifiDriver::new(peripherals.WIFI));
-
         Self {
             display,
-            frontend: adc,
+            frontend,
             battery_monitor,
             #[cfg(feature = "wifi")]
-            wifi,
+            wifi: peripherals.WIFI,
             rtc: Rtc::new(peripherals.LPWR),
             software_interrupt2: sw_int.software_interrupt2,
         }

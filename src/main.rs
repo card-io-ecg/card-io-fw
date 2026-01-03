@@ -223,7 +223,11 @@ async fn main(_spawner: Spawner) {
             high_prio_spawner: interrupt_executor.start(Priority::Priority2),
             battery_monitor: resources.battery_monitor,
             #[cfg(feature = "wifi")]
-            wifi: resources.wifi,
+            wifi: {
+                use board::wifi::WifiDriver;
+                static WIFI: StaticCell<WifiDriver> = StaticCell::new();
+                WIFI.init(WifiDriver::new(resources.wifi))
+            },
             config,
             config_changed: true,
             sta_work_available: None,

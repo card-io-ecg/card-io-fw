@@ -1,14 +1,13 @@
-use display_interface_spi::SPIInterface;
-use embassy_time::Delay;
-use embedded_hal_bus::spi::ExclusiveDevice;
-
-#[cfg(feature = "wifi")]
-use crate::board::wifi::WifiDriver;
 use crate::board::{
     drivers::{battery_monitor::BatteryMonitor, frontend::Frontend},
     utils::DummyOutputPin,
     AdcSpi, ChargerStatusPin, Display, DisplayDmaChannel, EcgFrontend, VbusDetectPin,
 };
+use display_interface_spi::SPIInterface;
+use embassy_time::Delay;
+use embedded_hal_bus::spi::ExclusiveDevice;
+#[cfg(feature = "wifi")]
+use esp_hal::peripherals::WIFI;
 use esp_hal::{
     clock::CpuClock,
     dma::*,
@@ -42,7 +41,7 @@ pub struct StartupResources {
     pub battery_monitor: BatteryMonitor<VbusDetectPin, ChargerStatusPin>,
 
     #[cfg(feature = "wifi")]
-    pub wifi: &'static mut WifiDriver,
+    pub wifi: WIFI<'static>,
     pub rtc: Rtc<'static>,
 
     pub software_interrupt2: SoftwareInterrupt<'static, 2>,
@@ -135,8 +134,6 @@ impl StartupResources {
         adc_clock_enable: Option<impl OutputPin + 'static>,
         touch_detect: impl InputPin + 'static,
     ) -> EcgFrontend {
-        // DRDY
-
         Frontend::new(
             adc_spi,
             Input::new(adc_drdy, Default::default()),
