@@ -224,44 +224,40 @@ where
             .await
             .map_err(ConfigError::Transfer)?;
 
-        // Clear POR flag
-        'success: loop {
-            let status = self
+        // Attempt tp clear POR flag
+        let status = self
+            .driver
+            .status()
+            .read_async()
+            .await
+            .map_err(ConfigError::Transfer)?;
+
+        for _ in 0..3 {
+            self.driver
+                .status()
+                .write_async(|reg| {
+                    *reg = status;
+                    reg.set_por(ll::PowerOnReset::NoReset);
+                })
+                .await
+                .map_err(ConfigError::Transfer)?;
+
+            if self
                 .driver
                 .status()
                 .read_async()
                 .await
-                .map_err(ConfigError::Transfer)?;
-
-            for _ in 0..3 {
-                self.driver
-                    .status()
-                    .write_async(|reg| {
-                        *reg = status;
-                        reg.set_por(ll::PowerOnReset::NoReset);
-                    })
-                    .await
-                    .map_err(ConfigError::Transfer)?;
-
-                if self
-                    .driver
-                    .status()
-                    .read_async()
-                    .await
-                    .map_err(ConfigError::Transfer)?
-                    .por()
-                    == ll::PowerOnReset::NoReset
-                {
-                    break 'success;
-                }
-
-                delay.delay_ms(1).await;
+                .map_err(ConfigError::Transfer)?
+                .por()
+                == ll::PowerOnReset::NoReset
+            {
+                return Ok(());
             }
 
-            return Err(ConfigError::Verify);
+            delay.delay_ms(1).await;
         }
 
-        Ok(())
+        Err(ConfigError::Verify)
     }
 
     async fn force_exit_hiberation(&mut self) -> Result<ll::HibCfgFieldSet, I::Error> {

@@ -83,7 +83,7 @@ where
 impl<'a, T, const N: usize> IirFilter for Iir<'a, T, N> {
     fn transfer_coeff_at(&self, w: f32) -> Complex<f32> {
         let w = w * TAU;
-        let e_j_theta = |k: usize| Complex::from_polar(1.0, -1.0 * (k as f32) * w);
+        let e_j_theta = |k: usize| Complex::from_polar(1.0, -(k as f32) * w);
 
         let mut num = Complex::new(0.0, 0.0);
         let mut den = Complex::new(1.0, 0.0);

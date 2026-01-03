@@ -82,9 +82,7 @@ where
     }
 
     pub fn update(&mut self, sample: f32) -> Option<f32> {
-        let Some(old_sample) = self.differentiator.push(sample) else {
-            return None;
-        };
+        let old_sample = self.differentiator.push(sample)?;
 
         let complex_lead = (sample - old_sample).abs();
 
