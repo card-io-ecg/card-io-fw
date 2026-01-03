@@ -69,6 +69,7 @@ config-site = { path = "config-site", default-features = false, features = [
     "embedded",
 ] }
 critical-section = "1.2"
+config-types = { path = "config-types" }
 gui = { path = "gui" }
 macros = { path = "macros" }
 embassy-alloc-taskpool = { path = "embassy-alloc-taskpool" }
@@ -174,6 +175,7 @@ esp32c6 = [
 downsampler-light = [] # uses IIR-based filtering and less memory
 
 defmt = [
+    "config-types/defmt",
     "norfs/defmt",
     "embedded-io/defmt-03",
     "embedded-graphics/defmt",
@@ -212,6 +214,7 @@ members = [
     ".",
     "ads129x",
     "bad-server",
+    "config-types",
     "embassy-alloc-taskpool",
     "gui",
     "macros",

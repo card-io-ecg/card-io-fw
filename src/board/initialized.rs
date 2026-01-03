@@ -6,12 +6,10 @@ use crate::{
     saved_measurement_exists,
 };
 use crate::{
-    board::{
-        config::Config, drivers::battery_monitor::BatteryMonitor, storage::FileSystem, Display,
-        EcgFrontend,
-    },
+    board::{drivers::battery_monitor::BatteryMonitor, storage::FileSystem, Display, EcgFrontend},
     states::MESSAGE_MIN_DURATION,
 };
+use config_types::Config;
 use display_interface::DisplayError;
 use embassy_executor::SendSpawner;
 

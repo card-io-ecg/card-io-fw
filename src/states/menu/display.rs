@@ -1,11 +1,9 @@
 use crate::{
-    board::{
-        config::types::{DisplayBrightness, FilterStrength},
-        initialized::Context,
-    },
+    board::initialized::Context,
     states::menu::{AppMenu, MenuBuilder, MenuScreen},
     AppState,
 };
+use config_types::types::{DisplayBrightness, FilterStrength};
 use embedded_menu::items::MenuItem;
 use gui::{
     embedded_layout::{

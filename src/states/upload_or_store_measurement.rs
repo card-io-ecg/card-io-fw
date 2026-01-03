@@ -15,11 +15,10 @@ use signal_processing::compressing_buffer::{CompressingBuffer, EkgFormat};
 use ufmt::uwrite;
 
 use crate::{
-    board::{config::types::MeasurementAction, initialized::Context},
-    human_readable::BinarySize,
-    states::menu::MenuScreen,
-    uformat, AppState,
+    board::initialized::Context, human_readable::BinarySize, states::menu::MenuScreen, uformat,
+    AppState,
 };
+use config_types::types::MeasurementAction;
 
 #[cfg(feature = "wifi")]
 pub async fn upload_stored_measurements(context: &mut Context, next_state: AppState) -> AppState {

@@ -13,7 +13,6 @@
 )]
 pub mod hardware;
 
-pub mod config;
 pub mod drivers;
 pub mod initialized;
 #[cfg(feature = "wifi")]
@@ -30,6 +29,3 @@ use esp_backtrace as _;
 use panic_rtt_target as _;
 
 pub use hardware::*;
-
-pub const DEFAULT_BACKEND_URL: &str = "https://stingray-prime-monkey.ngrok-free.app";
-pub const LOW_BATTERY_PERCENTAGE: u8 = 5;

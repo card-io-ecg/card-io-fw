@@ -1,13 +1,10 @@
 use crate::{
-    board::{
-        config::{types::MeasurementAction, Config},
-        initialized::Context,
-        storage::FileSystem,
-    },
+    board::{initialized::Context, storage::FileSystem},
     human_readable::BinarySize,
     states::menu::{AppMenu, MenuBuilder, MenuItems, MenuScreen},
     uformat, AppState,
 };
+use config_types::{types::MeasurementAction, Config};
 use embedded_menu::items::menu_item::{MenuItem, SelectValue};
 use gui::{
     embedded_layout::{

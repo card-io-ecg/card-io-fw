@@ -4,14 +4,12 @@ use gui::widgets::battery_small::BatteryStyle;
 use norfs::storable::{LoadError, Loadable, Storable};
 use ssd1306::prelude::Brightness;
 
-use crate::board::DEFAULT_BACKEND_URL;
-
 use super::{
+    CURRENT_VERSION,
     types::{
         DisplayBrightness, FilterStrength, Gain, LeadOffCurrent, LeadOffFrequency,
         LeadOffThreshold, MeasurementAction,
     },
-    CURRENT_VERSION,
 };
 
 #[derive(Clone)]
@@ -52,7 +50,7 @@ impl Default for Config {
             display_brightness: DisplayBrightness::Normal,
             known_networks: heapless::Vec::new(),
             filter_strength: FilterStrength::Weak,
-            backend_url: heapless::String::try_from(DEFAULT_BACKEND_URL).unwrap(),
+            backend_url: heapless::String::try_from(crate::DEFAULT_BACKEND_URL).unwrap(),
             measurement_action: MeasurementAction::Auto,
             use_external_clock: true,
             lead_off_current: LeadOffCurrent::Normal,

@@ -33,7 +33,6 @@ use crate::states::{
 };
 use crate::{
     board::{
-        config::{Config, ConfigFile},
         initialized::{Context, InnerContext},
         startup::StartupResources,
         storage::FileSystem,
@@ -49,6 +48,7 @@ use crate::{
         MESSAGE_DURATION,
     },
 };
+use config_types::{Config, ConfigFile};
 
 use esp_hal::{
     gpio::AnyPin,

@@ -1,6 +1,5 @@
 use crate::{
     board::{
-        config::types::{FilterStrength, Gain, LeadOffCurrent, LeadOffFrequency, LeadOffThreshold},
         initialized::{Context, InnerContext},
         AdcSpi, EcgFrontend, PoweredEcgFrontend,
     },
@@ -11,6 +10,9 @@ use crate::{
 };
 use ads129x::{ll, ConfigRegisters, Sample};
 use alloc::{boxed::Box, sync::Arc};
+use config_types::types::{
+    FilterStrength, Gain, LeadOffCurrent, LeadOffFrequency, LeadOffThreshold,
+};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channel};
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;

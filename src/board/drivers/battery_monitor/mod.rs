@@ -18,7 +18,7 @@ use crate::board::{
 };
 
 #[cfg(feature = "battery_max17055")]
-use crate::board::LOW_BATTERY_PERCENTAGE;
+use config_types::LOW_BATTERY_PERCENTAGE;
 
 #[cfg(feature = "battery_max17055")]
 use embassy_executor::Spawner;

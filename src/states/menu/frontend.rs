@@ -1,11 +1,9 @@
 use crate::{
-    board::{
-        config::types::{Gain, LeadOffCurrent, LeadOffFrequency, LeadOffThreshold},
-        initialized::Context,
-    },
+    board::initialized::Context,
     states::menu::{AppMenu, MenuBuilder, MenuScreen},
     AppState,
 };
+use config_types::types::{Gain, LeadOffCurrent, LeadOffFrequency, LeadOffThreshold};
 use embedded_menu::items::MenuItem;
 use gui::{
     embedded_layout::{

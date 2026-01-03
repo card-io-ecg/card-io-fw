@@ -1,0 +1,18 @@
+[package]
+name = "config-types"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cfg-if = "1"
+config-site = { path = "../config-site" }
+defmt = { workspace = true, optional = true }
+embedded-io-async.workspace = true
+embedded-menu.workspace = true
+gui = { path = "../gui" }
+heapless.workspace = true
+norfs.workspace = true
+ssd1306 = "0.9.0"
+
+[features]
+defmt = ["dep:defmt"]
