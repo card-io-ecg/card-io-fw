@@ -19,7 +19,8 @@ use core::{cell::UnsafeCell, future::Future};
 
 use alloc::sync::Arc;
 use embassy_futures::select::{select, Either};
-use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
+use embassy_sync::signal::Signal;
+use esp_sync::RawMutex;
 
 /// The return value of the task, when cancelled.
 #[non_exhaustive]
@@ -28,10 +29,10 @@ pub struct Aborted {}
 /// Implementation details.
 struct Inner<R: Send, D: Send = ()> {
     /// Used to signal the controlled task to stop.
-    token: Signal<NoopRawMutex, ()>,
+    token: Signal<RawMutex, ()>,
 
     /// Used to indicate that the controlled task has exited, and may include a return value.
-    exited: Signal<NoopRawMutex, Result<R, Aborted>>,
+    exited: Signal<RawMutex, Result<R, Aborted>>,
 
     /// Data provided by the task that starts the controlled task. Accessed by `run_cancellable`.
     /// While the task is running, the task is considered to be the owner of `D`. Once the task
@@ -40,7 +41,7 @@ struct Inner<R: Send, D: Send = ()> {
     resources: UnsafeCell<D>,
 }
 
-// TODO: Using NoopRawMutex makes this unsound. When the resource/control parts are split apart,
+// TODO: When the resource/control parts are split apart,
 // the control struct shouldn't need an unsafe impl.
 unsafe impl<R: Send, D: Send> Send for Inner<R, D> {}
 unsafe impl<R: Send, D: Send> Sync for Inner<R, D> {}
