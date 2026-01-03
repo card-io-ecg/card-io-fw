@@ -93,8 +93,11 @@ impl MenuScreen for BatteryInfoMenu {
 
     const REFRESH_PERIOD: Option<Duration> = Some(Duration::from_secs(1));
 
-    async fn menu(&mut self, context: &mut Context) -> Self::MenuBuilder {
-        battery_info_menu_builder(context).await
+    fn menu(
+        &mut self,
+        context: &mut Context,
+    ) -> impl core::future::Future<Output = Self::MenuBuilder> {
+        battery_info_menu_builder(context)
     }
 
     async fn handle_event(

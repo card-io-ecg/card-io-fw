@@ -57,12 +57,12 @@ impl<R: Send, D: Send> Inner<R, D> {
     }
 
     /// Stops the controlled task, and returns its return value.
-    async fn stop_from_outside(&self) -> Result<R, Aborted> {
+    fn stop_from_outside(&self) -> impl Future<Output = Result<R, Aborted>> + use<'_, R, D> {
         // Signal the task to stop.
         self.token.signal(());
 
         // Wait for the task to exit.
-        self.exited.wait().await
+        self.exited.wait()
     }
 
     /// Returns whether the controlled task has exited.
@@ -113,8 +113,8 @@ impl<R: Send, D: Send> TaskController<R, D> {
     }
 
     /// Stops the controlled task, and returns its return value.
-    pub async fn stop(&self) -> Result<R, Aborted> {
-        self.inner.stop_from_outside().await
+    pub fn stop(&self) -> impl Future<Output = Result<R, Aborted>> + use<'_, R, D> {
+        self.inner.stop_from_outside()
     }
 
     /// Returns whether the controlled task has exited.
@@ -154,14 +154,17 @@ pub struct TaskControlToken<R: Send, D: Send = ()> {
 impl<R: Send, D: Send> TaskControlToken<R, D> {
     /// Runs a cancellable task. The task ends when either the future completes, or the task is
     /// cancelled.
-    pub async fn run_cancellable<'a, F>(&'a mut self, f: impl FnOnce(&'a mut D) -> F)
+    pub fn run_cancellable<'a, F>(
+        &'a mut self,
+        f: impl FnOnce(&'a mut D) -> F + 'a,
+    ) -> impl Future<Output = ()> + 'a
     where
         F: Future<Output = R> + 'a,
     {
         unsafe {
             // Safety: this is the only call site of `Inner::run_cancellable` and
             // `Self::run_cancellable` takes `&mut self`.
-            self.inner.run_cancellable(f).await
+            self.inner.run_cancellable(f)
         }
     }
 }

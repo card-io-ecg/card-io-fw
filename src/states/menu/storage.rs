@@ -113,8 +113,11 @@ impl MenuScreen for StorageMenu {
     type Result = AppState;
     type MenuBuilder = StorageMenuBuilder;
 
-    async fn menu(&mut self, context: &mut Context) -> Self::MenuBuilder {
-        storage_menu_builder(context).await
+    fn menu(
+        &mut self,
+        context: &mut Context,
+    ) -> impl core::future::Future<Output = Self::MenuBuilder> {
+        storage_menu_builder(context)
     }
 
     async fn handle_event(
