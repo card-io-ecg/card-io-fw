@@ -128,9 +128,8 @@ where
         self.sensor.lock().await
     }
 
-    pub async fn stop(self) -> (VBUS, CHG) {
+    pub async fn stop(self) {
         _ = self.signal.stop().await;
-        (self.vbus_detect, self.charger_status)
     }
 }
 

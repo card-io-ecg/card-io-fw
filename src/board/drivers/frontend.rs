@@ -154,10 +154,6 @@ where
     pub async fn wait_for_release(&mut self) {
         unwrap!(self.touch.wait_for_high().await.ok());
     }
-
-    pub fn split(self) -> (S, I, O, I) {
-        (self.adc.into_inner(), self.drdy, self.reset, self.touch)
-    }
 }
 
 pub struct PoweredFrontend<S, I, O> {

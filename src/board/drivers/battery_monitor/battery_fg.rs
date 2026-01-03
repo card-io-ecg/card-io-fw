@@ -1,6 +1,6 @@
-use embassy_time::{Delay, Duration, Ticker};
+use embassy_time::{Delay, Duration, Ticker, Timer};
 use embedded_hal::digital::OutputPin;
-use embedded_hal_async::{delay::DelayNs, i2c::I2c};
+use embedded_hal_async::i2c::I2c;
 use max17055::Max17055;
 
 use crate::{task_control::TaskControlToken, Shared};
@@ -26,11 +26,11 @@ where
         Self { fg, enable }
     }
 
-    pub async fn enable<D: DelayNs>(&mut self, delay: &mut D) -> Result<(), ()> {
+    pub async fn enable(&mut self) -> Result<(), ()> {
         self.enable.set_high().map_err(|_| ())?;
-        delay.delay_ms(10).await;
+        Timer::after(Duration::from_millis(10)).await;
         self.fg
-            .load_initial_config_async(delay)
+            .load_initial_config_async(&mut Delay)
             .await
             .map_err(|_| ())?;
         Ok(())
@@ -54,7 +54,7 @@ pub async fn monitor_task_fg(
 ) {
     task_control
         .run_cancellable(|_| async {
-            if fuel_gauge.lock().await.enable(&mut Delay).await.is_err() {
+            if fuel_gauge.lock().await.enable().await.is_err() {
                 error!("Failed to enable fuel gauge");
                 return;
             }

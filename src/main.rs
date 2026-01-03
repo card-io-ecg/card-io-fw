@@ -279,12 +279,8 @@ async fn main(_spawner: Spawner) {
     board.frontend.wait_for_release().await;
     Timer::after(Duration::from_millis(100)).await;
 
-    let mut battery_monitor = board.inner.battery_monitor;
-
-    let is_charging = battery_monitor.is_plugged();
-
-    let (_charger_pin, _) = battery_monitor.stop().await;
-    let (_, _, _, _touch) = board.frontend.split();
+    let is_charging = board.inner.battery_monitor.is_plugged();
+    board.inner.battery_monitor.stop().await;
 
     enter_sleep(resources.rtc, is_charging);
     // Shouldn't reach this. If we do, we just exit the task, which means the executor
