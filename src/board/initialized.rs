@@ -1,4 +1,7 @@
-use core::ops::{Deref, DerefMut};
+use core::{
+    future::Future,
+    ops::{Deref, DerefMut},
+};
 
 #[cfg(feature = "wifi")]
 use crate::{
@@ -6,7 +9,10 @@ use crate::{
     saved_measurement_exists,
 };
 use crate::{
-    board::{drivers::battery_monitor::BatteryMonitor, storage::FileSystem, Display, EcgFrontend},
+    board::{
+        drivers::battery_monitor::BatteryMonitor, startup::Display, storage::FileSystem,
+        EcgFrontend,
+    },
     states::MESSAGE_MIN_DURATION,
 };
 use config_types::Config;
@@ -17,7 +23,7 @@ use embassy_executor::SendSpawner;
 use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
 
 use embassy_time::{Duration, Instant, Timer};
-use embedded_graphics::{pixelcolor::BinaryColor, prelude::DrawTarget, Drawable};
+use embedded_graphics::Drawable;
 use esp_hal::gpio::Input;
 use gui::{
     screens::message::MessageScreen,
@@ -36,7 +42,7 @@ pub enum StaMode {
 }
 
 pub struct InnerContext {
-    pub display: Display,
+    pub display: &'static mut Display,
     pub high_prio_spawner: SendSpawner,
     pub battery_monitor: BatteryMonitor<Input<'static>, Input<'static>>,
     #[cfg(feature = "wifi")]
@@ -138,17 +144,16 @@ impl InnerContext {
         let _ = self.display.update_brightness_async(brightness).await;
     }
 
-    pub async fn with_status_bar(
-        &mut self,
-        draw: impl FnOnce(&mut Display) -> Result<(), DisplayError>,
-    ) {
-        unwrap!(self.display.clear(BinaryColor::Off).ok());
-
+    pub fn with_status_bar<'a, F>(&'a mut self, draw: F) -> impl Future<Output = ()> + 'a
+    where
+        F: FnOnce(&mut Display) -> Result<(), DisplayError>,
+        F: 'a,
+    {
         let status_bar = self.status_bar();
-        unwrap!(status_bar.draw(&mut self.display).ok());
-        unwrap!(draw(&mut self.display).ok());
-
-        unwrap!(self.display.flush().await.ok());
+        self.display.frame(move |display| {
+            status_bar.draw(display)?;
+            draw(display)
+        })
     }
 
     pub async fn wait_for_message(&mut self, duration: Duration) {

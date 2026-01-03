@@ -1,9 +1,5 @@
 use crate::board::{
-    drivers::{
-        battery_monitor::battery_fg::BatteryFg as BatteryFgType,
-        display::Display as DisplayType,
-        frontend::{Frontend, PoweredFrontend},
-    },
+    drivers::frontend::{Frontend, PoweredFrontend},
     utils::DummyOutputPin,
 };
 use embassy_time::Delay;
@@ -19,14 +15,11 @@ use esp_hal::{
     Async,
 };
 
-use display_interface_spi::SPIInterface;
-
 pub const TOUCH_PIN: u8 = 1;
 pub const VBUS_DETECT_PIN: u8 = 17;
 
 pub type DisplayDmaChannel<'a> = DMA_CH0<'a>;
 
-pub type DisplayInterface<'a> = SPIInterface<DisplaySpi<'a>, Output<'static>>;
 pub type DisplaySpi<'d> = ExclusiveDevice<SpiDmaBus<'d, Async>, DummyOutputPin, Delay>;
 
 pub type AdcDmaChannel<'a> = DMA_CH1<'a>;
@@ -40,10 +33,7 @@ pub type ChargerStatusPin = Input<'static>;
 pub type EcgFrontend = Frontend<AdcSpi, Input<'static>, Output<'static>>;
 pub type PoweredEcgFrontend = PoweredFrontend<AdcSpi, Input<'static>, Output<'static>>;
 
-pub type Display = DisplayType<Output<'static>>;
-
 pub type BatteryFgI2c = I2c<'static, Async>;
-pub type BatteryFg = BatteryFgType<BatteryFgI2c, BatteryAdcEnablePin>;
 
 impl super::startup::StartupResources {
     pub async fn initialize() -> Self {

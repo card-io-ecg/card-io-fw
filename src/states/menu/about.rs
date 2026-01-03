@@ -1,6 +1,6 @@
 use crate::{
     board::initialized::Context,
-    states::menu::{AppMenu, MenuBuilder, MenuItems, MenuScreen},
+    states::menu::{AppMenu, MenuBuilder, MenuScreen},
     uformat, AppState, SerialNumber,
 };
 use ads129x::ll;
@@ -18,7 +18,6 @@ use ufmt::uDisplay;
 #[derive(Clone, Copy)]
 pub enum AboutMenuEvents {
     None,
-    #[cfg(feature = "battery_max17055")]
     ToBatteryInfo,
     ToSerial,
     Back,
@@ -55,11 +54,7 @@ type AboutMenuBuilder = MenuBuilder<
         AboutMenuItem<&'static str>,
         AboutMenuItem<MenuString<12>>,
         AboutMenuItem<&'static str>,
-        MenuItems<
-            AboutMenuItem<&'static str>,
-            AboutMenuEvents,
-            { cfg!(feature = "battery_max17055") as usize },
-        >,
+        AboutMenuItem<&'static str>,
         AboutMenuItem<&'static str>
     ),
     AboutMenuEvents,
@@ -77,13 +72,6 @@ fn about_menu_builder(context: &mut Context) -> AboutMenuBuilder {
         None => "Unknown",
     };
 
-    let fuel_gauge = if cfg!(feature = "battery_max17055") {
-        heapless::Vec::from_array([MenuItem::new("Fuel gauge", "MAX17055")
-            .with_value_converter(|_| AboutMenuEvents::ToBatteryInfo)])
-    } else {
-        heapless::Vec::new()
-    };
-
     create_menu("Device info")
         .add_item("FW", env!("FW_VERSION"), |_| AboutMenuEvents::None)
         .add_item("HW", env!("COMPLETE_HW_VERSION"), |_| AboutMenuEvents::None)
@@ -91,7 +79,7 @@ fn about_menu_builder(context: &mut Context) -> AboutMenuBuilder {
             AboutMenuEvents::ToSerial
         })
         .add_item("ADC", adc_model, |_| AboutMenuEvents::None)
-        .add_menu_items(fuel_gauge)
+        .add_item("Fuel gauge", "MAX17055", |_| AboutMenuEvents::ToBatteryInfo)
         .add_item("Back", "<-", |_| AboutMenuEvents::Back)
 }
 
@@ -111,7 +99,6 @@ impl MenuScreen for AboutAppMenu {
     ) -> Option<Self::Result> {
         match event {
             AboutMenuEvents::None => None,
-            #[cfg(feature = "battery_max17055")]
             AboutMenuEvents::ToBatteryInfo => Some(AppState::Menu(AppMenu::BatteryInfo)),
             AboutMenuEvents::ToSerial => Some(AppState::DisplaySerial),
             AboutMenuEvents::Back => Some(AppState::Menu(AppMenu::Main)),

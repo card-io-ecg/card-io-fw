@@ -5,11 +5,11 @@ use norfs::storable::{LoadError, Loadable, Storable};
 use ssd1306::prelude::Brightness;
 
 use super::{
-    CURRENT_VERSION,
     types::{
         DisplayBrightness, FilterStrength, Gain, LeadOffCurrent, LeadOffFrequency,
         LeadOffThreshold, MeasurementAction,
     },
+    CURRENT_VERSION,
 };
 
 #[derive(Clone)]

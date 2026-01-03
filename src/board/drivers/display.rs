@@ -1,4 +1,4 @@
-use display_interface::DisplayError;
+use display_interface::{AsyncWriteOnlyDataCommand, DisplayError};
 use embassy_time::Delay;
 use embedded_graphics::{
     pixelcolor::BinaryColor,
@@ -11,33 +11,26 @@ use ssd1306::{
     mode::BufferedGraphicsModeAsync, prelude::*, rotation::DisplayRotation,
     size::DisplaySize128x64, Ssd1306Async,
 };
-use static_cell::StaticCell;
 
-use crate::board::DisplayInterface;
+type Driver<IFACE> =
+    Ssd1306Async<IFACE, DisplaySize128x64, BufferedGraphicsModeAsync<DisplaySize128x64>>;
 
-type D = Ssd1306Async<
-    DisplayInterface<'static>,
-    DisplaySize128x64,
-    BufferedGraphicsModeAsync<DisplaySize128x64>,
->;
-
-pub struct Display<RESET> {
-    display: &'static mut D,
+pub struct Display<IFACE, RESET> {
+    display: Driver<IFACE>,
     reset: RESET,
 }
 
-impl<RESET> Display<RESET>
+impl<IFACE, RESET> Display<IFACE, RESET>
 where
+    IFACE: AsyncWriteOnlyDataCommand,
     RESET: OutputPin,
 {
-    pub fn new(spi: DisplayInterface<'static>, reset: RESET) -> Self {
-        static DISPLAY: StaticCell<D> = StaticCell::new();
-        let display = DISPLAY.init(
-            Ssd1306Async::new(spi, DisplaySize128x64, DisplayRotation::Rotate0)
+    pub fn new(interface: IFACE, reset: RESET) -> Self {
+        Self {
+            display: Ssd1306Async::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
                 .into_buffered_graphics_mode(),
-        );
-
-        Self { display, reset }
+            reset,
+        }
     }
 
     pub async fn enable(&mut self) -> Result<(), DisplayError> {
@@ -53,23 +46,10 @@ where
         Ok(())
     }
 
-    async fn frame_impl(
-        &mut self,
-        render: impl FnOnce(&mut Self) -> Result<(), DisplayError>,
-    ) -> Result<(), DisplayError> {
-        self.clear(BinaryColor::Off)?;
-
-        render(self)?;
-
-        self.flush().await
-    }
-
     pub async fn frame(&mut self, render: impl FnOnce(&mut Self) -> Result<(), DisplayError>) {
-        unwrap!(self.frame_impl(render).await.ok());
-    }
-
-    pub async fn flush(&mut self) -> Result<(), DisplayError> {
-        self.display.flush().await
+        unwrap!(self.clear(BinaryColor::Off), "Failed to clear display");
+        unwrap!(render(self), "Failed to render frame");
+        unwrap!(self.display.flush().await);
     }
 
     pub async fn update_brightness_async(
@@ -84,13 +64,19 @@ where
     }
 }
 
-impl<RESET> Dimensions for Display<RESET> {
+impl<IFACE, RESET> Dimensions for Display<IFACE, RESET>
+where
+    IFACE: AsyncWriteOnlyDataCommand,
+{
     fn bounding_box(&self) -> Rectangle {
         self.display.bounding_box()
     }
 }
 
-impl<RESET> DrawTarget for Display<RESET> {
+impl<IFACE, RESET> DrawTarget for Display<IFACE, RESET>
+where
+    IFACE: AsyncWriteOnlyDataCommand,
+{
     type Color = BinaryColor;
     type Error = DisplayError;
 

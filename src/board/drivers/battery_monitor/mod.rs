@@ -1,26 +1,21 @@
 use core::ops::{Deref, DerefMut};
 
-use crate::{task_control::TaskController, Shared, SharedGuard};
+use crate::{
+    board::startup::BatterySensorDriver, task_control::TaskController, Shared, SharedGuard,
+};
 use alloc::rc::Rc;
 use embassy_sync::mutex::Mutex;
 use embedded_hal::digital::InputPin;
 use gui::screens::{BatteryInfo, ChargingState};
 
-#[cfg(feature = "battery_max17055")]
 pub mod battery_fg;
 
-#[cfg(feature = "battery_max17055")]
-use crate::board::{
-    drivers::battery_monitor::battery_fg::{
-        monitor_task_fg as monitor_task, BatteryFgData as BatteryData,
-    },
-    BatteryFg as BatterySensorImpl,
+use crate::board::drivers::battery_monitor::battery_fg::{
+    monitor_task_fg as monitor_task, BatteryFgData as BatteryData,
 };
 
-#[cfg(feature = "battery_max17055")]
 use config_types::LOW_BATTERY_PERCENTAGE;
 
-#[cfg(feature = "battery_max17055")]
 use embassy_executor::Spawner;
 
 #[derive(Default, Clone, Copy)]
@@ -30,7 +25,7 @@ struct BatteryState {
 
 pub struct BatterySensor {
     state: BatteryState,
-    sensor: BatterySensorImpl,
+    sensor: BatterySensorDriver,
 }
 
 impl BatterySensor {
@@ -40,7 +35,7 @@ impl BatterySensor {
 }
 
 impl Deref for BatterySensor {
-    type Target = BatterySensorImpl;
+    type Target = BatterySensorDriver;
 
     fn deref(&self) -> &Self::Target {
         &self.sensor
@@ -66,7 +61,11 @@ where
     VBUS: InputPin,
     CHG: InputPin,
 {
-    pub async fn start(vbus_detect: VBUS, charger_status: CHG, sensor: BatterySensorImpl) -> Self {
+    pub async fn start(
+        vbus_detect: VBUS,
+        charger_status: CHG,
+        sensor: BatterySensorDriver,
+    ) -> Self {
         let this = BatteryMonitor {
             sensor: Rc::new(Mutex::new(BatterySensor {
                 state: BatteryState::default(),
@@ -135,7 +134,6 @@ where
     }
 }
 
-#[cfg(feature = "battery_max17055")]
 impl<VBUS, CHG> BatteryMonitor<VBUS, CHG>
 where
     VBUS: InputPin,

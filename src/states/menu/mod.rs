@@ -17,7 +17,6 @@ use crate::{
 };
 
 pub mod about;
-#[cfg(feature = "battery_max17055")]
 pub mod battery_info;
 pub mod display;
 pub mod frontend;
@@ -36,7 +35,6 @@ pub enum AppMenu {
     Frontend,
     Storage,
     DeviceInfo,
-    #[cfg(feature = "battery_max17055")]
     BatteryInfo,
     #[cfg(feature = "wifi")]
     WifiAP,
@@ -185,7 +183,6 @@ pub async fn display_menu_screen(mut menu: AppMenu, board: &mut Context) -> AppS
             AppMenu::WifiAP => wifi_ap::wifi_ap(board).await,
             #[cfg(feature = "wifi")]
             AppMenu::WifiListVisible => wifi_sta::wifi_sta(board).await,
-            #[cfg(feature = "battery_max17055")]
             AppMenu::BatteryInfo => battery_info::battery_info_menu(board).await,
         };
 

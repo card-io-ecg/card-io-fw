@@ -74,7 +74,7 @@ gui = { path = "gui" }
 macros = { path = "macros" }
 embassy-alloc-taskpool = { path = "embassy-alloc-taskpool" }
 ads129x = { path = "ads129x" }
-max17055 = { path = "max17055", optional = true }
+max17055 = { path = "max17055" }
 signal-processing = { workspace = true, features = ["alloc"] }
 replace_with = { version = "0.1", default-features = false, features = [
     "nightly",
@@ -143,13 +143,11 @@ default = ["defmt", "rtt"]
 # Enable Wi-Fi features. The purpose of this feature is to shorten the debugging iteration time by removing a big chunk of the binary.
 wifi = ["dep:esp-radio", "dep:bad-server", "dep:embassy-net", "dep:smoltcp", "dep:reqwless", "dep:embedded-nal-async", "esp-rtos/esp-radio", "config-site/compress", "config-site/serve"]
 
-battery_max17055 = ["dep:max17055"]
-
-hw_v4 = ["battery_max17055", "esp32s3"]
+hw_v4 = ["esp32s3"]
 # hw_v5 skipped
-hw_v6 = ["battery_max17055"] # S3 and C6 options
+hw_v6 = [] # S3 and C6 options
 # hw_v7 skipped
-hw_v8 = ["battery_max17055"] # S3, C5, C6 and C61 options
+hw_v8 = [] # S3, C5, C6 and C61 options
 
 # MCU options
 esp32s3 = [
@@ -188,13 +186,14 @@ defmt = [
 
     "config-site/defmt",
     "ads129x/defmt",
-    "max17055?/defmt",
+    "max17055/defmt",
     "bad-server?/defmt",
     "gui/defmt",
     "signal-processing/defmt",
     "reqwless?/defmt",
     "embedded-tls/defmt",
     "heapless/defmt",
+    "display-interface/defmt-03",
 
     "embassy-net?/defmt",
     "smoltcp?/defmt",

@@ -1,7 +1,12 @@
 use crate::board::{
-    drivers::{battery_monitor::BatteryMonitor, frontend::Frontend},
+    drivers::{
+        battery_monitor::{battery_fg::BatteryFg as BatteryDriver, BatteryMonitor},
+        display::Display as DisplayDriver,
+        frontend::Frontend,
+    },
     utils::DummyOutputPin,
-    AdcSpi, ChargerStatusPin, Display, DisplayDmaChannel, EcgFrontend, VbusDetectPin,
+    AdcSpi, BatteryAdcEnablePin, BatteryFgI2c, ChargerStatusPin, DisplayDmaChannel, DisplaySpi,
+    EcgFrontend, VbusDetectPin,
 };
 use display_interface_spi::SPIInterface;
 use embassy_time::Delay;
@@ -23,20 +28,20 @@ use esp_hal::{
     },
     time::Rate,
 };
+use static_cell::StaticCell;
 
 #[cfg(feature = "esp32s3")]
 use crate::board::AdcDmaChannel;
 
-#[cfg(feature = "battery_max17055")]
 use esp_hal::i2c::master::I2c;
-#[cfg(feature = "battery_max17055")]
-use {
-    crate::board::{BatteryAdcEnablePin, BatteryFg},
-    max17055::{DesignData, Max17055},
-};
+use max17055::{DesignData, Max17055};
+
+pub type Display =
+    DisplayDriver<SPIInterface<DisplaySpi<'static>, Output<'static>>, Output<'static>>;
+pub type BatterySensorDriver = BatteryDriver<BatteryFgI2c, BatteryAdcEnablePin>;
 
 pub struct StartupResources {
-    pub display: Display,
+    pub display: &'static mut Display,
     pub frontend: EcgFrontend,
     pub battery_monitor: BatteryMonitor<VbusDetectPin, ChargerStatusPin>,
 
@@ -62,7 +67,7 @@ impl StartupResources {
         display_cs: impl OutputPin + 'static,
         display_sclk: impl OutputPin + 'static,
         display_mosi: impl OutputPin + 'static,
-    ) -> Display {
+    ) -> &'static mut Display {
         let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(4092);
         let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
         let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
@@ -80,13 +85,14 @@ impl StartupResources {
         .with_buffers(dma_rx_buf, dma_tx_buf)
         .into_async();
 
-        Display::new(
+        static DISPLAY: StaticCell<Display> = StaticCell::new();
+        DISPLAY.init(Display::new(
             SPIInterface::new(
                 ExclusiveDevice::new(display_spi, DummyOutputPin, Delay).unwrap(),
                 Output::new(display_dc, Level::Low, Default::default()),
             ),
             Output::new(display_reset, Level::Low, Default::default()),
-        )
+        ))
     }
 
     #[inline(always)]
@@ -143,7 +149,6 @@ impl StartupResources {
         )
     }
 
-    #[cfg(feature = "battery_max17055")]
     #[inline(always)]
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn setup_battery_monitor_fg(
@@ -176,7 +181,7 @@ impl StartupResources {
         BatteryMonitor::start(
             Input::new(vbus_detect, Default::default()),
             Input::new(charger_status, InputConfig::default().with_pull(Pull::Up)),
-            BatteryFg::new(
+            BatterySensorDriver::new(
                 Max17055::new(
                     I2c::new(
                         i2c,

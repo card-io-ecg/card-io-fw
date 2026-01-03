@@ -45,18 +45,6 @@ where
             percentage,
         })
     }
-
-    #[cfg(all(feature = "esp32s3", not(feature = "hw_v6")))]
-    pub fn disable(&mut self) {
-        use esp_hal::gpio::{AnyPin, RtcPin, RtcPinWithResistors};
-        // We want to keep the fuel gauge out of shutdown mode
-        let enable = unsafe { AnyPin::steal(8) };
-        enable.rtcio_pad_hold(true);
-        enable.rtcio_pullup(true);
-    }
-
-    #[cfg(any(not(feature = "esp32s3"), feature = "hw_v6"))]
-    pub fn disable(&mut self) {}
 }
 
 #[embassy_executor::task]
@@ -90,6 +78,5 @@ pub async fn monitor_task_fg(
         })
         .await;
 
-    fuel_gauge.lock().await.disable();
     info!("Monitor exited");
 }
