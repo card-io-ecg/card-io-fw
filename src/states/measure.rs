@@ -32,9 +32,6 @@ use signal_processing::{
     moving::sum::EstimatedSum,
 };
 
-#[cfg(not(feature = "downsampler-light"))]
-use signal_processing::filter::downsample::DownSampler;
-
 type MessageQueue = Channel<CriticalSectionRawMutex, Sample, 32>;
 
 unsafe impl Send for PoweredEcgFrontend {}
@@ -50,63 +47,30 @@ pub type EcgFilter = chain! {
     Iir<'static, HighPass, 2>
 };
 
-#[cfg(feature = "downsampler-light")]
-pub struct DownsamplerLight {
-    filter: Iir<'static, LowPass, 2>,
-    counter: u8,
-}
+cfg_if::cfg_if! {
+    if #[cfg(feature = "downsampler-light")] {
+        use signal_processing::filter::downsample_light::DownsamplerLight;
 
-#[cfg(feature = "downsampler-light")]
-impl Filter for DownsamplerLight {
-    fn clear(&mut self) {
-        self.filter.clear();
-        self.counter = 0;
-    }
+        type EcgDownsampler = DownsamplerLight;
 
-    fn update(&mut self, sample: f32) -> Option<f32> {
-        let filtered = self.filter.update(sample)?;
-        if self.counter == 0 {
-            self.counter = 7;
-            Some(filtered)
-        } else {
-            self.counter -= 1;
-            None
+        fn create_downsampler() -> EcgDownsampler {
+            DownsamplerLight::ECG_SR_1000HZ
         }
-    }
-}
+    } else {
+        use signal_processing::filter::downsample::DownSampler;
 
-// Downsample by 8 to display around 1 second
-#[cfg(not(feature = "downsampler-light"))]
-pub type DownsamplerChain = chain! {
-    DownSampler,
-    DownSampler,
-    DownSampler
-};
+        // Downsample by 8 to display around 1 second
+        type EcgDownsampler = chain! {
+            DownSampler,
+            DownSampler,
+            DownSampler
+        };
 
-#[cfg(not(feature = "downsampler-light"))]
-type EcgDownsampler = DownsamplerChain;
-
-#[cfg(not(feature = "downsampler-light"))]
-fn create_downsampler() -> DownsamplerChain {
-    Chain::new(DownSampler::new())
-        .append(DownSampler::new())
-        .append(DownSampler::new())
-}
-
-#[cfg(feature = "downsampler-light")]
-type EcgDownsampler = DownsamplerLight;
-
-#[cfg(feature = "downsampler-light")]
-fn create_downsampler() -> DownsamplerLight {
-    DownsamplerLight {
-        #[rustfmt::skip]
-        filter: macros::designfilt!(
-            "lowpassiir",
-            "FilterOrder", 2,
-            "HalfPowerFrequency", 35,
-            "SampleRate", 1000
-        ),
-        counter: 7,
+        fn create_downsampler() -> EcgDownsampler {
+            Chain::new(DownSampler::new())
+                .append(DownSampler::new())
+                .append(DownSampler::new())
+        }
     }
 }
 

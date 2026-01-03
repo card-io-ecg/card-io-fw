@@ -2,6 +2,7 @@ use object_chain::{Chain, ChainElement, Link};
 
 pub mod comb;
 pub mod downsample;
+pub mod downsample_light;
 
 #[cfg(feature = "dyn_filter")]
 pub mod dyn_iir;
