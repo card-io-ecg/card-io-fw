@@ -200,7 +200,14 @@ async fn main(_spawner: Spawner) {
     #[cfg(all(feature = "rtt", feature = "defmt"))]
     rtt_target::rtt_init_defmt!();
 
-    esp_alloc::heap_allocator!(size: (48 + 96) * 1024);
+    const RECLAIMED_SIZE: usize = const {
+        let range = esp_metadata_generated::memory_range!("DRAM2_UNINIT");
+        range.end - range.start
+    };
+
+    // ECG_BUFFER_SIZE must fit in one of these regions
+    esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: RECLAIMED_SIZE);
+    esp_alloc::heap_allocator!(size: 96 * 1024);
 
     let resources = StartupResources::initialize().await;
 
