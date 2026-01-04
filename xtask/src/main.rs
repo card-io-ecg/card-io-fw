@@ -79,6 +79,7 @@ pub enum HardwareVersion {
     #[default]
     V6C6,
     V8S3,
+    V8C6,
 }
 
 impl HardwareVersion {
@@ -88,12 +89,14 @@ impl HardwareVersion {
             HardwareVersion::V6S3 => "hw_v6,esp32s3",
             HardwareVersion::V6C6 => "hw_v6,esp32c6",
             HardwareVersion::V8S3 => "hw_v8,esp32s3",
+            HardwareVersion::V8C6 => "hw_v8,esp32c6",
         }
     }
 
     fn soc(&self) -> SocConfig {
         match self {
             HardwareVersion::V6C6 => SocConfig::C6,
+            HardwareVersion::V8C6 => SocConfig::C6,
             _ => SocConfig::S3,
         }
     }
