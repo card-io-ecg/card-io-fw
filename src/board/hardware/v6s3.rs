@@ -39,8 +39,10 @@ impl super::startup::StartupResources {
     pub async fn initialize() -> Self {
         let peripherals = Self::common_init();
 
+        let sw_int = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
+
         let systimer = SystemTimer::new(peripherals.SYSTIMER);
-        esp_rtos::start(systimer.alarm0);
+        esp_rtos::start(systimer.alarm0, sw_int.software_interrupt0);
 
         let display = Self::create_display_driver(
             peripherals.DMA_CH0,
@@ -76,8 +78,6 @@ impl super::startup::StartupResources {
             DummyOutputPin,
         )
         .await;
-
-        let sw_int = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
 
         Self {
             display,

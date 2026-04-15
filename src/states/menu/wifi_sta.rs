@@ -8,7 +8,7 @@ use embedded_menu::items::menu_item::MenuItem;
 use gui::screens::create_menu;
 
 use crate::{
-    board::{initialized::Context, wifi::sta::StaCommand},
+    board::initialized::Context,
     states::{TouchInputShaper, MIN_FRAME_TIME},
     timeout::Timeout,
     AppMenu, AppState,
@@ -63,7 +63,7 @@ pub async fn wifi_sta(context: &mut Context) -> AppState {
 
                 if !networks.is_empty() {
                     ssids.clear();
-                    ssids.extend(networks.iter().map(|n| list_item(&n.ssid)));
+                    ssids.extend(networks.iter().map(|n| list_item(n.ssid.as_str())));
                 }
             }
 
@@ -95,7 +95,7 @@ pub async fn wifi_sta(context: &mut Context) -> AppState {
 
     let scan = async {
         loop {
-            sta.send_command(StaCommand::ScanOnce).await;
+            sta.scan().await;
             scan_done.set(true);
             Timer::after(SCAN_IDLE_DURATION).await;
         }

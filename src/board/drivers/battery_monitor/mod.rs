@@ -78,9 +78,10 @@ where
         };
 
         let spawner = unsafe { Spawner::for_current_executor().await };
-        spawner
-            .spawn(monitor_task(this.sensor.clone(), this.signal.token()))
-            .ok();
+        spawner.spawn(unwrap!(monitor_task(
+            this.sensor.clone(),
+            this.signal.token()
+        )));
 
         this
     }

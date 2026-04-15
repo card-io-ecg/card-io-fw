@@ -9,7 +9,7 @@ use core::{
 };
 use embassy_executor::{
     raw::{AvailableTask, TaskStorage},
-    SpawnToken,
+    SpawnToken, SpawnError,
 };
 
 /// Raw storage that can hold up to N tasks of the same type.
@@ -73,10 +73,10 @@ impl<F: Future + 'static, const N: usize> AllocTaskPool<F, N> {
     /// is currently free. If none is free, a "poisoned" SpawnToken is returned,
     /// which will cause [`Spawner::spawn()`](super::Spawner::spawn) to return the error.
     #[allow(unused)]
-    pub fn spawn(&'static self, future: impl FnOnce() -> F) -> SpawnToken<impl Sized> {
+    pub fn spawn(&'static self, future: impl FnOnce() -> F) ->  Result<SpawnToken<impl Sized>, SpawnError> {
         match self.allocate() {
-            Some(task) => task.initialize(future),
-            None => SpawnToken::new_failed(),
+            Some(task) => Ok(task.initialize(future)),
+            None => Err(SpawnError::Busy),
         }
     }
 
@@ -89,7 +89,7 @@ impl<F: Future + 'static, const N: usize> AllocTaskPool<F, N> {
     /// SAFETY: `future` must be a closure of the form `move || my_async_fn(args)`, where `my_async_fn`
     /// is an `async fn`, NOT a hand-written `Future`.
     #[doc(hidden)]
-    pub unsafe fn _spawn_async_fn<FutFn>(&'static self, future: FutFn) -> SpawnToken<impl Sized>
+    pub unsafe fn _spawn_async_fn<FutFn>(&'static self, future: FutFn) -> Result<SpawnToken<impl Sized>, SpawnError>
     where
         FutFn: FnOnce() -> F,
     {
@@ -120,8 +120,8 @@ impl<F: Future + 'static, const N: usize> AllocTaskPool<F, N> {
         // by the user, with arbitrary hand-implemented futures. This is why these return `SpawnToken<F>`.
 
         match self.allocate() {
-            Some(task) => task.__initialize_async_fn::<FutFn>(future),
-            None => SpawnToken::new_failed(),
+            Some(task) => Ok(task.__initialize_async_fn::<FutFn>(future)),
+            None => Err(SpawnError::Busy),
         }
     }
 }

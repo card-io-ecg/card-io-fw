@@ -1,26 +1,28 @@
-use core::{alloc::AllocError, ptr::addr_of, sync::atomic::Ordering};
+use core::{alloc::AllocError, future::pending, ptr::addr_of, sync::atomic::Ordering};
 
 use crate::{
-    board::initialized::Context,
+    board::{initialized::Context, wifi::net_task},
     task_control::{TaskControlToken, TaskController},
     Shared,
 };
 use alloc::{boxed::Box, rc::Rc, string::ToString, vec::Vec};
 use config_site::data::network::WifiNetwork;
 use embassy_executor::Spawner;
-use embassy_futures::select::{select, Either};
-use embassy_net::{dns::DnsSocket, Stack};
+use embassy_futures::{
+    join::join,
+    select::{select, Either},
+};
+use embassy_net::{dns::DnsSocket, Runner, Stack};
 use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
     channel::Channel,
     mutex::{Mutex, MutexGuard},
     signal::Signal,
 };
-use embassy_time::{with_timeout, Duration};
-use enumset::EnumSet;
+use embassy_time::{with_timeout, Duration, Timer};
 use esp_hal::rng::Rng;
 use esp_radio::wifi::{
-    AccessPointInfo, ClientConfig, ModeConfig, ScanConfig, WifiController, WifiEvent,
+    ap::AccessPointInfo, scan::ScanConfig, sta::StationConfig, Config, Interface, WifiController,
 };
 use gui::widgets::wifi_client::WifiClientState;
 use heapless::String;
@@ -180,7 +182,7 @@ impl Sta {
         })
     }
 
-    pub async fn send_command(&self, command: StaCommand) -> bool {
+    async fn send_command(&self, command: StaCommand) -> bool {
         let processed = Rc::new(Signal::new());
         if !self
             .command_queue
@@ -192,6 +194,10 @@ impl Sta {
 
         processed.wait().await;
         true
+    }
+
+    pub async fn scan(&self) {
+        self.send_command(StaCommand::ScanOnce).await;
     }
 }
 
@@ -249,6 +255,7 @@ impl<'a> HttpsClientResources<'a> {
 
 pub(super) struct StaState {
     connection_task_control: TaskController<(), StaTaskResources>,
+    net_task_control: TaskController<()>,
     handle: Sta,
 }
 
@@ -256,6 +263,7 @@ impl StaState {
     pub(super) fn init(
         controller: WifiController<'static>,
         sta_stack: Stack<'static>,
+        sta_runner: Runner<'static, Interface<'static>>,
         spawner: Spawner,
     ) -> Self {
         info!("Starting STA");
@@ -266,9 +274,10 @@ impl StaState {
 
         let connection_task_control =
             TaskController::from_resources(StaTaskResources { controller });
+        let net_task_control = TaskController::new();
 
-        info!("Starting STA task");
-        spawner.must_spawn(sta_task(
+        info!("Starting STA tasks");
+        spawner.spawn(unwrap!(sta_task(
             StaController::new(
                 state.clone(),
                 networks.clone(),
@@ -278,10 +287,12 @@ impl StaState {
                 InitialStaControllerState::ScanAndConnect,
             ),
             connection_task_control.token(),
-        ));
+        )));
+        spawner.spawn(unwrap!(net_task(sta_runner, net_task_control.token())));
 
         Self {
             connection_task_control,
+            net_task_control,
             handle: Sta {
                 sta_stack,
                 networks,
@@ -292,19 +303,15 @@ impl StaState {
         }
     }
 
-    pub(super) async fn stop(self) -> (WifiController<'static>, Stack<'static>) {
+    pub(super) async fn stop(self) {
         info!("Stopping STA");
-
-        let _ = self.connection_task_control.stop().await;
-
-        let mut controller = self.connection_task_control.unwrap().controller;
-        if matches!(controller.is_started(), Ok(true)) {
-            unwrap!(controller.stop_async().await);
-        }
+        let _ = join(
+            self.connection_task_control.stop(),
+            self.net_task_control.stop(),
+        )
+        .await;
 
         info!("Stopped STA");
-
-        (controller, self.handle.sta_stack)
     }
 
     pub(crate) fn handle(&self) -> &Sta {
@@ -332,12 +339,18 @@ impl From<InitialStaControllerState> for StaControllerState {
     }
 }
 
-enum StaControllerState {
+pub enum StaControllerState {
     Idle,
     ScanAndConnect,
     Connect(u8),    // select network, start connection
     AutoConnecting, // waiting for IP
     AutoConnected,  // wait for disconnection
+}
+
+impl StaControllerState {
+    pub fn is_connected(&self) -> bool {
+        matches!(self, Self::AutoConnected)
+    }
 }
 
 const NO_TIMEOUT: Duration = Duration::MAX;
@@ -355,7 +368,7 @@ struct NetworkConfigureError;
 
 pub(super) struct StaController {
     state: Rc<StaConnectionState>,
-    controller_state: StaControllerState,
+    pub(crate) controller_state: StaControllerState,
 
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
@@ -388,14 +401,14 @@ impl StaController {
     async fn setup(&mut self, controller: &mut WifiController<'_>) {
         info!("Configuring STA");
 
-        let client_config = ModeConfig::Client(ClientConfig::default());
+        let client_config = Config::Station(StationConfig::default());
         unwrap!(controller.set_config(&client_config));
     }
 
     async fn do_scan(&mut self, controller: &mut WifiController<'_>) {
         info!("Scanning...");
         let mut scan_results = controller
-            .scan_with_config_async(ScanConfig::default().with_max(SCAN_RESULTS))
+            .scan_async(&ScanConfig::default().with_max(SCAN_RESULTS))
             .await;
 
         match scan_results.as_mut() {
@@ -487,8 +500,8 @@ impl StaController {
 
         self.current_ssid = Some(connect_to.ssid.clone());
 
-        unwrap!(controller.set_config(&ModeConfig::Client(
-            ClientConfig::default()
+        unwrap!(controller.set_config(&Config::Station(
+            StationConfig::default()
                 .with_ssid(connect_to.ssid.as_str().to_string())
                 .with_password(connect_to.pass.as_str().to_string())
         )));
@@ -529,37 +542,9 @@ impl StaController {
         }
     }
 
-    pub fn events(&self) -> EnumSet<WifiEvent> {
-        match self.controller_state {
-            StaControllerState::AutoConnecting | StaControllerState::AutoConnected => {
-                enumset::enum_set! { WifiEvent::StaStop | WifiEvent::StaDisconnected }
-            }
-            StaControllerState::Idle
-            | StaControllerState::ScanAndConnect
-            | StaControllerState::Connect(_) => {
-                enumset::enum_set! { WifiEvent::StaStop }
-            }
-        }
-    }
-
-    pub fn handle_events(&mut self, events: EnumSet<WifiEvent>) -> bool {
-        if events.contains(WifiEvent::StaStop) {
-            return false;
-        }
-
-        match self.controller_state {
-            StaControllerState::AutoConnecting | StaControllerState::AutoConnected => {
-                if events.contains(WifiEvent::StaDisconnected) {
-                    self.state.update(InternalConnectionState::Disconnected);
-                    self.controller_state = StaControllerState::ScanAndConnect;
-                }
-            }
-            StaControllerState::Idle
-            | StaControllerState::ScanAndConnect
-            | StaControllerState::Connect(_) => {}
-        }
-
-        true
+    pub(super) fn on_disconnected(&mut self) {
+        self.state.update(InternalConnectionState::Disconnected);
+        self.controller_state = StaControllerState::ScanAndConnect;
     }
 
     pub async fn handle_command(&mut self, command: Command, controller: &mut WifiController<'_>) {
@@ -644,37 +629,28 @@ async fn sta_task(
         .run_cancellable(|resources| async {
             sta_controller.setup(&mut resources.controller).await;
 
-            info!("Starting wifi");
-            unwrap!(resources.controller.start_async().await);
-            info!("Wifi started!");
-
             loop {
-                let events = sta_controller.events();
-
                 let timeout = sta_controller.update(&mut resources.controller).await;
 
-                let event_or_command = select(
+                let poll_result = select(
                     async {
-                        if timeout == NO_TIMEOUT {
-                            Some(resources.controller.wait_for_events(events, false).await)
+                        if sta_controller.controller_state.is_connected() {
+                            _ = resources.controller.wait_for_disconnect_async().await;
+                            true
+                        } else if timeout == NO_TIMEOUT {
+                            pending().await
                         } else {
-                            with_timeout(
-                                timeout,
-                                resources.controller.wait_for_events(events, false),
-                            )
-                            .await
-                            .ok()
+                            Timer::after(timeout).await;
+                            false
                         }
                     },
                     sta_controller.wait_for_command(),
                 )
                 .await;
 
-                match event_or_command {
-                    Either::First(Some(events)) => {
-                        if !sta_controller.handle_events(events) {
-                            return;
-                        }
+                match poll_result {
+                    Either::First(disconnected) if disconnected => {
+                        sta_controller.on_disconnected();
                     }
                     Either::Second(command) => {
                         sta_controller

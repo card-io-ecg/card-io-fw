@@ -1,22 +1,32 @@
+use core::future::pending;
+
 use alloc::{rc::Rc, vec::Vec};
 use embassy_sync::mutex::Mutex;
-use embassy_time::{with_timeout, Duration};
+use embassy_time::{Duration, Timer};
 
 use crate::{
     board::wifi::{
         ap::{Ap, ApConnectionState, ApController},
+        net_task,
         sta::{CommandQueue, InitialStaControllerState, Sta, StaConnectionState, StaController},
     },
     task_control::{TaskControlToken, TaskController},
 };
 use embassy_executor::Spawner;
-use embassy_futures::select::{select, Either};
-use embassy_net::Stack;
-use esp_radio::wifi::{AccessPointConfig, ClientConfig, ModeConfig, WifiController};
+use embassy_futures::{
+    join::join3,
+    select::{select3, Either3},
+};
+use embassy_net::{Runner, Stack};
+use esp_radio::wifi::{
+    ap::AccessPointConfig, sta::StationConfig, Config, Interface, WifiController,
+};
 use macros as cardio;
 
 pub(super) struct ApStaState {
     connection_task_control: TaskController<(), ApStaTaskResources>,
+    ap_net_task_control: TaskController<()>,
+    sta_net_task_control: TaskController<()>,
     ap_handle: Ap,
     sta_handle: Sta,
 }
@@ -25,7 +35,9 @@ impl ApStaState {
     pub(super) fn init(
         controller: WifiController<'static>,
         ap_stack: Stack<'static>,
+        ap_runner: Runner<'static, Interface<'static>>,
         sta_stack: Stack<'static>,
+        sta_runner: Runner<'static, Interface<'static>>,
         spawner: Spawner,
     ) -> Self {
         info!("Configuring AP-STA");
@@ -38,9 +50,11 @@ impl ApStaState {
 
         let connection_task_control =
             TaskController::from_resources(ApStaTaskResources { controller });
+        let ap_net_task_control = TaskController::new();
+        let sta_net_task_control = TaskController::new();
 
-        info!("Starting AP-STA task");
-        spawner.must_spawn(ap_sta_task(
+        info!("Starting AP-STA tasks");
+        spawner.spawn(unwrap!(ap_sta_task(
             StaController::new(
                 sta_state.clone(),
                 networks.clone(),
@@ -51,10 +65,15 @@ impl ApStaState {
             ),
             ApController::new(ap_state.clone()),
             connection_task_control.token(),
-        ));
+        )));
+
+        spawner.spawn(unwrap!(net_task(ap_runner, ap_net_task_control.token())));
+        spawner.spawn(unwrap!(net_task(sta_runner, sta_net_task_control.token())));
 
         Self {
             connection_task_control,
+            ap_net_task_control,
+            sta_net_task_control,
 
             ap_handle: Ap {
                 ap_stack,
@@ -70,22 +89,16 @@ impl ApStaState {
         }
     }
 
-    pub(super) async fn stop(self) -> (WifiController<'static>, Stack<'static>, Stack<'static>) {
+    pub(super) async fn stop(self) {
         info!("Stopping AP-STA");
-        let _ = self.connection_task_control.stop().await;
-
-        let mut controller = self.connection_task_control.unwrap().controller;
-        if matches!(controller.is_started(), Ok(true)) {
-            unwrap!(controller.stop_async().await);
-        }
+        let _ = join3(
+            self.connection_task_control.stop(),
+            self.ap_net_task_control.stop(),
+            self.sta_net_task_control.stop(),
+        )
+        .await;
 
         info!("Stopped AP-STA");
-
-        (
-            controller,
-            self.ap_handle.ap_stack,
-            self.sta_handle.sta_stack,
-        )
     }
 
     pub(crate) fn handles(&self) -> (&Ap, &Sta) {
@@ -111,49 +124,41 @@ async fn ap_sta_task(
             let ap_config = AccessPointConfig::default()
                 .with_ssid(alloc::string::String::from("Card/IO"))
                 .with_max_connections(1);
-            let client_config = ClientConfig::default();
+            let client_config = StationConfig::default();
             unwrap!(resources
                 .controller
-                .set_config(&ModeConfig::ApSta(client_config, ap_config)));
-
-            info!("Starting wifi");
-            unwrap!(resources.controller.start_async().await);
-            info!("Wifi started!");
+                .set_config(&Config::AccessPointStation(client_config, ap_config)));
 
             loop {
-                let events = sta_controller.events() | ap_controller.events();
-
                 let timeout = sta_controller.update(&mut resources.controller).await;
 
-                let event_or_command = select(
+                let poll_result = select3(
                     async {
-                        if timeout == NO_TIMEOUT {
-                            Some(resources.controller.wait_for_events(events, false).await)
+                        if sta_controller.controller_state.is_connected() {
+                            _ = resources.controller.wait_for_disconnect_async().await;
+                            true
+                        } else if timeout == NO_TIMEOUT {
+                            pending().await
                         } else {
-                            with_timeout(
-                                timeout,
-                                resources.controller.wait_for_events(events, false),
-                            )
-                            .await
-                            .ok()
+                            Timer::after(timeout).await;
+                            false
                         }
                     },
+                    resources
+                        .controller
+                        .wait_for_access_point_connected_event_async(),
                     sta_controller.wait_for_command(),
                 )
                 .await;
 
-                match event_or_command {
-                    Either::First(Some(events)) => {
-                        let mut resume = true;
-
-                        resume &= sta_controller.handle_events(events);
-                        resume &= ap_controller.handle_events(events);
-
-                        if !resume {
-                            return;
-                        }
+                match poll_result {
+                    Either3::First(disconnected) if disconnected => {
+                        sta_controller.on_disconnected();
                     }
-                    Either::Second(command) => {
+                    Either3::Second(Ok(ap_event)) => {
+                        ap_controller.handle_event(ap_event);
+                    }
+                    Either3::Third(command) => {
                         sta_controller
                             .handle_command(command, &mut resources.controller)
                             .await;

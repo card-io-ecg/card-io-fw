@@ -75,7 +75,10 @@ pub struct SerialNumber;
 
 impl SerialNumber {
     pub fn bytes() -> [u8; 6] {
-        esp_hal::efuse::Efuse::mac_address()
+        let mut mac_bytes = [0u8; 6];
+        let mac = esp_hal::efuse::base_mac_address();
+        mac_bytes.copy_from_slice(mac.as_bytes());
+        mac_bytes
     }
 }
 
