@@ -70,8 +70,7 @@ impl<F: Future + 'static, const N: usize> AllocTaskPool<F, N> {
     /// See [`TaskStorage::spawn()`] for details.
     ///
     /// This will loop over the pool and spawn the task in the first storage that
-    /// is currently free. If none is free, a "poisoned" SpawnToken is returned,
-    /// which will cause [`Spawner::spawn()`](super::Spawner::spawn) to return the error.
+    /// is currently free. If none is free, [`SpawnError::Busy`] is returned.
     #[allow(unused)]
     pub fn spawn(
         &'static self,
