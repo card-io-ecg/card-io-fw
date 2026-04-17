@@ -225,10 +225,10 @@ async fn measure_impl(
 
     context
         .high_prio_spawner
-        .must_spawn(reader_task(EcgTaskParams {
+        .spawn(unwrap!(reader_task(EcgTaskParams {
             token: task_control.token(),
             sender: queue.clone(),
-        }));
+        })));
 
     ecg.heart_rate_calculator.clear();
 

@@ -1,6 +1,7 @@
 use darling::{ast::NestedMeta, FromMeta};
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
+use std::str::FromStr;
 use syn::{
     parse::{Parse, ParseBuffer},
     parse_quote,
@@ -25,6 +26,10 @@ impl Parse for Args {
 struct ProcessedArgs {
     #[darling(default)]
     pool_size: Option<syn::Expr>,
+
+    /// Use this to override the `embassy_executor` crate path. Defaults to `::embassy_executor`.
+    #[darling(default)]
+    embassy_executor: Option<syn::Expr>,
 }
 
 pub fn run(args: Args, f: syn::ItemFn) -> TokenStream {
@@ -37,6 +42,10 @@ pub fn run(args: Args, f: syn::ItemFn) -> TokenStream {
         attrs: vec![],
         lit: Lit::Int(LitInt::new("1", Span::call_site())),
     }));
+
+    let embassy_executor = args.embassy_executor.unwrap_or(Expr::Verbatim(
+        TokenStream::from_str("::embassy_executor").unwrap(),
+    ));
 
     if f.sig.asyncness.is_none() {
         return syn::Error::new_spanned(&f.sig, "task functions must be async").to_compile_error();
@@ -109,7 +118,7 @@ pub fn run(args: Args, f: syn::ItemFn) -> TokenStream {
     task_inner.sig.ident = task_inner_ident.clone();
 
     let mut task_outer: ItemFn = parse_quote! {
-        #visibility fn #task_ident(#fargs) -> ::embassy_executor::SpawnToken<impl Sized> {
+        #visibility fn #task_ident(#fargs) -> ::core::result::Result<#embassy_executor::SpawnToken<impl Sized>, #embassy_executor::SpawnError> {
             trait _EmbassyInternalTaskTrait {
                 type Fut: ::core::future::Future + 'static;
                 fn construct(#fargs) -> Self::Fut;

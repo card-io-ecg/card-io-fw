@@ -20,10 +20,7 @@ use macros as cardio;
 use crate::{
     board::{
         initialized::Context,
-        wifi::{
-            ap::Ap,
-            sta::{Sta, StaCommand},
-        },
+        wifi::{ap::Ap, sta::Sta},
     },
     states::{
         menu::AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME, WEBSERVER_TASKS,
@@ -48,12 +45,12 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
 
     let webserver_task_control = [(); WEBSERVER_TASKS].map(|_| TaskController::new());
     for control in webserver_task_control.iter() {
-        spawner.must_spawn(webserver_task(
+        spawner.spawn(unwrap!(webserver_task(
             ap.clone(),
             sta.clone(),
             web_context.clone(),
             control.token(),
-        ));
+        )));
     }
 
     let mut screen = WifiApScreen::new();
@@ -177,14 +174,14 @@ struct VisibleNetworks {
 
 impl<C: Connection> RequestHandler<C> for VisibleNetworks {
     async fn handle(&self, request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
-        self.sta.send_command(StaCommand::ScanOnce).await;
+        self.sta.scan().await;
 
         let response = request.start_response(ResponseStatus::Ok).await?;
         let mut response = response.start_chunked_body().await?;
 
         let networks = self.sta.visible_networks().await;
         for network in networks.iter() {
-            response.write(&network.ssid).await?;
+            response.write(network.ssid.as_str()).await?;
             response.write("\n").await?;
         }
 

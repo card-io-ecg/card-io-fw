@@ -1,12 +1,17 @@
 use alloc::rc::Rc;
 use core::sync::atomic::{AtomicU32, Ordering};
-use enumset::EnumSet;
+use embassy_futures::join::join;
 use gui::widgets::wifi_access_point::WifiAccessPointState;
 
-use crate::task_control::{TaskControlToken, TaskController};
+use crate::{
+    board::wifi::net_task,
+    task_control::{TaskControlToken, TaskController},
+};
 use embassy_executor::Spawner;
-use embassy_net::Stack;
-use esp_radio::wifi::{AccessPointConfig, ModeConfig, WifiController, WifiEvent};
+use embassy_net::{Runner, Stack};
+use esp_radio::wifi::{
+    ap::AccessPointConfig, AccessPointStationEventInfo, Config, Interface, WifiController,
+};
 use macros as cardio;
 
 pub(super) struct ApConnectionState {
@@ -51,6 +56,7 @@ impl Ap {
 
 pub(super) struct ApState {
     connection_task_control: TaskController<(), ApTaskResources>,
+    net_task_control: TaskController<()>,
     handle: Ap,
 }
 
@@ -58,6 +64,7 @@ impl ApState {
     pub(super) fn init(
         controller: WifiController<'static>,
         ap_stack: Stack<'static>,
+        ap_runner: Runner<'static, Interface<'static>>,
         spawner: Spawner,
     ) -> Self {
         info!("Starting AP");
@@ -66,31 +73,31 @@ impl ApState {
 
         let connection_task_control =
             TaskController::from_resources(ApTaskResources { controller });
+        let net_task_control = TaskController::new();
 
-        info!("Starting AP task");
-        spawner.must_spawn(ap_task(
+        info!("Starting AP tasks");
+        spawner.spawn(unwrap!(ap_task(
             ApController::new(state.clone()),
             connection_task_control.token(),
-        ));
+        )));
+        spawner.spawn(unwrap!(net_task(ap_runner, net_task_control.token())));
 
         Self {
             connection_task_control,
+            net_task_control,
             handle: Ap { ap_stack, state },
         }
     }
 
-    pub(super) async fn stop(self) -> (WifiController<'static>, Stack<'static>) {
+    pub(super) async fn stop(self) {
         info!("Stopping AP");
-        let _ = self.connection_task_control.stop().await;
-
-        let mut controller = self.connection_task_control.unwrap().controller;
-        if matches!(controller.is_started(), Ok(true)) {
-            unwrap!(controller.stop_async().await);
-        }
+        let _ = join(
+            self.connection_task_control.stop(),
+            self.net_task_control.stop(),
+        )
+        .await;
 
         info!("Stopped AP");
-
-        (controller, self.handle.ap_stack)
     }
 
     pub(crate) fn handle(&self) -> &Ap {
@@ -112,17 +119,10 @@ impl ApController {
         Self { state }
     }
 
-    pub fn events(&self) -> EnumSet<WifiEvent> {
-        WifiEvent::ApStart
-            | WifiEvent::ApStop
-            | WifiEvent::ApStaConnected
-            | WifiEvent::ApStaDisconnected
-    }
-
     pub async fn setup(&mut self, controller: &mut WifiController<'static>) {
         info!("Configuring AP");
 
-        let ap_config = ModeConfig::AccessPoint(
+        let ap_config = Config::AccessPoint(
             AccessPointConfig::default()
                 .with_ssid(alloc::string::String::from("Card/IO"))
                 .with_max_connections(1),
@@ -130,28 +130,21 @@ impl ApController {
         unwrap!(controller.set_config(&ap_config));
     }
 
-    pub fn handle_events(&mut self, events: EnumSet<WifiEvent>) -> bool {
-        if events.contains(WifiEvent::ApStaConnected) {
-            let old_count = self.state.client_count.load(Ordering::Acquire);
-            let new_count = old_count.saturating_add(1);
-            self.state.client_count.store(new_count, Ordering::Relaxed);
-            info!("Client connected, {} total", new_count);
+    pub fn handle_event(&mut self, event: AccessPointStationEventInfo) {
+        match event {
+            AccessPointStationEventInfo::Connected(_) => {
+                let old_count = self.state.client_count.load(Ordering::Acquire);
+                let new_count = old_count.saturating_add(1);
+                self.state.client_count.store(new_count, Ordering::Relaxed);
+                info!("Client connected, {} total", new_count);
+            }
+            AccessPointStationEventInfo::Disconnected(_) => {
+                let old_count = self.state.client_count.load(Ordering::Acquire);
+                let new_count = old_count.saturating_sub(1);
+                self.state.client_count.store(new_count, Ordering::Relaxed);
+                info!("Client disconnected, {} left", new_count);
+            }
         }
-
-        if events.contains(WifiEvent::ApStaDisconnected) {
-            let old_count = self.state.client_count.load(Ordering::Acquire);
-            let new_count = old_count.saturating_sub(1);
-            self.state.client_count.store(new_count, Ordering::Relaxed);
-            info!("Client disconnected, {} left", new_count);
-        }
-
-        if events.contains(WifiEvent::ApStop) {
-            info!("AP stopped");
-            self.state.client_count.store(0, Ordering::Relaxed);
-            return false;
-        }
-
-        true
     }
 }
 
@@ -164,18 +157,14 @@ async fn ap_task(
         .run_cancellable(|resources| async {
             ap_controller.setup(&mut resources.controller).await;
 
-            info!("Starting wifi");
-            unwrap!(resources.controller.start_async().await);
-            info!("Wifi started!");
-
             loop {
-                let events = ap_controller.events();
+                let event = resources
+                    .controller
+                    .wait_for_access_point_connected_event_async()
+                    .await
+                    .unwrap();
 
-                let events = resources.controller.wait_for_events(events, false).await;
-
-                if !ap_controller.handle_events(events) {
-                    return;
-                }
+                ap_controller.handle_event(event);
             }
         })
         .await;
