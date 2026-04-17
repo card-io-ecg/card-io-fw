@@ -127,15 +127,6 @@ enumset = "1.1.3"
 # esp-alloc = { git = "https://github.com/esp-rs/esp-hal.git", rev = "c670420d04a172ff185fb5d2b901d2cb63757ee5" }
 # esp-sync = { git = "https://github.com/esp-rs/esp-hal.git", rev = "c670420d04a172ff185fb5d2b901d2cb63757ee5" }
 # xtensa-lx-rt = { git = "https://github.com/esp-rs/esp-hal.git", rev = "c670420d04a172ff185fb5d2b901d2cb63757ee5" }
-esp32 = { git = "https://github.com/esp-rs/esp-pacs", branch ="no-peris" }
-esp32s2 = { git = "https://github.com/esp-rs/esp-pacs", branch ="no-peris" }
-esp32s3 = { git = "https://github.com/esp-rs/esp-pacs", branch ="no-peris" }
-esp32c2 = { git = "https://github.com/esp-rs/esp-pacs", branch ="no-peris" }
-esp32c3 = { git = "https://github.com/esp-rs/esp-pacs", branch ="no-peris" }
-esp32c5 = { git = "https://github.com/esp-rs/esp-pacs", branch ="no-peris" }
-esp32c6 = { git = "https://github.com/esp-rs/esp-pacs", branch ="no-peris" }
-esp32c61 = { git = "https://github.com/esp-rs/esp-pacs", branch ="no-peris" }
-esp32h2 = { git = "https://github.com/esp-rs/esp-pacs", branch ="no-peris" }
 
 # esp-bootloader-esp-idf = { path = "C:/_Espressif/esp-hal/esp-bootloader-esp-idf" }
 # esp-rom-sys = { path = "C:/_Espressif/esp-hal/esp-rom-sys" }

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-device-driver = { git = "https://github.com/diondokter/device-driver" }
+device-driver = { git = "https://github.com/diondokter/device-driver", rev = "fd6ebcc1c84fd248f3eabbc0ea839412026e95dd" }
 defmt = { workspace = true, optional = true }
 embedded-hal = { workspace = true }
 embedded-hal-async = { workspace = true }
