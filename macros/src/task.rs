@@ -1,13 +1,13 @@
 use darling::{ast::NestedMeta, FromMeta};
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
+use std::str::FromStr;
 use syn::{
     parse::{Parse, ParseBuffer},
     parse_quote,
     punctuated::Punctuated,
     Expr, ExprLit, ItemFn, Lit, LitInt, ReturnType, Token, Type,
 };
-use std::str::FromStr;
 
 pub struct Args {
     meta: Vec<NestedMeta>,
@@ -43,9 +43,9 @@ pub fn run(args: Args, f: syn::ItemFn) -> TokenStream {
         lit: Lit::Int(LitInt::new("1", Span::call_site())),
     }));
 
-    let embassy_executor = args
-        .embassy_executor
-        .unwrap_or(Expr::Verbatim(TokenStream::from_str("::embassy_executor").unwrap()));
+    let embassy_executor = args.embassy_executor.unwrap_or(Expr::Verbatim(
+        TokenStream::from_str("::embassy_executor").unwrap(),
+    ));
 
     if f.sig.asyncness.is_none() {
         return syn::Error::new_spanned(&f.sig, "task functions must be async").to_compile_error();
