@@ -10,7 +10,7 @@ use crate::{
 use embassy_executor::Spawner;
 use embassy_net::{Runner, Stack};
 use esp_radio::wifi::{
-    ap::AccessPointConfig, AccessPointStationEventInfo, Config, Interface, WifiController,
+    ap::AccessPointConfig, ap::EventInfo, Config, Interface, WifiController,
 };
 use macros as cardio;
 
@@ -64,7 +64,7 @@ impl ApState {
     pub(super) fn init(
         controller: WifiController<'static>,
         ap_stack: Stack<'static>,
-        ap_runner: Runner<'static, Interface<'static>>,
+        ap_runner: Runner<'static, Interface>,
         spawner: Spawner,
     ) -> Self {
         info!("Starting AP");
@@ -130,15 +130,15 @@ impl ApController {
         unwrap!(controller.set_config(&ap_config));
     }
 
-    pub fn handle_event(&mut self, event: AccessPointStationEventInfo) {
+    pub fn handle_event(&mut self, event: EventInfo) {
         match event {
-            AccessPointStationEventInfo::Connected(_) => {
+            EventInfo::Connected(_) => {
                 let old_count = self.state.client_count.load(Ordering::Acquire);
                 let new_count = old_count.saturating_add(1);
                 self.state.client_count.store(new_count, Ordering::Relaxed);
                 info!("Client connected, {} total", new_count);
             }
-            AccessPointStationEventInfo::Disconnected(_) => {
+            EventInfo::Disconnected(_) => {
                 let old_count = self.state.client_count.load(Ordering::Acquire);
                 let new_count = old_count.saturating_sub(1);
                 self.state.client_count.store(new_count, Ordering::Relaxed);

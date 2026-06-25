@@ -263,7 +263,7 @@ impl StaState {
     pub(super) fn init(
         controller: WifiController<'static>,
         sta_stack: Stack<'static>,
-        sta_runner: Runner<'static, Interface<'static>>,
+        sta_runner: Runner<'static, Interface>,
         spawner: Spawner,
     ) -> Self {
         info!("Starting STA");

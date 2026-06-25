@@ -35,9 +35,9 @@ impl ApStaState {
     pub(super) fn init(
         controller: WifiController<'static>,
         ap_stack: Stack<'static>,
-        ap_runner: Runner<'static, Interface<'static>>,
+        ap_runner: Runner<'static, Interface>,
         sta_stack: Stack<'static>,
-        sta_runner: Runner<'static, Interface<'static>>,
+        sta_runner: Runner<'static, Interface>,
         spawner: Spawner,
     ) -> Self {
         info!("Configuring AP-STA");

@@ -53,9 +53,9 @@ impl WifiDriverState {
         callback: impl FnOnce(
                 WifiController<'static>,
                 Stack<'static>,
-                Runner<'static, Interface<'static>>,
+                Runner<'static, Interface>,
                 Stack<'static>,
-                Runner<'static, Interface<'static>>,
+                Runner<'static, Interface>,
             ) -> Self
             + 'static,
         ap_resources: &'static mut StackResources<STACK_SOCKET_COUNT>,
@@ -72,17 +72,17 @@ impl WifiDriverState {
 
                 info!("Initializing Wifi driver");
 
-                let (controller, interfaces) =
-                    unwrap!(esp_radio::wifi::new(resources.wifi, Default::default()));
+                let controller =
+                    unwrap!(esp_radio::wifi::WifiController::new(resources.wifi, Default::default()));
 
                 let (ap_stack, ap_runner) = embassy_net::new(
-                    interfaces.access_point,
+                    esp_radio::wifi::Interface::access_point(),
                     Default::default(),
                     ap_resources,
                     random_seed,
                 );
                 let (sta_stack, sta_runner) = embassy_net::new(
-                    interfaces.station,
+                    esp_radio::wifi::Interface::station(),
                     Default::default(),
                     sta_resources,
                     random_seed,
@@ -237,7 +237,7 @@ impl WifiDriver {
 
 #[cardio::task(pool_size = 2)]
 async fn net_task(
-    mut runner: Runner<'static, Interface<'static>>,
+    mut runner: Runner<'static, Interface>,
     mut task_control: TaskControlToken<()>,
 ) {
     task_control
