@@ -55,6 +55,7 @@ where
 
             config2: {
                 let mut r = ll::Config2FieldSet::new();
+                r.set_reserved(true); // CONFIG2 bit 7 must be set to '1'
                 r.set_pdb_loff_comp(ll::Buffer::Enabled);
                 r.set_ref_voltage(ll::ReferenceVoltage::_2_42v);
                 r.set_clock_pin(ll::ClockPin::Disabled);
@@ -64,6 +65,7 @@ where
 
             loff: {
                 let mut r = ll::LoffFieldSet::new();
+                r.set_reserved(true); // LOFF bit 4 must be set to '1'
                 r.set_comp_th(ll::ComparatorThreshold::_95);
                 r.set_leadoff_current(ll::LeadOffCurrent::_22nA);
                 r.set_leadoff_frequency(ll::LeadOffFrequency::Dc);
@@ -115,10 +117,15 @@ where
                 r
             },
 
-            resp1: ll::Resp1FieldSet::default(),
+            resp1: {
+                let mut r = ll::Resp1FieldSet::new();
+                r.set_reserved(true); // RESP1 bit 1 must be set to '1'
+                r
+            },
             resp2: {
                 let mut r = ll::Resp2FieldSet::new();
                 r.set_rld_reference(ll::RldReference::MidSupply);
+                r.set_reserved(true); // RESP2 bit 0 must be set to '1'
                 r
             },
 

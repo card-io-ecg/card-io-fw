@@ -54,7 +54,7 @@ device Ads129X {
                 Continuous 0
                 SingleShot 1
             }
-            (u8:DataRate?) data_rate @3:0 {
+            (u8:DataRate?) data_rate @2:0 {
                 _125sps 0
                 _250sps 1
                 _500sps 2
@@ -71,6 +71,8 @@ device Ads129X {
         reset-value 0x80
 
         fields size-bits = 8 {
+            // Reserved bit that must always be written as '1' for correct operation.
+            (bool) reserved @7
             (u8:Buffer) pdb_loff_comp @6 {
                 PoweredDown 0
                 Enabled 1
@@ -107,6 +109,8 @@ device Ads129X {
                 _75   6
                 _70   7
             }
+            // Reserved bit that must always be written as '1' for correct operation.
+            (bool) reserved @4
             (u8:LeadOffCurrent) leadoff_current @3:2 {
                 _6nA  0
                 _22nA 1
@@ -262,6 +266,8 @@ device Ads129X {
                 _157deg 14
                 _168deg 15
             }
+            // Reserved bit that must always be written as '1' for correct operation.
+            (bool) reserved @1
             (u8:RespirationClock) clock @0 {
                 Internal 0
                 External 1
@@ -286,6 +292,8 @@ device Ads129X {
                 External  0
                 MidSupply 1
             }
+            // Reserved bit that must always be written as '1' for correct operation.
+            (bool) reserved @0
         }
     }
 
