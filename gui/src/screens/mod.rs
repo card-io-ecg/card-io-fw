@@ -24,15 +24,29 @@ pub mod message;
 pub mod qr;
 pub mod wifi_ap;
 
+/// The rate at which menu screens are updated and drawn.
+pub const MENU_FPS: u32 = 50;
+
+/// `embedded-menu` measures animation and touch durations in update calls, so the constants
+/// have to be derived from the update rate to keep them tied to wall clock time.
+const fn ticks(ms: u32) -> u32 {
+    let ticks = (ms * MENU_FPS + 999) / 1000;
+    if ticks > 1 {
+        ticks
+    } else {
+        1
+    }
+}
+
 pub const fn menu_style<R>(
 ) -> MenuStyle<AnimatedTriangle, SingleTouch, AnimatedPosition, R, BinaryColor> {
     MenuStyle::new(BinaryColor::On)
-        .with_animated_selection_indicator(10)
-        .with_selection_indicator(AnimatedTriangle::new(200))
+        .with_animated_selection_indicator(ticks(100) as i32)
+        .with_selection_indicator(AnimatedTriangle::new(ticks(2000) as i32))
         .with_input_adapter(SingleTouch {
-            debounce_time: 1,
-            ignore_time: 10,
-            max_time: 75,
+            debounce_time: ticks(10),
+            ignore_time: ticks(50),
+            max_time: ticks(800),
         })
         .with_title_font(&FONT_7X13_BOLD)
 }

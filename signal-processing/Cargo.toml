@@ -17,7 +17,7 @@ defmt = { workspace = true, optional = true }
 sci-rs = { version = "0.2.8", optional = true }
 
 [features]
-alloc = ["qrs_detector/alloc"]
+alloc = ["qrs_detector/alloc", "defmt?/alloc"]
 std = ["num-complex/std"]
 defmt = ["dep:defmt"]
 dyn_filter = ["alloc", "dep:sci-rs"]

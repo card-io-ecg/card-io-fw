@@ -24,7 +24,7 @@ use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
 
 use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::Drawable;
-use esp_hal::gpio::Input;
+use esp_hal::{gpio::Input, rtc_cntl::WakeLock};
 use gui::{
     screens::message::MessageScreen,
     widgets::{
@@ -51,6 +51,7 @@ pub struct InnerContext {
     pub config_changed: bool,
     pub sta_work_available: Option<bool>,
     pub message_displayed_at: Option<Instant>,
+    pub wake_lock: Option<WakeLock>,
 }
 
 pub struct Context {
@@ -288,6 +289,17 @@ impl InnerContext {
 
     pub fn status_bar(&mut self) -> StatusBar {
         let battery_data = self.battery_monitor.battery_data();
+
+        // Disable light sleep if USB is connected - debuggability
+        if let Some(data) = battery_data.as_ref() {
+            if data.is_plugged() {
+                if self.wake_lock.is_none() {
+                    self.wake_lock = Some(WakeLock::new());
+                }
+            } else {
+                self.wake_lock = None;
+            }
+        }
 
         cfg_if::cfg_if! {
             if #[cfg(feature = "wifi")] {

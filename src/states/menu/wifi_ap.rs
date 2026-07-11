@@ -23,7 +23,7 @@ use crate::{
         wifi::{ap::Ap, sta::Sta},
     },
     states::{
-        menu::AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME, WEBSERVER_TASKS,
+        menu::AppMenu, TouchInputShaper, MENU_FRAME_TIME, MENU_IDLE_DURATION, WEBSERVER_TASKS,
     },
     task_control::{TaskControlToken, TaskController},
     timeout::Timeout,
@@ -55,7 +55,7 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
 
     let mut screen = WifiApScreen::new();
 
-    let mut ticker = Ticker::every(MIN_FRAME_TIME);
+    let mut ticker = Ticker::every(MENU_FRAME_TIME);
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     let mut input = TouchInputShaper::new();
 
@@ -92,7 +92,10 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
         }
 
         context
-            .with_status_bar(|display| screen.draw(display).map(|_| true))
+            .with_status_bar(|display| {
+                screen.menu.update(display);
+                screen.draw(display)
+            })
             .await;
 
         ticker.next().await;

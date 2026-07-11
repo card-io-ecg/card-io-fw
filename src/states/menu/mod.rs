@@ -11,7 +11,7 @@ use gui::embedded_layout::view_group::ViewGroup;
 
 use crate::{
     board::initialized::Context,
-    states::{TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME},
+    states::{TouchInputShaper, MENU_FRAME_TIME, MENU_IDLE_DURATION},
     timeout::Timeout,
     AppState,
 };
@@ -128,7 +128,7 @@ pub trait MenuScreen {
         let mut menu_screen = self.menu(context).await.build();
 
         let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
-        let mut ticker = Ticker::every(MIN_FRAME_TIME);
+        let mut ticker = Ticker::every(MENU_FRAME_TIME);
         let mut input = TouchInputShaper::new();
 
         let mut refresh = Self::REFRESH_PERIOD.map(Timeout::new);

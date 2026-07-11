@@ -12,7 +12,7 @@ embedded-menu.workspace = true
 gui = { path = "../gui" }
 heapless.workspace = true
 norfs.workspace = true
-ssd1306 = "0.9.0"
+ssd1306 = "0.10.0"
 
 [features]
 defmt = ["dep:defmt"]

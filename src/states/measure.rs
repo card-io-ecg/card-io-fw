@@ -3,7 +3,7 @@ use crate::{
         initialized::{Context, InnerContext},
         AdcSpi, EcgFrontend, PoweredEcgFrontend,
     },
-    states::{menu::AppMenu, to_progress, INIT_MENU_THRESHOLD, INIT_TIME, MIN_FRAME_TIME},
+    states::{menu::AppMenu, to_progress, INIT_MENU_THRESHOLD, INIT_TIME, MIN_MEASURE_FRAME_TIME},
     task_control::{TaskControlToken, TaskController},
     timeout::Timeout,
     AppState,
@@ -17,7 +17,7 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Channe
 use embassy_time::{Duration, Instant, Ticker};
 use embedded_graphics::Drawable;
 use embedded_hal::spi::ErrorType;
-use esp_hal::time::Rate;
+use esp_hal::{rtc_cntl::WakeLock, time::Rate};
 use gui::screens::{init::StartupScreen, measure::EcgScreen};
 use macros as cardio;
 use object_chain::{chain, Chain, ChainElement, Link};
@@ -237,7 +237,7 @@ async fn measure_impl(
     let mut samples = 0; // Counter and 1s timer to debug perf issues
     let mut debug_print_timer = Timeout::new(Duration::from_secs(1));
 
-    let mut ticker = Ticker::every(MIN_FRAME_TIME);
+    let mut ticker = Ticker::every(MIN_MEASURE_FRAME_TIME);
     let mut drop_samples = 1500; // Slight delay for the input to settle
     let mut entered = Instant::now();
     let exit_timer = Timeout::new_with_start(INIT_TIME, entered - INIT_MENU_THRESHOLD);
@@ -345,6 +345,7 @@ async fn read_ecg(
     queue: &MessageQueue,
     frontend: &mut PoweredEcgFrontend,
 ) -> Result<(), <AdcSpi as ErrorType>::Error> {
+    let _lock = WakeLock::new();
     loop {
         let sample = frontend.read().await?;
 

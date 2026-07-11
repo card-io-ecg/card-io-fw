@@ -100,13 +100,6 @@ impl<const N: usize> defmt::Format for CompressingBuffer<N> {
     }
 }
 
-#[cfg(all(feature = "defmt", feature = "alloc"))]
-impl<const N: usize> defmt::Format for alloc::boxed::Box<CompressingBuffer<N>> {
-    fn format(&self, fmt: defmt::Formatter<'_>) {
-        self.as_ref().format(fmt)
-    }
-}
-
 impl<const N: usize> CompressingBuffer<N> {
     pub const EMPTY: Self = Self::new();
 

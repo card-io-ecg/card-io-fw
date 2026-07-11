@@ -10,11 +10,15 @@ pub mod throughput;
 pub mod upload_or_store_measurement;
 
 use crate::board::EcgFrontend;
-use embassy_time::Duration;
+use embassy_time::{Duration, Instant};
 use signal_processing::lerp::interpolate;
 
 pub const TARGET_FPS: u32 = 100;
 pub const MIN_FRAME_TIME: Duration = Duration::from_hz(TARGET_FPS as u64);
+pub const MIN_MEASURE_FRAME_TIME: Duration = Duration::from_hz(TARGET_FPS as u64);
+
+/// Menus tick at a lower rate than the measurement screen, to let the MCU sleep for longer.
+pub const MENU_FRAME_TIME: Duration = Duration::from_hz(gui::screens::MENU_FPS as u64);
 
 pub const INIT_TIME: Duration = Duration::from_millis(3000);
 pub const INIT_MENU_THRESHOLD: Duration = Duration::from_millis(1500);
@@ -30,46 +34,44 @@ const WEBSERVER_TASKS: usize = 2;
 /// Simple utility to process touch events in an interactive menu.
 pub struct TouchInputShaper {
     released: bool,
-    touched: bool,
-    released_delay: usize,
+    /// Set while touched, and kept set for `RELEASE_DEBOUNCE` after the touch is lost. Stored as
+    /// a deadline instead of a counter, so that the debounce does not depend on the update rate.
+    touched_until: Option<Instant>,
 }
 
 impl TouchInputShaper {
+    const RELEASE_DEBOUNCE: Duration = Duration::from_millis(50);
+
     pub fn new() -> Self {
         Self {
             released: false,
-            touched: false,
-            released_delay: 0,
+            touched_until: None,
         }
     }
 
     pub fn new_released() -> Self {
         Self {
             released: true,
-            touched: false,
-            released_delay: 0,
+            touched_until: None,
         }
     }
 
     pub fn update(&mut self, frontend: &mut EcgFrontend) {
-        let touched = frontend.is_touched();
+        let now = Instant::now();
 
-        if touched {
-            self.released_delay = 5;
-            self.touched = true;
-        } else if self.released_delay > 0 {
-            self.released_delay -= 1;
-        } else {
-            self.touched = false;
+        if frontend.is_touched() {
+            self.touched_until = Some(now + Self::RELEASE_DEBOUNCE);
+        } else if self.touched_until.is_some_and(|until| now >= until) {
+            self.touched_until = None;
         }
 
-        if !self.touched {
+        if self.touched_until.is_none() {
             self.released = true;
         }
     }
 
     pub fn is_touched(&mut self) -> bool {
-        self.released && self.touched
+        self.released && self.touched_until.is_some()
     }
 }
 
