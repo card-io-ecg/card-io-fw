@@ -15,19 +15,17 @@ use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::peripherals::WIFI;
 use esp_hal::{
     clock::CpuClock,
-    dma::*,
-    dma_buffers,
     gpio::{Input, InputPin, Level, Output, OutputPin, Pull},
     i2c,
     interrupt::software::SoftwareInterrupt,
     peripherals::Peripherals,
-    rtc_cntl::Rtc,
     spi::{
         master::{Config as SpiConfig, Spi},
         Mode,
     },
     time::Rate,
 };
+use esp_rtos::sleep::DeepSleep;
 use static_cell::StaticCell;
 
 #[cfg(feature = "esp32s3")]
@@ -47,7 +45,8 @@ pub struct StartupResources {
 
     #[cfg(feature = "wifi")]
     pub wifi: WIFI<'static>,
-    pub rtc: Rtc<'static>,
+
+    pub low_power: DeepSleep,
 
     pub software_interrupt2: SoftwareInterrupt<'static, 2>,
 }
@@ -72,21 +71,18 @@ impl StartupResources {
         display_sclk: impl OutputPin + 'static,
         display_mosi: impl OutputPin + 'static,
     ) -> &'static mut Display {
-        let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(4092);
-        let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
-        let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
         let display_spi = Spi::new(
             display_spi,
             SpiConfig::default()
                 .with_frequency(Rate::from_mhz(40))
-                .with_mode(Mode::_0),
+                .with_mode(Mode::_0)
+                .with_min_async_transfer_size(32),
         )
         .unwrap()
         .with_sck(display_sclk)
         .with_mosi(display_mosi)
         .with_cs(display_cs)
         .with_dma(display_dma_channel)
-        .with_buffers(dma_rx_buf, dma_tx_buf)
         .into_async();
 
         static DISPLAY: StaticCell<Display> = StaticCell::new();
@@ -112,23 +108,19 @@ impl StartupResources {
     ) -> AdcSpi {
         use esp_hal::time::Rate;
 
-        let (rx_buffer, rx_descriptors, tx_buffer, tx_descriptors) = dma_buffers!(4092);
-        let dma_tx_buf = DmaTxBuf::new(tx_descriptors, tx_buffer).unwrap();
-        let dma_rx_buf = DmaRxBuf::new(rx_descriptors, rx_buffer).unwrap();
-
         ExclusiveDevice::new(
             Spi::new(
                 adc_spi,
                 SpiConfig::default()
                     .with_frequency(Rate::from_mhz(1))
-                    .with_mode(Mode::_1),
+                    .with_mode(Mode::_1)
+                    .with_min_async_transfer_size(32),
             )
             .unwrap()
             .with_sck(adc_sclk)
             .with_mosi(adc_mosi)
             .with_miso(adc_miso)
             .with_dma(adc_dma_channel)
-            .with_buffers(dma_rx_buf, dma_tx_buf)
             .into_async(),
             Output::new(adc_cs, Level::High, Default::default()),
             Delay,

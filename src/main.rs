@@ -53,9 +53,12 @@ use config_types::{Config, ConfigFile};
 use esp_hal::{
     gpio::AnyPin,
     interrupt::Priority,
-    rtc_cntl::sleep::{self, WakeupLevel},
+    rtc_cntl::{
+        sleep::{self, WakeupLevel},
+        WakeLock,
+    },
 };
-use esp_rtos::embassy::InterruptExecutor;
+use esp_rtos::{embassy::InterruptExecutor, sleep::DeepSleep};
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -203,6 +206,8 @@ async fn main(_spawner: Spawner) {
     #[cfg(all(feature = "rtt", feature = "defmt"))]
     rtt_target::rtt_init_defmt!();
 
+    let wake_lock = Some(WakeLock::new());
+
     const RECLAIMED_SIZE: usize = const {
         let range = esp_metadata_generated::memory_range!("DRAM2_UNINIT");
         range.end - range.start
@@ -242,6 +247,7 @@ async fn main(_spawner: Spawner) {
             config_changed: true,
             sta_work_available: None,
             message_displayed_at: None,
+            wake_lock,
         },
     });
 
@@ -292,12 +298,12 @@ async fn main(_spawner: Spawner) {
     let is_charging = board.inner.battery_monitor.is_plugged();
     board.inner.battery_monitor.stop().await;
 
-    enter_sleep(resources.rtc, is_charging);
+    enter_sleep(resources.low_power, is_charging);
     // Shouldn't reach this. If we do, we just exit the task, which means the executor
     // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
 }
 
-fn enter_sleep(mut rtc: esp_hal::rtc_cntl::Rtc, is_charging: bool) {
+fn enter_sleep(mut lpwr: DeepSleep, is_charging: bool) {
     let charger_level = if is_charging {
         // Wake up momentarily when charger is disconnected
         WakeupLevel::Low
@@ -323,5 +329,5 @@ fn enter_sleep(mut rtc: esp_hal::rtc_cntl::Rtc, is_charging: bool) {
     #[cfg(not(feature = "esp32s3"))]
     let wakeup_source = sleep::Ext1WakeupSource::new(&mut wakeup_pins);
 
-    rtc.sleep_deep(&[&wakeup_source]);
+    lpwr.deep_sleep(&[&wakeup_source]);
 }

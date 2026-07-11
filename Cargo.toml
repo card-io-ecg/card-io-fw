@@ -63,7 +63,7 @@ esp-radio = { version = "1.0.0-beta.0", features = ["wifi"], optional = true }
 
 display-interface = "0.5"
 display-interface-spi = "0.5"
-ssd1306 = { version = "0.9.0", features = ["async", "graphics"] }
+ssd1306 = { version = "0.10.0", features = ["async", "graphics"] }
 maybe-async-cfg = "=0.2.4"
 
 portable_atomic_enum = "0.3.1"
@@ -217,3 +217,27 @@ lto = "fat"
 [profile.lto]
 inherits = "release"
 lto = "fat"
+
+[patch.crates-io]
+esp-hal = { path = "C:/_Espressif/esp-hal/esp-hal" }
+esp-rtos = { path = "C:/_Espressif/esp-hal/esp-rtos" }
+esp-sync = { path = "C:/_Espressif/esp-hal/esp-sync" }
+esp-alloc = { path = "C:/_Espressif/esp-hal/esp-alloc" }
+esp-bootloader-esp-idf = { path = "C:/_Espressif/esp-hal/esp-bootloader-esp-idf" }
+esp-rom-sys = { path = "C:/_Espressif/esp-hal/esp-rom-sys" }
+esp-riscv-rt = { path = "C:/_Espressif/esp-hal/esp-riscv-rt" }
+xtensa-lx = { path = "C:/_Espressif/esp-hal/xtensa-lx" }
+xtensa-lx-rt = { path = "C:/_Espressif/esp-hal/xtensa-lx-rt" }
+
+embassy-executor = { path = "C:/_Hobby/embassy/embassy-executor" }
+embassy-futures = { path = "C:/_Hobby/embassy/embassy-futures" }
+embassy-time = { path = "C:/_Hobby/embassy/embassy-time" }
+embassy-time-driver = { path = "C:/_Hobby/embassy/embassy-time-driver" }
+embassy-time-queue-utils = { path = "C:/_Hobby/embassy/embassy-time-queue-utils" }
+embassy-sync = { path = "C:/_Hobby/embassy/embassy-sync" }
+embassy-net-driver = { path = "C:/_Hobby/embassy/embassy-net-driver" }
+embassy-net = { path = "C:/_Hobby/embassy/embassy-net" }
+embassy-usb-driver = { path = "C:/_Hobby/embassy/embassy-usb-driver" }
+embassy-usb-synopsys-otg = { path = "C:/_Hobby/embassy/embassy-usb-synopsys-otg" }
+
+ssd1306 = { path = "C:/_Hobby/crates/ssd1306" }
