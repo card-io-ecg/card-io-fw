@@ -72,8 +72,10 @@ impl WifiDriverState {
 
                 info!("Initializing Wifi driver");
 
-                let controller =
-                    unwrap!(esp_radio::wifi::WifiController::new(resources.wifi, Default::default()));
+                let controller = unwrap!(esp_radio::wifi::WifiController::new(
+                    resources.wifi,
+                    Default::default()
+                ));
 
                 let (ap_stack, ap_runner) = embassy_net::new(
                     esp_radio::wifi::Interface::access_point(),
@@ -236,10 +238,7 @@ impl WifiDriver {
 }
 
 #[cardio::task(pool_size = 2)]
-async fn net_task(
-    mut runner: Runner<'static, Interface>,
-    mut task_control: TaskControlToken<()>,
-) {
+async fn net_task(mut runner: Runner<'static, Interface>, mut task_control: TaskControlToken<()>) {
     task_control
         .run_cancellable(|_| async {
             runner.run().await;

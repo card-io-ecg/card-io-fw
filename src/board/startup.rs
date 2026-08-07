@@ -55,8 +55,8 @@ pub struct StartupResources {
 impl StartupResources {
     pub(super) fn common_init() -> Peripherals {
         let cpu_clock = cfg_select! {
-            feature = "esp32s3" => { CpuClock::_160MHz }
-            _ => { CpuClock::max() }
+            feature = "esp32s3" => CpuClock::_160MHz,
+            _ => CpuClock::max(),
         };
         esp_hal::init(esp_hal::Config::default().with_cpu_clock(cpu_clock))
     }

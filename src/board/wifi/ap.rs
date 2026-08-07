@@ -10,7 +10,8 @@ use crate::{
 use embassy_executor::Spawner;
 use embassy_net::{Runner, Stack};
 use esp_radio::wifi::{
-    ap::AccessPointConfig, ap::EventInfo, Config, Interface, WifiController,
+    ap::{AccessPointConfig, EventInfo},
+    Config, Interface, WifiController,
 };
 use macros as cardio;
 
