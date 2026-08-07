@@ -14,7 +14,7 @@ embedded-hal-bus = { version = "0.2.0", features = ["async"] }
 embedded-nal-async = "0.9.0"
 embedded-io = "0.6"
 embedded-io-async = "0.7"
-embedded-menu = "0.6.0"
+embedded-menu = "0.7.0"
 embassy-net = { version = "0.9", features = [
     "tcp",
     "dhcpv4",
@@ -217,6 +217,3 @@ lto = "fat"
 [profile.lto]
 inherits = "release"
 lto = "fat"
-
-[patch.crates-io]
-embedded-menu = { git = "https://github.com/bugadani/embedded-menu", rev = "44508b9" }
