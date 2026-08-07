@@ -34,7 +34,6 @@ pub async fn wifi_sta(context: &mut Context) -> AppState {
 
     let ui = async {
         let mut ticker = Ticker::every(MIN_FRAME_TIME);
-        let mut menu_state = Default::default();
 
         let list_item = |label: &str| {
             MenuItem::new(String::from(label), "").with_value_converter(|_| WifiStaMenuEvents::None)
@@ -46,6 +45,12 @@ pub async fn wifi_sta(context: &mut Context) -> AppState {
         let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
         let mut input = TouchInputShaper::new();
         let mut last_touched = Instant::now();
+
+        let mut menu_screen = create_menu("Access points")
+            .add_menu_items(&mut ssids)
+            .add_item("Back", "<-", |_| WifiStaMenuEvents::Back)
+            .build();
+
         loop {
             if exit_timer.is_elapsed() {
                 break AppState::Shutdown;
@@ -62,19 +67,20 @@ pub async fn wifi_sta(context: &mut Context) -> AppState {
                 let networks = sta.visible_networks().await;
 
                 if !networks.is_empty() {
+                    let state = menu_screen.state();
                     ssids.clear();
                     ssids.extend(networks.iter().map(|n| list_item(n.ssid.as_str())));
+
+                    menu_screen = create_menu("Access points")
+                        .add_menu_items(&mut ssids)
+                        .add_item("Back", "<-", |_| WifiStaMenuEvents::Back)
+                        .build_with_state(state);
                 }
             }
 
             if context.battery_monitor.is_low() {
                 break AppState::Shutdown;
             }
-
-            let mut menu_screen = create_menu("Access points")
-                .add_menu_items(&mut ssids)
-                .add_item("Back", "<-", |_| WifiStaMenuEvents::Back)
-                .build_with_state(menu_state);
 
             if let Some(WifiStaMenuEvents::Back) = menu_screen.interact(is_touched) {
                 break AppState::Menu(AppMenu::Main);
@@ -89,8 +95,6 @@ pub async fn wifi_sta(context: &mut Context) -> AppState {
                     }
                 })
                 .await;
-
-            menu_state = menu_screen.state();
 
             ticker.next().await;
         }
