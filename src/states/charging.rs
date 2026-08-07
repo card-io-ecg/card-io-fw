@@ -41,7 +41,10 @@ pub async fn charging(context: &mut Context) -> AppState {
 
         context
             .display
-            .frame(|display| charging_screen.draw(display))
+            .frame(|display| {
+                charging_screen.draw(display)?;
+                Ok(true)
+            })
             .await;
 
         ticker.next().await;

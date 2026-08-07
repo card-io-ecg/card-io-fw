@@ -146,13 +146,17 @@ impl InnerContext {
 
     pub fn with_status_bar<'a, F>(&'a mut self, draw: F) -> impl Future<Output = ()> + 'a
     where
-        F: FnOnce(&mut Display) -> Result<(), DisplayError>,
+        F: FnOnce(&mut Display) -> Result<bool, DisplayError>,
         F: 'a,
     {
         let status_bar = self.status_bar();
         self.display.frame(move |display| {
-            status_bar.draw(display)?;
-            draw(display)
+            if draw(display)? {
+                status_bar.draw(display)?;
+                Ok(true)
+            } else {
+                Ok(false)
+            }
         })
     }
 
@@ -167,8 +171,11 @@ impl InnerContext {
         self.message_displayed_at = Some(Instant::now());
 
         info!("Displaying message: {}", message);
-        self.with_status_bar(|display| MessageScreen { message }.draw(display))
-            .await;
+        self.with_status_bar(|display| {
+            MessageScreen { message }.draw(display)?;
+            Ok(true)
+        })
+        .await;
     }
 
     #[cfg(feature = "wifi")]

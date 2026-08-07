@@ -92,7 +92,7 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
         }
 
         context
-            .with_status_bar(|display| screen.draw(display))
+            .with_status_bar(|display| screen.draw(display).map(|_| true))
             .await;
 
         ticker.next().await;

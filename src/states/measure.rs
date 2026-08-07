@@ -291,13 +291,14 @@ async fn measure_impl(
                         label: "Release to menu",
                         progress: to_progress(exit_timer.elapsed(), INIT_TIME),
                     }
-                    .draw(display)
+                    .draw(display)?;
                 } else {
                     screen.update_heart_rate(ecg.heart_rate_calculator.current_hr());
                     screen.elapsed_secs = entered.elapsed().as_secs() as usize;
 
-                    screen.draw(display)
+                    screen.draw(display)?;
                 }
+                Ok(true)
             })
             .await;
 

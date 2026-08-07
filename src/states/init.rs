@@ -33,7 +33,8 @@ pub async fn initialize(context: &mut Context) -> AppState {
                     label: "Release to shutdown",
                     progress: to_progress(elapsed, INIT_TIME),
                 }
-                .draw(display)
+                .draw(display)?;
+                Ok(true)
             })
             .await;
 

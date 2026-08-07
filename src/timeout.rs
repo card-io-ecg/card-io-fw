@@ -27,6 +27,8 @@ impl Timeout {
     }
 
     pub fn remaining(&self) -> Duration {
-        self.duration - self.elapsed()
+        self.duration
+            .checked_sub(self.elapsed())
+            .unwrap_or(Duration::MIN)
     }
 }

@@ -46,10 +46,12 @@ where
         Ok(())
     }
 
-    pub async fn frame(&mut self, render: impl FnOnce(&mut Self) -> Result<(), DisplayError>) {
+    pub async fn frame(&mut self, render: impl FnOnce(&mut Self) -> Result<bool, DisplayError>) {
         unwrap!(self.clear(BinaryColor::Off), "Failed to clear display");
-        unwrap!(render(self), "Failed to render frame");
-        unwrap!(self.display.flush().await);
+        let dirty = unwrap!(render(self), "Failed to render frame");
+        if dirty {
+            unwrap!(self.display.flush().await);
+        }
     }
 
     pub async fn update_brightness_async(

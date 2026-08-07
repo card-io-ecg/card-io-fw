@@ -86,7 +86,7 @@ where
 
 pub trait AppMenuT<E>: Drawable<Color = BinaryColor, Output = ()> {
     fn interact(&mut self, touched: bool) -> Option<E>;
-    fn update(&mut self, display: &impl DrawTarget<Color = BinaryColor>);
+    fn update(&mut self, display: &impl DrawTarget<Color = BinaryColor>) -> bool;
     fn state(&self) -> MenuState<SingleTouchAdapter<E>, AnimatedPosition, AnimatedTriangle>;
 }
 
@@ -100,7 +100,7 @@ where
         Menu::interact(self, touched)
     }
 
-    fn update(&mut self, display: &impl DrawTarget<Color = BinaryColor>) {
+    fn update(&mut self, display: &impl DrawTarget<Color = BinaryColor>) -> bool {
         Menu::update(self, display)
     }
 
@@ -158,8 +158,12 @@ pub trait MenuScreen {
 
             context
                 .with_status_bar(|display| {
-                    menu_screen.update(display);
-                    menu_screen.draw(display)
+                    if menu_screen.update(display) {
+                        menu_screen.draw(display)?;
+                        Ok(true)
+                    } else {
+                        Ok(false)
+                    }
                 })
                 .await;
 

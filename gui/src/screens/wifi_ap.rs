@@ -10,7 +10,7 @@ use embedded_text::TextBox;
 use ufmt::uwrite;
 
 use crate::{
-    screens::{menu_style, BOTTOM_CENTERED_TEXTBOX, NORMAL_TEXT},
+    screens::{create_menu, BOTTOM_CENTERED_TEXTBOX, NORMAL_TEXT},
     widgets::wifi_access_point::WifiAccessPointState,
 };
 
@@ -36,7 +36,7 @@ pub struct WifiApScreen {
 impl WifiApScreen {
     pub fn new() -> Self {
         Self {
-            menu: Menu::with_style("WiFi Config", menu_style())
+            menu: create_menu("WiFi Config")
                 .add_item("Exit", (), |_| ApMenuEvents::Exit)
                 .build(),
             state: WifiAccessPointState::NotConnected,

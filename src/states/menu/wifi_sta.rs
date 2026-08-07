@@ -82,8 +82,11 @@ pub async fn wifi_sta(context: &mut Context) -> AppState {
 
             context
                 .with_status_bar(|display| {
-                    menu_screen.update(display);
-                    menu_screen.draw(display)
+                    if menu_screen.update(display) {
+                        menu_screen.draw(display).map(|_| true)
+                    } else {
+                        Ok(false)
+                    }
                 })
                 .await;
 

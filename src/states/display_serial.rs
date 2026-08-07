@@ -15,6 +15,7 @@ pub async fn display_serial(context: &mut Context) -> AppState {
 
     let mut serial = heapless::String::<32>::new();
     unwrap!(uwrite!(&mut serial, "Card/IO:{}", SerialNumber));
+    let mut previous_secs = 0;
 
     while !shutdown_timer.is_elapsed() {
         if context.frontend.is_touched() {
@@ -25,14 +26,21 @@ pub async fn display_serial(context: &mut Context) -> AppState {
             return AppState::Shutdown;
         }
 
+        let secs = shutdown_timer.remaining().as_secs() as usize;
         context
             .with_status_bar(|display| {
-                QrCodeScreen {
-                    message: serial.as_str(),
-                    countdown: Some(shutdown_timer.remaining().as_secs() as usize),
-                    invert: false,
+                if secs != previous_secs {
+                    previous_secs = secs;
+                    QrCodeScreen {
+                        message: serial.as_str(),
+                        countdown: Some(secs),
+                        invert: false,
+                    }
+                    .draw(display)?;
+                    Ok(true)
+                } else {
+                    Ok(false)
                 }
-                .draw(display)
             })
             .await;
 

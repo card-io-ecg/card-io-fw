@@ -1,4 +1,4 @@
-use std::convert::Infallible;
+use std::{cell::Cell, convert::Infallible};
 
 use embedded_graphics::{
     pixelcolor::BinaryColor,
@@ -55,6 +55,7 @@ fn main() -> Result<(), Infallible> {
             ),
             wifi_sta: WifiClientStateView::enabled(WifiClientState::Connected),
             wifi_ap: WifiAccessPointStateView::enabled(WifiAccessPointState::NotConnected),
+            dirty: Cell::new(false),
         }
         .draw(&mut display)
         .unwrap();
