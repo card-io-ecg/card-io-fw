@@ -44,11 +44,10 @@ impl super::startup::StartupResources {
         let peripherals = Self::common_init();
 
         let systimer = SystemTimer::new(peripherals.SYSTIMER);
-        let sleep = esp_rtos::sleep::configure(peripherals.LPWR);
         esp_rtos::start_with_idle_hook(
             systimer.alarm0,
             peripherals.FROM_CPU_INTR0,
-            sleep.light_sleep_hook,
+            super::setup_sleep(peripherals.LPWR),
         );
 
         let display = Self::create_display_driver(
@@ -95,7 +94,6 @@ impl super::startup::StartupResources {
             battery_monitor,
             #[cfg(feature = "wifi")]
             wifi: peripherals.WIFI,
-            low_power: sleep.deep_sleep,
             software_interrupt2: peripherals.FROM_CPU_INTR2,
         }
     }

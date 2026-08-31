@@ -36,7 +36,6 @@ use crate::{
         initialized::{Context, InnerContext},
         startup::StartupResources,
         storage::FileSystem,
-        TOUCH_PIN, VBUS_DETECT_PIN,
     },
     states::{
         charging::charging,
@@ -50,12 +49,8 @@ use crate::{
 };
 use config_types::{Config, ConfigFile};
 
-use esp_hal::{
-    gpio::{AnyPin, Event, Input, InputConfig, WakeupConfig},
-    interrupt::Priority,
-    rtc_cntl::WakeLock,
-};
-use esp_rtos::{embassy::InterruptExecutor, sleep::DeepSleep};
+use esp_hal::{interrupt::Priority, rtc_cntl::WakeLock};
+use esp_rtos::embassy::InterruptExecutor;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -289,35 +284,7 @@ async fn main(_spawner: Spawner) {
     let is_charging = board.inner.battery_monitor.is_plugged();
     board.inner.battery_monitor.stop().await;
 
-    enter_sleep(resources.low_power, is_charging);
+    board::enter_sleep(is_charging);
     // Shouldn't reach this. If we do, we just exit the task, which means the executor
     // will have nothing else to do. Not ideal, but again, we shouldn't reach this.
-}
-
-fn enter_sleep(mut lpwr: DeepSleep, is_charging: bool) {
-    let charger_event = if is_charging {
-        // Wake up momentarily when charger is disconnected
-        Event::LowLevel
-    } else {
-        // We want to wake up when the charger is connected, or the electrodes are touched.
-
-        // In v2, the charger status is not connected to an RTC IO pin, so we use the VBUS
-        // detect pin instead. This is a high level signal when the charger is connected.
-        Event::HighLevel
-    };
-
-    let mut touch = Input::new(unsafe { AnyPin::steal(TOUCH_PIN) }, InputConfig::default());
-    let mut charger_pin = Input::new(
-        unsafe { AnyPin::steal(VBUS_DETECT_PIN) },
-        InputConfig::default(),
-    );
-
-    let wakeup = WakeupConfig::default().with_low_power_path(true);
-    unwrap!(touch.apply_wakeup_config(&wakeup));
-    unwrap!(charger_pin.apply_wakeup_config(&wakeup));
-
-    touch.listen(Event::LowLevel);
-    charger_pin.listen(charger_event);
-
-    lpwr.deep_sleep();
 }

@@ -24,7 +24,6 @@ use esp_hal::{
     },
     time::Rate,
 };
-use esp_rtos::sleep::DeepSleep;
 use static_cell::StaticCell;
 
 #[cfg(feature = "esp32s3")]
@@ -44,8 +43,6 @@ pub struct StartupResources {
 
     #[cfg(feature = "wifi")]
     pub wifi: WIFI<'static>,
-
-    pub low_power: DeepSleep,
 
     pub software_interrupt2: FROM_CPU_INTR2<'static>,
 }
