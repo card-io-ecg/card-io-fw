@@ -51,22 +51,13 @@ use crate::{
 use config_types::{Config, ConfigFile};
 
 use esp_hal::{
-    gpio::AnyPin,
+    gpio::{AnyPin, Event, Input, InputConfig, WakeupConfig},
     interrupt::Priority,
-    rtc_cntl::{
-        sleep::{self, WakeupLevel},
-        WakeLock,
-    },
+    rtc_cntl::WakeLock,
 };
 use esp_rtos::{embassy::InterruptExecutor, sleep::DeepSleep};
 
 esp_bootloader_esp_idf::esp_app_desc!();
-
-#[cfg(feature = "esp32s3")]
-use esp_hal::gpio::RtcPin as RtcWakeupPin;
-
-#[cfg(feature = "esp32c6")]
-use esp_hal::gpio::RtcPinWithResistors as RtcWakeupPin;
 
 mod board;
 pub mod human_readable;
@@ -304,30 +295,29 @@ async fn main(_spawner: Spawner) {
 }
 
 fn enter_sleep(mut lpwr: DeepSleep, is_charging: bool) {
-    let charger_level = if is_charging {
+    let charger_event = if is_charging {
         // Wake up momentarily when charger is disconnected
-        WakeupLevel::Low
+        Event::LowLevel
     } else {
         // We want to wake up when the charger is connected, or the electrodes are touched.
 
         // In v2, the charger status is not connected to an RTC IO pin, so we use the VBUS
         // detect pin instead. This is a high level signal when the charger is connected.
-        WakeupLevel::High
+        Event::HighLevel
     };
 
-    let mut touch = unsafe { AnyPin::steal(TOUCH_PIN) };
-    let mut charger_pin = unsafe { AnyPin::steal(VBUS_DETECT_PIN) };
+    let mut touch = Input::new(unsafe { AnyPin::steal(TOUCH_PIN) }, InputConfig::default());
+    let mut charger_pin = Input::new(
+        unsafe { AnyPin::steal(VBUS_DETECT_PIN) },
+        InputConfig::default(),
+    );
 
-    let mut wakeup_pins: [(&mut dyn RtcWakeupPin, WakeupLevel); 2] = [
-        (&mut touch, WakeupLevel::Low),
-        (&mut charger_pin, charger_level),
-    ];
+    let wakeup = WakeupConfig::default().with_low_power_path(true);
+    unwrap!(touch.apply_wakeup_config(&wakeup));
+    unwrap!(charger_pin.apply_wakeup_config(&wakeup));
 
-    #[cfg(feature = "esp32s3")]
-    let wakeup_source = sleep::RtcioWakeupSource::new(&mut wakeup_pins);
+    touch.listen(Event::LowLevel);
+    charger_pin.listen(charger_event);
 
-    #[cfg(not(feature = "esp32s3"))]
-    let wakeup_source = sleep::Ext1WakeupSource::new(&mut wakeup_pins);
-
-    lpwr.deep_sleep(&[&wakeup_source]);
+    lpwr.deep_sleep();
 }

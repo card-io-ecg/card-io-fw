@@ -23,12 +23,12 @@ impl<C: Connection> RequestHandler<C> for RootHandler {
 }
 
 pub async fn run() {
-    let mut socket = StdTcpSocket::new();
+    let mut socket = StdTcpSocket::new(8080).unwrap();
 
     BadServer::new()
         .with_request_buffer_size::<2048>()
         .with_header_count::<48>()
         .with_handler(RequestHandler::get("/", RootHandler))
-        .listen(&mut socket, 8080)
+        .serve(&mut socket)
         .await;
 }

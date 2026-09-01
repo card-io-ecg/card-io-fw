@@ -1,6 +1,12 @@
 use alloc::{boxed::Box, rc::Rc};
 use bad_server::{
-    connector::Connection, handler::RequestHandler, request::Request, response::ResponseStatus,
+    connector::{
+        embassy_net_compat::{listen, AcceptQueue, TcpConnection},
+        Connection,
+    },
+    handler::RequestHandler,
+    request::Request,
+    response::ResponseStatus,
     HandleError,
 };
 use config_site::{
@@ -8,7 +14,6 @@ use config_site::{
     data::{SharedWebContext, WebContext},
 };
 use embassy_executor::Spawner;
-use embassy_net::tcp::TcpSocket;
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
 use gui::{
@@ -43,12 +48,24 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
         backend_url: context.config.backend_url.clone(),
     }));
 
+    // A port can only have a single listener, so one task accepts the connections and hands them
+    // out to the webserver tasks.
+    let connection_queue = Rc::new(ConnectionQueue::new());
+
+    let listener_task_control = TaskController::new();
+    spawner.spawn(unwrap!(listener_task(
+        ap.clone(),
+        connection_queue.clone(),
+        listener_task_control.token(),
+    )));
+
     let webserver_task_control = [(); WEBSERVER_TASKS].map(|_| TaskController::new());
     for control in webserver_task_control.iter() {
         spawner.spawn(unwrap!(webserver_task(
             ap.clone(),
             sta.clone(),
             web_context.clone(),
+            connection_queue.clone(),
             control.token(),
         )));
     }
@@ -93,14 +110,18 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
 
         context
             .with_status_bar(|display| {
-                screen.menu.update(display);
-                screen.draw(display)
+                if screen.menu.update(display) {
+                    screen.menu.draw(display).map(|_| true)
+                } else {
+                    Ok(false)
+                }
             })
             .await;
 
         ticker.next().await;
     }
 
+    let _ = listener_task_control.stop().await;
     for control in webserver_task_control {
         let _ = control.stop().await;
     }
@@ -126,6 +147,28 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
     AppState::Menu(AppMenu::Main)
 }
 
+const WEBSERVER_PORT: u16 = 8080;
+
+/// Hands accepted connections from the listener task to the webserver tasks.
+type ConnectionQueue = AcceptQueue<1>;
+
+#[cardio::task]
+async fn listener_task(ap: Ap, queue: Rc<ConnectionQueue>, mut task_control: TaskControlToken<()>) {
+    info!("Started listener task");
+    task_control
+        .run_cancellable(|_| async {
+            while !ap.is_active() {
+                Timer::after(Duration::from_millis(500)).await;
+            }
+
+            if let Err(e) = listen(ap.stack(), WEBSERVER_PORT, &queue).await {
+                warn!("Listener error: {:?}", e);
+            }
+        })
+        .await;
+    info!("Stopped listener task");
+}
+
 #[derive(Clone, Copy)]
 struct WebserverResources {
     tx_buffer: [u8; 4096],
@@ -138,6 +181,7 @@ async fn webserver_task(
     ap: Ap,
     sta: Sta,
     context: Rc<SharedWebContext>,
+    queue: Rc<ConnectionQueue>,
     mut task_control: TaskControlToken<()>,
 ) {
     info!("Started webserver task");
@@ -149,22 +193,19 @@ async fn webserver_task(
                 request_buffer: [0; 2048],
             });
 
-            while !ap.is_active() {
-                Timer::after(Duration::from_millis(500)).await;
-            }
-
-            let mut socket = TcpSocket::new(
+            let mut socket = unwrap!(TcpConnection::new(
                 ap.stack(),
                 &mut resources.rx_buffer,
                 &mut resources.tx_buffer,
-            );
+                queue.dyn_receiver(),
+            ));
             socket.set_timeout(Some(Duration::from_secs(10)));
 
             config_site::create(&context, env!("FW_VERSION"))
                 .with_handler(RequestHandler::get("/vn", VisibleNetworks { sta }))
                 .with_request_buffer(&mut resources.request_buffer[..])
                 .with_header_count::<24>()
-                .listen(&mut socket, 8080)
+                .serve(&mut socket)
                 .await;
         })
         .await;

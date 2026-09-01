@@ -8,8 +8,8 @@ pub trait Connection: Read + Write {
     #[cfg(not(feature = "defmt"))]
     type AcceptError: Debug;
 
-    // TODO: separate listener and socket
-    async fn listen(&mut self, port: u16) -> Result<(), Self::AcceptError>;
+    /// Waits for an incoming connection and sets up the connection for it.
+    async fn accept(&mut self) -> Result<(), Self::AcceptError>;
 
     fn close(&mut self);
 }
@@ -17,23 +17,98 @@ pub trait Connection: Read + Write {
 #[cfg(feature = "embassy")]
 pub mod embassy_net_compat {
 
-    use super::*;
-    use embassy_net::{
-        tcp::{AcceptError, TcpSocket},
-        IpListenEndpoint,
-    };
+    use core::future::poll_fn;
 
-    impl<'a> Connection for TcpSocket<'a> {
+    use embassy_net::{
+        tcp::{AcceptError, AcceptToken, TcpListener, TcpSocket},
+        Full, Stack,
+    };
+    use embassy_sync::{
+        blocking_mutex::raw::NoopRawMutex,
+        channel::{Channel, DynamicReceiver},
+    };
+    use embassy_time::Duration;
+
+    use super::*;
+
+    /// Hands over incoming connections from a single [`listen`] loop to the connection handlers.
+    pub type AcceptQueue<const N: usize> = Channel<NoopRawMutex, AcceptToken, N>;
+
+    /// Listens on `port` and passes each incoming connection attempt to `queue`.
+    ///
+    /// A port can only have a single listener, so run this in one task, and let multiple
+    /// [`TcpConnection`]s take their work from the queue.
+    pub async fn listen<const N: usize>(
+        stack: Stack<'_>,
+        port: u16,
+        queue: &AcceptQueue<N>,
+    ) -> Result<(), AcceptError> {
+        let mut listener = unwrap!(TcpListener::new(stack));
+        unwrap!(listener.listen(port));
+
+        loop {
+            // Dropping a token forgets the connection attempt, and the client's retransmitted SYN
+            // queues it up again. Only take one once the queue has room for it.
+            poll_fn(|cx| queue.poll_ready_to_send(cx)).await;
+            let _ = queue.try_send(listener.accept().await?);
+        }
+    }
+
+    pub struct TcpConnection<'a, 'd> {
+        socket: TcpSocket<'a, 'd>,
+        tokens: DynamicReceiver<'a, AcceptToken>,
+    }
+
+    impl<'a, 'd> TcpConnection<'a, 'd> {
+        pub fn new(
+            stack: Stack<'d>,
+            rx_buffer: &'a mut [u8],
+            tx_buffer: &'a mut [u8],
+            tokens: DynamicReceiver<'a, AcceptToken>,
+        ) -> Result<Self, Full> {
+            Ok(Self {
+                socket: TcpSocket::new(stack, rx_buffer, tx_buffer)?,
+                tokens,
+            })
+        }
+
+        pub fn set_timeout(&mut self, duration: Option<Duration>) {
+            self.socket.set_timeout(duration);
+        }
+    }
+
+    impl Connection for TcpConnection<'_, '_> {
         type AcceptError = AcceptError;
 
-        async fn listen(&mut self, port: u16) -> Result<(), Self::AcceptError> {
-            self.accept(IpListenEndpoint { addr: None, port }).await
+        async fn accept(&mut self) -> Result<(), Self::AcceptError> {
+            let token = self.tokens.receive().await;
+            self.socket.accept(token).await
         }
 
         fn close(&mut self) {
-            TcpSocket::close(self);
-            TcpSocket::abort(self);
+            self.socket.close();
+            self.socket.abort();
             debug!("Socket closed");
+        }
+    }
+
+    impl embedded_io_async::ErrorType for TcpConnection<'_, '_> {
+        type Error = embassy_net::tcp::Error;
+    }
+
+    impl Read for TcpConnection<'_, '_> {
+        async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+            self.socket.read(buf).await
+        }
+    }
+
+    impl Write for TcpConnection<'_, '_> {
+        async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+            self.socket.write(buf).await
+        }
+
+        async fn flush(&mut self) -> Result<(), Self::Error> {
+            self.socket.flush().await
         }
     }
 }
@@ -49,25 +124,16 @@ pub mod std_compat {
     use super::*;
 
     pub struct StdTcpSocket {
+        listener: Async<TcpListener>,
         socket: Option<Async<TcpStream>>,
     }
 
-    impl Clone for StdTcpSocket {
-        fn clone(&self) -> Self {
-            Self {
-                socket: match self.socket {
-                    Some(ref socket) => {
-                        Some(Async::new(socket.get_ref().try_clone().unwrap()).unwrap())
-                    }
-                    None => None,
-                },
-            }
-        }
-    }
-
     impl StdTcpSocket {
-        pub fn new() -> Self {
-            Self { socket: None }
+        pub fn new(port: u16) -> std::io::Result<Self> {
+            Ok(Self {
+                listener: Async::<TcpListener>::bind(SocketAddr::from(([127, 0, 0, 1], port)))?,
+                socket: None,
+            })
         }
     }
 
@@ -106,9 +172,8 @@ pub mod std_compat {
     impl Connection for StdTcpSocket {
         type AcceptError = StdError;
 
-        async fn listen(&mut self, port: u16) -> Result<(), Self::AcceptError> {
-            let listener = Async::<TcpListener>::bind(SocketAddr::from(([127, 0, 0, 1], port)))?;
-            let (socket, _) = listener.accept().await?;
+        async fn accept(&mut self) -> Result<(), Self::AcceptError> {
+            let (socket, _) = self.listener.accept().await?;
 
             self.socket = Some(socket);
 

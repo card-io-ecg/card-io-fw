@@ -5,14 +5,14 @@ use crate::{
     task_control::{TaskControlToken, TaskController},
     Shared,
 };
-use alloc::{boxed::Box, rc::Rc, string::ToString, vec::Vec};
+use alloc::{boxed::Box, rc::Rc, vec::Vec};
 use config_site::data::network::WifiNetwork;
 use embassy_executor::Spawner;
 use embassy_futures::{
     join::join,
     select::{select, Either},
 };
-use embassy_net::{dns::DnsSocket, Runner, Stack};
+use embassy_net::{dns::DnsClient, iface::Iface, Stack};
 use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
     channel::Channel,
@@ -22,7 +22,8 @@ use embassy_sync::{
 use embassy_time::{with_timeout, Duration, Timer};
 use esp_hal::rng::Rng;
 use esp_radio::wifi::{
-    ap::AccessPointInfo, scan::ScanConfig, sta::StationConfig, Config, Interface, WifiController,
+    ap::AccessPointInfo, scan::ScanConfig, sta::StationConfig, AuthenticationMethodConfig, Config,
+    WifiController,
 };
 use gui::widgets::wifi_client::WifiClientState;
 use heapless::String;
@@ -170,15 +171,15 @@ impl Sta {
     }
 
     /// Allocates resources for an HTTPS capable [`HttpClient`].
-    pub fn https_client_resources(&self) -> Result<HttpsClientResources<'_>, AllocError> {
+    pub fn https_client_resources(&self) -> Result<HttpsClientResources<'static>, AllocError> {
         // The client state must be heap allocated, because we take a reference to it.
         let resources = Box::try_new(TlsClientState::EMPTY)?;
         let client_state = unsafe { unwrap!(addr_of!(resources.tcp_state).as_ref()) };
 
         Ok(HttpsClientResources {
             resources,
-            tcp_client: TcpClient::new(self.sta_stack.clone(), client_state),
-            dns_client: DnsSocket::new(self.sta_stack.clone()),
+            tcp_client: TcpClient::new(self.sta_stack, client_state),
+            dns_client: DnsClient::new(self.sta_stack),
         })
     }
 
@@ -230,11 +231,11 @@ impl TlsClientState {
 pub struct HttpsClientResources<'a> {
     resources: Box<TlsClientState>,
     tcp_client: TcpClient<'a>,
-    dns_client: DnsSocket<'a>,
+    dns_client: DnsClient<'a>,
 }
 
 impl<'a> HttpsClientResources<'a> {
-    pub fn client(&mut self) -> HttpClient<'_, TcpClient<'a>, DnsSocket<'a>> {
+    pub fn client(&mut self) -> HttpClient<'_, TcpClient<'a>, DnsClient<'a>> {
         let rng = Rng::new();
         let upper = rng.random() as u64;
         let lower = rng.random() as u64;
@@ -262,8 +263,7 @@ pub(super) struct StaState {
 impl StaState {
     pub(super) fn init(
         controller: WifiController<'static>,
-        sta_stack: Stack<'static>,
-        sta_runner: Runner<'static, Interface>,
+        net: super::WifiNet,
         spawner: Spawner,
     ) -> Self {
         info!("Starting STA");
@@ -282,19 +282,22 @@ impl StaState {
                 state.clone(),
                 networks.clone(),
                 known_networks.clone(),
-                sta_stack.clone(),
+                net.sta_iface,
                 command_queue.clone(),
                 InitialStaControllerState::ScanAndConnect,
             ),
             connection_task_control.token(),
         )));
-        spawner.spawn(unwrap!(net_task(sta_runner, net_task_control.token())));
+        spawner.spawn(unwrap!(net_task(
+            unsafe { &mut *net.sta_runner },
+            net_task_control.token(),
+        )));
 
         Self {
             connection_task_control,
             net_task_control,
             handle: Sta {
-                sta_stack,
+                sta_stack: net.sta_stack,
                 networks,
                 known_networks,
                 state,
@@ -372,7 +375,7 @@ pub(super) struct StaController {
 
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
-    stack: Stack<'static>,
+    stack: Iface<'static>,
     current_ssid: Option<String<32>>,
 
     command_queue: Rc<CommandQueue>,
@@ -383,7 +386,7 @@ impl StaController {
         state: Rc<StaConnectionState>,
         networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
         known_networks: Shared<Vec<KnownNetwork>>,
-        stack: Stack<'static>,
+        stack: Iface<'static>,
         command_queue: Rc<CommandQueue>,
         initial_state: InitialStaControllerState,
     ) -> Self {
@@ -502,8 +505,10 @@ impl StaController {
 
         unwrap!(controller.set_config(&Config::Station(
             StationConfig::default()
-                .with_ssid(connect_to.ssid.as_str().to_string())
-                .with_password(connect_to.pass.as_str().to_string())
+                .with_ssid(unwrap!(connect_to.ssid.as_str().try_into()))
+                .with_authentication(AuthenticationMethodConfig::Wpa2Personal(unwrap!(
+                    connect_to.pass.as_str().try_into()
+                )))
         )));
 
         Ok(())
@@ -601,11 +606,11 @@ impl StaController {
             }
 
             StaControllerState::AutoConnecting => {
-                let Some(config) = self.stack.config_v4() else {
+                if !self.stack.is_config_up() {
                     return Duration::from_millis(500);
-                };
+                }
 
-                info!("Got IP: {}", config.address);
+                info!("Got IP: {:?}", self.stack.ip_addrs());
                 self.state.update(InternalConnectionState::Connected);
                 self.controller_state = StaControllerState::AutoConnected;
                 CONTINUE

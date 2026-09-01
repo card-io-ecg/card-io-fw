@@ -5,7 +5,7 @@ use core::{
 
 #[cfg(feature = "wifi")]
 use crate::{
-    board::wifi::{ap::Ap, sta::Sta, WifiDriver},
+    board::wifi::{ap::Ap, sta::Sta, Ipv4NetConfig, WifiDriver},
     saved_measurement_exists,
 };
 use crate::{
@@ -20,7 +20,7 @@ use display_interface::DisplayError;
 use embassy_executor::SendSpawner;
 
 #[cfg(feature = "wifi")]
-use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
+use embassy_net::wire::{IpCidr, Ipv4Address};
 
 use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::Drawable;
@@ -187,10 +187,7 @@ impl InnerContext {
             return None;
         }
 
-        let sta = self
-            .wifi
-            .configure_sta(NetConfig::dhcpv4(Default::default()))
-            .await;
+        let sta = self.wifi.configure_sta(Ipv4NetConfig::Dhcpv4).await;
 
         sta.update_known_networks(&self.config.known_networks).await;
 
@@ -207,11 +204,10 @@ impl InnerContext {
 
         let ap = self
             .wifi
-            .configure_ap(NetConfig::ipv4_static(StaticConfigV4 {
-                address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
+            .configure_ap(Ipv4NetConfig::Static {
+                address: IpCidr::new(Ipv4Address::new(192, 168, 2, 1).into(), 24),
                 gateway: Some(Ipv4Address::new(192, 168, 2, 1)),
-                dns_servers: Default::default(),
-            }))
+            })
             .await;
 
         Some(ap)
@@ -227,12 +223,11 @@ impl InnerContext {
         let apsta = self
             .wifi
             .configure_ap_sta(
-                NetConfig::ipv4_static(StaticConfigV4 {
-                    address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
+                Ipv4NetConfig::Static {
+                    address: IpCidr::new(Ipv4Address::new(192, 168, 2, 1).into(), 24),
                     gateway: Some(Ipv4Address::new(192, 168, 2, 1)),
-                    dns_servers: Default::default(),
-                }),
-                NetConfig::dhcpv4(Default::default()),
+                },
+                Ipv4NetConfig::Dhcpv4,
             )
             .await;
 

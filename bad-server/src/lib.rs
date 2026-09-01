@@ -208,11 +208,11 @@ where
         }
     }
 
-    pub async fn listen(&mut self, socket: &mut H::Connection, port: u16) {
+    pub async fn serve(&mut self, socket: &mut H::Connection) {
         loop {
             info!("Wait for connection");
 
-            if let Err(e) = socket.listen(port).await {
+            if let Err(e) = socket.accept().await {
                 warn!("Connect error: {:?}", e);
                 socket.close();
                 continue;
