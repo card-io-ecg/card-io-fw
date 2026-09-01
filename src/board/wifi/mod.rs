@@ -33,6 +33,7 @@ pub mod ap_sta;
 pub mod sta;
 
 #[derive(Clone, Copy)]
+#[allow(unused)]
 pub enum Ipv4NetConfig {
     Dhcpv4,
     Static {
