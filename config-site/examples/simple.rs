@@ -15,7 +15,7 @@ fn main() {
 }
 
 pub async fn run() {
-    let mut socket = StdTcpSocket::new();
+    let mut socket = StdTcpSocket::new(8080).unwrap();
 
     let mut known_networks = heapless::Vec::<_, 8>::new();
 
@@ -41,7 +41,7 @@ pub async fn run() {
         .with_handler(RequestHandler::get("/vn", VisibleNetworks))
         .with_request_buffer_size::<2048>()
         .with_header_count::<48>()
-        .listen(&mut socket, 8080)
+        .serve(&mut socket)
         .await;
 }
 

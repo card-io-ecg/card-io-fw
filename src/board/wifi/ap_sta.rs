@@ -17,10 +17,7 @@ use embassy_futures::{
     join::join3,
     select::{select3, Either3},
 };
-use embassy_net::{Runner, Stack};
-use esp_radio::wifi::{
-    ap::AccessPointConfig, sta::StationConfig, Config, Interface, WifiController,
-};
+use esp_radio::wifi::{ap::AccessPointConfig, sta::StationConfig, Config, WifiController};
 use macros as cardio;
 
 pub(super) struct ApStaState {
@@ -34,10 +31,7 @@ pub(super) struct ApStaState {
 impl ApStaState {
     pub(super) fn init(
         controller: WifiController<'static>,
-        ap_stack: Stack<'static>,
-        ap_runner: Runner<'static, Interface>,
-        sta_stack: Stack<'static>,
-        sta_runner: Runner<'static, Interface>,
+        net: super::WifiNet,
         spawner: Spawner,
     ) -> Self {
         info!("Configuring AP-STA");
@@ -59,7 +53,7 @@ impl ApStaState {
                 sta_state.clone(),
                 networks.clone(),
                 known_networks.clone(),
-                sta_stack.clone(),
+                net.sta_iface,
                 command_queue.clone(),
                 InitialStaControllerState::Idle,
             ),
@@ -67,8 +61,14 @@ impl ApStaState {
             connection_task_control.token(),
         )));
 
-        spawner.spawn(unwrap!(net_task(ap_runner, ap_net_task_control.token())));
-        spawner.spawn(unwrap!(net_task(sta_runner, sta_net_task_control.token())));
+        spawner.spawn(unwrap!(net_task(
+            unsafe { &mut *net.ap_runner },
+            ap_net_task_control.token(),
+        )));
+        spawner.spawn(unwrap!(net_task(
+            unsafe { &mut *net.sta_runner },
+            sta_net_task_control.token(),
+        )));
 
         Self {
             connection_task_control,
@@ -76,11 +76,12 @@ impl ApStaState {
             sta_net_task_control,
 
             ap_handle: Ap {
-                ap_stack,
+                ap_stack: net.ap_stack,
+                ap_iface: net.ap_iface,
                 state: ap_state,
             },
             sta_handle: Sta {
-                sta_stack,
+                sta_stack: net.sta_stack,
                 networks,
                 known_networks,
                 state: sta_state,
@@ -122,7 +123,7 @@ async fn ap_sta_task(
     task_control
         .run_cancellable(|resources| async {
             let ap_config = AccessPointConfig::default()
-                .with_ssid(alloc::string::String::from("Card/IO"))
+                .with_ssid(unwrap!("Card/IO".try_into()))
                 .with_max_connections(1);
             let client_config = StationConfig::default();
             unwrap!(resources

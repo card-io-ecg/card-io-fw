@@ -17,8 +17,7 @@ use esp_hal::{
     clock::CpuClock,
     gpio::{Input, InputPin, Level, Output, OutputPin, Pull},
     i2c,
-    interrupt::software::SoftwareInterrupt,
-    peripherals::Peripherals,
+    peripherals::{Peripherals, FROM_CPU_INTR2},
     spi::{
         master::{Config as SpiConfig, Spi},
         Mode,
@@ -48,7 +47,7 @@ pub struct StartupResources {
 
     pub low_power: DeepSleep,
 
-    pub software_interrupt2: SoftwareInterrupt<'static, 2>,
+    pub software_interrupt2: FROM_CPU_INTR2<'static>,
 }
 
 impl StartupResources {
