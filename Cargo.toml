@@ -18,6 +18,7 @@ embedded-menu = "0.7.0"
 embassy-net = { version = "0.9", features = [
     "tcp",
     "tcp-listener",
+    "dhcpv4-server",
     "dhcpv4",
     "dns",
     "ipv4",

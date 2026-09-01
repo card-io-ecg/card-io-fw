@@ -1,6 +1,5 @@
 use alloc::rc::Rc;
 use core::sync::atomic::{AtomicU32, Ordering};
-use embassy_futures::join::join;
 use gui::widgets::wifi_access_point::WifiAccessPointState;
 
 use crate::task_control::{TaskControlToken, TaskController};
@@ -55,7 +54,6 @@ impl Ap {
 
 pub(super) struct ApState {
     connection_task_control: TaskController<(), ApTaskResources>,
-    net_task_control: TaskController<()>,
     handle: Ap,
 }
 
@@ -71,21 +69,15 @@ impl ApState {
 
         let connection_task_control =
             TaskController::from_resources(ApTaskResources { controller });
-        let net_task_control = TaskController::new();
 
         info!("Starting AP tasks");
         spawner.spawn(unwrap!(ap_task(
             ApController::new(state.clone()),
             connection_task_control.token(),
         )));
-        spawner.spawn(unwrap!(super::net_task(
-            unsafe { &mut *net.ap_runner },
-            net_task_control.token(),
-        )));
 
         Self {
             connection_task_control,
-            net_task_control,
             handle: Ap {
                 ap_stack: net.ap_stack,
                 ap_iface: net.ap_iface,
@@ -96,12 +88,7 @@ impl ApState {
 
     pub(super) async fn stop(self) {
         info!("Stopping AP");
-        let _ = join(
-            self.connection_task_control.stop(),
-            self.net_task_control.stop(),
-        )
-        .await;
-
+        let _ = self.connection_task_control.stop().await;
         info!("Stopped AP");
     }
 

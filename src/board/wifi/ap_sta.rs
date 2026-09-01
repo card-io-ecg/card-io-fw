@@ -7,23 +7,17 @@ use embassy_time::{Duration, Timer};
 use crate::{
     board::wifi::{
         ap::{Ap, ApConnectionState, ApController},
-        net_task,
         sta::{CommandQueue, InitialStaControllerState, Sta, StaConnectionState, StaController},
     },
     task_control::{TaskControlToken, TaskController},
 };
 use embassy_executor::Spawner;
-use embassy_futures::{
-    join::join3,
-    select::{select3, Either3},
-};
+use embassy_futures::select::{select3, Either3};
 use esp_radio::wifi::{ap::AccessPointConfig, sta::StationConfig, Config, WifiController};
 use macros as cardio;
 
 pub(super) struct ApStaState {
     connection_task_control: TaskController<(), ApStaTaskResources>,
-    ap_net_task_control: TaskController<()>,
-    sta_net_task_control: TaskController<()>,
     ap_handle: Ap,
     sta_handle: Sta,
 }
@@ -44,8 +38,6 @@ impl ApStaState {
 
         let connection_task_control =
             TaskController::from_resources(ApStaTaskResources { controller });
-        let ap_net_task_control = TaskController::new();
-        let sta_net_task_control = TaskController::new();
 
         info!("Starting AP-STA tasks");
         spawner.spawn(unwrap!(ap_sta_task(
@@ -61,19 +53,8 @@ impl ApStaState {
             connection_task_control.token(),
         )));
 
-        spawner.spawn(unwrap!(net_task(
-            unsafe { &mut *net.ap_runner },
-            ap_net_task_control.token(),
-        )));
-        spawner.spawn(unwrap!(net_task(
-            unsafe { &mut *net.sta_runner },
-            sta_net_task_control.token(),
-        )));
-
         Self {
             connection_task_control,
-            ap_net_task_control,
-            sta_net_task_control,
 
             ap_handle: Ap {
                 ap_stack: net.ap_stack,
@@ -92,13 +73,7 @@ impl ApStaState {
 
     pub(super) async fn stop(self) {
         info!("Stopping AP-STA");
-        let _ = join3(
-            self.connection_task_control.stop(),
-            self.ap_net_task_control.stop(),
-            self.sta_net_task_control.stop(),
-        )
-        .await;
-
+        let _ = self.connection_task_control.stop().await;
         info!("Stopped AP-STA");
     }
 

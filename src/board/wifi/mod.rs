@@ -1,16 +1,13 @@
 use core::hint::unreachable_unchecked;
 
-use crate::{
-    board::wifi::{
-        ap::{Ap, ApState},
-        ap_sta::ApStaState,
-        sta::{Sta, StaState},
-    },
-    task_control::TaskControlToken,
+use crate::board::wifi::{
+    ap::{Ap, ApState},
+    ap_sta::ApStaState,
+    sta::{Sta, StaState},
 };
 use embassy_executor::Spawner;
 use embassy_net::{
-    iface::Iface,
+    iface::{dhcpv4_server::DhcpServerConfig, Iface},
     wire::{IpCidr, Ipv4Address},
     Runner, Stack, StackStorage,
 };
@@ -23,7 +20,7 @@ macro_rules! mk_static {
     ($t:ty,$val:expr) => {{
         static STATIC_CELL: static_cell::StaticCell<$t> = static_cell::StaticCell::new();
         #[deny(unused_attributes)]
-        let x = STATIC_CELL.uninit().write(($val));
+        let x = STATIC_CELL.uninit().write($val);
         x
     }};
 }
@@ -35,6 +32,11 @@ pub mod sta;
 #[derive(Clone, Copy)]
 pub enum Ipv4NetConfig {
     Dhcpv4,
+    Dhcpv4Server {
+        ip: IpCidr,
+        pool_start: Ipv4Address,
+        pool_end: Ipv4Address,
+    },
     Static {
         address: IpCidr,
         gateway: Option<Ipv4Address>,
@@ -50,17 +52,58 @@ struct WifiInitResources {
     wifi: WIFI<'static>,
 }
 
+/// The network stacks.
+///
+/// These are created once and live for the rest of the program, together with the tasks that
+/// drive them. Only the Wi-Fi driver itself is started and stopped.
 #[derive(Clone, Copy)]
 pub(super) struct WifiNet {
     ap_stack: Stack<'static>,
     ap_iface: Iface<'static>,
-    ap_runner: *mut Runner<'static>,
     sta_stack: Stack<'static>,
     sta_iface: Iface<'static>,
-    sta_runner: *mut Runner<'static>,
 }
 
-unsafe impl Send for WifiNet {}
+impl WifiNet {
+    fn new(spawner: Spawner, random_seed: u64) -> Self {
+        let ap_storage = mk_static!(StackStorage<'static>, StackStorage::new());
+        let sta_storage = mk_static!(StackStorage<'static>, StackStorage::new());
+        let ap_interface = mk_static!(Interface, Interface::access_point());
+        let sta_interface = mk_static!(Interface, Interface::station());
+
+        let (ap_stack, ap_runner) = Stack::new(ap_storage, random_seed);
+        let ap_iface = unwrap!(ap_stack.add_iface(ap_interface));
+
+        let (sta_stack, sta_runner) = Stack::new(sta_storage, random_seed);
+        let sta_iface = unwrap!(sta_stack.add_iface(sta_interface));
+
+        spawner.spawn(unwrap!(net_task(ap_runner)));
+        spawner.spawn(unwrap!(net_task(sta_runner)));
+
+        Self {
+            ap_stack,
+            ap_iface,
+            sta_stack,
+            sta_iface,
+        }
+    }
+
+    /// Removes all interface configuration.
+    ///
+    /// The stacks outlive the Wi-Fi driver, so without this a stopped driver would leave its
+    /// addresses and routes in place, and its DHCP client retrying with the radio turned off.
+    fn clear_config(&self) {
+        for (stack, iface) in [
+            (self.ap_stack, self.ap_iface),
+            (self.sta_stack, self.sta_iface),
+        ] {
+            iface.set_dhcpv4(None);
+            iface.set_dhcpv4_server(None);
+            unwrap!(iface.set_ip_addrs([]));
+            stack.routes().clear();
+        }
+    }
+}
 
 enum WifiDriverState {
     Uninitialized(WifiInitResources),
@@ -73,6 +116,15 @@ fn apply_ipv4_config(stack: Stack<'static>, iface: Iface<'static>, config: Ipv4N
     match config {
         Ipv4NetConfig::Dhcpv4 => {
             iface.set_dhcpv4(Some(Default::default()));
+        }
+        Ipv4NetConfig::Dhcpv4Server {
+            ip,
+            pool_start,
+            pool_end,
+        } => {
+            unwrap!(iface.add_ip_addr(ip));
+            let dhcp_config = DhcpServerConfig::new(pool_start, pool_end);
+            iface.set_dhcpv4_server(Some(dhcp_config));
         }
         Ipv4NetConfig::Static { address, gateway } => {
             unwrap!(iface.add_ip_addr(address));
@@ -88,10 +140,15 @@ fn apply_ipv4_config(stack: Stack<'static>, iface: Iface<'static>, config: Ipv4N
 impl WifiDriverState {
     async fn initialize(
         &mut self,
+        spawner: Spawner,
         callback: impl FnOnce(WifiController<'static>, WifiNet) -> Self + 'static,
         net: &mut Option<WifiNet>,
     ) {
         self.uninit().await;
+        if let Some(net) = net {
+            net.clear_config();
+        }
+
         replace_with::replace_with_or_abort(self, |this| {
             if let Self::Uninitialized(resources) = this {
                 let rng = Rng::new();
@@ -107,29 +164,7 @@ impl WifiDriverState {
                     Default::default()
                 ));
 
-                let net = *net.get_or_insert_with(|| {
-                    let ap_storage = mk_static!(StackStorage<'static>, StackStorage::new());
-                    let sta_storage = mk_static!(StackStorage<'static>, StackStorage::new());
-                    let ap_interface = mk_static!(Interface, Interface::access_point());
-                    let sta_interface = mk_static!(Interface, Interface::station());
-
-                    let (ap_stack, ap_runner) = Stack::new(ap_storage, random_seed);
-                    let ap_iface = unwrap!(ap_stack.add_iface(ap_interface));
-                    let ap_runner = mk_static!(Runner<'static>, ap_runner);
-
-                    let (sta_stack, sta_runner) = Stack::new(sta_storage, random_seed);
-                    let sta_iface = unwrap!(sta_stack.add_iface(sta_interface));
-                    let sta_runner = mk_static!(Runner<'static>, sta_runner);
-
-                    WifiNet {
-                        ap_stack,
-                        ap_iface,
-                        ap_runner,
-                        sta_stack,
-                        sta_iface,
-                        sta_runner,
-                    }
-                });
+                let net = *net.get_or_insert_with(|| WifiNet::new(spawner, random_seed));
 
                 callback(controller, net)
             } else {
@@ -170,6 +205,7 @@ impl WifiDriver {
             let spawner = unsafe { Spawner::for_current_executor().await };
             self.state
                 .initialize(
+                    spawner,
                     move |controller, net| {
                         apply_ipv4_config(net.ap_stack, net.ap_iface, ap_config);
                         WifiDriverState::Ap(ApState::init(controller, net, spawner))
@@ -196,6 +232,7 @@ impl WifiDriver {
             let spawner = unsafe { Spawner::for_current_executor().await };
             self.state
                 .initialize(
+                    spawner,
                     move |controller, net| {
                         apply_ipv4_config(net.ap_stack, net.ap_iface, ap_config);
                         apply_ipv4_config(net.sta_stack, net.sta_iface, sta_config);
@@ -220,6 +257,7 @@ impl WifiDriver {
             let spawner = unsafe { Spawner::for_current_executor().await };
             self.state
                 .initialize(
+                    spawner,
                     move |controller, net| {
                         apply_ipv4_config(net.sta_stack, net.sta_iface, sta_config);
                         WifiDriverState::Sta(StaState::init(controller, net, spawner))
@@ -254,6 +292,9 @@ impl WifiDriver {
 
     pub async fn stop_if(&mut self) {
         self.state.uninit().await;
+        if let Some(net) = &self.net {
+            net.clear_config();
+        }
     }
 
     pub fn ap_state(&self) -> Option<WifiAccessPointState> {
@@ -265,14 +306,8 @@ impl WifiDriver {
     }
 }
 
+/// Drives a network stack. Runs for as long as the stack exists, which is forever.
 #[cardio::task(pool_size = 2)]
-pub(super) async fn net_task(
-    runner: &'static mut Runner<'static>,
-    mut task_control: TaskControlToken<()>,
-) {
-    task_control
-        .run_cancellable(|_| async {
-            runner.run().await;
-        })
-        .await;
+async fn net_task(mut runner: Runner<'static>) -> ! {
+    runner.run().await
 }

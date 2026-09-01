@@ -197,6 +197,8 @@ impl InnerContext {
     #[cfg(feature = "wifi")]
     #[allow(unused)]
     pub async fn enable_wifi_ap(&mut self) -> Option<Ap> {
+        use embassy_net::iface::dhcpv4_server::DhcpServerConfig;
+
         if !self.can_enable_wifi() {
             self.wifi.stop_if().await;
             return None;
@@ -204,9 +206,14 @@ impl InnerContext {
 
         let ap = self
             .wifi
-            .configure_ap(Ipv4NetConfig::Static {
-                address: IpCidr::new(Ipv4Address::new(192, 168, 2, 1).into(), 24),
-                gateway: Some(Ipv4Address::new(192, 168, 2, 1)),
+            //.configure_ap(Ipv4NetConfig::Static {
+            //    address: IpCidr::new(Ipv4Address::new(192, 168, 2, 1).into(), 24),
+            //    gateway: Some(Ipv4Address::new(192, 168, 2, 1)),
+            //})
+            .configure_ap(Ipv4NetConfig::Dhcpv4Server {
+                ip: IpCidr::new(Ipv4Address::new(192, 168, 2, 1).into(), 24),
+                pool_start: Ipv4Address::new(192, 168, 2, 100),
+                pool_end: Ipv4Address::new(192, 168, 2, 199),
             })
             .await;
 
@@ -222,10 +229,18 @@ impl InnerContext {
 
         let apsta = self
             .wifi
+            //.configure_ap_sta(
+            //    Ipv4NetConfig::Static {
+            //        address: IpCidr::new(Ipv4Address::new(192, 168, 2, 1).into(), 24),
+            //        gateway: Some(Ipv4Address::new(192, 168, 2, 1)),
+            //    },
+            //    Ipv4NetConfig::Dhcpv4,
+            //)
             .configure_ap_sta(
-                Ipv4NetConfig::Static {
-                    address: IpCidr::new(Ipv4Address::new(192, 168, 2, 1).into(), 24),
-                    gateway: Some(Ipv4Address::new(192, 168, 2, 1)),
+                Ipv4NetConfig::Dhcpv4Server {
+                    ip: IpCidr::new(Ipv4Address::new(192, 168, 2, 1).into(), 24),
+                    pool_start: Ipv4Address::new(192, 168, 2, 100),
+                    pool_end: Ipv4Address::new(192, 168, 2, 199),
                 },
                 Ipv4NetConfig::Dhcpv4,
             )

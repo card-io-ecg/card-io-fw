@@ -86,8 +86,14 @@ impl<R: Send, D: Send> Inner<R, D> {
         let resources = unsafe { unwrap!(self.resources.get().as_mut()) };
 
         let result = match select(f(resources), self.token.wait()).await {
-            Either::First(result) => Ok(result),
-            Either::Second(_) => Err(Aborted {}),
+            Either::First(result) => {
+                debug!("Task finished");
+                Ok(result)
+            }
+            Either::Second(_) => {
+                debug!("Task cancelled");
+                Err(Aborted {})
+            }
         };
         self.exited.signal(result)
     }

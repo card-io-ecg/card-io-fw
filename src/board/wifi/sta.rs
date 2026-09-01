@@ -1,17 +1,14 @@
 use core::{alloc::AllocError, future::pending, ptr::addr_of, sync::atomic::Ordering};
 
 use crate::{
-    board::{initialized::Context, wifi::net_task},
+    board::initialized::Context,
     task_control::{TaskControlToken, TaskController},
     Shared,
 };
 use alloc::{boxed::Box, rc::Rc, vec::Vec};
 use config_site::data::network::WifiNetwork;
 use embassy_executor::Spawner;
-use embassy_futures::{
-    join::join,
-    select::{select, Either},
-};
+use embassy_futures::select::{select, Either};
 use embassy_net::{dns::DnsClient, iface::Iface, Stack};
 use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
@@ -256,7 +253,6 @@ impl<'a> HttpsClientResources<'a> {
 
 pub(super) struct StaState {
     connection_task_control: TaskController<(), StaTaskResources>,
-    net_task_control: TaskController<()>,
     handle: Sta,
 }
 
@@ -274,7 +270,6 @@ impl StaState {
 
         let connection_task_control =
             TaskController::from_resources(StaTaskResources { controller });
-        let net_task_control = TaskController::new();
 
         info!("Starting STA tasks");
         spawner.spawn(unwrap!(sta_task(
@@ -288,14 +283,9 @@ impl StaState {
             ),
             connection_task_control.token(),
         )));
-        spawner.spawn(unwrap!(net_task(
-            unsafe { &mut *net.sta_runner },
-            net_task_control.token(),
-        )));
 
         Self {
             connection_task_control,
-            net_task_control,
             handle: Sta {
                 sta_stack: net.sta_stack,
                 networks,
@@ -308,12 +298,7 @@ impl StaState {
 
     pub(super) async fn stop(self) {
         info!("Stopping STA");
-        let _ = join(
-            self.connection_task_control.stop(),
-            self.net_task_control.stop(),
-        )
-        .await;
-
+        let _ = self.connection_task_control.stop().await;
         info!("Stopped STA");
     }
 
