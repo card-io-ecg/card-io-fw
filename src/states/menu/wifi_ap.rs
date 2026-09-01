@@ -76,6 +76,8 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     let mut input = TouchInputShaper::new();
 
+    let mut prev_timeout = 0;
+
     loop {
         input.update(&mut context.frontend);
         let is_touched = input.is_touched();
@@ -86,6 +88,7 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
             break;
         }
 
+        let timeout = exit_timer.remaining().as_secs() as u8;
         let connection_state: WifiAccessPointState = ap.connection_state().into();
         if connection_state != WifiAccessPointState::Connected {
             // We start counting when the last client disconnects, and we reset on interaction.
@@ -96,11 +99,14 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
             if exit_timer.is_elapsed() {
                 break;
             }
-            screen.timeout = Some(exit_timer.remaining().as_secs() as u8);
+            screen.timeout = Some(timeout);
         } else {
             screen.timeout = None;
         }
 
+        let changed = connection_state != screen.state || prev_timeout != timeout;
+
+        prev_timeout = timeout;
         screen.state = connection_state;
 
         #[allow(irrefutable_let_patterns)]
@@ -110,8 +116,8 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
 
         context
             .with_status_bar(|display| {
-                if screen.menu.update(display) {
-                    screen.menu.draw(display).map(|_| true)
+                if screen.menu.update(display) || changed {
+                    screen.draw(display).map(|_| true)
                 } else {
                     Ok(false)
                 }

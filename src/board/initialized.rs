@@ -206,10 +206,6 @@ impl InnerContext {
 
         let ap = self
             .wifi
-            //.configure_ap(Ipv4NetConfig::Static {
-            //    address: IpCidr::new(Ipv4Address::new(192, 168, 2, 1).into(), 24),
-            //    gateway: Some(Ipv4Address::new(192, 168, 2, 1)),
-            //})
             .configure_ap(Ipv4NetConfig::Dhcpv4Server {
                 ip: IpCidr::new(Ipv4Address::new(192, 168, 2, 1).into(), 24),
                 pool_start: Ipv4Address::new(192, 168, 2, 100),
@@ -229,13 +225,6 @@ impl InnerContext {
 
         let apsta = self
             .wifi
-            //.configure_ap_sta(
-            //    Ipv4NetConfig::Static {
-            //        address: IpCidr::new(Ipv4Address::new(192, 168, 2, 1).into(), 24),
-            //        gateway: Some(Ipv4Address::new(192, 168, 2, 1)),
-            //    },
-            //    Ipv4NetConfig::Dhcpv4,
-            //)
             .configure_ap_sta(
                 Ipv4NetConfig::Dhcpv4Server {
                     ip: IpCidr::new(Ipv4Address::new(192, 168, 2, 1).into(), 24),
