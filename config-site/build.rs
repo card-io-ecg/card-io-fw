@@ -54,7 +54,8 @@ mod compress {
             let cfg = minify_html::Cfg {
                 do_not_minify_doctype: true,
                 minify_css: true,
-                minify_js: true,
+                // minify-js rewrites "\n" in string literals to a literal backslash-n.
+                minify_js: false,
                 ..Default::default()
             };
             buffer = minify_html::minify(&buffer, &cfg);
