@@ -3,7 +3,6 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 
 mod filter;
-mod norfs_partition;
 mod task;
 
 /// Declares an async task that can be run by `embassy-executor`. The optional `pool_size` parameter can be used to specify how
@@ -48,14 +47,4 @@ pub fn task(args: TokenStream, item: TokenStream) -> TokenStream {
 pub fn designfilt(item: TokenStream) -> TokenStream {
     let spec = syn::parse_macro_input!(item as filter::FilterSpec);
     filter::run(spec).into()
-}
-
-#[proc_macro_attribute]
-pub fn partition(args: TokenStream, item: TokenStream) -> TokenStream {
-    let tokens = item.clone();
-
-    let args = syn::parse_macro_input!(args as norfs_partition::Args);
-    let s = syn::parse_macro_input!(tokens as syn::ItemStruct);
-
-    norfs_partition::implement(args, s, item.into()).into()
 }

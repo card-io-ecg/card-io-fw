@@ -1,15 +1,18 @@
 use core::cell::Cell;
 
+use alloc::boxed::Box;
 use embassy_futures::select::{select, Either};
 use embassy_time::{with_timeout, Duration, Instant, Timer};
 use embedded_io_async::BufRead;
+use esp_bootloader_esp_idf::partitions::PARTITION_TABLE_MAX_LEN;
 use reqwless::{request::Method, response::Status};
 use ufmt::uwrite;
 
 use crate::{
     board::{
         initialized::{Context, StaMode},
-        ota::{Ota0Partition, Ota1Partition, OtaClient, OtaDataPartition},
+        ota::OtaClient,
+        storage::lock_flash,
     },
     human_readable::{BinarySize, Throughput},
     states::menu::AppMenu,
@@ -138,8 +141,15 @@ async fn do_update(context: &mut Context) -> UpdateResult {
         }
     };
 
-    let mut ota = match OtaClient::initialize(OtaDataPartition, Ota0Partition, Ota1Partition).await
-    {
+    let Some(mut flash) = lock_flash().await else {
+        warn!("Flash is not available for OTA");
+        return UpdateResult::Failed(UpdateError::InternalError);
+    };
+    let Ok(mut partition_table) = Box::try_new([0u8; PARTITION_TABLE_MAX_LEN]) else {
+        warn!("Out of memory while preparing OTA");
+        return UpdateResult::Failed(UpdateError::InternalError);
+    };
+    let mut ota = match OtaClient::initialize(flash.storage_mut(), &mut partition_table) {
         Ok(ota) => ota,
         Err(e) => {
             warn!("Failed to initialize OTA: {:?}", e);
@@ -175,7 +185,7 @@ async fn do_update(context: &mut Context) -> UpdateResult {
                     _ => break Some(UpdateError::DownloadTimeout),
                 };
 
-                if let Err(e) = ota.write(received_buffer).await {
+                if let Err(e) = ota.write(received_buffer) {
                     warn!("Failed to write OTA: {:?}", e);
                     break Some(UpdateError::WriteError);
                 }
@@ -202,7 +212,7 @@ async fn do_update(context: &mut Context) -> UpdateResult {
     match result {
         Either::First(Some(error)) => UpdateResult::Failed(error),
         Either::First(None) => {
-            if let Err(e) = ota.activate().await {
+            if let Err(e) = ota.activate() {
                 warn!("Failed to activate OTA: {:?}", e);
                 UpdateResult::Failed(UpdateError::ActivateFailed)
             } else {

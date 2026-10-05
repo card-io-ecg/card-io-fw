@@ -11,8 +11,8 @@ defmt = { workspace = true, optional = true }
 edge-http = { workspace = true, optional = true }
 embassy-sync = { workspace = true, optional = true }
 embedded-io-async = { workspace = true, optional = true }
-heapless = { workspace = true }
-norfs = { workspace = true, optional = true }
+heapless = { workspace = true, features = ["serde"] }
+serde.workspace = true
 smol = { version = "2", optional = true }
 
 [build-dependencies]
@@ -31,7 +31,7 @@ smol = "2"
 
 [features]
 default = []
-embedded = ["dep:norfs", "dep:embassy-sync", "dep:embedded-io-async"]
+embedded = ["dep:embassy-sync"]
 compress = ["dep:minify-html", "dep:libflate"]
 serve = ["dep:edge-http", "dep:embedded-io-async"]
 std = ["dep:smol", "edge-http?/std"]

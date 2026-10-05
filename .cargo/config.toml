@@ -1,5 +1,5 @@
 [target.xtensa-esp32s3-none-elf]
-runner    = "probe-rs run  --preverify --always-print-stacktrace"
+runner    = "probe-rs run --preverify --always-print-stacktrace --idf-partition-table partitions.csv"
 #runner = "espflash flash -M --erase-parts=otadata --log-format=defmt --partition-table partitions.csv -s 8mb"
 rustflags = [
   "-C", "link-arg=-nostartfiles",
@@ -7,7 +7,7 @@ rustflags = [
 ]
 
 [target.riscv32imac-unknown-none-elf]
-runner    = "probe-rs run --preverify --always-print-stacktrace"
+runner    = "probe-rs run --preverify --always-print-stacktrace --idf-partition-table partitions.csv"
 #runner = "espflash flash -M --erase-parts=otadata --log-format=defmt --partition-table partitions.csv -s 8mb"
 rustflags = [
   "-C", "force-frame-pointers",
@@ -28,3 +28,7 @@ monitor = "xtask monitor"
 [env]
 DEFMT_LOG = "card_io_fw=debug,info"
 ESP_ALLOC_CONFIG_HEAP_ALGORITHM = "LLFF"
+EKV_MAX_PAGE_COUNT = "1008"
+EKV_MAX_VALUE_SIZE = "90000"
+EKV_MAX_KEY_SIZE = "16"
+EKV_MAX_CHUNK_SIZE = "1024"

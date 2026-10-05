@@ -1,18 +1,13 @@
 use config_site::data::network::WifiNetwork;
-use embedded_io_async::{Read, Write};
 use gui::widgets::battery_small::BatteryStyle;
-use norfs::storable::{LoadError, Loadable, Storable};
 use ssd1306::prelude::Brightness;
 
-use super::{
-    types::{
-        DisplayBrightness, FilterStrength, Gain, LeadOffCurrent, LeadOffFrequency,
-        LeadOffThreshold, MeasurementAction,
-    },
-    CURRENT_VERSION,
+use super::types::{
+    DisplayBrightness, FilterStrength, Gain, LeadOffCurrent, LeadOffFrequency, LeadOffThreshold,
+    MeasurementAction,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Config {
     pub battery_display_style: BatteryStyle,
     pub display_brightness: DisplayBrightness,
@@ -26,20 +21,6 @@ pub struct Config {
     pub lead_off_threshold: LeadOffThreshold,
     pub lead_off_frequency: LeadOffFrequency,
     pub gain: Gain,
-}
-
-impl From<super::v5::Config> for Config {
-    fn from(value: super::v5::Config) -> Self {
-        Self {
-            battery_display_style: value.battery_display_style,
-            display_brightness: value.display_brightness,
-            known_networks: value.known_networks,
-            filter_strength: value.filter_strength,
-            backend_url: value.backend_url,
-            measurement_action: value.measurement_action,
-            ..Default::default()
-        }
-    }
 }
 
 impl Default for Config {
@@ -78,45 +59,5 @@ impl Config {
 
     pub fn filter_strength(&self) -> FilterStrength {
         self.filter_strength
-    }
-}
-
-impl Loadable for Config {
-    async fn load<R: Read>(reader: &mut R) -> Result<Self, LoadError<R::Error>> {
-        let data = Self {
-            battery_display_style: BatteryStyle::load(reader).await?,
-            display_brightness: DisplayBrightness::load(reader).await?,
-            known_networks: heapless::Vec::load(reader).await?,
-            filter_strength: FilterStrength::load(reader).await?,
-            backend_url: heapless::String::load(reader).await?,
-            measurement_action: MeasurementAction::load(reader).await?,
-            use_external_clock: bool::load(reader).await?,
-            lead_off_current: LeadOffCurrent::load(reader).await?,
-            lead_off_threshold: LeadOffThreshold::load(reader).await?,
-            lead_off_frequency: LeadOffFrequency::load(reader).await?,
-            gain: Gain::load(reader).await?,
-        };
-
-        Ok(data)
-    }
-}
-
-impl Storable for Config {
-    async fn store<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
-        CURRENT_VERSION.store(writer).await?;
-
-        self.battery_display_style.store(writer).await?;
-        self.display_brightness.store(writer).await?;
-        self.known_networks.store(writer).await?;
-        self.filter_strength.store(writer).await?;
-        self.backend_url.store(writer).await?;
-        self.measurement_action.store(writer).await?;
-        self.use_external_clock.store(writer).await?;
-        self.lead_off_current.store(writer).await?;
-        self.lead_off_threshold.store(writer).await?;
-        self.lead_off_frequency.store(writer).await?;
-        self.gain.store(writer).await?;
-
-        Ok(())
     }
 }

@@ -1,6 +1,5 @@
 use crate::{
     board::{initialized::Context, storage::FileSystem},
-    human_readable::BinarySize,
     states::menu::{AppMenu, MenuBuilder, MenuItems, MenuScreen},
     uformat, AppState,
 };
@@ -36,9 +35,9 @@ pub async fn storage_menu(context: &mut Context) -> AppState {
 }
 
 #[derive(Clone, PartialEq)]
-struct UsedStorage(heapless::String<32>);
+struct SavedCount(heapless::String<32>);
 
-impl SelectValue for UsedStorage {
+impl SelectValue for SavedCount {
     fn marker(&self) -> &str {
         self.0.as_str()
     }
@@ -50,7 +49,7 @@ struct StorageMenu;
 type StorageMenuBuilder = MenuBuilder<
     chain!(
         StorageMenuItem<MeasurementAction>,
-        MenuItems<StorageMenuItem<UsedStorage>, StorageMenuEvents, 2>,
+        MenuItems<StorageMenuItem<SavedCount>, StorageMenuEvents, 2>,
         MenuItems<StorageMenuItem<&'static str>, StorageMenuEvents, 2>,
         StorageMenuItem<&'static str>,
         StorageMenuItem<&'static str>
@@ -65,17 +64,12 @@ async fn storage_menu_builder(context: &mut Context) -> StorageMenuBuilder {
     let mut items = heapless::Vec::<_, 2>::new();
 
     if let Some(storage) = context.storage.as_mut() {
-        if let Ok(used) = storage.used_bytes().await {
-            let used_str = UsedStorage(uformat!(
-                32,
-                "{}/{}",
-                BinarySize(used),
-                BinarySize(storage.capacity())
-            ));
+        if let Ok(count) = storage.measurement_count().await {
+            let saved = SavedCount(uformat!(32, "{}", count));
 
             unwrap!(used_item
                 .push(
-                    MenuItem::new("Used", used_str)
+                    MenuItem::new("Saved", saved)
                         .with_value_converter(|_| StorageMenuEvents::Nothing)
                 )
                 .ok());

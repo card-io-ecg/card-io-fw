@@ -1,9 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(allocator_api)] // Box::try_new
-#![feature(generic_const_exprs)] // norfs needs this
 #![feature(impl_trait_in_assoc_type)]
-#![allow(incomplete_features)] // generic_const_exprs
 
 extern crate alloc;
 
@@ -20,9 +18,6 @@ use embassy_sync::{
     mutex::{Mutex, MutexGuard},
 };
 use embassy_time::{Duration, Timer};
-#[cfg(feature = "wifi")]
-use norfs::StorageError;
-use norfs::{medium::StorageMedium, Storage};
 use signal_processing::compressing_buffer::CompressingBuffer;
 use static_cell::StaticCell;
 
@@ -47,7 +42,7 @@ use crate::{
         MESSAGE_DURATION,
     },
 };
-use config_types::{Config, ConfigFile};
+use config_types::Config;
 
 use esp_hal::{interrupt::Priority, rtc_cntl::WakeLock};
 use esp_rtos::embassy::InterruptExecutor;
@@ -112,79 +107,32 @@ pub enum AppState {
     UploadOrStore(Box<CompressingBuffer<ECG_BUFFER_SIZE>>),
 }
 
-async fn load_config<M: StorageMedium>(storage: Option<&mut Storage<M>>) -> &'static mut Config
-where
-    [(); M::BLOCK_COUNT]:,
-{
-    static CONFIG: StaticCell<Config> = StaticCell::new();
-
-    if let Some(storage) = storage {
-        info!(
-            "Storage: {} / {} used",
-            storage.capacity() - storage.free_bytes(),
-            storage.capacity()
-        );
-
-        match storage.read("config").await {
-            Ok(mut config) => match config.read_loadable::<ConfigFile>(storage).await {
-                Ok(config) => return CONFIG.init(config.into_config()),
-                Err(e) => {
-                    warn!("Failed to read config file: {:?}. Reverting to defaults", e);
-                }
-            },
-            Err(e) => {
-                warn!("Failed to load config: {:?}. Reverting to defaults", e);
-            }
-        }
-    } else {
-        warn!("Storage unavailable. Using default config");
-    }
-    CONFIG.init(Config::default())
+fn log_heap(stage: &str) {
+    info!(
+        "Heap {}: {} bytes used, {} bytes free",
+        stage,
+        esp_alloc::HEAP.used(),
+        esp_alloc::HEAP.free()
+    );
 }
 
-#[cfg(feature = "wifi")]
-async fn saved_measurement_exists<M>(storage: &mut Storage<M>) -> bool
-where
-    M: StorageMedium,
-    [(); M::BLOCK_COUNT]:,
-{
-    let mut dir = match storage.read_dir().await {
-        Ok(dir) => dir,
-        Err(e) => {
-            warn!("Failed to open directory: {:?}", e);
-            return false;
+async fn load_config(storage: Option<&mut FileSystem>) -> &'static mut Config {
+    static CONFIG: StaticCell<Config> = StaticCell::new();
+
+    let config = match storage {
+        Some(storage) => {
+            if let Ok(count) = storage.measurement_count().await {
+                info!("Storage: {} saved measurements", count);
+            }
+            storage.load_config().await
+        }
+        None => {
+            warn!("Storage unavailable. Using default config");
+            Config::default()
         }
     };
 
-    let mut buffer = [0; 64];
-    loop {
-        match dir.next(storage).await {
-            Ok(file) => {
-                let Some(file) = file else {
-                    return false;
-                };
-
-                match file.name(storage, &mut buffer).await {
-                    Ok(name) => {
-                        if name.starts_with("meas.") {
-                            return true;
-                        }
-                    }
-                    Err(StorageError::InsufficientBuffer) => {
-                        // not a measurement file, ignore
-                    }
-                    Err(e) => {
-                        warn!("Failed to read file name: {:?}", e);
-                        return false;
-                    }
-                }
-            }
-            Err(e) => {
-                warn!("Failed to read directory: {:?}", e);
-                return false;
-            }
-        }
-    }
+    CONFIG.init(config)
 }
 
 #[esp_rtos::main]
@@ -211,8 +159,12 @@ async fn main(_spawner: Spawner) {
 
     info!("Hardware version: {}", env!("HW_VERSION"));
 
+    board::storage::init(resources.flash, "storage");
+
     let mut storage = FileSystem::mount().await;
-    let config = load_config(storage.as_deref_mut()).await;
+    log_heap("after mount");
+    let config = load_config(storage.as_mut()).await;
+    log_heap("after load_config");
 
     // We're boxing Context because we will need to move out of it during shutdown.
     let mut board = Box::new(Context {

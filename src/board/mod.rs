@@ -16,6 +16,7 @@
 pub mod hardware;
 
 pub mod drivers;
+pub mod flash;
 pub mod initialized;
 #[cfg(feature = "wifi")]
 pub mod ota;
