@@ -327,7 +327,7 @@ async fn sync_station_networks(
     sta.update_known_networks(station_networks).await;
 }
 
-const WEBSERVER_PORT: u16 = 8080;
+const WEBSERVER_PORT: u16 = 80;
 const SOCKET_TIMEOUT_MS: u32 = 10_000;
 const KEEPALIVE_TIMEOUT_MS: u32 = 5_000;
 
