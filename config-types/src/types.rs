@@ -1,6 +1,4 @@
-use embedded_io_async::{Read, Write};
 use embedded_menu::SelectValue;
-use norfs::storable::{LoadError, Loadable, Storable};
 
 macro_rules! implement_enum {
     (
@@ -10,26 +8,9 @@ macro_rules! implement_enum {
         }
     ) => {
         $(#[$enum_meta])*
-        #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, SelectValue)]
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, SelectValue, serde::Serialize, serde::Deserialize)]
         $vis enum $enum_name {
             $( $(#[$meta])* $variant_name = $value ),*
-        }
-
-        impl Loadable for $enum_name {
-            async fn load<R: Read>(reader: &mut R) -> Result<Self, LoadError<R::Error>> {
-                let data = match u8::load(reader).await? {
-                    $( $value => Self::$variant_name, )*
-                    _ => return Err(LoadError::InvalidValue),
-                };
-
-                Ok(data)
-            }
-        }
-
-        impl Storable for $enum_name {
-            async fn store<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
-                writer.write_all(&[*self as u8]).await
-            }
         }
     }
 }

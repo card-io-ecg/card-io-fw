@@ -10,13 +10,13 @@ use embedded_menu::{
     selection_indicator::{style::AnimatedTriangle, AnimatedPosition},
 };
 use gui::{embedded_layout::object_chain, screens::create_menu};
-use norfs::{medium::StorageMedium, writer::FileDataWriter, OnCollision, Storage, StorageError};
 use signal_processing::compressing_buffer::{CompressingBuffer, EkgFormat};
-use ufmt::uwrite;
 
 use crate::{
-    board::initialized::Context, human_readable::BinarySize, states::menu::MenuScreen, uformat,
-    AppState,
+    board::{initialized::Context, storage::StorageError},
+    human_readable::BinarySize,
+    states::menu::MenuScreen,
+    uformat, AppState,
 };
 use config_types::types::MeasurementAction;
 
@@ -206,98 +206,15 @@ async fn try_store_measurement(
         return Ok(());
     };
 
-    let meas_idx = find_measurement_index(storage).await?;
-
-    let mut filename = heapless::String::<16>::new();
-    unwrap!(uwrite!(&mut filename, "meas.{}", meas_idx));
-
     storage
-        .store_writer(
-            &filename,
-            &MeasurementWriter(measurement),
-            OnCollision::Fail,
-        )
+        .store_measurement(EkgFormat::VERSION, measurement)
         .await?;
 
-    info!("Measurement saved to {}", filename);
+    info!("Measurement saved");
 
     context.signal_sta_work_available(true);
 
     Ok(())
-}
-
-async fn find_measurement_index<M>(storage: &mut Storage<M>) -> Result<u32, StorageError>
-where
-    M: StorageMedium,
-    [(); M::BLOCK_COUNT]:,
-{
-    let mut max_index = None;
-    let mut dir = storage.read_dir().await?;
-    let mut buffer = [0; 64];
-    while let Some(file) = dir.next(storage).await? {
-        match file.name(storage, &mut buffer).await {
-            Ok(name) => {
-                if let Some(idx) = name
-                    .strip_prefix("meas.")
-                    .and_then(|s| s.parse::<u32>().ok())
-                {
-                    let update_max = if let Some(max) = max_index {
-                        idx > max
-                    } else {
-                        true
-                    };
-
-                    if update_max {
-                        max_index = Some(idx);
-                    }
-                }
-            }
-            Err(StorageError::InsufficientBuffer) => {
-                // not a measurement file, ignore
-            }
-            Err(e) => {
-                warn!("Failed to read file name: {:?}", e);
-                return Err(e);
-            }
-        }
-    }
-
-    Ok(max_index.map(|idx| idx + 1).unwrap_or(0))
-}
-
-struct MeasurementWriter<'a>(&'a [u8]);
-
-impl<'a> MeasurementWriter<'a> {
-    // We're good with a straight u8 until 127 samples, then we can consider switching to varint.
-    const FORMAT_VERSION: u8 = EkgFormat::VERSION;
-}
-
-impl FileDataWriter for MeasurementWriter<'_> {
-    async fn write<M>(
-        &self,
-        writer: &mut norfs::writer::Writer<M>,
-        storage: &mut Storage<M>,
-    ) -> Result<(), StorageError>
-    where
-        M: StorageMedium,
-        [(); M::BLOCK_COUNT]:,
-    {
-        // Here we only store differences, but not the initial sample. The DC offset does not
-        // matter for the analysis, and we can reconstruct everything else from the differences.
-
-        let mut writer = writer.bind(storage);
-
-        writer
-            .write_all(&Self::FORMAT_VERSION.to_le_bytes())
-            .await?;
-        writer.write_all(self.0).await?;
-
-        Ok(())
-    }
-
-    fn estimate_length(&self) -> usize {
-        Self::FORMAT_VERSION.to_le_bytes().len() + self.0.len()
-    }
 }
 
 #[cfg(feature = "wifi")]
@@ -309,12 +226,12 @@ mod wifi {
     };
     use embassy_time::{with_timeout, Duration};
     use embedded_nal_async::{Dns, TcpConnect};
-    use norfs::read_dir::DirEntry;
     use reqwless::{
         client::HttpClient,
         request::{Method, RequestBody, RequestBuilder},
         response::Status,
     };
+    use ufmt::uwrite;
 
     /// Whether to store the measurement or not. Used instead of a bool to reduce confusion.
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -394,70 +311,40 @@ mod wifi {
             return;
         };
 
-        let Ok(mut dir) = storage.read_dir().await else {
-            context.display_message("Could not read storage").await;
-            return;
-        };
-
-        let mut fn_buffer = [0; 64];
-
         let Ok(mut client_resources) = sta.https_client_resources() else {
             context.display_message("Out of memory").await;
             return;
         };
         let mut client = client_resources.client();
 
-        let mut success = true;
-        loop {
-            match dir.next(storage).await {
-                Ok(file) => {
-                    let Some(file) = file else {
-                        debug!("File is None");
-                        break;
-                    };
-
-                    match file.name(storage, &mut fn_buffer).await {
-                        Ok(name) if name.starts_with("meas.") => {
-                            let Ok((file, buffer)) = load_measurement(file, storage).await else {
-                                warn!("Failed to load {}", name);
-                                continue;
-                            };
-
-                            if let Err(e) = upload_measurement(
-                                &mut client,
-                                0,
-                                buffer.as_ref(),
-                                &mut context.inner,
-                            )
-                            .await
-                            {
-                                warn!("Failed to upload {}: {:?}", name, e);
-                                success = false;
-                                break;
-                            }
-
-                            info!("Uploaded {}", name);
-                            if let Err(e) = file.delete(storage).await {
-                                warn!("Failed to delete file: {:?}", e);
-                            }
-                        }
-                        Ok(_) | Err(StorageError::InsufficientBuffer) => {
-                            // not a measurement file, ignore
-                        }
-                        Err(e) => {
-                            warn!("Failed to read file name: {:?}", e);
-                            success = false;
-                            break;
-                        }
-                    }
-                }
+        let success = loop {
+            let measurement = match storage.load_oldest_measurement().await {
+                Ok(Some(measurement)) => measurement,
+                Ok(None) => break true,
                 Err(e) => {
-                    warn!("Failed to read directory: {:?}", e);
-                    success = false;
-                    break;
+                    warn!("Failed to load measurement: {:?}", e);
+                    break false;
                 }
+            };
+
+            let samples = MeasurementRef {
+                version: u32::from(measurement.version),
+                buffer: &measurement.payload,
+            };
+            if upload_measurement(&mut client, 0, samples, &mut context.inner)
+                .await
+                .is_err()
+            {
+                warn!("Failed to upload measurement");
+                break false;
             }
-        }
+
+            info!("Uploaded measurement");
+            if let Err(e) = storage.delete_oldest_measurement().await {
+                warn!("Failed to delete measurement: {:?}", e);
+                break false;
+            }
+        };
 
         let message = if success {
             "Upload successful"
@@ -467,20 +354,6 @@ mod wifi {
         context.display_message(message).await;
 
         context.signal_sta_work_available(!success);
-    }
-
-    pub struct Measurement {
-        version: u32,
-        buffer: Box<[u8]>,
-    }
-
-    impl Measurement {
-        fn as_ref(&self) -> MeasurementRef<'_> {
-            MeasurementRef {
-                version: self.version,
-                buffer: &self.buffer,
-            }
-        }
     }
 
     pub struct MeasurementRef<'a> {
@@ -499,67 +372,6 @@ mod wifi {
 
             Ok(())
         }
-    }
-
-    pub async fn load_measurement<M>(
-        file: DirEntry<M>,
-        storage: &mut Storage<M>,
-    ) -> Result<(DirEntry<M>, Measurement), ()>
-    where
-        M: StorageMedium,
-        [(); M::BLOCK_COUNT]:,
-    {
-        let Ok(size) = file.size(storage).await else {
-            warn!("Failed to read size");
-            return Err(());
-        };
-
-        let Ok(mut buffer) = buffer_with_capacity(size, 0) else {
-            warn!("Failed to allocate {} bytes", size);
-            return Err(());
-        };
-
-        let mut reader = file.open();
-        let version = reader.read_loadable::<u8>(storage).await;
-        let version = match version {
-            Ok(version) => version,
-            Err(e) => {
-                warn!("Failed to read data: {:?}", e);
-                return Err(());
-            }
-        };
-
-        if let Err(e) = reader.read_all(storage, buffer.as_mut()).await {
-            warn!("Failed to read data: {:?}", e);
-            return Err(());
-        };
-
-        Ok((
-            DirEntry::from_reader(reader),
-            Measurement {
-                version: version as u32,
-                buffer,
-            },
-        ))
-    }
-
-    fn buffer_with_capacity<T: Copy>(size: usize, init_val: T) -> Result<Box<[T]>, ()> {
-        use core::mem::MaybeUninit;
-
-        let mut buffer = alloc::vec::Vec::new();
-
-        if buffer.try_reserve_exact(size).is_err() {
-            return Err(());
-        }
-
-        unsafe {
-            let uninit = buffer.spare_capacity_mut();
-            uninit.fill(MaybeUninit::new(init_val));
-            let len = uninit.len();
-            buffer.set_len(len);
-        }
-
-        Ok(buffer.into_boxed_slice())
     }
 
     pub async fn upload_measurement<T, DNS>(

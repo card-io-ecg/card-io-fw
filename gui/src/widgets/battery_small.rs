@@ -7,10 +7,8 @@ use embedded_graphics::{
     text::{renderer::TextRenderer, Alignment, Baseline, Text, TextStyleBuilder},
     Drawable,
 };
-use embedded_io_async::{Read, Write};
 use embedded_layout::prelude::*;
 use embedded_menu::items::menu_item::SelectValue;
-use norfs::storable::{LoadError, Loadable, Storable};
 use ufmt::uwrite;
 
 use crate::screens::{BatteryInfo, ChargingState, NORMAL_TEXT};
@@ -81,7 +79,9 @@ impl Drawable for ChargingIndicator {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum BatteryStyle {
     MilliVolts,
     Percentage,
@@ -314,25 +314,5 @@ impl SelectValue for BatteryStyle {
             Self::Icon => "Icon",
             Self::LowIndicator => "Indicator",
         }
-    }
-}
-
-impl Loadable for BatteryStyle {
-    async fn load<R: Read>(reader: &mut R) -> Result<Self, LoadError<R::Error>> {
-        let data = match u8::load(reader).await? {
-            0 => Self::MilliVolts,
-            1 => Self::Percentage,
-            2 => Self::Icon,
-            3 => Self::LowIndicator,
-            _ => return Err(LoadError::InvalidValue),
-        };
-
-        Ok(data)
-    }
-}
-
-impl Storable for BatteryStyle {
-    async fn store<W: Write>(&self, writer: &mut W) -> Result<(), W::Error> {
-        (*self as u8).store(writer).await
     }
 }

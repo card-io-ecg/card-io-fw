@@ -95,6 +95,7 @@ impl super::startup::StartupResources {
             #[cfg(feature = "wifi")]
             wifi: peripherals.WIFI,
             software_interrupt2: peripherals.FROM_CPU_INTR2,
+            flash: peripherals.FLASH,
         }
     }
 }

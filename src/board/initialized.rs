@@ -4,10 +4,7 @@ use core::{
 };
 
 #[cfg(feature = "wifi")]
-use crate::{
-    board::wifi::{ap::Ap, sta::Sta, WifiDriver},
-    saved_measurement_exists,
-};
+use crate::board::wifi::{ap::Ap, sta::Sta, WifiDriver};
 use crate::{
     board::{
         drivers::battery_monitor::BatteryMonitor, startup::Display, storage::FileSystem,
@@ -32,8 +29,6 @@ use gui::{
         wifi_client::WifiClientStateView,
     },
 };
-use norfs::OnCollision;
-
 #[cfg(feature = "wifi")]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum StaMode {
@@ -84,10 +79,7 @@ impl Context {
         self.config_changed = false;
 
         if let Some(storage) = self.storage.as_mut() {
-            if let Err(e) = storage
-                .store_writer("config", self.inner.config, OnCollision::Overwrite)
-                .await
-            {
+            if let Err(e) = storage.save_config(self.inner.config).await {
                 error!("Failed to save config: {:?}", e);
             }
         } else {
@@ -104,8 +96,10 @@ impl Context {
 
         if self.inner.sta_work_available.is_none() {
             if let Some(storage) = self.storage.as_mut() {
-                if saved_measurement_exists(storage).await {
-                    self.inner.sta_work_available = Some(true);
+                match storage.has_measurements().await {
+                    Ok(true) => self.inner.sta_work_available = Some(true),
+                    Ok(false) => {}
+                    Err(e) => warn!("Failed to look for saved measurements: {:?}", e),
                 }
             }
         }

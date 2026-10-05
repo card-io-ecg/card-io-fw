@@ -7,11 +7,11 @@ edition = "2021"
 cfg-if = "1"
 config-site = { path = "../config-site" }
 defmt = { workspace = true, optional = true }
-embedded-io-async.workspace = true
 embedded-menu.workspace = true
 gui = { path = "../gui" }
-heapless.workspace = true
-norfs.workspace = true
+heapless = { workspace = true, features = ["serde"] }
+postcard.workspace = true
+serde.workspace = true
 ssd1306 = "0.10.0"
 
 [features]

@@ -17,7 +17,7 @@ use esp_hal::{
     clock::CpuClock,
     gpio::{Input, InputPin, Level, Output, OutputPin, Pull},
     i2c,
-    peripherals::{Peripherals, FROM_CPU_INTR2},
+    peripherals::{Peripherals, FLASH, FROM_CPU_INTR2},
     spi::{
         master::{Config as SpiConfig, Spi},
         Mode,
@@ -45,6 +45,7 @@ pub struct StartupResources {
     pub wifi: WIFI<'static>,
 
     pub software_interrupt2: FROM_CPU_INTR2<'static>,
+    pub flash: FLASH<'static>,
 }
 
 impl StartupResources {

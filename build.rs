@@ -101,6 +101,8 @@ fn main() {
         println!("cargo:rustc-link-arg=-Tdefmt.x");
     }
 
+    println!("cargo:rustc-link-arg-tests=-Tembedded-test.x");
+
     let pkg_version = env!("CARGO_PKG_VERSION");
     let git_hash_bytes = std::process::Command::new("git")
         .args(["rev-parse", "--short", "HEAD"])

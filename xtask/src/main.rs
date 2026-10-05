@@ -23,6 +23,16 @@ pub enum Subcommands {
     /// Runs tests.
     Test,
 
+    /// Runs the hardware-in-the-loop tests on a connected device.
+    Hil {
+        /// Which hardware version to run on.
+        hw: Option<HardwareVersion>,
+
+        /// Only build the tests.
+        #[arg(long)]
+        no_run: bool,
+    },
+
     /// Builds, flashes and runs the firmware on a connected device.
     Run {
         /// Which hardware version to run on.
@@ -179,6 +189,22 @@ fn run(config: BuildConfig) -> AnyResult<()> {
     Ok(())
 }
 
+fn hil(config: BuildConfig, no_run: bool) -> AnyResult<()> {
+    let build_flags = config.build_flags();
+    let build_flags = build_flags.iter().map(|s| s.as_str()).collect::<Vec<_>>();
+
+    let mut args = vec!["test", "--test", "hil"];
+    args.extend_from_slice(&build_flags);
+
+    if no_run {
+        args.push("--no-run");
+    }
+
+    config.cargo(&args).run()?;
+
+    Ok(())
+}
+
 fn checks(config: BuildConfig) -> AnyResult<()> {
     let build_flags = config.build_flags();
     let build_flags = build_flags.iter().map(|s| s.as_str()).collect::<Vec<_>>();
@@ -222,7 +248,7 @@ fn extra_checks(config: BuildConfig) -> AnyResult<()> {
 }
 
 fn test() -> AnyResult<()> {
-    let packages = ["signal-processing"];
+    let packages = ["signal-processing", "config-types"];
 
     let mut args = vec!["test", "--features=dyn_filter"];
 
@@ -273,6 +299,7 @@ fn main() -> AnyResult<()> {
             profile,
             with_wifi,
         } => run(BuildConfig::new(hw, profile, with_wifi)),
+        Subcommands::Hil { hw, no_run } => hil(BuildConfig::new(hw, None, true), no_run),
         Subcommands::Check { hw, with_wifi } => checks(BuildConfig::new(hw, None, with_wifi)),
         Subcommands::Doc { hw, open } => docs(BuildConfig::new(hw, None, true), open),
         Subcommands::ExtraCheck { hw } => extra_checks(BuildConfig::new(hw, None, true)),
