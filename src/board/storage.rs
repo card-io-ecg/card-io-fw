@@ -1,11 +1,15 @@
 use core::future::Future;
 
 use alloc::boxed::Box;
+#[cfg(feature = "wifi")]
+use alloc::vec::Vec;
 use config_types::{
     measurement_queue::{measurement_key, measurement_version_key, Queue},
     record::{decode_config, encode_config, encode_version, CONFIG_LEN, VERSION_LEN},
     Config,
 };
+#[cfg(feature = "wifi")]
+use ekv::config::MAX_VALUE_SIZE;
 use ekv::{CommitError, Database, FormatError, MountError, ReadError, ReadTransaction, WriteError};
 use embassy_sync::once_lock::OnceLock;
 use embassy_sync_06::blocking_mutex::raw::CriticalSectionRawMutex as EkvRawMutex;
@@ -82,10 +86,21 @@ impl<E> From<CommitError<E>> for StorageError {
     }
 }
 
+/// A buffer that holds the largest measurement, for `load_oldest_measurement`.
 #[cfg(feature = "wifi")]
-pub struct Measurement {
-    pub version: u8,
-    pub payload: alloc::vec::Vec<u8>,
+pub fn measurement_buffer() -> Result<Vec<u8>, StorageError> {
+    let mut payload = Vec::new();
+    reserve_measurement(&mut payload)?;
+    Ok(payload)
+}
+
+/// `ekv` reads a value only as a whole, and gives no length before the read.
+#[cfg(feature = "wifi")]
+fn reserve_measurement(payload: &mut Vec<u8>) -> Result<(), StorageError> {
+    payload.clear();
+    payload
+        .try_reserve_exact(MAX_VALUE_SIZE)
+        .map_err(|_| StorageError::OutOfMemory)
 }
 
 pub fn init(flash: FLASH<'static>, partition: &str) {
@@ -395,15 +410,17 @@ impl FileSystem {
         .await
     }
 
+    /// Loads into `payload` and returns the format version. `payload` keeps its capacity, so one
+    /// buffer from `measurement_buffer` serves every load.
     #[cfg(feature = "wifi")]
-    pub async fn load_oldest_measurement(&mut self) -> Result<Option<Measurement>, StorageError> {
+    pub async fn load_oldest_measurement(
+        &mut self,
+        payload: &mut Vec<u8>,
+    ) -> Result<Option<u8>, StorageError> {
         let store = self.store;
         boxed("load_oldest_measurement", async {
-            let mut payload = alloc::vec::Vec::new();
-            payload
-                .try_reserve_exact(ekv::config::MAX_VALUE_SIZE)
-                .map_err(|_| StorageError::OutOfMemory)?;
-            payload.resize(ekv::config::MAX_VALUE_SIZE, 0);
+            reserve_measurement(payload)?;
+            payload.resize(MAX_VALUE_SIZE, 0);
 
             loop {
                 let queue = read_queue(store).await?;
@@ -411,11 +428,9 @@ impl FileSystem {
                     return Ok(None);
                 }
 
-                if let Some((version, len)) =
-                    read_measurement(store, queue.head, &mut payload).await?
-                {
+                if let Some((version, len)) = read_measurement(store, queue.head, payload).await? {
                     payload.truncate(len);
-                    return Ok(Some(Measurement { version, payload }));
+                    return Ok(Some(version));
                 }
 
                 warn!("Dropping unreadable measurement {}", queue.head);

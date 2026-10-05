@@ -186,8 +186,10 @@ impl Sta {
     }
 
     pub fn client(&self) -> Result<StaClient, AllocError> {
+        let client = Client::new()
+            .inspect_err(|_| warn!("No heap for the HTTP client: {}", esp_alloc::HEAP.stats()))?;
         Ok(StaClient {
-            client: Client::new()?,
+            client,
             stack: self.sta_stack,
         })
     }

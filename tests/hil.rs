@@ -34,7 +34,7 @@ mod tests {
     use esp_storage::FlashStorage;
     use network_services::pairing::{Name, SigningKey};
 
-    use crate::board::storage::{self, FileSystem};
+    use crate::board::storage::{self, measurement_buffer, FileSystem};
 
     const HIL_PARTITION: &str = "hil";
 
@@ -198,25 +198,18 @@ mod tests {
         assert_eq!(fs.measurement_count().await, Ok(2));
         assert_eq!(fs.has_measurements().await, Ok(true));
 
-        // A loaded measurement keeps the capacity of the largest possible one, so each is dropped
-        // before the next load.
-        {
-            let oldest = fs.load_oldest_measurement().await.unwrap().unwrap();
-            assert_eq!(oldest.version, 1);
-            assert_eq!(oldest.payload, pattern(100));
-        }
+        let mut payload = measurement_buffer().unwrap();
+        assert_eq!(fs.load_oldest_measurement(&mut payload).await, Ok(Some(1)));
+        assert_eq!(payload, pattern(100));
 
         assert_eq!(fs.delete_oldest_measurement().await, Ok(()));
         assert_eq!(fs.measurement_count().await, Ok(1));
-        {
-            let next = fs.load_oldest_measurement().await.unwrap().unwrap();
-            assert_eq!(next.version, 2);
-            assert_eq!(next.payload, pattern(200));
-        }
+        assert_eq!(fs.load_oldest_measurement(&mut payload).await, Ok(Some(2)));
+        assert_eq!(payload, pattern(200));
 
         assert_eq!(fs.delete_oldest_measurement().await, Ok(()));
         assert_eq!(fs.has_measurements().await, Ok(false));
-        assert!(fs.load_oldest_measurement().await.unwrap().is_none());
+        assert_eq!(fs.load_oldest_measurement(&mut payload).await, Ok(None));
     }
 
     #[test]
@@ -227,9 +220,9 @@ mod tests {
 
         let mut fs = FileSystem::mount().await.expect("storage did not remount");
         assert_eq!(fs.measurement_count().await, Ok(1));
-        let stored = fs.load_oldest_measurement().await.unwrap().unwrap();
-        assert_eq!(stored.version, 3);
-        assert_eq!(stored.payload, pattern(500));
+        let mut payload = measurement_buffer().unwrap();
+        assert_eq!(fs.load_oldest_measurement(&mut payload).await, Ok(Some(3)));
+        assert_eq!(payload, pattern(500));
     }
 
     #[test]
@@ -239,10 +232,10 @@ mod tests {
 
         assert_eq!(fs.store_measurement(1, &pattern(size)).await, Ok(()));
 
-        let stored = fs.load_oldest_measurement().await.unwrap().unwrap();
-        assert_eq!(stored.payload.len(), size);
-        assert!(stored
-            .payload
+        let mut payload = measurement_buffer().unwrap();
+        assert_eq!(fs.load_oldest_measurement(&mut payload).await, Ok(Some(1)));
+        assert_eq!(payload.len(), size);
+        assert!(payload
             .iter()
             .enumerate()
             .all(|(index, byte)| *byte == pattern_byte(index)));

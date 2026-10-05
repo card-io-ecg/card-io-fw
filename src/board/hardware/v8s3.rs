@@ -36,6 +36,7 @@ pub type BatteryFgI2c = I2c<'static, Async>;
 impl super::startup::StartupResources {
     pub async fn initialize() -> Self {
         let peripherals = Self::common_init();
+        esp_alloc::psram_allocator!(peripherals.PSRAM, esp_hal::psram);
 
         let systimer = SystemTimer::new(peripherals.SYSTIMER);
         esp_rtos::start_with_idle_hook(

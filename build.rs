@@ -97,6 +97,10 @@ fn main() {
 
     let build_config = BuildConfig { mcu, hw_version };
 
+    let chip = esp_metadata_generated::Chip::from_cargo_feature().unwrap();
+    chip.define_cfgs();
+    esp_metadata_generated::emit_check_cfg_directives();
+
     if cfg!(feature = "defmt") {
         println!("cargo:rustc-link-arg=-Tdefmt.x");
     }

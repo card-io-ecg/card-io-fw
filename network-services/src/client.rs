@@ -13,8 +13,10 @@ use crate::{
 };
 
 const INACTIVITY_TIMEOUT: Duration = Duration::from_secs(10);
-const TCP_TX_LEN: usize = 8192;
-const TCP_RX_LEN: usize = 16384;
+// An upload holds a measurement of up to 90 KB next to these buffers, so the TCP windows stay
+// small; download speed pays for it.
+const TCP_TX_LEN: usize = 4096;
+const TCP_RX_LEN: usize = 4096;
 // A TLS 1.3 record holds 16,384 bytes plus 256 of overhead, and some servers ignore the max
 // fragment length extension, so the read buffer takes a full record.
 const TLS_READ_LEN: usize = 16_640;

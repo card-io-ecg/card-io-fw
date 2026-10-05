@@ -236,6 +236,7 @@ mod wifi {
     use super::*;
     use crate::board::{
         initialized::{InnerContext, NotReady, Signing, StaMode},
+        storage::measurement_buffer,
         wifi::sta::StaClient,
     };
     use edge_http::Method;
@@ -344,6 +345,20 @@ mod wifi {
     }
 
     pub async fn upload_stored(context: &mut Context) {
+        let Some(signing) = context.signing() else {
+            context.display_message("Device not paired").await;
+            return;
+        };
+
+        let Ok(mut payload) = measurement_buffer() else {
+            warn!(
+                "No heap for the measurement buffer: {}",
+                esp_alloc::HEAP.stats()
+            );
+            context.display_message("Out of memory").await;
+            return;
+        };
+
         let sta = if let Some(sta) = context.enable_wifi_sta(StaMode::OnDemand).await {
             if sta.wait_for_connection(context).await {
                 sta
@@ -360,11 +375,6 @@ mod wifi {
             .display_message("Uploading stored measurements...")
             .await;
 
-        let Some(signing) = context.signing() else {
-            context.display_message("Device not paired").await;
-            return;
-        };
-
         let Some(storage) = context.storage.as_mut() else {
             context.display_message("Storage not available").await;
             return;
@@ -376,8 +386,8 @@ mod wifi {
         };
 
         let result = loop {
-            let measurement = match storage.load_oldest_measurement().await {
-                Ok(Some(measurement)) => measurement,
+            let version = match storage.load_oldest_measurement(&mut payload).await {
+                Ok(Some(version)) => version,
                 Ok(None) => break Ok(()),
                 Err(e) => {
                     warn!("Failed to load measurement: {:?}", e);
@@ -386,8 +396,8 @@ mod wifi {
             };
 
             let samples = MeasurementRef {
-                version: u32::from(measurement.version),
-                buffer: &measurement.payload,
+                version: u32::from(version),
+                buffer: &payload,
             };
             if let Err(e) =
                 upload_measurement(&mut client, &signing, samples, &mut context.inner).await
