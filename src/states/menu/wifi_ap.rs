@@ -2,30 +2,28 @@ mod session;
 
 use core::{
     cell::Cell,
-    fmt::{Debug, Display},
     net::{IpAddr, Ipv4Addr, SocketAddr},
 };
 
 use alloc::{boxed::Box, rc::Rc};
 use config_site::{
-    data::{network::WifiNetwork, SharedWebContext, WebContext},
-    ConfigSite, PairingControl,
-};
-use edge_http::{
-    io::{
-        server::{Connection, Handler, Server},
-        Error,
+    data::{
+        network::{StationStatus, VisibleNetwork, WifiNetwork, MAX_VISIBLE_NETWORKS},
+        SharedWebContext, WebContext,
     },
-    Method,
+    ConfigSite, PairingControl, Station,
 };
-use edge_nal::{TcpBind, TcpSplit, WithTimeout};
+use edge_http::io::server::Server;
+use edge_nal::{TcpBind, WithTimeout};
 use edge_nal_embassy::{Tcp, TcpBuffers};
 use embassy_executor::Spawner;
 use embassy_futures::select::{select3, Either3};
-use embassy_sync::{blocking_mutex::raw::NoopRawMutex, channel::Channel, signal::Signal};
+use embassy_sync::{
+    blocking_mutex::raw::NoopRawMutex, channel::Channel, mutex::Mutex, signal::Signal,
+};
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
-use embedded_io_async::{Read, Write};
+use esp_radio::wifi::AuthenticationMethod;
 use gui::{
     screens::wifi_ap::{ApMenuEvents, ApRequest, WifiApScreen},
     widgets::{wifi_access_point::WifiAccessPointState, wifi_client::WifiClientState},
@@ -79,17 +77,22 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
     let session = Rc::new(Session::new());
     let scan_lock = Rc::new(ScanLock::new(()));
 
-    let web_context = Rc::new(SharedWebContext::new(WebContext {
-        known_networks: context.config.known_networks.clone(),
-        backend_url: context.config.backend_url.clone(),
-    }));
+    let web_context = Rc::new(SharedWebContext::new(WebContext::new(
+        context.config.known_networks.clone(),
+        context.config.backend_url.clone(),
+    )));
+    let station = Rc::new(SetupStation {
+        sta: sta.clone(),
+        scan_lock: scan_lock.clone(),
+        web_context: web_context.clone(),
+        networks: Mutex::new(context.config.known_networks.clone()),
+    });
 
     let webserver_task_control = TaskController::new();
     spawner.spawn(unwrap!(webserver_task(
         ap.clone(),
-        sta.clone(),
         web_context.clone(),
-        scan_lock.clone(),
+        station.clone(),
         SetupPairing {
             name: name.clone(),
             status: status.clone(),
@@ -114,7 +117,6 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
     let mut input = TouchInputShaper::new();
 
     let mut prev_timeout = 0;
-    let mut station_networks = context.config.known_networks.clone();
     let mut closing = false;
 
     loop {
@@ -169,7 +171,7 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
             })
             .await;
 
-        sync_station_networks(&web_context, &mut station_networks, &sta).await;
+        station.sync_networks().await;
 
         match select3(
             ticker.next(),
@@ -309,24 +311,6 @@ async fn forget_key(context: &mut Context) {
     }
 }
 
-/// Gives the station the networks the page lists. Replacing the list resets the preference of
-/// each network, so it runs only when the list changed.
-async fn sync_station_networks(
-    web_context: &SharedWebContext,
-    station_networks: &mut heapless::Vec<WifiNetwork, 8>,
-    sta: &Sta,
-) {
-    {
-        let web_context = web_context.lock().await;
-        if web_context.known_networks == *station_networks {
-            return;
-        }
-        station_networks.clone_from(&web_context.known_networks);
-    }
-
-    sta.update_known_networks(station_networks).await;
-}
-
 const WEBSERVER_PORT: u16 = 80;
 const SOCKET_TIMEOUT_MS: u32 = 10_000;
 const KEEPALIVE_TIMEOUT_MS: u32 = 5_000;
@@ -339,9 +323,8 @@ struct WebserverResources {
 #[cardio::task]
 async fn webserver_task(
     ap: Ap,
-    sta: Sta,
     context: Rc<SharedWebContext>,
-    scan_lock: Rc<ScanLock>,
+    station: Rc<SetupStation>,
     pairing: SetupPairing,
     mut task_control: TaskControlToken<()>,
 ) {
@@ -367,11 +350,7 @@ async fn webserver_task(
                 }
             };
 
-            let handler = WebHandler {
-                site: ConfigSite::new(&context, &pairing, env!("FW_VERSION")),
-                sta,
-                scan_lock,
-            };
+            let handler = ConfigSite::new(&context, &*station, &pairing, env!("FW_VERSION"));
 
             if let Err(e) = resources
                 .server
@@ -415,45 +394,72 @@ impl PairingControl for SetupPairing {
     }
 }
 
-/// Serves the config site, and the list of visible networks which needs the station interface.
-struct WebHandler<'a> {
-    site: ConfigSite<'a, SetupPairing>,
+/// The station as the setup page sees it. `networks` is the list the station holds, so the
+/// setup loop and `drop_link` give it the page's list once, whichever runs first.
+struct SetupStation {
     sta: Sta,
     scan_lock: Rc<ScanLock>,
+    web_context: Rc<SharedWebContext>,
+    networks: Mutex<NoopRawMutex, heapless::Vec<WifiNetwork, 8>>,
 }
 
-impl Handler for WebHandler<'_> {
-    type Error<E>
-        = Error<E>
-    where
-        E: Debug;
+impl SetupStation {
+    /// Gives the station the networks the page lists. Replacing the list resets the preference of
+    /// each network, so it runs only when the list changed. The lock on `networks` is held until
+    /// the station has the list, so a second caller returns only after the first one is done.
+    async fn sync_networks(&self) {
+        let mut networks = self.networks.lock().await;
+        {
+            let web_context = self.web_context.lock().await;
+            if web_context.known_networks == *networks {
+                return;
+            }
+            networks.clone_from(&web_context.known_networks);
+        }
 
-    async fn handle<T, const N: usize>(
+        self.sta.update_known_networks(&networks).await;
+    }
+}
+
+impl Station for SetupStation {
+    async fn status(&self) -> StationStatus {
+        self.sta.status()
+    }
+
+    async fn visible_networks(
         &self,
-        task_id: impl Display + Copy,
-        conn: &mut Connection<'_, T, N>,
-    ) -> Result<(), Self::Error<T::Error>>
-    where
-        T: Read + Write + TcpSplit,
-    {
-        let headers = conn.headers()?;
-        if !(matches!(headers.method, Method::Get) && headers.path == "/vn") {
-            return self.site.handle(task_id, conn).await;
+        out: &mut heapless::Vec<VisibleNetwork, MAX_VISIBLE_NETWORKS>,
+    ) {
+        let visible_networks = self.sta.visible_networks().await;
+        let visible = visible_networks
+            .iter()
+            .filter(|network| !network.ssid.as_str().is_empty())
+            .filter_map(|network| {
+                Some(VisibleNetwork {
+                    ssid: heapless::String::try_from(network.ssid.as_str()).ok()?,
+                    rssi: network.signal_strength,
+                    locked: network.auth_method != Some(AuthenticationMethod::None),
+                })
+            });
+
+        for network in visible {
+            if out.push(network).is_err() {
+                break;
+            }
         }
+    }
 
-        if let Ok(_scan) = self.scan_lock.try_lock() {
-            self.sta.scan().await;
-        }
+    async fn scan(&self) {
+        let Ok(_scan) = self.scan_lock.try_lock() else {
+            return;
+        };
+        self.sta.scan().await;
+    }
 
-        conn.initiate_response(200, None, &[("Content-Type", "text/plain; charset=utf-8")])
-            .await?;
-
-        let networks = self.sta.visible_networks().await;
-        for network in networks.iter() {
-            conn.write_all(network.ssid.as_str().as_bytes()).await?;
-            conn.write_all(b"\n").await?;
-        }
-
-        Ok(())
+    // The page has removed the network from its list before it calls this. The station gets that
+    // list first, or its next search could join the forgotten network again.
+    async fn drop_link(&self, ssid: &str) {
+        self.sync_networks().await;
+        self.sta.drop_link(ssid).await;
     }
 }

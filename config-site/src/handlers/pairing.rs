@@ -2,7 +2,7 @@ use edge_http::io::{server::Connection, Error};
 use embedded_io_async::{Read, Write};
 use network_services::pairing::Refusal;
 
-use crate::handlers::{read_body, respond, MAX_BODY_SIZE};
+use crate::handlers::{read_body, respond, respond_result, MAX_BODY_SIZE};
 
 // The web server and the example run each handler on one thread, so the futures need no `Send`.
 #[allow(async_fn_in_trait)]
@@ -60,10 +60,5 @@ async fn answer<T, const N: usize>(
 where
     T: Read + Write,
 {
-    let (status, body) = match result {
-        Ok(()) => (200, ""),
-        Err(refusal) => (400, refusal.as_str()),
-    };
-
-    respond(conn, status, body).await
+    respond_result(conn, result.map_err(|refusal| refusal.as_str())).await
 }

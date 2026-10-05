@@ -1,26 +1,104 @@
-use core::fmt::{Debug, Display};
 use std::{
-    cell::Cell,
+    cell::{Cell, RefCell},
     net::SocketAddr,
     time::{Duration, Instant},
 };
 
 use config_site::{
-    data::{network::WifiNetwork, SharedWebContext, WebContext},
-    ConfigSite, PairingControl,
-};
-use edge_http::{
-    io::{
-        server::{Connection, DefaultServer, Handler},
-        Error,
+    data::{
+        network::{StationStatus, VisibleNetwork, WifiNetwork, MAX_VISIBLE_NETWORKS},
+        SharedWebContext, WebContext,
     },
-    Method,
+    ConfigSite, PairingControl, Station,
 };
+use edge_http::io::server::DefaultServer;
 use edge_nal::TcpBind;
-use embedded_io_async::{Read, Write};
 use network_services::pairing::{format, parse_code, Name, Refusal, Status};
 
 const REQUEST_DURATION: Duration = Duration::from_secs(3);
+const JOIN_DURATION: Duration = Duration::from_secs(3);
+const UNREACHABLE_NETWORK: &str = "Failing network";
+
+const VISIBLE_NETWORKS: [(&str, i8, bool); 5] = [
+    ("Demo network 1", -52, true),
+    ("Open network", -45, false),
+    ("Home network", -66, true),
+    (UNREACHABLE_NETWORK, -74, true),
+    ("Far network", -84, true),
+];
+
+struct FakeStation<'a> {
+    context: &'a SharedWebContext,
+    seen: RefCell<Vec<heapless::String<32>>>,
+    attempt: RefCell<Option<(heapless::String<32>, Instant)>>,
+}
+
+impl<'a> FakeStation<'a> {
+    fn new(context: &'a SharedWebContext) -> Self {
+        Self {
+            context,
+            seen: RefCell::new(Vec::new()),
+            attempt: RefCell::new(None),
+        }
+    }
+}
+
+impl Station for FakeStation<'_> {
+    /// Joins the first saved network, or the one added last. It fails for `UNREACHABLE_NETWORK`.
+    async fn status(&self) -> StationStatus {
+        let saved: Vec<_> = self
+            .context
+            .lock()
+            .await
+            .known_networks
+            .iter()
+            .map(|network| network.ssid.clone())
+            .collect();
+
+        let mut seen = self.seen.borrow_mut();
+        let mut attempt = self.attempt.borrow_mut();
+        if let Some(added) = saved.iter().find(|ssid| !seen.contains(ssid)) {
+            *attempt = Some((added.clone(), Instant::now()));
+        }
+        *seen = saved;
+        if attempt.is_none() {
+            *attempt = seen.first().map(|ssid| (ssid.clone(), Instant::now()));
+        }
+
+        let Some((ssid, since)) = attempt.as_ref() else {
+            return StationStatus::Disconnected;
+        };
+        let ssid = ssid.clone();
+        match (
+            since.elapsed() < JOIN_DURATION,
+            ssid.as_str() == UNREACHABLE_NETWORK,
+        ) {
+            (true, _) => StationStatus::Joining(ssid),
+            (false, false) => StationStatus::Joined(ssid),
+            (false, true) => StationStatus::Failed(ssid),
+        }
+    }
+
+    async fn visible_networks(
+        &self,
+        out: &mut heapless::Vec<VisibleNetwork, MAX_VISIBLE_NETWORKS>,
+    ) {
+        for (ssid, rssi, locked) in VISIBLE_NETWORKS {
+            let network = VisibleNetwork {
+                ssid: ssid.try_into().unwrap(),
+                rssi,
+                locked,
+            };
+            out.push(network).unwrap();
+        }
+    }
+
+    async fn scan(&self) {}
+
+    async fn drop_link(&self, _ssid: &str) {
+        *self.attempt.borrow_mut() = None;
+    }
+}
 
 struct FakePairing {
     name: Name,
@@ -104,52 +182,22 @@ pub async fn run() {
         })
         .unwrap();
 
-    let context = SharedWebContext::new(WebContext {
+    let context = SharedWebContext::new(WebContext::new(
         known_networks,
-        backend_url: "http://localhost:8080".try_into().unwrap(),
-    });
+        "http://localhost:8080".try_into().unwrap(),
+    ));
 
     let acceptor = edge_nal_std::Stack::new()
         .bind(SocketAddr::from(([127, 0, 0, 1], 8080)))
         .await
         .unwrap();
 
+    let station = FakeStation::new(&context);
     let pairing = FakePairing::new();
-    let handler = Site {
-        config: ConfigSite::new(&context, &pairing, "Example"),
-    };
+    let handler = ConfigSite::new(&context, &station, &pairing, "Example");
 
     DefaultServer::new()
         .run(None, acceptor, handler)
         .await
         .unwrap();
-}
-
-struct Site<'a> {
-    config: ConfigSite<'a, FakePairing>,
-}
-
-impl Handler for Site<'_> {
-    type Error<E>
-        = Error<E>
-    where
-        E: Debug;
-
-    async fn handle<T, const N: usize>(
-        &self,
-        task_id: impl Display + Copy,
-        conn: &mut Connection<'_, T, N>,
-    ) -> Result<(), Self::Error<T::Error>>
-    where
-        T: Read + Write + edge_nal::TcpSplit,
-    {
-        let headers = conn.headers()?;
-        if !(matches!(headers.method, Method::Get) && headers.path == "/vn") {
-            return self.config.handle(task_id, conn).await;
-        }
-
-        conn.initiate_response(200, None, &[("Content-Type", "text/plain; charset=utf-8")])
-            .await?;
-        conn.write_all(b"Demo network 1\nDemo network 3\n").await
-    }
 }

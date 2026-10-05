@@ -8,4 +8,4 @@ pub mod data;
 mod handlers;
 
 #[cfg(feature = "serve")]
-pub use handlers::{ConfigSite, PairingControl};
+pub use handlers::{ConfigSite, PairingControl, Station};

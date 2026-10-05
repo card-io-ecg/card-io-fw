@@ -1,4 +1,4 @@
-use core::{alloc::AllocError, future::pending, sync::atomic::Ordering};
+use core::{alloc::AllocError, cell::RefCell, future::pending};
 
 use crate::{
     board::{initialized::Context, wifi::net_task},
@@ -6,7 +6,7 @@ use crate::{
     Shared,
 };
 use alloc::{rc::Rc, vec::Vec};
-use config_site::data::network::WifiNetwork;
+use config_site::data::network::{StationStatus, WifiNetwork};
 use embassy_executor::Spawner;
 use embassy_futures::{
     join::join,
@@ -39,29 +39,58 @@ pub(super) const SCAN_RESULTS: usize = 20;
 
 pub(super) struct StaConnectionState {
     signal: Signal<NoopRawMutex, ()>,
-    value: AtomicInternalConnectionState,
+    value: RefCell<StationStatus>,
 }
 
 impl StaConnectionState {
     pub fn new() -> StaConnectionState {
         Self {
             signal: Signal::new(),
-            value: AtomicInternalConnectionState::new(InternalConnectionState::NotConnected),
+            value: RefCell::new(StationStatus::Disconnected),
         }
     }
 
-    async fn wait(&self) -> InternalConnectionState {
+    async fn wait(&self) -> WifiClientState {
         self.signal.wait().await;
-        self.read()
+        self.client_state()
     }
 
-    fn read(&self) -> InternalConnectionState {
-        self.value.load(Ordering::Acquire)
+    fn client_state(&self) -> WifiClientState {
+        match *self.value.borrow() {
+            StationStatus::Disconnected | StationStatus::Failed(_) => WifiClientState::NotConnected,
+            StationStatus::Joining(_) => WifiClientState::Connecting,
+            StationStatus::Joined(_) => WifiClientState::Connected,
+        }
     }
 
-    fn update(&self, value: InternalConnectionState) {
+    fn status(&self) -> StationStatus {
+        self.value.borrow().clone()
+    }
+
+    fn ssid(&self) -> Option<String<32>> {
+        match &*self.value.borrow() {
+            StationStatus::Joining(ssid)
+            | StationStatus::Joined(ssid)
+            | StationStatus::Failed(ssid) => Some(ssid.clone()),
+            StationStatus::Disconnected => None,
+        }
+    }
+
+    /// Moves the network of the current join attempt to `status`.
+    fn advance(&self, status: fn(String<32>) -> StationStatus) {
+        self.update(status(unwrap!(self.ssid())));
+    }
+
+    fn is_linked_to(&self, ssid: &str) -> bool {
+        matches!(
+            &*self.value.borrow(),
+            StationStatus::Joining(linked) | StationStatus::Joined(linked) if linked == ssid
+        )
+    }
+
+    fn update(&self, value: StationStatus) {
         debug!("Updating connection state: {:?}", value);
-        self.value.store(value, Ordering::Release);
+        *self.value.borrow_mut() = value;
         self.signal.signal(());
     }
 }
@@ -77,31 +106,6 @@ pub type KnownNetwork = (WifiNetwork, NetworkPreference);
 type Command = (StaCommand, Rc<Signal<NoopRawMutex, ()>>);
 pub type CommandQueue = Channel<NoopRawMutex, Command, 1>;
 
-#[derive(PartialEq, Debug)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[portable_atomic_enum::atomic_enum]
-pub(super) enum InternalConnectionState {
-    NotConnected,
-    Connecting,
-    WaitingForIp,
-    Connected,
-    Disconnected,
-}
-
-impl From<InternalConnectionState> for WifiClientState {
-    fn from(value: InternalConnectionState) -> Self {
-        match value {
-            InternalConnectionState::NotConnected | InternalConnectionState::Disconnected => {
-                WifiClientState::NotConnected
-            }
-            InternalConnectionState::Connecting | InternalConnectionState::WaitingForIp => {
-                WifiClientState::Connecting
-            }
-            InternalConnectionState::Connected => WifiClientState::Connected,
-        }
-    }
-}
-
 #[derive(Clone)]
 pub struct Sta {
     pub(super) sta_stack: Stack<'static>,
@@ -114,7 +118,11 @@ pub struct Sta {
 
 impl Sta {
     pub fn connection_state(&self) -> WifiClientState {
-        self.state.read().into()
+        self.state.client_state()
+    }
+
+    pub fn status(&self) -> StationStatus {
+        self.state.status()
     }
 
     pub async fn visible_networks(
@@ -136,7 +144,7 @@ impl Sta {
     }
 
     pub async fn wait_for_state_change(&self) -> WifiClientState {
-        self.state.wait().await.into()
+        self.state.wait().await
     }
 
     pub async fn wait_for_connection(&self, context: &mut Context) -> bool {
@@ -200,6 +208,13 @@ impl Sta {
 
     pub async fn scan(&self) {
         self.send_command(StaCommand::ScanOnce).await;
+    }
+
+    pub async fn drop_link(&self, ssid: &str) {
+        let Ok(ssid) = String::try_from(ssid) else {
+            return;
+        };
+        self.send_command(StaCommand::DropLink(ssid)).await;
     }
 }
 
@@ -339,6 +354,7 @@ const CONNECT_RETRY_COUNT: u8 = 5;
 
 pub enum StaCommand {
     ScanOnce,
+    DropLink(String<32>),
 }
 
 struct ConnectError;
@@ -351,7 +367,6 @@ pub(super) struct StaController {
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
     stack: Stack<'static>,
-    current_ssid: Option<String<32>>,
     access_point: Option<AccessPointConfig>,
 
     /// When `step` runs next. `None` means it waits for an event: a disconnect or a new network.
@@ -378,7 +393,6 @@ impl StaController {
             stack,
             command_queue,
             networks_changed,
-            current_ssid: None,
             access_point,
             next_step: Some(Instant::now()),
             controller_state: StaControllerState::ScanAndConnect,
@@ -491,9 +505,8 @@ impl StaController {
 
         // Set up configuration
         info!("Connecting to {}...", connect_to.ssid);
-        self.state.update(InternalConnectionState::Connecting);
-
-        self.current_ssid = Some(connect_to.ssid.clone());
+        self.state
+            .update(StationStatus::Joining(connect_to.ssid.clone()));
 
         let station_config = StationConfig::default()
             .with_ssid(unwrap!(connect_to.ssid.as_str().try_into()))
@@ -509,10 +522,10 @@ impl StaController {
         &mut self,
         controller: &mut WifiController<'_>,
     ) -> Result<(), ConnectError> {
-        self.state.update(InternalConnectionState::Connecting);
+        self.state.advance(StationStatus::Joining);
         match with_timeout(Duration::from_secs(30), controller.connect_async()).await {
             Ok(Ok(_)) => {
-                self.state.update(InternalConnectionState::WaitingForIp);
+                self.state.advance(StationStatus::Joining);
                 Ok(())
             }
             Ok(Err(e)) => {
@@ -528,7 +541,7 @@ impl StaController {
     }
 
     async fn deprioritize_current(&self) {
-        if let Some(ssid) = self.current_ssid.as_deref() {
+        if let Some(ssid) = self.state.ssid() {
             let mut known_networks = self.known_networks.lock().await;
             if let Some((_, preference)) = known_networks.iter_mut().find(|(kn, preference)| {
                 kn.ssid == ssid && *preference == NetworkPreference::Preferred
@@ -539,9 +552,23 @@ impl StaController {
     }
 
     pub(super) fn on_disconnected(&mut self) {
-        self.state.update(InternalConnectionState::Disconnected);
+        self.state.update(StationStatus::Disconnected);
         self.controller_state = StaControllerState::ScanAndConnect;
         self.next_step = Some(Instant::now());
+    }
+
+    /// The link may be down already, for example between two join retries. The state resets
+    /// either way, so the next search does not wait for an event that never comes.
+    async fn drop_link(&mut self, ssid: &str, controller: &mut WifiController<'_>) {
+        if !self.state.is_linked_to(ssid) {
+            return;
+        }
+
+        info!("Dropping the link to {}", ssid);
+        if let Err(e) = controller.disconnect_async().await {
+            debug!("Disconnect failed: {:?}", e);
+        }
+        self.on_disconnected();
     }
 
     /// The station idles in `ScanAndConnect` while it has no network to join. The new list
@@ -559,6 +586,7 @@ impl StaController {
 
         match command {
             StaCommand::ScanOnce => self.do_scan(controller).await,
+            StaCommand::DropLink(ssid) => self.drop_link(&ssid, controller).await,
         }
 
         signal.signal(());
@@ -594,7 +622,7 @@ impl StaController {
                         Ok(()) => {}
                         Err(NetworkConfigureError) => {
                             self.controller_state = StaControllerState::ScanAndConnect;
-                            self.state.update(InternalConnectionState::NotConnected);
+                            self.state.update(StationStatus::Disconnected);
                             return Some(SCAN_PERIOD);
                         }
                     }
@@ -614,6 +642,7 @@ impl StaController {
                         }
 
                         self.controller_state = StaControllerState::ScanAndConnect;
+                        self.state.advance(StationStatus::Failed);
                         self.deprioritize_current().await;
 
                         Some(SCAN_PERIOD)
@@ -627,7 +656,7 @@ impl StaController {
                 };
 
                 info!("Got IP: {}", config.address);
-                self.state.update(InternalConnectionState::Connected);
+                self.state.advance(StationStatus::Joined);
                 self.controller_state = StaControllerState::AutoConnected;
                 Some(CONTINUE)
             }

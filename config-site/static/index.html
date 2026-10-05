@@ -4,377 +4,485 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Card/IO configuration</title>
-    <style type="text/css">
+    <title>Card/IO</title>
+    <style>
         @font-face {
             font-family: Poppins;
             src: url(/font);
         }
 
         body {
-            background-color: #ddd;
-            font-family: Arial, Helvetica, sans-serif;
-            font-size: 14px;
-            padding: 1em;
-        }
-
-        .hidden {
-            display: none;
-        }
-
-        #toast {
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 2em;
-            max-width: 800px;
-        }
-
-        #toast div {
-            background-color: #555;
-            border-radius: 2em;
-            color: #fff;
-            padding: 1em;
-        }
-
-        .fade {
-            animation: fade 3s;
-        }
-
-        @keyframes fade {
-            0% {
-                opacity: 1;
-            }
-
-            100% {
-                opacity: 0;
-            }
-        }
-
-        #frame {
-            margin: 0 auto;
-            max-width: 800px;
-            padding: 1em;
-        }
-
-        #header h1,
-        #logo {
-            display: inline-block;
-            vertical-align: bottom;
-        }
-
-        #header h1 {
+            background: #ddd;
+            color: #111;
+            font: 15px Poppins, Arial, sans-serif;
             margin: 0;
-            padding: 0;
-            font: 3em Poppins;
-            font-weight: normal;
-            color: #000;
+            padding: 1em;
+        }
+
+        main {
+            max-width: 40em;
+            margin: 0 auto;
         }
 
         #logo {
-            cursor: pointer;
-        }
-
-        .center {
-            text-align: center;
-        }
-
-        .tpl {
-            display: none;
-        }
-
-        #header-container {
-            display: flex;
-            justify-content: space-between;
-        }
-
-        @media screen and (max-width: 480px) {
-            #header-container {
-                flex-direction: column-reverse;
-            }
+            display: block;
         }
 
         fieldset {
+            background: #eee;
+            border: 0;
+            border-radius: 1em;
             margin: 1em 0;
             padding: 1em;
-            border-radius: 1em;
-            border-width: 0;
-            background-color: #eee;
         }
 
-        fieldset>legend {
-            font-weight: bold;
-            font: 1.5em Poppins;
+        legend {
+            background: #eee;
             border-radius: 0.5em;
-            border-width: 0;
+            font-size: 1.3em;
             padding: 0 0.5em;
-            background-color: #eee;
         }
 
-        fieldset>hr {
-            margin: 1em 0;
-            border: 0 solid #ccc;
-            border-top-width: 1px;
+        button, input {
+            font: inherit;
+        }
+
+        ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .row {
+            align-items: center;
+            border-bottom: 1px solid #ccc;
+            display: flex;
+            gap: 0.5em;
+            padding: 0.5em 0.25em;
+        }
+
+        .row:last-child {
+            border-bottom: 0;
+        }
+
+        .row .name {
+            flex: 1;
+            overflow-wrap: anywhere;
+        }
+
+        .icon {
+            flex: none;
+            height: 1.1em;
+            width: 1.1em;
+        }
+
+        .state {
+            color: #2a7a2a;
+        }
+
+        .state.failed {
+            color: #b22;
+        }
+
+        .state.joining {
+            animation: spin 1.2s linear infinite;
+            color: #555;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .bar {
+            fill: #bbb;
+        }
+
+        .bar.on {
+            fill: #111;
+        }
+
+        #networks .row {
+            cursor: pointer;
+        }
+
+        #networks .row:hover, #networks .row.picked {
+            background: #ddd;
+        }
+
+        .empty {
+            color: #777;
+            padding: 0.5em 0.25em;
+        }
+
+        .hint {
+            color: #777;
+            font-size: 0.9em;
+            margin: 0.25em 0 0;
+        }
+
+        label {
+            display: block;
+            margin: 0.75em 0 0.25em;
+        }
+
+        input[type=text], input[type=password] {
+            box-sizing: border-box;
+            padding: 0.4em;
+            width: 100%;
+        }
+
+        .actions {
+            display: flex;
+            gap: 0.5em;
+            margin-top: 1em;
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+
+        #pairing-status {
+            align-items: center;
+            display: flex;
+            font-weight: bold;
+            gap: 0.5em;
+        }
+
+        #pairing-status.failed {
+            color: #b22;
+        }
+
+        #toast {
+            background: #555;
+            border-radius: 2em;
+            color: #fff;
+            left: 50%;
+            max-width: 90%;
+            padding: 1em 1.5em;
+            position: fixed;
+            top: 1em;
+            transform: translateX(-50%);
         }
     </style>
 </head>
 
 <body>
-    <div id="toast" class="hidden">
-        <div><!-- Toast message will be substituted here --></div>
-    </div>
-    <div id="frame">
-        <div id="header-container">
-            <svg id="logo" viewBox="0 0 287 101" width="150" height="62">
-                <path
-                    d="M 1.944 57.912 Q 3.024 51.648 6.408 46.968 Q 9.792 42.288 14.796 39.768 Q 19.8 37.248 25.704 37.248 Q 33.264 37.248 37.656 41.208 Q 42.048 45.168 42.336 52.368 L 29.232 52.368 Q 28.44 47.76 23.616 47.76 Q 20.232 47.76 17.784 50.388 Q 15.336 53.016 14.472 57.912 Q 14.184 59.424 14.184 61.08 Q 14.184 64.464 15.768 66.264 Q 17.352 68.064 20.088 68.064 Q 24.84 68.064 27.216 63.456 L 40.392 63.456 Q 37.584 70.512 31.752 74.544 Q 25.92 78.576 18.432 78.576 Q 10.656 78.576 6.084 74.292 Q 1.512 70.008 1.512 62.592 Q 1.512 60.36 1.944 57.912 Z M 45.503 57.84 Q 46.583 51.648 49.751 46.968 Q 52.919 42.288 57.383 39.768 Q 61.847 37.248 66.815 37.248 Q 71.063 37.248 73.943 38.976 Q 76.823 40.704 78.119 43.512 L 79.127 37.824 L 91.439 37.824 L 84.311 78 L 71.999 78 L 73.079 72.312 Q 70.775 75.12 67.247 76.848 Q 63.719 78.576 59.471 78.576 Q 55.223 78.576 51.947 76.632 Q 48.671 74.688 46.871 71.124 Q 45.071 67.56 45.071 62.736 Q 45.071 60.432 45.503 57.84 Z M 75.599 57.912 Q 75.815 56.616 75.815 55.536 Q 75.815 52.008 73.763 49.992 Q 71.711 47.976 68.543 47.976 Q 64.871 47.976 61.847 50.604 Q 58.823 53.232 58.031 57.84 Q 57.815 59.136 57.815 60.216 Q 57.815 63.744 59.867 65.796 Q 61.919 67.848 65.015 67.848 Q 68.687 67.848 71.711 65.184 Q 74.735 62.52 75.599 57.912 Z M 111.307 45.096 Q 114.115 41.496 117.751 39.444 Q 121.387 37.392 125.347 37.392 L 123.043 50.424 L 119.659 50.424 Q 115.051 50.424 112.387 52.404 Q 109.723 54.384 108.859 59.352 L 105.547 78 L 93.235 78 L 100.291 37.824 L 112.603 37.824 L 111.307 45.096 Z M 125.204 57.84 Q 126.284 51.648 129.452 46.968 Q 132.62 42.288 137.084 39.768 Q 141.548 37.248 146.516 37.248 Q 150.476 37.248 153.464 38.904 Q 156.452 40.56 157.82 43.368 L 161.132 24.72 L 173.444 24.72 L 164.012 78 L 151.7 78 L 152.708 72.24 Q 150.404 75.12 146.948 76.848 Q 143.492 78.576 139.244 78.576 Q 134.996 78.576 131.72 76.632 Q 128.444 74.688 126.608 71.088 Q 124.772 67.488 124.772 62.664 Q 124.772 60.432 125.204 57.84 Z M 155.3 57.912 Q 155.516 56.616 155.516 55.536 Q 155.516 52.008 153.464 49.992 Q 151.412 47.976 148.244 47.976 Q 144.572 47.976 141.548 50.604 Q 138.524 53.232 137.732 57.84 Q 137.516 59.136 137.516 60.216 Q 137.516 63.744 139.568 65.796 Q 141.62 67.848 144.716 67.848 Q 148.388 67.848 151.412 65.184 Q 154.436 62.52 155.3 57.912 Z"
-                    style="white-space: pre;" />
-                <path
-                    d="M 194.008 18.48 C 191.896 18.48 190.2 17.872 188.92 16.656 C 187.64 15.44 187 13.904 187 12.048 C 187 9.488 187.976 7.296 189.928 5.472 C 191.88 3.648 194.168 2.736 196.792 2.736 C 198.84 2.736 200.504 3.344 201.784 4.56 C 203.064 5.776 203.704 7.312 203.704 9.168 C 203.704 11.728 202.744 13.92 200.824 15.744 C 198.904 17.568 196.632 18.48 194.008 18.48 Z M 199.576 24.816 L 195.563 47.5 L 182.027 47.5 L 186.04 24.816 L 199.576 24.816 Z M 190.168 78 L 176.632 78 L 179.738 60.444 C 180.019 60.481 180.306 60.5 180.598 60.5 L 193.264 60.5 L 190.168 78 Z M 215.078 76.08 C 211.59 74.224 208.886 71.6 206.966 68.208 C 205.648 65.88 204.783 63.311 204.369 60.5 L 218.744 60.5 C 219.248 61.979 220.01 63.236 221.03 64.272 C 221.452 64.7 221.901 65.084 222.377 65.423 L 220.576 75.531 L 220.131 78.028 C 218.339 77.568 216.654 76.919 215.078 76.08 Z M 208.358 40.032 C 211.206 35.072 215.11 31.152 220.07 28.272 C 221.735 27.305 223.464 26.5 225.255 25.858 L 217.839 47.5 L 205.252 47.5 C 205.962 44.89 206.998 42.401 208.358 40.032 Z M 248.774 26.784 C 252.326 28.672 255.078 31.312 257.03 34.704 C 258.982 38.096 259.958 42 259.958 46.416 C 259.958 46.779 259.953 47.141 259.943 47.5 L 246.038 47.5 C 246.038 47.491 246.038 47.481 246.038 47.472 C 246.038 43.632 244.966 40.672 242.822 38.592 C 242.154 37.944 241.432 37.397 240.655 36.951 L 242.855 24.61 C 244.961 25.081 246.934 25.806 248.774 26.784 Z M 255.638 62.928 C 252.758 67.856 248.806 71.744 243.782 74.592 C 240.566 76.415 237.134 77.654 233.486 78.311 L 243.217 60.5 L 256.918 60.5 C 256.529 61.324 256.102 62.134 255.638 62.928 Z M 221.271 73.554 L 224.991 66.745 C 224.991 66.745 224.991 66.745 224.991 66.745 L 221.271 73.554 Z"
-                    style="fill: rgb(0, 0, 0); white-space: pre;" />
-                <path
-                    style="fill: none; stroke-linejoin: round; stroke-linecap: square; stroke: rgb(0, 0, 0); stroke-width: 4px;"
-                    d="M 272 54 L 239.362 54 L 226.975 76.671 L 239.7253852 5.122 L 222.483 54 L 182.483 54" />
-            </svg>
-        </div>
-
-        <div id="content"></div>
-    </div>
-
-    <!-- templates -->
-    <div id="start" class="tpl">
-        <fieldset>
-            <legend>System info</legend>
-            Firmware version: <span class="fw"></span>
-        </fieldset>
+    <div id="toast" hidden></div>
+    <main>
+        <svg id="logo" viewBox="0 0 287 101" width="150" height="62">
+            <path
+                d="M 1.944 57.912 Q 3.024 51.648 6.408 46.968 Q 9.792 42.288 14.796 39.768 Q 19.8 37.248 25.704 37.248 Q 33.264 37.248 37.656 41.208 Q 42.048 45.168 42.336 52.368 L 29.232 52.368 Q 28.44 47.76 23.616 47.76 Q 20.232 47.76 17.784 50.388 Q 15.336 53.016 14.472 57.912 Q 14.184 59.424 14.184 61.08 Q 14.184 64.464 15.768 66.264 Q 17.352 68.064 20.088 68.064 Q 24.84 68.064 27.216 63.456 L 40.392 63.456 Q 37.584 70.512 31.752 74.544 Q 25.92 78.576 18.432 78.576 Q 10.656 78.576 6.084 74.292 Q 1.512 70.008 1.512 62.592 Q 1.512 60.36 1.944 57.912 Z M 45.503 57.84 Q 46.583 51.648 49.751 46.968 Q 52.919 42.288 57.383 39.768 Q 61.847 37.248 66.815 37.248 Q 71.063 37.248 73.943 38.976 Q 76.823 40.704 78.119 43.512 L 79.127 37.824 L 91.439 37.824 L 84.311 78 L 71.999 78 L 73.079 72.312 Q 70.775 75.12 67.247 76.848 Q 63.719 78.576 59.471 78.576 Q 55.223 78.576 51.947 76.632 Q 48.671 74.688 46.871 71.124 Q 45.071 67.56 45.071 62.736 Q 45.071 60.432 45.503 57.84 Z M 75.599 57.912 Q 75.815 56.616 75.815 55.536 Q 75.815 52.008 73.763 49.992 Q 71.711 47.976 68.543 47.976 Q 64.871 47.976 61.847 50.604 Q 58.823 53.232 58.031 57.84 Q 57.815 59.136 57.815 60.216 Q 57.815 63.744 59.867 65.796 Q 61.919 67.848 65.015 67.848 Q 68.687 67.848 71.711 65.184 Q 74.735 62.52 75.599 57.912 Z M 111.307 45.096 Q 114.115 41.496 117.751 39.444 Q 121.387 37.392 125.347 37.392 L 123.043 50.424 L 119.659 50.424 Q 115.051 50.424 112.387 52.404 Q 109.723 54.384 108.859 59.352 L 105.547 78 L 93.235 78 L 100.291 37.824 L 112.603 37.824 L 111.307 45.096 Z M 125.204 57.84 Q 126.284 51.648 129.452 46.968 Q 132.62 42.288 137.084 39.768 Q 141.548 37.248 146.516 37.248 Q 150.476 37.248 153.464 38.904 Q 156.452 40.56 157.82 43.368 L 161.132 24.72 L 173.444 24.72 L 164.012 78 L 151.7 78 L 152.708 72.24 Q 150.404 75.12 146.948 76.848 Q 143.492 78.576 139.244 78.576 Q 134.996 78.576 131.72 76.632 Q 128.444 74.688 126.608 71.088 Q 124.772 67.488 124.772 62.664 Q 124.772 60.432 125.204 57.84 Z M 155.3 57.912 Q 155.516 56.616 155.516 55.536 Q 155.516 52.008 153.464 49.992 Q 151.412 47.976 148.244 47.976 Q 144.572 47.976 141.548 50.604 Q 138.524 53.232 137.732 57.84 Q 137.516 59.136 137.516 60.216 Q 137.516 63.744 139.568 65.796 Q 141.62 67.848 144.716 67.848 Q 148.388 67.848 151.412 65.184 Q 154.436 62.52 155.3 57.912 Z"
+                style="white-space: pre;" />
+            <path
+                d="M 194.008 18.48 C 191.896 18.48 190.2 17.872 188.92 16.656 C 187.64 15.44 187 13.904 187 12.048 C 187 9.488 187.976 7.296 189.928 5.472 C 191.88 3.648 194.168 2.736 196.792 2.736 C 198.84 2.736 200.504 3.344 201.784 4.56 C 203.064 5.776 203.704 7.312 203.704 9.168 C 203.704 11.728 202.744 13.92 200.824 15.744 C 198.904 17.568 196.632 18.48 194.008 18.48 Z M 199.576 24.816 L 195.563 47.5 L 182.027 47.5 L 186.04 24.816 L 199.576 24.816 Z M 190.168 78 L 176.632 78 L 179.738 60.444 C 180.019 60.481 180.306 60.5 180.598 60.5 L 193.264 60.5 L 190.168 78 Z M 215.078 76.08 C 211.59 74.224 208.886 71.6 206.966 68.208 C 205.648 65.88 204.783 63.311 204.369 60.5 L 218.744 60.5 C 219.248 61.979 220.01 63.236 221.03 64.272 C 221.452 64.7 221.901 65.084 222.377 65.423 L 220.576 75.531 L 220.131 78.028 C 218.339 77.568 216.654 76.919 215.078 76.08 Z M 208.358 40.032 C 211.206 35.072 215.11 31.152 220.07 28.272 C 221.735 27.305 223.464 26.5 225.255 25.858 L 217.839 47.5 L 205.252 47.5 C 205.962 44.89 206.998 42.401 208.358 40.032 Z M 248.774 26.784 C 252.326 28.672 255.078 31.312 257.03 34.704 C 258.982 38.096 259.958 42 259.958 46.416 C 259.958 46.779 259.953 47.141 259.943 47.5 L 246.038 47.5 C 246.038 47.491 246.038 47.481 246.038 47.472 C 246.038 43.632 244.966 40.672 242.822 38.592 C 242.154 37.944 241.432 37.397 240.655 36.951 L 242.855 24.61 C 244.961 25.081 246.934 25.806 248.774 26.784 Z M 255.638 62.928 C 252.758 67.856 248.806 71.744 243.782 74.592 C 240.566 76.415 237.134 77.654 233.486 78.311 L 243.217 60.5 L 256.918 60.5 C 256.529 61.324 256.102 62.134 255.638 62.928 Z M 221.271 73.554 L 224.991 66.745 C 224.991 66.745 224.991 66.745 224.991 66.745 L 221.271 73.554 Z"
+                style="fill: rgb(0, 0, 0); white-space: pre;" />
+            <path
+                style="fill: none; stroke-linejoin: round; stroke-linecap: square; stroke: rgb(0, 0, 0); stroke-width: 4px;"
+                d="M 272 54 L 239.362 54 L 226.975 76.671 L 239.7253852 5.122 L 222.483 54 L 182.483 54" />
+        </svg>
 
         <fieldset>
-            <legend>Known networks</legend>
-            <ul class="kn"></ul>
-            <button onclick="$fe.nn();">Add network</button>
-            <hr />
             <legend>Visible networks</legend>
-            <ul class="vn"></ul>
-            <hr />
-            <div>Backend URL: <span class="bu"></span></div>
-            <button onclick="$fe.buc();">Change URL</button>
+            <ul id="networks"></ul>
+            <div class="actions">
+                <button id="scan" type="button">Scan</button>
+            </div>
         </fieldset>
 
-        <fieldset class="pairing">
+        <fieldset id="add" hidden>
+            <legend id="add-title"></legend>
+            <div id="password-field">
+                <label for="password">Password</label>
+                <input id="password" type="password" autocomplete="off">
+            </div>
+            <div class="actions">
+                <button id="add-confirm" type="button">Add network</button>
+                <button id="add-cancel" type="button">Cancel</button>
+            </div>
+        </fieldset>
+
+        <fieldset>
+            <legend>Saved networks</legend>
+            <ul id="profiles"></ul>
+        </fieldset>
+
+        <fieldset>
+            <legend>Settings</legend>
+            <label for="host">Server address</label>
+            <input id="host" type="text" autocomplete="off" placeholder="https://example.com/api">
+            <div class="actions">
+                <button id="discard-settings" type="button">Discard settings</button>
+            </div>
+        </fieldset>
+
+        <fieldset>
             <legend>Pairing</legend>
-            <div>Name on the server: <span class="pn"></span></div>
-            <div><strong class="ps"></strong></div>
-            <div class="pc hidden">
-                <label for="code">Pairing code</label><br />
-                <input type="text" id="code" placeholder="7KQ2M-X9D4F" autocomplete="off" autocapitalize="characters"
-                    spellcheck="false" /><br />
-                <button onclick="$fe.pair();">Pair</button>
+            <p class="hint">Name on the server: <span id="registered-name"></span></p>
+            <p id="pairing-status"></p>
+            <p id="pair-needs-network" class="hint" hidden>Connect to a saved network first</p>
+            <div id="pair-controls" hidden>
+                <label for="code">Pairing code</label>
+                <input id="code" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="7KQ2M-X9D4F">
+                <div class="actions">
+                    <button id="pair" type="button">Pair</button>
+                </div>
             </div>
-            <div class="pu hidden">
-                <button onclick="$fe.unpair();">Unpair</button>
+            <div id="unpair-controls" class="actions" hidden>
+                <button id="unpair" type="button">Unpair</button>
             </div>
         </fieldset>
-    </div>
 
-    <fieldset id="nn" class="tpl">
-        <legend>Add network</legend>
-        <label for="ssid">SSID</label><br />
-        <input type="text" id="netssid" placeholder="Network SSID" /><br />
-        <label for="password">Password</label><br />
-        <input type="password" id="netpass" placeholder="Network password" /><br />
-        <button onclick="$fe.an();">Add</button>
-        <button onclick="$fe.start();">Back</button>
-    </fieldset>
+        <p id="firmware" class="hint"></p>
+    </main>
+    <script>
+        const $ = (id) => document.getElementById(id);
 
-    <fieldset id="buc" class="tpl">
-        <legend>Change backend URL</legend>
-        <label for="url">New URL</label><br />
-        <input type="text" id="url" placeholder="Backend URL" /><br />
-        <button onclick="$fe.cbu();">Change</button>
-        <button onclick="$fe.start();">Back</button>
-    </fieldset>
+        let picked = null;
+        let toastTimer = null;
 
-    <fieldset id="spinner" class="tpl">
-        <legend>Loading...</legend>
-    </fieldset>
-
-    <!-- list item templates -->
-    <div id="network" class="tpl">
-        <li>
-            SSID #<span class="index"></span>: <span class="data"></span><button onclick="$fe.dn(this)">Delete</button>
-        </li>
-    </div>
-    <div id="visible" class="tpl">
-        <li><span class="data"></span></li>
-    </div>
-</body>
-
-<script>
-    $fe = (() => {
-        // Creates a shorthand function that runs `querySelector` and adds
-        // utility methods to the result.
-        let $$ = (el) => (selector) => {
-            let ch = el.querySelector(selector);
-            if (ch) ch.$ = $$(ch);
-            return ch;
+        function toast(message) {
+            const element = $("toast");
+            element.textContent = message;
+            element.hidden = false;
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => { element.hidden = true; }, 4000);
         }
 
-        // Utility functions. They are not methods because method names are not minified.
-
-        // Clones `ch` and adds `$()` to the result.
-        let $clone = (ch) => {
-            let ch2 = ch.cloneNode(true);
-            ch2.$ = $$(ch2);
-            return ch2;
-        }
-
-        // Adds a CSS class to the element
-        let $addClass = (el, name) => el.classList.add(name);
-
-        // Removes a CSS class from the element
-        let $removeClass = (el, name) => el.classList.remove(name);
-
-        let $ = $$(document);
-
-        // Substitute `value` into `tpl`, replacing the inner html of the element with class `name`.
-        // If `sep` is specified, `value` is split on `sep` and each element is substituted into
-        // the corresponding element with class `name-<index>`.
-        let $set = (tpl, name, value, sep = undefined) => {
-            if (sep) {
-                for (let [i, field] of line.split(sep).entries()) {
-                    $set(tpl, name + "-" + i, field);
-                }
-            } else {
-                for (field of tpl.querySelectorAll("." + name)) {
-                    field.innerHTML = value;
-                }
-            }
-        }
-
-        let $tpl = (id) => {
-            let tpl = $clone($("#" + id));
-            $removeClass(tpl, "tpl");
-            tpl.id = null;
-
-            tpl.set = (name, value, sep = undefined) => $set(tpl, name, value, sep);
-            tpl.set_list = (name, item_tpl, value, sep = undefined) => {
-                // value is a newline-delimited list of items
-                let item_template = $tpl(item_tpl);
-
-                let list_node = tpl.$("." + name);
-
-                let lines = value.split("\n");
-                if (lines.length && lines[lines.length - 1].trim() == "") {
-                    lines.pop();
-                }
-
-                for (let [i, line] of lines.entries()) {
-                    let node = $clone(item_template);
-                    $set(node, "data", line, sep);
-                    $set(node, "index", i);
-                    list_node.appendChild(node);
-                }
-            }
-
-            return tpl;
-        }
-
-        let $content = $("#content");
-
-        let $show = (n) => {
-            while ($content.lastChild) $content.removeChild($content.lastChild);
-            $content.appendChild(n);
-        }
-
-        let $page = async (tpln, fn) => {
-            let tpl = $tpl(tpln);
-
-            // Prevent rapid flashing
-            let delay;
-            let loaded;
-            new Promise((res) => setTimeout(res, 100)).then(() => {
-                if (!loaded) {
-                    delay = new Promise((res) => setTimeout(res, 500));
-                    $show($tpl("spinner"));
-                }
-            });
-
-            let node = tpl;
-            if (fn) await fn(node);
-            loaded = true;
-            if (delay) await delay;
-
-            $show(node);
-        }
-
-        let $load = async (url, retry = 5) => {
-            for (let i = 0; i < retry; i++) {
-                try {
-                    return await $fetch(url);
-                } catch (e) {
-                    if (i == retry - 1) {
-                        $toast(`Failed to load page: ${e.message}`);
-                    } else {
-                        console.log(e);
-                    }
-                }
-            }
-        }
-
-        var toastTimeout;
-        let $toast = (message) => {
-            console.log(`[toast] ${message}`);
-
-            let toast = $("#toast");
-            toast.lastChild.innerHTML = message;
-            $removeClass(toast, "hidden");
-            $removeClass(toast, "fade");
-
-            if (toastTimeout) clearTimeout(toastTimeout);
-            toastTimeout = setTimeout(() => {
-                $addClass(toast, "fade");
-                toastTimeout = setTimeout(() => {
-                    $addClass(toast, "hidden");
-                    $removeClass(toast, "fade");
-                }, 3000);
-            }, 1000);
-        }
-
-        let $send = async (url, params) => {
-            let result = await fetch(url, params);
-
-            if (!result.ok) {
-                let message = await result.text();
-                throw new Error(`[${result.status}] ${message}`);
-            }
-
-            return result;
-        }
-
-        // The web server runs 2 connections, so the requests of the page go out one at a time.
+        // The device serves 2 connections, so requests go one at a time.
         let queue = Promise.resolve();
 
-        let $fetch = (url, params = undefined) => {
-            let result = queue.then(() => $send(url, params));
-            queue = result.catch(() => { });
+        function request(url, body) {
+            const result = queue.then(() => send(url, body));
+            queue = result.catch(() => {});
             return result;
         }
 
-        let $post = async (action, url, body) => {
-            try {
-                await $fetch(url, {
-                    method: 'POST',
-                    body: body
+        async function send(url, body) {
+            const options = body === undefined ? {} : { method: "POST", body };
+            const response = await fetch(url, options);
+            const text = await response.text();
+            if (!response.ok) {
+                throw new Error(text || "HTTP " + response.status);
+            }
+            return text;
+        }
+
+        async function requestList(url) {
+            return (await request(url)).split("\n").filter((line) => line !== "");
+        }
+
+        const ICONS = {
+            joined: '<circle cx="8" cy="8" r="7" fill="currentColor"/>'
+                + '<path d="M4.5 8.2l2.3 2.3 4.7-4.8" fill="none" stroke="#fff" stroke-width="1.8"'
+                + ' stroke-linecap="round" stroke-linejoin="round"/>',
+            joining: '<path d="M8 1.5a6.5 6.5 0 1 1-6.5 6.5" fill="none" stroke="currentColor"'
+                + ' stroke-width="2" stroke-linecap="round"/>',
+            failed: '<circle cx="8" cy="8" r="7" fill="currentColor"/>'
+                + '<path d="M8 4v5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>'
+                + '<circle cx="8" cy="11.8" r="1.1" fill="#fff"/>',
+            locked: '<path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.6"/>'
+                + '<rect x="3" y="7" width="10" height="8" rx="1.5" fill="currentColor"/>',
+        };
+        const TITLES = {
+            joined: "Connected",
+            joining: "Joining",
+            failed: "Could not join",
+            locked: "Password protected",
+        };
+
+        let status = { state: "disconnected", ssid: "" };
+        let networks = [];
+        let profiles = [];
+        let contactLost = false;
+
+        function icon(markup, className, title) {
+            const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            svg.setAttribute("viewBox", "0 0 16 16");
+            svg.setAttribute("class", "icon " + className);
+            svg.innerHTML = "<title>" + title + "</title>" + markup;
+            return svg;
+        }
+
+        function blankIcon() {
+            const span = document.createElement("span");
+            span.className = "icon";
+            return span;
+        }
+
+        function signalIcon(network) {
+            const rssi = network ? network.rssi : null;
+            const level = rssi === null ? 0 : rssi >= -55 ? 4 : rssi >= -67 ? 3 : rssi >= -78 ? 2 : 1;
+            let bars = "";
+            for (let i = 0; i < 4; i++) {
+                const height = 4 + i * 3;
+                bars += '<rect class="bar' + (i < level ? " on" : "") + '" x="' + (1 + i * 4)
+                    + '" y="' + (15 - height) + '" width="2.6" height="' + height + '" rx="0.5"/>';
+            }
+            return icon(bars, "signal", rssi === null ? "Not in range" : rssi + " dBm");
+        }
+
+        function lockIcon(network) {
+            return network && network.locked ? icon(ICONS.locked, "lock", TITLES.locked) : blankIcon();
+        }
+
+        function stateIcon(ssid) {
+            const state = status.ssid === ssid ? status.state : null;
+            return ICONS[state] ? icon(ICONS[state], "state " + state, TITLES[state]) : blankIcon();
+        }
+
+        function row(name) {
+            const item = document.createElement("li");
+            item.className = "row";
+            const label = document.createElement("span");
+            label.className = "name";
+            label.textContent = name;
+            item.append(label);
+            return item;
+        }
+
+        function emptyRow(text) {
+            const item = document.createElement("li");
+            item.className = "empty";
+            item.textContent = text;
+            return item;
+        }
+
+        function parseNetworks(lines) {
+            return lines.map((line) => {
+                const [rssi, locked] = line.split(" ", 2);
+                const ssid = line.slice(rssi.length + locked.length + 2);
+                return { ssid, rssi: Number(rssi), locked: locked === "1" };
+            });
+        }
+
+        function showNetworks() {
+            const rows = networks
+                .filter((network) => !profiles.includes(network.ssid))
+                .map((network) => {
+                    const item = row(network.ssid);
+                    item.append(lockIcon(network), signalIcon(network));
+                    item.classList.toggle("picked", picked !== null && picked.ssid === network.ssid);
+                    item.addEventListener("click", () => pick(network.ssid, network.locked));
+                    return item;
                 });
-                $fe.start();
-            } catch (e) {
-                $toast(`Failed to ${action}: ${e.message}`);
+            const empty = networks.length ? "No other networks in range" : "Scanning…";
+            $("networks").replaceChildren(...(rows.length ? rows : [emptyRow(empty)]));
+        }
+
+        function showProfiles() {
+            const rows = profiles.map((ssid) => {
+                const network = networks.find((candidate) => candidate.ssid === ssid);
+                const item = row(ssid);
+                item.prepend(stateIcon(ssid));
+                item.append(lockIcon(network), signalIcon(network));
+                const button = document.createElement("button");
+                button.type = "button";
+                button.textContent = "Forget";
+                button.addEventListener("click", () => forget(ssid));
+                item.append(button);
+                return item;
+            });
+            $("profiles").replaceChildren(...(rows.length ? rows : [emptyRow("No saved networks")]));
+        }
+
+        function updateStatus(lines) {
+            const [state, ...rest] = (lines[0] || "disconnected").split(" ");
+            const next = { state, ssid: rest.join(" ") };
+            if (next.state === "failed" && (status.state !== "failed" || status.ssid !== next.ssid)) {
+                toast("Could not join " + next.ssid);
+            }
+            status = next;
+            showPairing(pairingView.state, pairingView.text, pairingView.failed);
+        }
+
+        function pick(ssid, locked) {
+            picked = { ssid, locked };
+            $("add-title").textContent = "Add " + ssid;
+            $("password").value = "";
+            $("password-field").hidden = !locked;
+            $("add").hidden = false;
+            for (const item of $("networks").children) {
+                const name = item.querySelector(".name");
+                item.classList.toggle("picked", name !== null && name.textContent === ssid);
             }
         }
 
-        let PAIRING_TEXT = {
+        function unpick() {
+            picked = null;
+            $("add").hidden = true;
+            for (const item of $("networks").children) {
+                item.classList.remove("picked");
+            }
+        }
+
+        const ADD_ERRORS = {
+            invalid: "The network name or password is too long.",
+            duplicate: "The network is already saved.",
+            full: "The device saves at most 8 networks.",
+        };
+
+        async function addNetwork() {
+            const body = picked.ssid + "\n" + (picked.locked ? $("password").value : "");
+            try {
+                await request("/profiles", body);
+                unpick();
+                await refreshSaved();
+            } catch (error) {
+                toast("Could not add network: " + (ADD_ERRORS[error.message] || error.message));
+            }
+        }
+
+        async function forget(ssid) {
+            try {
+                await request("/forget", ssid);
+                await refreshSaved();
+            } catch (error) {
+                toast("Could not forget network: " + error.message);
+            }
+        }
+
+        const SETTING_ERRORS = {
+            host: "The server address must start with http:// or https:// and be at most 64 bytes.",
+        };
+
+        // Pair and Unpair save the settings, so they wait for the field commit that the click's blur started.
+        let settingsCommit = Promise.resolve(true);
+
+        function commitSettings() {
+            settingsCommit = sendSettings();
+        }
+
+        // Resolves to whether the device took the settings.
+        async function sendSettings() {
+            try {
+                await request("/settings", $("host").value);
+                return true;
+            } catch (error) {
+                toast(SETTING_ERRORS[error.message] || "Could not change settings: " + error.message);
+                return false;
+            }
+        }
+
+        async function discardSettings() {
+            try {
+                await request("/settings/discard", "");
+                await loadSettings();
+            } catch (error) {
+                toast("Could not discard settings: " + error.message);
+            }
+        }
+
+        async function loadSettings() {
+            $("host").value = (await request("/settings")).split("\n")[0];
+        }
+
+        async function loadFirmware() {
+            $("firmware").textContent = "Firmware " + (await request("/si")).trim();
+        }
+
+        const PAIRING_TEXT = {
             "unpaired": "Not paired",
             "unpaired rejected": "Code not accepted",
             "unpaired taken": "Already registered",
@@ -384,128 +492,141 @@
             "pairing": "Pairing…",
             "unpairing": "Unpairing…",
         };
-
-        let PAIRING_ERRORS = {
-            code: "The code has 10 letters and digits, like 7KQ2M-X9D4F.",
-            wifi: "The device has not joined a saved network.",
-            busy: "Pairing or unpairing is still running.",
+        const PAIRING_ERRORS = {
+            code: "A pairing code is 10 letters and digits, like 7KQ2M-X9D4F.",
+            wifi: "The device is not connected to a saved network yet.",
             save: "The settings could not be saved.",
-            url: "Set a valid backend URL first.",
+            url: "Set the server address first.",
             paired: "The device is already paired.",
             unpaired: "The device is not paired.",
+            busy: "Pairing or unpairing is still running.",
         };
+        let pairingTimer = null;
+        let pairingState = null;
+        let pairingView = { state: null, text: "", failed: false };
 
-        // Returns true while a Pair or Unpair runs.
-        let $showPairing = (section, line) => {
-            let [name, ...words] = line.trim().split(" ");
-            let status = words.join(" ");
+        const isBusy = (state) => state === "pairing" || state === "unpairing";
 
-            $set(section, "pn", name);
-            $set(section, "ps", PAIRING_TEXT[status] || status);
-            section.$(".pc").classList.toggle("hidden", words[0] != "unpaired");
-            section.$(".pu").classList.toggle("hidden", words[0] != "paired");
-
-            return words[0] == "pairing" || words[0] == "unpairing";
+        // The code field needs a joined network, so the status poll shows this section again.
+        function showPairing(state, text, failed) {
+            pairingView = { state, text, failed };
+            const joined = status.state === "joined";
+            const element = $("pairing-status");
+            const spinner = isBusy(state) ? [icon(ICONS.joining, "state joining", text)] : [];
+            element.replaceChildren(...spinner, document.createTextNode(text));
+            element.classList.toggle("failed", failed);
+            $("pair-needs-network").hidden = joined || state === null;
+            $("pair-controls").hidden = state !== "unpaired" || !joined;
+            $("unpair-controls").hidden = state !== "paired";
         }
 
-        var pairingTimer;
-
-        let $watchPairing = (running) => {
+        async function loadPairing() {
+            const [name, ...words] = (await request("/pairing")).trim().split(" ");
+            const line = words.join(" ");
+            const state = words[0];
+            const text = PAIRING_TEXT[line] || line;
+            $("registered-name").textContent = name;
+            showPairing(state, text, words.length > 1);
+            if (isBusy(pairingState) && !isBusy(state)) {
+                toast(text);
+            }
+            pairingState = state;
+            // Cleared after the await, so two loads that overlap leave one polling timer.
             clearTimeout(pairingTimer);
-            if (running) pairingTimer = setTimeout($refreshPairing, 2000);
-        }
-
-        // Refreshes only the Pairing section, because the start page scans (`/vn`).
-        let $refreshPairing = async () => {
-            let section = $content.$(".pairing");
-            if (!section) return;
-
-            try {
-                let line = await (await $fetch('/pairing')).text();
-                $watchPairing($showPairing(section, line));
-            } catch (e) {
-                console.log(e);
-                $watchPairing(true);
+            if (isBusy(state)) {
+                pairingTimer = setTimeout(refreshPairing, 2000);
             }
         }
 
-        let $pairing = async (action, url, body) => {
-            try {
-                await $fetch(url, {
-                    method: 'POST',
-                    body: body
-                });
-            } catch (e) {
-                let reason = e.message.replace(/^\[\d+\] /, "");
-                $toast(`Failed to ${action}: ${PAIRING_ERRORS[reason] || e.message}`);
+        function refreshPairing() {
+            loadPairing().catch(() => {
+                clearTimeout(pairingTimer);
+                pairingTimer = setTimeout(refreshPairing, 2000);
+            });
+        }
+
+        // Pair and Unpair save the settings, so they go only to the address the page shows.
+        async function pair() {
+            if (!(await settingsCommit)) {
                 return;
             }
-            await $refreshPairing();
+            pairingState = "pairing";
+            showPairing("pairing", PAIRING_TEXT.pairing, false);
+            try {
+                await request("/pair", $("code").value);
+            } catch (error) {
+                pairingState = null;
+                toast(PAIRING_ERRORS[error.message] || "Could not pair: " + error.message);
+            }
+            refreshPairing();
         }
 
-        return {
-            start: async () => {
-                let running;
-                await $page('start', async (tpl) => {
-                    let system_info = await $load('/si');
-                    let backend_url = await $load('/bu');
-                    let known_networks = await $load('/kn');
-                    let pairing = await $load('/pairing');
-                    let visible_networks = await $load('/vn');
-
-                    tpl.set("fw", await system_info.text());
-                    tpl.set("bu", await backend_url.text());
-                    tpl.set_list("kn", "network", await known_networks.text());
-                    running = $showPairing(tpl.$(".pairing"), await pairing.text());
-                    tpl.set_list("vn", "visible", await visible_networks.text());
-                });
-                $watchPairing(running);
-            },
-
-            nn: () => $page('nn'),
-            buc: () => $page('buc'),
-
-            an: async () => {
-                await $post("add network", '/nn', `${$content.$("#netssid").value}\n${$content.$("#netpass").value}`);
-            },
-
-            dn: async (el) => {
-                let index = el.parentElement.$(".index").innerHTML;
-                await $post("delete network", '/dn', index);
-            },
-
-            cbu: async () => {
-                await $post("change backend URL", '/cbu', $content.$("#url").value);
-            },
-
-            pair: async () => {
-                await $pairing("pair", '/pair', $content.$("#code").value);
-            },
-
-            unpair: async () => {
-                if (confirm("Unpair this device?")) {
-                    await $pairing("unpair", '/unpair', "");
-                }
-            },
+        async function unpair() {
+            if (!confirm("Unpair this device?") || !(await settingsCommit)) {
+                return;
+            }
+            pairingState = "unpairing";
+            showPairing("unpairing", PAIRING_TEXT.unpairing, false);
+            try {
+                await request("/unpair", "");
+            } catch (error) {
+                pairingState = null;
+                toast(PAIRING_ERRORS[error.message] || "Could not unpair: " + error.message);
+            }
+            refreshPairing();
         }
-    })();
 
-    let dom_rdy = false;
-    let fonts_rdy = false;
-    document.addEventListener("DOMContentLoaded", () => {
-        dom_rdy = true;
-
-        if (fonts_rdy) {
-            $fe.start();
+        async function refreshSaved() {
+            profiles = await requestList("/profiles");
+            updateStatus(await requestList("/status"));
+            showProfiles();
+            showNetworks();
         }
-    });
-    document.fonts.ready.then(() => {
-        fonts_rdy = true;
 
-        if (dom_rdy) {
-            $fe.start();
+        // A scan takes a few seconds; the 5-second poll then brings the new list.
+        async function scan() {
+            const button = $("scan");
+            button.disabled = true;
+            button.textContent = "Scanning…";
+            try {
+                await request("/scan", "");
+            } catch (error) {
+                toast("Could not scan: " + error.message);
+            }
+            setTimeout(() => {
+                button.disabled = false;
+                button.textContent = "Scan";
+            }, 5000);
         }
-    });
-</script>
 
+        async function poll() {
+            try {
+                networks = parseNetworks(await requestList("/networks"));
+                await refreshSaved();
+                contactLost = false;
+            } catch (error) {
+                if (!contactLost) toast("Lost contact with the device. Retrying…");
+                contactLost = true;
+            }
+            setTimeout(poll, 5000);
+        }
+
+        $("add-confirm").addEventListener("click", addNetwork);
+        $("add-cancel").addEventListener("click", unpick);
+        $("host").addEventListener("change", commitSettings);
+        $("discard-settings").addEventListener("click", discardSettings);
+        $("pair").addEventListener("click", pair);
+        $("unpair").addEventListener("click", unpair);
+        $("scan").addEventListener("click", scan);
+
+        loadFirmware().catch((error) => toast("Could not load the firmware version: " + error.message));
+        loadSettings()
+            .catch((error) => toast("Could not load settings: " + error.message))
+            .finally(() => {
+                scan();
+                refreshPairing();
+                poll();
+            });
+    </script>
+</body>
 </html>
