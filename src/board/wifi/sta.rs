@@ -12,7 +12,7 @@ use embassy_futures::{
     join::join,
     select::{select, Either},
 };
-use embassy_net::{dns::DnsClient, iface::Iface, Stack};
+use embassy_net::{dns::DnsSocket, Runner, Stack};
 use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
     channel::Channel,
@@ -23,7 +23,7 @@ use embassy_time::{with_timeout, Duration, Timer};
 use esp_hal::rng::Rng;
 use esp_radio::wifi::{
     ap::AccessPointInfo, scan::ScanConfig, sta::StationConfig, AuthenticationMethodConfig, Config,
-    WifiController,
+    Interface, WifiController,
 };
 use gui::widgets::wifi_client::WifiClientState;
 use heapless::String;
@@ -179,7 +179,7 @@ impl Sta {
         Ok(HttpsClientResources {
             resources,
             tcp_client: TcpClient::new(self.sta_stack, client_state),
-            dns_client: DnsClient::new(self.sta_stack),
+            dns_client: DnsSocket::new(self.sta_stack),
         })
     }
 
@@ -231,11 +231,11 @@ impl TlsClientState {
 pub struct HttpsClientResources<'a> {
     resources: Box<TlsClientState>,
     tcp_client: TcpClient<'a>,
-    dns_client: DnsClient<'a>,
+    dns_client: DnsSocket<'a>,
 }
 
 impl<'a> HttpsClientResources<'a> {
-    pub fn client(&mut self) -> HttpClient<'_, TcpClient<'a>, DnsClient<'a>> {
+    pub fn client(&mut self) -> HttpClient<'_, TcpClient<'a>, DnsSocket<'a>> {
         let rng = Rng::new();
         let upper = rng.random() as u64;
         let lower = rng.random() as u64;
@@ -263,7 +263,8 @@ pub(super) struct StaState {
 impl StaState {
     pub(super) fn init(
         controller: WifiController<'static>,
-        net: super::WifiNet,
+        sta_stack: Stack<'static>,
+        sta_runner: Runner<'static, Interface>,
         spawner: Spawner,
     ) -> Self {
         info!("Starting STA");
@@ -282,22 +283,19 @@ impl StaState {
                 state.clone(),
                 networks.clone(),
                 known_networks.clone(),
-                net.sta_iface,
+                sta_stack,
                 command_queue.clone(),
                 InitialStaControllerState::ScanAndConnect,
             ),
             connection_task_control.token(),
         )));
-        spawner.spawn(unwrap!(net_task(
-            unsafe { &mut *net.sta_runner },
-            net_task_control.token(),
-        )));
+        spawner.spawn(unwrap!(net_task(sta_runner, net_task_control.token())));
 
         Self {
             connection_task_control,
             net_task_control,
             handle: Sta {
-                sta_stack: net.sta_stack,
+                sta_stack,
                 networks,
                 known_networks,
                 state,
@@ -375,7 +373,7 @@ pub(super) struct StaController {
 
     networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
     known_networks: Shared<Vec<KnownNetwork>>,
-    stack: Iface<'static>,
+    stack: Stack<'static>,
     current_ssid: Option<String<32>>,
 
     command_queue: Rc<CommandQueue>,
@@ -386,7 +384,7 @@ impl StaController {
         state: Rc<StaConnectionState>,
         networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
         known_networks: Shared<Vec<KnownNetwork>>,
-        stack: Iface<'static>,
+        stack: Stack<'static>,
         command_queue: Rc<CommandQueue>,
         initial_state: InitialStaControllerState,
     ) -> Self {
@@ -606,11 +604,11 @@ impl StaController {
             }
 
             StaControllerState::AutoConnecting => {
-                if !self.stack.is_config_up() {
+                let Some(config) = self.stack.config_v4() else {
                     return Duration::from_millis(500);
-                }
+                };
 
-                info!("Got IP: {:?}", self.stack.ip_addrs());
+                info!("Got IP: {}", config.address);
                 self.state.update(InternalConnectionState::Connected);
                 self.controller_state = StaControllerState::AutoConnected;
                 CONTINUE

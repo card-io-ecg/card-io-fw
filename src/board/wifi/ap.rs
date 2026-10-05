@@ -3,12 +3,15 @@ use core::sync::atomic::{AtomicU32, Ordering};
 use embassy_futures::join::join;
 use gui::widgets::wifi_access_point::WifiAccessPointState;
 
-use crate::task_control::{TaskControlToken, TaskController};
+use crate::{
+    board::wifi::net_task,
+    task_control::{TaskControlToken, TaskController},
+};
 use embassy_executor::Spawner;
-use embassy_net::{iface::Iface, Stack};
+use embassy_net::{Runner, Stack};
 use esp_radio::wifi::{
     ap::{AccessPointConfig, EventInfo},
-    Config, WifiController,
+    Config, Interface, WifiController,
 };
 use macros as cardio;
 
@@ -27,13 +30,12 @@ impl ApConnectionState {
 #[derive(Clone)]
 pub struct Ap {
     pub(super) ap_stack: Stack<'static>,
-    pub(super) ap_iface: Iface<'static>,
     pub(super) state: Rc<ApConnectionState>,
 }
 
 impl Ap {
     pub fn is_active(&self) -> bool {
-        self.ap_iface.is_link_up()
+        self.ap_stack.is_link_up()
     }
 
     pub fn stack(&self) -> Stack<'static> {
@@ -62,7 +64,8 @@ pub(super) struct ApState {
 impl ApState {
     pub(super) fn init(
         controller: WifiController<'static>,
-        net: super::WifiNet,
+        ap_stack: Stack<'static>,
+        ap_runner: Runner<'static, Interface>,
         spawner: Spawner,
     ) -> Self {
         info!("Starting AP");
@@ -78,19 +81,12 @@ impl ApState {
             ApController::new(state.clone()),
             connection_task_control.token(),
         )));
-        spawner.spawn(unwrap!(super::net_task(
-            unsafe { &mut *net.ap_runner },
-            net_task_control.token(),
-        )));
+        spawner.spawn(unwrap!(net_task(ap_runner, net_task_control.token())));
 
         Self {
             connection_task_control,
             net_task_control,
-            handle: Ap {
-                ap_stack: net.ap_stack,
-                ap_iface: net.ap_iface,
-                state,
-            },
+            handle: Ap { ap_stack, state },
         }
     }
 

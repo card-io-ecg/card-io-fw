@@ -1,21 +1,26 @@
+use core::{
+    fmt::{Debug, Display},
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+};
+
 use alloc::{boxed::Box, rc::Rc};
-use bad_server::{
-    connector::{
-        embassy_net_compat::{listen, AcceptQueue, TcpConnection},
-        Connection,
-    },
-    handler::RequestHandler,
-    request::Request,
-    response::ResponseStatus,
-    HandleError,
-};
 use config_site::{
-    self,
     data::{SharedWebContext, WebContext},
+    ConfigSite,
 };
+use edge_http::{
+    io::{
+        server::{Connection, Handler, Server},
+        Error,
+    },
+    Method,
+};
+use edge_nal::{TcpBind, TcpSplit, WithTimeout};
+use edge_nal_embassy::{Tcp, TcpBuffers};
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
+use embedded_io_async::{Read, Write};
 use gui::{
     screens::wifi_ap::{ApMenuEvents, WifiApScreen},
     widgets::wifi_access_point::WifiAccessPointState,
@@ -48,27 +53,13 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
         backend_url: context.config.backend_url.clone(),
     }));
 
-    // A port can only have a single listener, so one task accepts the connections and hands them
-    // out to the webserver tasks.
-    let connection_queue = Rc::new(ConnectionQueue::new());
-
-    let listener_task_control = TaskController::new();
-    spawner.spawn(unwrap!(listener_task(
+    let webserver_task_control = TaskController::new();
+    spawner.spawn(unwrap!(webserver_task(
         ap.clone(),
-        connection_queue.clone(),
-        listener_task_control.token(),
+        sta.clone(),
+        web_context.clone(),
+        webserver_task_control.token(),
     )));
-
-    let webserver_task_control = [(); WEBSERVER_TASKS].map(|_| TaskController::new());
-    for control in webserver_task_control.iter() {
-        spawner.spawn(unwrap!(webserver_task(
-            ap.clone(),
-            sta.clone(),
-            web_context.clone(),
-            connection_queue.clone(),
-            control.token(),
-        )));
-    }
 
     let mut screen = WifiApScreen::new();
 
@@ -127,10 +118,7 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
         ticker.next().await;
     }
 
-    let _ = listener_task_control.stop().await;
-    for control in webserver_task_control {
-        let _ = control.stop().await;
-    }
+    let _ = webserver_task_control.stop().await;
 
     context.disable_wifi().await;
 
@@ -154,87 +142,96 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
 }
 
 const WEBSERVER_PORT: u16 = 8080;
+const SOCKET_TIMEOUT_MS: u32 = 10_000;
+const KEEPALIVE_TIMEOUT_MS: u32 = 5_000;
 
-/// Hands accepted connections from the listener task to the webserver tasks.
-type ConnectionQueue = AcceptQueue<1>;
+struct WebserverResources {
+    buffers: TcpBuffers<WEBSERVER_TASKS, 4096, 4096>,
+    server: Server<WEBSERVER_TASKS, 2048, 24>,
+}
 
 #[cardio::task]
-async fn listener_task(ap: Ap, queue: Rc<ConnectionQueue>, mut task_control: TaskControlToken<()>) {
-    info!("Started listener task");
+async fn webserver_task(
+    ap: Ap,
+    sta: Sta,
+    context: Rc<SharedWebContext>,
+    mut task_control: TaskControlToken<()>,
+) {
+    info!("Started webserver task");
     task_control
         .run_cancellable(|_| async {
             while !ap.is_active() {
                 Timer::after(Duration::from_millis(500)).await;
             }
 
-            if let Err(e) = listen(ap.stack(), WEBSERVER_PORT, &queue).await {
-                warn!("Listener error: {:?}", e);
-            }
-        })
-        .await;
-    info!("Stopped listener task");
-}
-
-#[derive(Clone, Copy)]
-struct WebserverResources {
-    tx_buffer: [u8; 4096],
-    rx_buffer: [u8; 4096],
-    request_buffer: [u8; 2048],
-}
-
-#[cardio::task(pool_size = WEBSERVER_TASKS)]
-async fn webserver_task(
-    ap: Ap,
-    sta: Sta,
-    context: Rc<SharedWebContext>,
-    queue: Rc<ConnectionQueue>,
-    mut task_control: TaskControlToken<()>,
-) {
-    info!("Started webserver task");
-    task_control
-        .run_cancellable(|_| async {
             let mut resources = Box::new(WebserverResources {
-                tx_buffer: [0; 4096],
-                rx_buffer: [0; 4096],
-                request_buffer: [0; 2048],
+                buffers: TcpBuffers::new(),
+                server: Server::new(),
             });
 
-            let mut socket = unwrap!(TcpConnection::new(
-                ap.stack(),
-                &mut resources.rx_buffer,
-                &mut resources.tx_buffer,
-                queue.dyn_receiver(),
-            ));
-            socket.set_timeout(Some(Duration::from_secs(10)));
+            let tcp = Tcp::new(ap.stack(), &resources.buffers);
+            let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), WEBSERVER_PORT);
+            let acceptor = match tcp.bind(address).await {
+                Ok(acceptor) => WithTimeout::new(SOCKET_TIMEOUT_MS, acceptor),
+                Err(e) => {
+                    warn!("Failed to bind webserver socket: {:?}", e);
+                    return;
+                }
+            };
 
-            config_site::create(&context, env!("FW_VERSION"))
-                .with_handler(RequestHandler::get("/vn", VisibleNetworks { sta }))
-                .with_request_buffer(&mut resources.request_buffer[..])
-                .with_header_count::<24>()
-                .serve(&mut socket)
-                .await;
+            let handler = WebHandler {
+                site: ConfigSite::new(&context, env!("FW_VERSION")),
+                sta,
+            };
+
+            if let Err(e) = resources
+                .server
+                .run(Some(KEEPALIVE_TIMEOUT_MS), acceptor, handler)
+                .await
+            {
+                warn!("Webserver error: {:?}", defmt::Debug2Format(&e));
+            }
         })
         .await;
     info!("Stopped webserver task");
 }
 
-struct VisibleNetworks {
+/// Serves the config site, and the list of visible networks which needs the station interface.
+struct WebHandler<'a> {
+    site: ConfigSite<'a>,
     sta: Sta,
 }
 
-impl<C: Connection> RequestHandler<C> for VisibleNetworks {
-    async fn handle(&self, request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
+impl Handler for WebHandler<'_> {
+    type Error<E>
+        = Error<E>
+    where
+        E: Debug;
+
+    async fn handle<T, const N: usize>(
+        &self,
+        task_id: impl Display + Copy,
+        conn: &mut Connection<'_, T, N>,
+    ) -> Result<(), Self::Error<T::Error>>
+    where
+        T: Read + Write + TcpSplit,
+    {
+        let headers = conn.headers()?;
+        if !(matches!(headers.method, Method::Get) && headers.path == "/vn") {
+            return self.site.handle(task_id, conn).await;
+        }
+
         self.sta.scan().await;
 
-        let response = request.start_response(ResponseStatus::Ok).await?;
-        let mut response = response.start_chunked_body().await?;
+        conn.initiate_response(200, None, &[("Content-Type", "text/plain; charset=utf-8")])
+            .await?;
 
         let networks = self.sta.visible_networks().await;
         for network in networks.iter() {
-            response.write(network.ssid.as_str()).await?;
-            response.write("\n").await?;
+            conn.write_all(network.ssid.as_str().as_bytes()).await?;
+            conn.write_all(b"\n").await?;
         }
 
-        response.end_chunked_response().await
+        Ok(())
     }
 }

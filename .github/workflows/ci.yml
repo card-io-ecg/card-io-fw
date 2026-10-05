@@ -66,7 +66,7 @@ jobs:
           cache-key: ${{ matrix.version }}
 
       - name: build
-        run: cargo xbuild ${{ matrix.version }} --with-wifi
+        run: cargo xbuild ${{ matrix.version }} release --with-wifi
 
   test:
     runs-on: ubuntu-latest

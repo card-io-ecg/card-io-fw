@@ -27,7 +27,7 @@ pub const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
 pub const MESSAGE_MIN_DURATION: Duration = Duration::from_millis(300);
 pub const MESSAGE_DURATION: Duration = Duration::from_millis(1500);
 
-// The max number of webserver tasks.
+// The max number of concurrent webserver connections.
 #[cfg(feature = "wifi")]
 const WEBSERVER_TASKS: usize = 2;
 
