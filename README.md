@@ -26,7 +26,7 @@ Commands
 
 - `cargo xtask -h`: Prints information about available commands. Most of the commands have short
   aliasses, listed below.
-- `cargo xbuild <hw>`: Build the firmware for a `<hw>` version board.
+- `cargo xbuild <hw> [release]`: Build the firmware image for a `<hw>` version board.
 - `cargo xrun <hw>`: Build and run the firmware on a `<hw>` version board.
 - `cargo monitor`: Connect to the Card/IO device and display serial output.
   `<hw>` can be omitted, or one of: `v4`, `v6s3`, `v6c6`. Defaults to `v6c6`.

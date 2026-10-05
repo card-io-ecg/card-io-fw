@@ -1,0 +1,41 @@
+name: Set up Rust toolchains
+description: Installs the ESP Xtensa toolchain, optionally nightly Rust and espflash, and sets up caching.
+
+inputs:
+  nightly:
+    description: Install nightly Rust (required for RISC-V targets and rustfmt) and make it the default.
+    default: "true"
+  espflash:
+    description: Install cargo-espflash.
+    default: "false"
+  cache-key:
+    description: Extra key to separate caches between jobs (e.g. matrix entries).
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: esp-rs/xtensa-toolchain@v1.6
+      with:
+        default: true
+        buildtargets: esp32s3
+        version: "1.98.1.0"
+        ldproxy: false
+
+    - if: inputs.nightly == 'true'
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: nightly
+        components: clippy, rustfmt, rust-src
+
+    - uses: Swatinem/rust-cache@v2
+      with:
+        key: ${{ inputs.cache-key }}
+
+    - if: inputs.espflash == 'true'
+      uses: cargo-bins/cargo-binstall@main
+
+    - if: inputs.espflash == 'true'
+      name: Install cargo-espflash
+      shell: bash
+      run: cargo binstall --no-confirm --force cargo-espflash

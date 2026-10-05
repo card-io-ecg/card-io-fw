@@ -125,7 +125,7 @@ impl ApController {
 
         let ap_config = Config::AccessPoint(
             AccessPointConfig::default()
-                .with_ssid(alloc::string::String::from("Card/IO"))
+                .with_ssid(unwrap!("Card/IO".try_into()))
                 .with_max_connections(1),
         );
         unwrap!(controller.set_config(&ap_config));

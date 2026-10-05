@@ -9,7 +9,7 @@ use gui::screens::create_menu;
 
 use crate::{
     board::initialized::Context,
-    states::{TouchInputShaper, MIN_FRAME_TIME},
+    states::{TouchInputShaper, MENU_FRAME_TIME},
     timeout::Timeout,
     AppMenu, AppState,
 };
@@ -33,7 +33,7 @@ pub async fn wifi_sta(context: &mut Context) -> AppState {
     let scan_done = Cell::new(false);
 
     let ui = async {
-        let mut ticker = Ticker::every(MIN_FRAME_TIME);
+        let mut ticker = Ticker::every(MENU_FRAME_TIME);
 
         let list_item = |label: &str| {
             MenuItem::new(String::from(label), "").with_value_converter(|_| WifiStaMenuEvents::None)

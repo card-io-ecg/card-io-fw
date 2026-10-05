@@ -10,10 +10,8 @@ use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
     gpio::{Input, Level, Output},
     i2c::master::I2c,
-    interrupt::software::SoftwareInterruptControl,
     peripherals::{DMA_CH0, GPIO2},
-    rtc_cntl::Rtc,
-    spi::master::SpiDmaBus,
+    spi::master::SpiDma,
     time::Rate,
     timer::systimer::SystemTimer,
     Async,
@@ -24,7 +22,7 @@ pub const VBUS_DETECT_PIN: u8 = 7;
 
 pub type DisplayDmaChannel<'a> = DMA_CH0<'a>;
 
-pub type DisplaySpi<'d> = ExclusiveDevice<SpiDmaBus<'d, Async>, DummyOutputPin, Delay>;
+pub type DisplaySpi<'d> = ExclusiveDevice<SpiDma<'d, Async>, DummyOutputPin, Delay>;
 
 pub type AdcSpi = ExclusiveDevice<
     BitbangSpi<Output<'static>, Input<'static>, Output<'static>>,
@@ -45,10 +43,12 @@ impl super::startup::StartupResources {
     pub async fn initialize() -> Self {
         let peripherals = Self::common_init();
 
-        let sw_int = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
-
         let systimer = SystemTimer::new(peripherals.SYSTIMER);
-        esp_rtos::start(systimer.alarm0, sw_int.software_interrupt0);
+        esp_rtos::start_with_idle_hook(
+            systimer.alarm0,
+            peripherals.FROM_CPU_INTR0,
+            super::setup_sleep(peripherals.LPWR),
+        );
 
         let display = Self::create_display_driver(
             peripherals.DMA_CH0,
@@ -94,8 +94,7 @@ impl super::startup::StartupResources {
             battery_monitor,
             #[cfg(feature = "wifi")]
             wifi: peripherals.WIFI,
-            rtc: Rtc::new(peripherals.LPWR),
-            software_interrupt2: sw_int.software_interrupt2,
+            software_interrupt2: peripherals.FROM_CPU_INTR2,
         }
     }
 }

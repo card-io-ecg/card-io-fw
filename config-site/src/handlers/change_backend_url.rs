@@ -1,59 +1,39 @@
-use bad_server::{
-    connector::Connection, handler::RequestHandler, request::Request, response::ResponseStatus,
-    HandleError,
+use edge_http::io::{server::Connection, Error};
+use embedded_io_async::{Read, Write};
+
+use crate::{
+    data::SharedWebContext,
+    handlers::{read_body, respond, MAX_BODY_SIZE},
 };
 
-use crate::data::SharedWebContext;
+pub async fn handle<T, const N: usize>(
+    context: &SharedWebContext,
+    conn: &mut Connection<'_, T, N>,
+) -> Result<(), Error<T::Error>>
+where
+    T: Read + Write,
+{
+    let mut buf = [0; MAX_BODY_SIZE];
+    let Some(post_body) = read_body(conn, &mut buf).await? else {
+        return Ok(());
+    };
 
-pub struct ChangeBackendUrl<'a> {
-    pub context: &'a SharedWebContext,
-}
-
-impl<C: Connection> RequestHandler<C> for ChangeBackendUrl<'_> {
-    async fn handle(&self, mut request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
-        let mut buf = [0u8; 100];
-
-        debug!("Reading POST data");
-        let post_data = request.read_all(&mut buf).await?;
-
-        if !request.is_complete() {
-            return request
-                .send_error_response(ResponseStatus::RequestEntityTooLarge, "POST body too large")
-                .await;
-        }
-
-        let post_body = match core::str::from_utf8(post_data) {
-            Ok(body) => body,
-            Err(_err) => {
-                warn!("Invalid UTF-8 in POST body: {:?}", post_data);
-                return request
-                    .send_error_response(ResponseStatus::BadRequest, "Input is not valid text")
-                    .await;
-            }
-        };
-        debug!("POST body: {:?}", post_body);
-
-        if !validate_url(post_body) {
-            return request
-                .send_error_response(ResponseStatus::BadRequest, "Input is not a valid URL")
-                .await;
-        }
-
-        let result = {
-            // Scope-limit the lock guard
-            let mut context = self.context.lock().await;
-            context.backend_url.clear();
-            context.backend_url.push_str(post_body)
-        };
-
-        if result.is_err() {
-            return request
-                .send_error_response(ResponseStatus::BadRequest, "URL is too long")
-                .await;
-        }
-
-        request.send_response("").await
+    if !validate_url(post_body) {
+        return respond(conn, 400, "Input is not a valid URL").await;
     }
+
+    let result = {
+        // Scope-limit the lock guard
+        let mut context = context.lock().await;
+        context.backend_url.clear();
+        context.backend_url.push_str(post_body)
+    };
+
+    if result.is_err() {
+        return respond(conn, 400, "URL is too long").await;
+    }
+
+    respond(conn, 200, "").await
 }
 
 fn validate_url(url: &str) -> bool {

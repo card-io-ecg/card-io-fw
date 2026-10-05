@@ -1,16 +1,26 @@
+use core::{
+    fmt::{Debug, Display},
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+};
+
 use alloc::{boxed::Box, rc::Rc};
-use bad_server::{
-    connector::Connection, handler::RequestHandler, request::Request, response::ResponseStatus,
-    HandleError,
-};
 use config_site::{
-    self,
     data::{SharedWebContext, WebContext},
+    ConfigSite,
 };
+use edge_http::{
+    io::{
+        server::{Connection, Handler, Server},
+        Error,
+    },
+    Method,
+};
+use edge_nal::{TcpBind, TcpSplit, WithTimeout};
+use edge_nal_embassy::{Tcp, TcpBuffers};
 use embassy_executor::Spawner;
-use embassy_net::tcp::TcpSocket;
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::Drawable;
+use embedded_io_async::{Read, Write};
 use gui::{
     screens::wifi_ap::{ApMenuEvents, WifiApScreen},
     widgets::wifi_access_point::WifiAccessPointState,
@@ -23,7 +33,7 @@ use crate::{
         wifi::{ap::Ap, sta::Sta},
     },
     states::{
-        menu::AppMenu, TouchInputShaper, MENU_IDLE_DURATION, MIN_FRAME_TIME, WEBSERVER_TASKS,
+        menu::AppMenu, TouchInputShaper, MENU_FRAME_TIME, MENU_IDLE_DURATION, WEBSERVER_TASKS,
     },
     task_control::{TaskControlToken, TaskController},
     timeout::Timeout,
@@ -43,21 +53,21 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
         backend_url: context.config.backend_url.clone(),
     }));
 
-    let webserver_task_control = [(); WEBSERVER_TASKS].map(|_| TaskController::new());
-    for control in webserver_task_control.iter() {
-        spawner.spawn(unwrap!(webserver_task(
-            ap.clone(),
-            sta.clone(),
-            web_context.clone(),
-            control.token(),
-        )));
-    }
+    let webserver_task_control = TaskController::new();
+    spawner.spawn(unwrap!(webserver_task(
+        ap.clone(),
+        sta.clone(),
+        web_context.clone(),
+        webserver_task_control.token(),
+    )));
 
     let mut screen = WifiApScreen::new();
 
-    let mut ticker = Ticker::every(MIN_FRAME_TIME);
+    let mut ticker = Ticker::every(MENU_FRAME_TIME);
     let mut exit_timer = Timeout::new(MENU_IDLE_DURATION);
     let mut input = TouchInputShaper::new();
+
+    let mut prev_timeout = 0;
 
     loop {
         input.update(&mut context.frontend);
@@ -69,6 +79,7 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
             break;
         }
 
+        let timeout = exit_timer.remaining().as_secs() as u8;
         let connection_state: WifiAccessPointState = ap.connection_state().into();
         if connection_state != WifiAccessPointState::Connected {
             // We start counting when the last client disconnects, and we reset on interaction.
@@ -79,11 +90,14 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
             if exit_timer.is_elapsed() {
                 break;
             }
-            screen.timeout = Some(exit_timer.remaining().as_secs() as u8);
+            screen.timeout = Some(timeout);
         } else {
             screen.timeout = None;
         }
 
+        let changed = connection_state != screen.state || prev_timeout != timeout;
+
+        prev_timeout = timeout;
         screen.state = connection_state;
 
         #[allow(irrefutable_let_patterns)]
@@ -92,15 +106,19 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
         }
 
         context
-            .with_status_bar(|display| screen.draw(display).map(|_| true))
+            .with_status_bar(|display| {
+                if screen.menu.update(display) || changed {
+                    screen.draw(display).map(|_| true)
+                } else {
+                    Ok(false)
+                }
+            })
             .await;
 
         ticker.next().await;
     }
 
-    for control in webserver_task_control {
-        let _ = control.stop().await;
-    }
+    let _ = webserver_task_control.stop().await;
 
     context.disable_wifi().await;
 
@@ -123,14 +141,16 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
     AppState::Menu(AppMenu::Main)
 }
 
-#[derive(Clone, Copy)]
+const WEBSERVER_PORT: u16 = 8080;
+const SOCKET_TIMEOUT_MS: u32 = 10_000;
+const KEEPALIVE_TIMEOUT_MS: u32 = 5_000;
+
 struct WebserverResources {
-    tx_buffer: [u8; 4096],
-    rx_buffer: [u8; 4096],
-    request_buffer: [u8; 2048],
+    buffers: TcpBuffers<WEBSERVER_TASKS, 4096, 4096>,
+    server: Server<WEBSERVER_TASKS, 2048, 24>,
 }
 
-#[cardio::task(pool_size = WEBSERVER_TASKS)]
+#[cardio::task]
 async fn webserver_task(
     ap: Ap,
     sta: Sta,
@@ -140,51 +160,78 @@ async fn webserver_task(
     info!("Started webserver task");
     task_control
         .run_cancellable(|_| async {
-            let mut resources = Box::new(WebserverResources {
-                tx_buffer: [0; 4096],
-                rx_buffer: [0; 4096],
-                request_buffer: [0; 2048],
-            });
-
             while !ap.is_active() {
                 Timer::after(Duration::from_millis(500)).await;
             }
 
-            let mut socket = TcpSocket::new(
-                ap.stack(),
-                &mut resources.rx_buffer,
-                &mut resources.tx_buffer,
-            );
-            socket.set_timeout(Some(Duration::from_secs(10)));
+            let mut resources = Box::new(WebserverResources {
+                buffers: TcpBuffers::new(),
+                server: Server::new(),
+            });
 
-            config_site::create(&context, env!("FW_VERSION"))
-                .with_handler(RequestHandler::get("/vn", VisibleNetworks { sta }))
-                .with_request_buffer(&mut resources.request_buffer[..])
-                .with_header_count::<24>()
-                .listen(&mut socket, 8080)
-                .await;
+            let tcp = Tcp::new(ap.stack(), &resources.buffers);
+            let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), WEBSERVER_PORT);
+            let acceptor = match tcp.bind(address).await {
+                Ok(acceptor) => WithTimeout::new(SOCKET_TIMEOUT_MS, acceptor),
+                Err(e) => {
+                    warn!("Failed to bind webserver socket: {:?}", e);
+                    return;
+                }
+            };
+
+            let handler = WebHandler {
+                site: ConfigSite::new(&context, env!("FW_VERSION")),
+                sta,
+            };
+
+            if let Err(e) = resources
+                .server
+                .run(Some(KEEPALIVE_TIMEOUT_MS), acceptor, handler)
+                .await
+            {
+                warn!("Webserver error: {:?}", defmt::Debug2Format(&e));
+            }
         })
         .await;
     info!("Stopped webserver task");
 }
 
-struct VisibleNetworks {
+/// Serves the config site, and the list of visible networks which needs the station interface.
+struct WebHandler<'a> {
+    site: ConfigSite<'a>,
     sta: Sta,
 }
 
-impl<C: Connection> RequestHandler<C> for VisibleNetworks {
-    async fn handle(&self, request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
+impl Handler for WebHandler<'_> {
+    type Error<E>
+        = Error<E>
+    where
+        E: Debug;
+
+    async fn handle<T, const N: usize>(
+        &self,
+        task_id: impl Display + Copy,
+        conn: &mut Connection<'_, T, N>,
+    ) -> Result<(), Self::Error<T::Error>>
+    where
+        T: Read + Write + TcpSplit,
+    {
+        let headers = conn.headers()?;
+        if !(matches!(headers.method, Method::Get) && headers.path == "/vn") {
+            return self.site.handle(task_id, conn).await;
+        }
+
         self.sta.scan().await;
 
-        let response = request.start_response(ResponseStatus::Ok).await?;
-        let mut response = response.start_chunked_body().await?;
+        conn.initiate_response(200, None, &[("Content-Type", "text/plain; charset=utf-8")])
+            .await?;
 
         let networks = self.sta.visible_networks().await;
         for network in networks.iter() {
-            response.write(network.ssid.as_str()).await?;
-            response.write("\n").await?;
+            conn.write_all(network.ssid.as_str().as_bytes()).await?;
+            conn.write_all(b"\n").await?;
         }
 
-        response.end_chunked_response().await
+        Ok(())
     }
 }

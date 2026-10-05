@@ -1,22 +1,17 @@
-use bad_server::{
-    connector::Connection, handler::RequestHandler, request::Request, response::ResponseStatus,
-    HandleError,
-};
+use edge_http::io::{server::Connection, Error};
+use embedded_io_async::{Read, Write};
 
-use crate::data::SharedWebContext;
+use crate::{data::SharedWebContext, handlers::start_text_response};
 
-pub struct BackendUrl<'a> {
-    pub context: &'a SharedWebContext,
-}
+pub async fn handle<T, const N: usize>(
+    context: &SharedWebContext,
+    conn: &mut Connection<'_, T, N>,
+) -> Result<(), Error<T::Error>>
+where
+    T: Read + Write,
+{
+    start_text_response(conn).await?;
 
-impl<C: Connection> RequestHandler<C> for BackendUrl<'_> {
-    async fn handle(&self, request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
-        let response = request.start_response(ResponseStatus::Ok).await?;
-        let mut response = response.start_chunked_body().await?;
-
-        let context = self.context.lock().await;
-        response.write(&context.backend_url).await?;
-
-        response.end_chunked_response().await
-    }
+    let context = context.lock().await;
+    conn.write_all(context.backend_url.as_bytes()).await
 }

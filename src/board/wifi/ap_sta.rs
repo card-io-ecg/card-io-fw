@@ -122,7 +122,7 @@ async fn ap_sta_task(
     task_control
         .run_cancellable(|resources| async {
             let ap_config = AccessPointConfig::default()
-                .with_ssid(alloc::string::String::from("Card/IO"))
+                .with_ssid(unwrap!("Card/IO".try_into()))
                 .with_max_connections(1);
             let client_config = StationConfig::default();
             unwrap!(resources

@@ -1,25 +1,22 @@
-use bad_server::{
-    connector::Connection, handler::RequestHandler, request::Request, response::ResponseStatus,
-    HandleError,
-};
+use edge_http::io::{server::Connection, Error};
+use embedded_io_async::{Read, Write};
 
-use crate::data::SharedWebContext;
+use crate::{data::SharedWebContext, handlers::start_text_response};
 
-pub struct ListKnownNetworks<'a> {
-    pub context: &'a SharedWebContext,
-}
+pub async fn handle<T, const N: usize>(
+    context: &SharedWebContext,
+    conn: &mut Connection<'_, T, N>,
+) -> Result<(), Error<T::Error>>
+where
+    T: Read + Write,
+{
+    start_text_response(conn).await?;
 
-impl<C: Connection> RequestHandler<C> for ListKnownNetworks<'_> {
-    async fn handle(&self, request: Request<'_, '_, C>) -> Result<(), HandleError<C>> {
-        let response = request.start_response(ResponseStatus::Ok).await?;
-        let mut response = response.start_chunked_body().await?;
-
-        let context = self.context.lock().await;
-        for network in context.known_networks.iter() {
-            response.write(&network.ssid).await?;
-            response.write("\n").await?;
-        }
-
-        response.end_chunked_response().await
+    let context = context.lock().await;
+    for network in context.known_networks.iter() {
+        conn.write_all(network.ssid.as_bytes()).await?;
+        conn.write_all(b"\n").await?;
     }
+
+    Ok(())
 }

@@ -10,6 +10,8 @@ pub enum Subcommands {
         /// Which hardware version to build for.
         hw: Option<HardwareVersion>,
 
+        profile: Option<Profile>,
+
         #[arg(long)]
         timings: bool,
 
@@ -140,7 +142,7 @@ fn build(config: BuildConfig, timings: bool) -> AnyResult<()> {
 
         command.extend_from_slice(&build_flags);
 
-        cargo(config.soc.toolchain(), &command).run()?;
+        config.cargo(&command).run()?;
     }
 
     let flash_size = format!("-s{}mb", config.version.flash_size());
@@ -154,7 +156,7 @@ fn build(config: BuildConfig, timings: bool) -> AnyResult<()> {
     ];
     command.extend_from_slice(&build_flags);
 
-    cargo(config.soc.toolchain(), &command).run()?;
+    config.cargo(&command).run()?;
 
     Ok(())
 }
@@ -172,7 +174,7 @@ fn run(config: BuildConfig) -> AnyResult<()> {
     let mut args = vec!["run"];
     args.extend_from_slice(&build_flags);
 
-    cargo(config.soc.toolchain(), &args).run()?;
+    config.cargo(&args).run()?;
 
     Ok(())
 }
@@ -184,7 +186,7 @@ fn checks(config: BuildConfig) -> AnyResult<()> {
     let mut args = vec!["check"];
     args.extend_from_slice(&build_flags);
 
-    cargo(config.soc.toolchain(), &args).run()?;
+    config.cargo(&args).run()?;
 
     Ok(())
 }
@@ -200,7 +202,7 @@ fn docs(config: BuildConfig, open: bool) -> AnyResult<()> {
         args.push("--open");
     }
 
-    cargo(config.soc.toolchain(), &args).run()?;
+    config.cargo(&args).run()?;
 
     Ok(())
 }
@@ -214,7 +216,7 @@ fn extra_checks(config: BuildConfig) -> AnyResult<()> {
     let mut args = vec!["clippy"];
     args.extend_from_slice(&build_flags);
 
-    cargo(config.soc.toolchain(), &args).run()?;
+    config.cargo(&args).run()?;
 
     Ok(())
 }
@@ -261,9 +263,10 @@ fn main() -> AnyResult<()> {
     match cli.subcommand {
         Subcommands::Build {
             hw,
+            profile,
             with_wifi,
             timings,
-        } => build(BuildConfig::new(hw, None, with_wifi), timings),
+        } => build(BuildConfig::new(hw, profile, with_wifi), timings),
         Subcommands::Test => test(),
         Subcommands::Run {
             hw,
@@ -353,9 +356,24 @@ impl BuildConfig {
 
         if self.profile == Profile::Release {
             flags.push(String::from("--release"));
-            flags.push(String::from("-Zbuild-std-features=panic_immediate_abort"));
         }
 
         flags
+    }
+
+    fn cargo(self, command: &[&str]) -> Expression {
+        let expr = cargo(self.soc.toolchain(), command);
+
+        if self.profile == Profile::Release {
+            // cargo-espflash doesn't forward `--config`. Cargo appends these to the rustflags
+            // in `.cargo/config.toml` instead of replacing them.
+            let triple = self.soc.target().to_uppercase().replace('-', "_");
+            expr.env(
+                format!("CARGO_TARGET_{triple}_RUSTFLAGS"),
+                "-Zunstable-options -Cpanic=immediate-abort",
+            )
+        } else {
+            expr
+        }
     }
 }

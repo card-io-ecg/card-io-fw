@@ -5,7 +5,7 @@ use crate::{
     task_control::{TaskControlToken, TaskController},
     Shared,
 };
-use alloc::{boxed::Box, rc::Rc, string::ToString, vec::Vec};
+use alloc::{boxed::Box, rc::Rc, vec::Vec};
 use config_site::data::network::WifiNetwork;
 use embassy_executor::Spawner;
 use embassy_futures::{
@@ -22,7 +22,8 @@ use embassy_sync::{
 use embassy_time::{with_timeout, Duration, Timer};
 use esp_hal::rng::Rng;
 use esp_radio::wifi::{
-    ap::AccessPointInfo, scan::ScanConfig, sta::StationConfig, Config, Interface, WifiController,
+    ap::AccessPointInfo, scan::ScanConfig, sta::StationConfig, AuthenticationMethodConfig, Config,
+    Interface, WifiController,
 };
 use gui::widgets::wifi_client::WifiClientState;
 use heapless::String;
@@ -170,15 +171,15 @@ impl Sta {
     }
 
     /// Allocates resources for an HTTPS capable [`HttpClient`].
-    pub fn https_client_resources(&self) -> Result<HttpsClientResources<'_>, AllocError> {
+    pub fn https_client_resources(&self) -> Result<HttpsClientResources<'static>, AllocError> {
         // The client state must be heap allocated, because we take a reference to it.
         let resources = Box::try_new(TlsClientState::EMPTY)?;
         let client_state = unsafe { unwrap!(addr_of!(resources.tcp_state).as_ref()) };
 
         Ok(HttpsClientResources {
             resources,
-            tcp_client: TcpClient::new(self.sta_stack.clone(), client_state),
-            dns_client: DnsSocket::new(self.sta_stack.clone()),
+            tcp_client: TcpClient::new(self.sta_stack, client_state),
+            dns_client: DnsSocket::new(self.sta_stack),
         })
     }
 
@@ -282,7 +283,7 @@ impl StaState {
                 state.clone(),
                 networks.clone(),
                 known_networks.clone(),
-                sta_stack.clone(),
+                sta_stack,
                 command_queue.clone(),
                 InitialStaControllerState::ScanAndConnect,
             ),
@@ -502,8 +503,10 @@ impl StaController {
 
         unwrap!(controller.set_config(&Config::Station(
             StationConfig::default()
-                .with_ssid(connect_to.ssid.as_str().to_string())
-                .with_password(connect_to.pass.as_str().to_string())
+                .with_ssid(unwrap!(connect_to.ssid.as_str().try_into()))
+                .with_authentication(AuthenticationMethodConfig::Wpa2Personal(unwrap!(
+                    connect_to.pass.as_str().try_into()
+                )))
         )));
 
         Ok(())
