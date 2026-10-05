@@ -10,7 +10,7 @@ use config_site::data::network::WifiNetwork;
 use embassy_executor::Spawner;
 use embassy_futures::{
     join::join,
-    select::{select, Either},
+    select::{select, select3, Either3},
 };
 use embassy_net::{Runner, Stack};
 use embassy_sync::{
@@ -19,11 +19,13 @@ use embassy_sync::{
     mutex::{Mutex, MutexGuard},
     signal::Signal,
 };
-use embassy_time::{with_timeout, Duration, Timer};
+use embassy_time::{with_timeout, Duration, Instant, Timer};
 use esp_hal::rng::Rng;
 use esp_radio::wifi::{
-    ap::AccessPointInfo, scan::ScanConfig, sta::StationConfig, AuthenticationMethodConfig, Config,
-    Interface, WifiController,
+    ap::{AccessPointConfig, AccessPointInfo},
+    scan::ScanConfig,
+    sta::StationConfig,
+    AuthenticationMethodConfig, Config, Interface, WifiController,
 };
 use gui::widgets::wifi_client::WifiClientState;
 use heapless::String;
@@ -107,6 +109,7 @@ pub struct Sta {
     pub(super) known_networks: Shared<Vec<KnownNetwork>>,
     pub(super) state: Rc<StaConnectionState>,
     pub(super) command_queue: Rc<CommandQueue>,
+    pub(super) networks_changed: Rc<Signal<NoopRawMutex, ()>>,
 }
 
 impl Sta {
@@ -129,6 +132,7 @@ impl Sta {
                 known.push((network.clone(), NetworkPreference::Preferred));
             }
         }
+        self.networks_changed.signal(());
     }
 
     pub async fn wait_for_state_change(&self) -> WifiClientState {
@@ -200,8 +204,8 @@ impl Sta {
 }
 
 pub struct StaClient {
-    client: Client,
-    stack: Stack<'static>,
+    pub client: Client,
+    pub stack: Stack<'static>,
 }
 
 impl StaClient {
@@ -218,7 +222,7 @@ impl StaClient {
 /// The hardware RNG mixes in RF noise while Wi-Fi runs, which makes it a true random source
 /// (esp-hal `rng` docs). The client runs only with Wi-Fi up.
 #[derive(Default)]
-struct WifiRng(Rng);
+pub struct WifiRng(Rng);
 
 impl rand_core::RngCore for WifiRng {
     fn next_u32(&mut self) -> u32 {
@@ -258,6 +262,7 @@ impl StaState {
         let known_networks = Rc::new(Mutex::new(Vec::new()));
         let state = Rc::new(StaConnectionState::new());
         let command_queue = Rc::new(CommandQueue::new());
+        let networks_changed = Rc::new(Signal::new());
 
         let connection_task_control =
             TaskController::from_resources(StaTaskResources { controller });
@@ -271,7 +276,8 @@ impl StaState {
                 known_networks.clone(),
                 sta_stack,
                 command_queue.clone(),
-                InitialStaControllerState::ScanAndConnect,
+                networks_changed.clone(),
+                None,
             ),
             connection_task_control.token(),
         )));
@@ -286,6 +292,7 @@ impl StaState {
                 known_networks,
                 state,
                 command_queue,
+                networks_changed,
             },
         }
     }
@@ -312,22 +319,7 @@ struct StaTaskResources {
 
 unsafe impl Send for StaTaskResources {}
 
-pub(super) enum InitialStaControllerState {
-    Idle,
-    ScanAndConnect,
-}
-
-impl From<InitialStaControllerState> for StaControllerState {
-    fn from(value: InitialStaControllerState) -> Self {
-        match value {
-            InitialStaControllerState::Idle => Self::Idle,
-            InitialStaControllerState::ScanAndConnect => Self::ScanAndConnect,
-        }
-    }
-}
-
 pub enum StaControllerState {
-    Idle,
     ScanAndConnect,
     Connect(u8),    // select network, start connection
     AutoConnecting, // waiting for IP
@@ -340,7 +332,6 @@ impl StaControllerState {
     }
 }
 
-const NO_TIMEOUT: Duration = Duration::MAX;
 const SCAN_PERIOD: Duration = Duration::from_secs(5);
 const CONTINUE: Duration = Duration::from_millis(0);
 const CONNECT_RETRY_PERIOD: Duration = Duration::from_millis(100);
@@ -361,8 +352,13 @@ pub(super) struct StaController {
     known_networks: Shared<Vec<KnownNetwork>>,
     stack: Stack<'static>,
     current_ssid: Option<String<32>>,
+    access_point: Option<AccessPointConfig>,
+
+    /// When `step` runs next. `None` means it waits for an event: a disconnect or a new network.
+    next_step: Option<Instant>,
 
     command_queue: Rc<CommandQueue>,
+    networks_changed: Rc<Signal<NoopRawMutex, ()>>,
 }
 
 impl StaController {
@@ -372,7 +368,8 @@ impl StaController {
         known_networks: Shared<Vec<KnownNetwork>>,
         stack: Stack<'static>,
         command_queue: Rc<CommandQueue>,
-        initial_state: InitialStaControllerState,
+        networks_changed: Rc<Signal<NoopRawMutex, ()>>,
+        access_point: Option<AccessPointConfig>,
     ) -> Self {
         Self {
             state,
@@ -380,15 +377,26 @@ impl StaController {
             known_networks,
             stack,
             command_queue,
+            networks_changed,
             current_ssid: None,
-            controller_state: initial_state.into(),
+            access_point,
+            next_step: Some(Instant::now()),
+            controller_state: StaControllerState::ScanAndConnect,
         }
     }
 
-    async fn setup(&mut self, controller: &mut WifiController<'_>) {
+    /// A station-only configuration switches the Wi-Fi mode and stops the access point.
+    fn config(&self, station: StationConfig) -> Config {
+        match &self.access_point {
+            Some(access_point) => Config::AccessPointStation(station, access_point.clone()),
+            None => Config::Station(station),
+        }
+    }
+
+    pub(super) async fn setup(&mut self, controller: &mut WifiController<'_>) {
         info!("Configuring STA");
 
-        let client_config = Config::Station(StationConfig::default());
+        let client_config = self.config(StationConfig::default());
         unwrap!(controller.set_config(&client_config));
     }
 
@@ -487,13 +495,12 @@ impl StaController {
 
         self.current_ssid = Some(connect_to.ssid.clone());
 
-        unwrap!(controller.set_config(&Config::Station(
-            StationConfig::default()
-                .with_ssid(unwrap!(connect_to.ssid.as_str().try_into()))
-                .with_authentication(AuthenticationMethodConfig::Wpa2Personal(unwrap!(
-                    connect_to.pass.as_str().try_into()
-                )))
-        )));
+        let station_config = StationConfig::default()
+            .with_ssid(unwrap!(connect_to.ssid.as_str().try_into()))
+            .with_authentication(AuthenticationMethodConfig::Wpa2Personal(unwrap!(
+                connect_to.pass.as_str().try_into()
+            )));
+        unwrap!(controller.set_config(&self.config(station_config)));
 
         Ok(())
     }
@@ -534,6 +541,17 @@ impl StaController {
     pub(super) fn on_disconnected(&mut self) {
         self.state.update(InternalConnectionState::Disconnected);
         self.controller_state = StaControllerState::ScanAndConnect;
+        self.next_step = Some(Instant::now());
+    }
+
+    /// The station idles in `ScanAndConnect` while it has no network to join. The new list
+    /// ends that without waiting for a `SCAN_PERIOD`.
+    pub(super) fn on_networks_changed(&mut self) {
+        if self.next_step.is_none()
+            && matches!(self.controller_state, StaControllerState::ScanAndConnect)
+        {
+            self.next_step = Some(Instant::now());
+        }
     }
 
     pub async fn handle_command(&mut self, command: Command, controller: &mut WifiController<'_>) {
@@ -546,14 +564,28 @@ impl StaController {
         signal.signal(());
     }
 
-    pub async fn update(&mut self, controller: &mut WifiController<'_>) -> Duration {
-        match self.controller_state {
-            StaControllerState::Idle => NO_TIMEOUT,
+    /// Runs `step` when it is due and returns when the next one is due. Other wake-ups, like an
+    /// access point event or a page scan, leave the deadline alone, so search passes stay at
+    /// least `SCAN_PERIOD` apart.
+    pub async fn update(&mut self, controller: &mut WifiController<'_>) -> Option<Instant> {
+        if self.next_step.is_some_and(|due| due <= Instant::now()) {
+            let wait = self.step(controller).await;
+            self.next_step = wait.map(|wait| Instant::now() + wait);
+        }
 
+        self.next_step
+    }
+
+    async fn step(&mut self, controller: &mut WifiController<'_>) -> Option<Duration> {
+        match self.controller_state {
             StaControllerState::ScanAndConnect => {
+                if self.known_networks.lock().await.is_empty() {
+                    return None;
+                }
+
                 self.do_scan(controller).await;
                 self.controller_state = StaControllerState::Connect(CONNECT_RETRY_COUNT);
-                CONTINUE
+                Some(CONTINUE)
             }
 
             StaControllerState::Connect(retry) => {
@@ -563,7 +595,7 @@ impl StaController {
                         Err(NetworkConfigureError) => {
                             self.controller_state = StaControllerState::ScanAndConnect;
                             self.state.update(InternalConnectionState::NotConnected);
-                            return SCAN_PERIOD;
+                            return Some(SCAN_PERIOD);
                         }
                     }
                 }
@@ -572,40 +604,44 @@ impl StaController {
                     Ok(_) => {
                         info!("Waiting to get IP address...");
                         self.controller_state = StaControllerState::AutoConnecting;
-                        CONTINUE
+                        Some(CONTINUE)
                     }
                     Err(ConnectError) => {
                         if retry != 0 {
                             info!("Retrying...");
                             self.controller_state = StaControllerState::Connect(retry - 1);
-                            return CONNECT_RETRY_PERIOD;
+                            return Some(CONNECT_RETRY_PERIOD);
                         }
 
                         self.controller_state = StaControllerState::ScanAndConnect;
                         self.deprioritize_current().await;
 
-                        SCAN_PERIOD
+                        Some(SCAN_PERIOD)
                     }
                 }
             }
 
             StaControllerState::AutoConnecting => {
                 let Some(config) = self.stack.config_v4() else {
-                    return Duration::from_millis(500);
+                    return Some(Duration::from_millis(500));
                 };
 
                 info!("Got IP: {}", config.address);
                 self.state.update(InternalConnectionState::Connected);
                 self.controller_state = StaControllerState::AutoConnected;
-                CONTINUE
+                Some(CONTINUE)
             }
 
-            StaControllerState::AutoConnected => NO_TIMEOUT,
+            StaControllerState::AutoConnected => None,
         }
     }
 
     pub(super) async fn wait_for_command(&self) -> Command {
         self.command_queue.receive().await
+    }
+
+    pub(super) async fn wait_for_networks_changed(&self) {
+        self.networks_changed.wait().await;
     }
 }
 
@@ -619,33 +655,35 @@ async fn sta_task(
             sta_controller.setup(&mut resources.controller).await;
 
             loop {
-                let timeout = sta_controller.update(&mut resources.controller).await;
+                let next_step = sta_controller.update(&mut resources.controller).await;
 
-                let poll_result = select(
+                let poll_result = select3(
                     async {
                         if sta_controller.controller_state.is_connected() {
                             _ = resources.controller.wait_for_disconnect_async().await;
                             true
-                        } else if timeout == NO_TIMEOUT {
-                            pending().await
-                        } else {
-                            Timer::after(timeout).await;
+                        } else if let Some(next_step) = next_step {
+                            Timer::at(next_step).await;
                             false
+                        } else {
+                            pending().await
                         }
                     },
                     sta_controller.wait_for_command(),
+                    sta_controller.wait_for_networks_changed(),
                 )
                 .await;
 
                 match poll_result {
-                    Either::First(disconnected) if disconnected => {
+                    Either3::First(disconnected) if disconnected => {
                         sta_controller.on_disconnected();
                     }
-                    Either::Second(command) => {
+                    Either3::Second(command) => {
                         sta_controller
                             .handle_command(command, &mut resources.controller)
                             .await;
                     }
+                    Either3::Third(()) => sta_controller.on_networks_changed(),
 
                     _ => {}
                 }

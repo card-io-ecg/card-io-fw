@@ -16,6 +16,9 @@ mod backend_url;
 mod change_backend_url;
 mod delete_network;
 mod list_known_networks;
+mod pairing;
+
+pub use pairing::PairingControl;
 
 #[cfg(feature = "compress")]
 mod statics {
@@ -45,21 +48,23 @@ use statics::*;
 const MAX_BODY_SIZE: usize = 100;
 
 /// Serves the configuration website.
-pub struct ConfigSite<'a> {
+pub struct ConfigSite<'a, P> {
     context: &'a SharedWebContext,
+    pairing: &'a P,
     fw_version: &'a str,
 }
 
-impl<'a> ConfigSite<'a> {
-    pub fn new(context: &'a SharedWebContext, fw_version: &'a str) -> Self {
+impl<'a, P: PairingControl> ConfigSite<'a, P> {
+    pub fn new(context: &'a SharedWebContext, pairing: &'a P, fw_version: &'a str) -> Self {
         Self {
             context,
+            pairing,
             fw_version,
         }
     }
 }
 
-impl Handler for ConfigSite<'_> {
+impl<P: PairingControl> Handler for ConfigSite<'_, P> {
     type Error<E>
         = Error<E>
     where
@@ -86,6 +91,9 @@ impl Handler for ConfigSite<'_> {
             (Method::Post, "/dn") => delete_network::handle(self.context, conn).await,
             (Method::Get, "/bu") => backend_url::handle(self.context, conn).await,
             (Method::Post, "/cbu") => change_backend_url::handle(self.context, conn).await,
+            (Method::Get, "/pairing") => pairing::status(self.pairing, conn).await,
+            (Method::Post, "/pair") => pairing::pair(self.pairing, conn).await,
+            (Method::Post, "/unpair") => pairing::unpair(self.pairing, conn).await,
             _ => respond(conn, 404, "Not found").await,
         }
     }

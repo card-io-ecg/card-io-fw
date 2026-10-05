@@ -1,9 +1,13 @@
 use core::fmt::{Debug, Display};
-use std::net::SocketAddr;
+use std::{
+    cell::Cell,
+    net::SocketAddr,
+    time::{Duration, Instant},
+};
 
 use config_site::{
     data::{network::WifiNetwork, SharedWebContext, WebContext},
-    ConfigSite,
+    ConfigSite, PairingControl,
 };
 use edge_http::{
     io::{
@@ -14,6 +18,71 @@ use edge_http::{
 };
 use edge_nal::TcpBind;
 use embedded_io_async::{Read, Write};
+use network_services::pairing::{format, parse_code, Name, Refusal, Status};
+
+const REQUEST_DURATION: Duration = Duration::from_secs(3);
+
+struct FakePairing {
+    name: Name,
+    status: Cell<Status>,
+    started: Cell<Instant>,
+}
+
+impl FakePairing {
+    fn new() -> Self {
+        Self {
+            name: Name::from_mac([0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6]),
+            status: Cell::new(Status::Unpaired(None)),
+            started: Cell::new(Instant::now()),
+        }
+    }
+
+    fn status(&self) -> Status {
+        let finished = self.started.get().elapsed() >= REQUEST_DURATION;
+        let status = match self.status.get() {
+            Status::Pairing if finished => Status::Paired(None),
+            Status::Unpairing if finished => Status::Unpaired(None),
+            status => status,
+        };
+        self.status.set(status);
+        status
+    }
+
+    fn start(&self, status: Status) {
+        self.status.set(status);
+        self.started.set(Instant::now());
+    }
+}
+
+impl PairingControl for FakePairing {
+    async fn status_line(&self, out: &mut impl core::fmt::Write) {
+        format(&self.name, &self.status(), out).unwrap();
+    }
+
+    async fn pair(&self, typed: &str) -> Result<(), Refusal> {
+        parse_code(typed).ok_or(Refusal::Code)?;
+
+        match self.status() {
+            Status::Unpaired(_) => {
+                self.start(Status::Pairing);
+                Ok(())
+            }
+            Status::Paired(_) => Err(Refusal::Paired),
+            Status::Pairing | Status::Unpairing => Err(Refusal::Busy),
+        }
+    }
+
+    async fn unpair(&self) -> Result<(), Refusal> {
+        match self.status() {
+            Status::Paired(_) => {
+                self.start(Status::Unpairing);
+                Ok(())
+            }
+            Status::Unpaired(_) => Err(Refusal::Unpaired),
+            Status::Pairing | Status::Unpairing => Err(Refusal::Busy),
+        }
+    }
+}
 
 fn main() {
     smol::block_on(run());
@@ -45,8 +114,9 @@ pub async fn run() {
         .await
         .unwrap();
 
+    let pairing = FakePairing::new();
     let handler = Site {
-        config: ConfigSite::new(&context, "Example"),
+        config: ConfigSite::new(&context, &pairing, "Example"),
     };
 
     DefaultServer::new()
@@ -56,7 +126,7 @@ pub async fn run() {
 }
 
 struct Site<'a> {
-    config: ConfigSite<'a>,
+    config: ConfigSite<'a, FakePairing>,
 }
 
 impl Handler for Site<'_> {

@@ -12,6 +12,7 @@ edge-http = { workspace = true, optional = true }
 embassy-sync = { workspace = true, optional = true }
 embedded-io-async = { workspace = true, optional = true }
 heapless = { workspace = true, features = ["serde"] }
+network-services = { path = "../network-services", optional = true }
 serde.workspace = true
 smol = { version = "2", optional = true }
 
@@ -27,12 +28,13 @@ required-features = ["std", "serve", "compress"]
 edge-nal = { workspace = true }
 embassy-time = { workspace = true, features = ["std", "generic-queue-8"] }
 edge-nal-std = "0.7"
+network-services = { path = "../network-services" }
 smol = "2"
 
 [features]
 default = []
 embedded = ["dep:embassy-sync"]
 compress = ["dep:minify-html", "dep:libflate"]
-serve = ["dep:edge-http", "dep:embedded-io-async"]
+serve = ["dep:edge-http", "dep:embedded-io-async", "dep:network-services"]
 std = ["dep:smol", "edge-http?/std"]
 defmt = ["dep:defmt", "edge-http?/defmt"]

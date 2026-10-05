@@ -161,6 +161,21 @@
             <div>Backend URL: <span class="bu"></span></div>
             <button onclick="$fe.buc();">Change URL</button>
         </fieldset>
+
+        <fieldset class="pairing">
+            <legend>Pairing</legend>
+            <div>Name on the server: <span class="pn"></span></div>
+            <div><strong class="ps"></strong></div>
+            <div class="pc hidden">
+                <label for="code">Pairing code</label><br />
+                <input type="text" id="code" placeholder="7KQ2M-X9D4F" autocomplete="off" autocapitalize="characters"
+                    spellcheck="false" /><br />
+                <button onclick="$fe.pair();">Pair</button>
+            </div>
+            <div class="pu hidden">
+                <button onclick="$fe.unpair();">Unpair</button>
+            </div>
+        </fieldset>
     </div>
 
     <fieldset id="nn" class="tpl">
@@ -327,7 +342,7 @@
             }, 1000);
         }
 
-        let $fetch = async (url, params = undefined) => {
+        let $send = async (url, params) => {
             let result = await fetch(url, params);
 
             if (!result.ok) {
@@ -335,6 +350,15 @@
                 throw new Error(`[${result.status}] ${message}`);
             }
 
+            return result;
+        }
+
+        // The web server runs 2 connections, so the requests of the page go out one at a time.
+        let queue = Promise.resolve();
+
+        let $fetch = (url, params = undefined) => {
+            let result = queue.then(() => $send(url, params));
+            queue = result.catch(() => { });
             return result;
         }
 
@@ -350,18 +374,93 @@
             }
         }
 
-        return {
-            start: () => $page('start', async (tpl) => {
-                let system_info = await $load('/si');
-                let backend_url = await $load('/bu');
-                let known_networks = await $load('/kn');
-                let visible_networks = await $load('/vn');
+        let PAIRING_TEXT = {
+            "unpaired": "Not paired",
+            "unpaired rejected": "Code not accepted",
+            "unpaired taken": "Already registered",
+            "unpaired failed": "Server unreachable or bad response",
+            "paired": "Paired",
+            "paired failed": "Unpair failed: server unreachable or bad response",
+            "pairing": "Pairing…",
+            "unpairing": "Unpairing…",
+        };
 
-                tpl.set("fw", await system_info.text());
-                tpl.set("bu", await backend_url.text());
-                tpl.set_list("kn", "network", await known_networks.text());
-                tpl.set_list("vn", "visible", await visible_networks.text());
-            }),
+        let PAIRING_ERRORS = {
+            code: "The code has 10 letters and digits, like 7KQ2M-X9D4F.",
+            wifi: "The device has not joined a saved network.",
+            busy: "Pairing or unpairing is still running.",
+            save: "The settings could not be saved.",
+            url: "Set a valid backend URL first.",
+            paired: "The device is already paired.",
+            unpaired: "The device is not paired.",
+        };
+
+        // Returns true while a Pair or Unpair runs.
+        let $showPairing = (section, line) => {
+            let [name, ...words] = line.trim().split(" ");
+            let status = words.join(" ");
+
+            $set(section, "pn", name);
+            $set(section, "ps", PAIRING_TEXT[status] || status);
+            section.$(".pc").classList.toggle("hidden", words[0] != "unpaired");
+            section.$(".pu").classList.toggle("hidden", words[0] != "paired");
+
+            return words[0] == "pairing" || words[0] == "unpairing";
+        }
+
+        var pairingTimer;
+
+        let $watchPairing = (running) => {
+            clearTimeout(pairingTimer);
+            if (running) pairingTimer = setTimeout($refreshPairing, 2000);
+        }
+
+        // Refreshes only the Pairing section, because the start page scans (`/vn`).
+        let $refreshPairing = async () => {
+            let section = $content.$(".pairing");
+            if (!section) return;
+
+            try {
+                let line = await (await $fetch('/pairing')).text();
+                $watchPairing($showPairing(section, line));
+            } catch (e) {
+                console.log(e);
+                $watchPairing(true);
+            }
+        }
+
+        let $pairing = async (action, url, body) => {
+            try {
+                await $fetch(url, {
+                    method: 'POST',
+                    body: body
+                });
+            } catch (e) {
+                let reason = e.message.replace(/^\[\d+\] /, "");
+                $toast(`Failed to ${action}: ${PAIRING_ERRORS[reason] || e.message}`);
+                return;
+            }
+            await $refreshPairing();
+        }
+
+        return {
+            start: async () => {
+                let running;
+                await $page('start', async (tpl) => {
+                    let system_info = await $load('/si');
+                    let backend_url = await $load('/bu');
+                    let known_networks = await $load('/kn');
+                    let pairing = await $load('/pairing');
+                    let visible_networks = await $load('/vn');
+
+                    tpl.set("fw", await system_info.text());
+                    tpl.set("bu", await backend_url.text());
+                    tpl.set_list("kn", "network", await known_networks.text());
+                    running = $showPairing(tpl.$(".pairing"), await pairing.text());
+                    tpl.set_list("vn", "visible", await visible_networks.text());
+                });
+                $watchPairing(running);
+            },
 
             nn: () => $page('nn'),
             buc: () => $page('buc'),
@@ -377,6 +476,16 @@
 
             cbu: async () => {
                 await $post("change backend URL", '/cbu', $content.$("#url").value);
+            },
+
+            pair: async () => {
+                await $pairing("pair", '/pair', $content.$("#code").value);
+            },
+
+            unpair: async () => {
+                if (confirm("Unpair this device?")) {
+                    await $pairing("unpair", '/unpair', "");
+                }
             },
         }
     })();

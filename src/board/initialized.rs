@@ -18,6 +18,8 @@ use embassy_executor::SendSpawner;
 
 #[cfg(feature = "wifi")]
 use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
+#[cfg(feature = "wifi")]
+use network_services::pairing::Pairing;
 
 use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::Drawable;
@@ -36,6 +38,15 @@ pub enum StaMode {
     OnDemand,
 }
 
+#[cfg(feature = "wifi")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum NotReady {
+    NoServerAddress,
+    NoNetwork,
+    NotPaired,
+}
+
 pub struct InnerContext {
     pub display: &'static mut Display,
     pub high_prio_spawner: SendSpawner,
@@ -52,6 +63,8 @@ pub struct InnerContext {
 pub struct Context {
     pub frontend: EcgFrontend,
     pub storage: Option<FileSystem>,
+    #[cfg(feature = "wifi")]
+    pub pairing: Pairing,
     pub inner: InnerContext,
 }
 
@@ -69,22 +82,47 @@ impl DerefMut for Context {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Save {
+    Unchanged,
+    Written,
+    Failed,
+}
+
 impl Context {
-    pub async fn save_config(&mut self) {
+    pub async fn save_config(&mut self) -> Save {
         if !self.config_changed {
-            return;
+            return Save::Unchanged;
         }
 
         info!("Saving config");
         self.config_changed = false;
 
-        if let Some(storage) = self.storage.as_mut() {
-            if let Err(e) = storage.save_config(self.inner.config).await {
-                error!("Failed to save config: {:?}", e);
-            }
-        } else {
+        let Some(storage) = self.storage.as_mut() else {
             warn!("Storage unavailable");
+            return Save::Failed;
+        };
+        if let Err(e) = storage.save_config(self.inner.config).await {
+            error!("Failed to save config: {:?}", e);
+            // The next save writes the config again.
+            self.config_changed = true;
+            return Save::Failed;
         }
+        Save::Written
+    }
+
+    #[cfg(feature = "wifi")]
+    pub fn backend_ready(&self) -> Result<(), NotReady> {
+        if self.config.backend_url.is_empty() {
+            return Err(NotReady::NoServerAddress);
+        }
+        if self.config.known_networks.is_empty() {
+            return Err(NotReady::NoNetwork);
+        }
+        if !self.pairing.paired() {
+            return Err(NotReady::NotPaired);
+        }
+        Ok(())
     }
 
     #[cfg(feature = "wifi")]
@@ -218,7 +256,7 @@ impl InnerContext {
             return None;
         }
 
-        let apsta = self
+        let (ap, sta) = self
             .wifi
             .configure_ap_sta(
                 NetConfig::ipv4_static(StaticConfigV4 {
@@ -230,7 +268,9 @@ impl InnerContext {
             )
             .await;
 
-        Some(apsta)
+        sta.update_known_networks(&self.config.known_networks).await;
+
+        Some((ap, sta))
     }
 
     /// Note: make sure Sta/Ap is released before calling this.

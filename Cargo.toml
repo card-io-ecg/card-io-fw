@@ -36,6 +36,7 @@ edge-nal-embassy = { version = "0.9", default-features = false, features = [
     "tcp",
 ] }
 defmt = "1"
+device-auth-firmware = { git = "https://github.com/card-io-ecg/device-auth.git", rev = "d59c2676ece41e86387fa6b1cff86f0396d325a1" }
 ufmt = "0.2.0"
 
 smoltcp = { version = "0.13.0", default-features = false, features = [
@@ -115,6 +116,7 @@ smoltcp = { workspace = true, optional = true }
 enumset = "1.1.3"
 
 [dev-dependencies]
+device-auth-firmware.workspace = true
 embedded-test = { version = "0.7", features = ["defmt", "embassy-010", "external-executor"] }
 
 [target.'cfg(target_arch = "xtensa")'.dev-dependencies]

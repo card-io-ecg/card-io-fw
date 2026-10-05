@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 cfg-if = "1"
 defmt = { workspace = true, optional = true }
+device-auth-firmware.workspace = true
 edge-http.workspace = true
 embassy-net.workspace = true
 embassy-time.workspace = true

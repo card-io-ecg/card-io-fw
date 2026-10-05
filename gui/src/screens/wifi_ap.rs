@@ -19,6 +19,12 @@ pub enum ApMenuEvents {
     Exit,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ApRequest {
+    Pairing,
+    Unpairing,
+}
+
 pub struct WifiApScreen {
     pub menu: Menu<
         &'static str,
@@ -31,6 +37,7 @@ pub struct WifiApScreen {
     >,
     pub state: WifiAccessPointState,
     pub timeout: Option<u8>,
+    pub request: Option<ApRequest>,
 }
 
 impl WifiApScreen {
@@ -41,6 +48,7 @@ impl WifiApScreen {
                 .build(),
             state: WifiAccessPointState::NotConnected,
             timeout: None,
+            request: None,
         }
     }
 }
@@ -57,13 +65,18 @@ impl Drawable for WifiApScreen {
         let network_name = "Card/IO";
 
         let mut text = heapless::String::<128>::new();
-        if self.state == WifiAccessPointState::Connected {
-            unwrap!(text.push_str("Connected. Open site at 192.168.2.1"));
-        } else {
-            unwrap!(text.push_str("No client connected. Look for a network called "));
-            unwrap!(text.push_str(network_name));
-            if let Some(timeout) = self.timeout {
-                unwrap!(uwrite!(&mut text, "\nExiting in {}", timeout).map_err(|_| ()));
+        match self.request {
+            Some(ApRequest::Pairing) => unwrap!(text.push_str("Pairing...")),
+            Some(ApRequest::Unpairing) => unwrap!(text.push_str("Unpairing...")),
+            None if self.state == WifiAccessPointState::Connected => {
+                unwrap!(text.push_str("Connected. Open site at 192.168.2.1"));
+            }
+            None => {
+                unwrap!(text.push_str("No client connected. Look for a network called "));
+                unwrap!(text.push_str(network_name));
+                if let Some(timeout) = self.timeout {
+                    unwrap!(uwrite!(&mut text, "\nExiting in {}", timeout).map_err(|_| ()));
+                }
             }
         }
 

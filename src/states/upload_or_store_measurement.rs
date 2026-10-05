@@ -56,21 +56,29 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
         MeasurementAction::Discard => (false, false),
     };
 
-    let store_after_upload = if can_upload {
+    let uploaded = if can_upload {
         cfg_if::cfg_if! {
             if #[cfg(feature = "wifi")] {
                 let upload_result = try_to_upload(context, samples).await;
                 debug!("Upload result: {:?}", upload_result);
-                upload_result == StoreMeasurement::Store
+                match upload_result {
+                    Ok(()) => true,
+                    Err(reason) => {
+                        if !can_store {
+                            display_discarded(context, reason).await;
+                        }
+                        false
+                    }
+                }
             } else {
-                true
+                false
             }
         }
     } else {
-        true
+        false
     };
 
-    if can_store && store_after_upload {
+    if can_store && !uploaded {
         let store_result = try_store_measurement(context, samples).await;
 
         if let Err(e) = store_result {
@@ -81,7 +89,7 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
 
     // Only upload if we did not store.
     #[cfg(feature = "wifi")]
-    if can_upload && !store_after_upload {
+    if can_upload && uploaded {
         // Drop to free up 90kB of memory.
         core::mem::drop(buffer);
 
@@ -93,13 +101,23 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     next_state
 }
 
+fn backend_ready(context: &Context) -> bool {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "wifi")] {
+            context.backend_ready().is_ok()
+        } else {
+            let _ = context;
+            false
+        }
+    }
+}
+
 async fn ask_for_measurement_action(context: &mut Context) -> (bool, bool) {
-    let network_configured =
-        !context.config.backend_url.is_empty() && !context.config.known_networks.is_empty();
+    let backend_ready = backend_ready(context);
 
     let can_store = context.storage.is_some();
 
-    if !network_configured && !can_store {
+    if !backend_ready && !can_store {
         return (false, false);
     }
 
@@ -150,13 +168,11 @@ fn ask_for_action_builder(context: &mut Context) -> AskForMeasurementActionMenuB
             .ok());
     };
 
-    let network_configured = cfg!(feature = "wifi")
-        && !context.config.backend_url.is_empty()
-        && !context.config.known_networks.is_empty();
+    let backend_ready = backend_ready(context);
 
     let can_store = context.storage.is_some();
 
-    if network_configured {
+    if backend_ready {
         if can_store {
             add_item("Upload or store", true, true);
         }
@@ -220,7 +236,7 @@ mod wifi {
     use super::*;
     use crate::{
         board::{
-            initialized::{InnerContext, StaMode},
+            initialized::{InnerContext, NotReady, StaMode},
             wifi::sta::StaClient,
         },
         SerialNumber,
@@ -233,38 +249,62 @@ mod wifi {
     };
     use ufmt::uwrite;
 
-    /// Whether to store the measurement or not. Used instead of a bool to reduce confusion.
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-    pub enum StoreMeasurement {
-        Store,
-        DontStore,
+    pub enum NotUploaded {
+        NotReady(NotReady),
+        WifiNotEnabled,
+        WifiNotConnected,
+        Failed,
     }
 
-    pub async fn try_to_upload(context: &mut Context, buffer: &[u8]) -> StoreMeasurement {
-        if context.config.backend_url.is_empty() {
-            debug!("No backend URL configured, not uploading.");
-            return StoreMeasurement::Store;
+    pub async fn display_discarded(context: &mut Context, reason: NotUploaded) {
+        const DISCARDED: &str = "Measurement discarded";
+
+        let (reason_message, last_message) = match reason {
+            NotUploaded::NotReady(NotReady::NoServerAddress) => {
+                (None, "No server address. Measurement discarded")
+            }
+            NotUploaded::NotReady(NotReady::NoNetwork) => {
+                (None, "No saved network. Measurement discarded")
+            }
+            NotUploaded::NotReady(NotReady::NotPaired) => {
+                (None, "Device not paired. Measurement discarded")
+            }
+            NotUploaded::WifiNotEnabled => (Some("WiFi not enabled"), DISCARDED),
+            NotUploaded::WifiNotConnected => (Some("Failed to connect to WiFi"), DISCARDED),
+            // `try_to_upload` showed this failure.
+            NotUploaded::Failed => (None, DISCARDED),
+        };
+
+        if let Some(message) = reason_message {
+            context.display_message(message).await;
+        }
+        context.display_message(last_message).await;
+    }
+
+    pub async fn try_to_upload(context: &mut Context, buffer: &[u8]) -> Result<(), NotUploaded> {
+        if let Err(reason) = context.backend_ready() {
+            debug!("Backend is not ready, not uploading.");
+            return Err(NotUploaded::NotReady(reason));
         }
 
         let sta = if let Some(sta) = context.enable_wifi_sta(StaMode::Enable).await {
             if sta.wait_for_connection(context).await {
                 sta
             } else {
-                // If we do not have a network connection, save to file.
-                return StoreMeasurement::Store;
+                return Err(NotUploaded::WifiNotConnected);
             }
         } else {
-            return StoreMeasurement::Store;
+            return Err(NotUploaded::WifiNotEnabled);
         };
 
         // If we found a network, attempt to upload.
-        // TODO: only try to upload if we are registered.
         debug!("Trying to upload measurement");
 
         let Ok(mut client) = sta.client() else {
             context.display_message("Out of memory").await;
-            return StoreMeasurement::Store;
+            return Err(NotUploaded::Failed);
         };
 
         match upload_measurement(
@@ -275,14 +315,13 @@ mod wifi {
         .await
         {
             Ok(_) => {
-                // Upload successful, do not store in file.
                 context.display_message("Upload successful").await;
-                StoreMeasurement::DontStore
+                Ok(())
             }
             Err(_) => {
                 warn!("Failed to upload measurement");
                 context.display_message("Upload failed").await;
-                StoreMeasurement::Store
+                Err(NotUploaded::Failed)
             }
         }
     }

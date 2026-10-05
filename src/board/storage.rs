@@ -11,6 +11,8 @@ use embassy_sync::once_lock::OnceLock;
 use embassy_sync_06::blocking_mutex::raw::CriticalSectionRawMutex as EkvRawMutex;
 use esp_hal::{peripherals::FLASH, rng::Rng};
 use esp_storage::FlashStorage;
+#[cfg(feature = "wifi")]
+use network_services::pairing::SigningKey;
 
 use crate::board::flash::PartitionFlash;
 
@@ -20,9 +22,13 @@ type ReadTx<'a> = ReadTransaction<'a, PartitionFlash, EkvRawMutex>;
 static STORE: OnceLock<Store> = OnceLock::new();
 
 // ekv requires the keys of one write transaction in ascending order:
-// config < meas/N < queue < ver/N < version.
+// config < device_key < meas/N < queue < ver/N < version.
 const CONFIG_KEY: &[u8] = b"config";
+#[cfg(feature = "wifi")]
+const DEVICE_KEY: &[u8] = b"device_key";
 const VERSION_KEY: &[u8] = b"version";
+#[cfg(feature = "wifi")]
+const DEVICE_KEY_LEN: usize = 32;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -288,6 +294,62 @@ impl FileSystem {
             let mut tx = store.write_transaction().await;
             tx.write(CONFIG_KEY, encoded).await?;
             tx.write(VERSION_KEY, version).await?;
+
+            Ok(tx.commit().await?)
+        })
+        .await
+    }
+
+    /// A bad record counts as no key. It stays in the store until `save_key` overwrites it.
+    #[cfg(feature = "wifi")]
+    pub async fn load_key(&mut self) -> Option<SigningKey> {
+        let store = self.store;
+        let loaded = boxed("load_key", async {
+            let mut key = [0; DEVICE_KEY_LEN];
+            let tx = store.read_transaction().await;
+            let len = read_value(&tx, DEVICE_KEY, &mut key).await?;
+            Ok(len.map(|len| (key, len)))
+        })
+        .await;
+
+        match loaded {
+            Ok(None) => None,
+            Ok(Some((key, DEVICE_KEY_LEN))) => {
+                let key = SigningKey::from_bytes(&key.into()).ok();
+                if key.is_none() {
+                    warn!("Stored device key is not a valid P-256 scalar");
+                }
+                key
+            }
+            Ok(Some((_, len))) => {
+                warn!("Stored device key is {} bytes, not {}", len, DEVICE_KEY_LEN);
+                None
+            }
+            Err(e) => {
+                warn!("Failed to load the device key: {:?}", e);
+                None
+            }
+        }
+    }
+
+    #[cfg(feature = "wifi")]
+    pub async fn save_key(&mut self, key: &SigningKey) -> Result<(), StorageError> {
+        let store = self.store;
+        boxed("save_key", async {
+            let mut tx = store.write_transaction().await;
+            tx.write(DEVICE_KEY, &key.to_bytes()).await?;
+
+            Ok(tx.commit().await?)
+        })
+        .await
+    }
+
+    #[cfg(feature = "wifi")]
+    pub async fn delete_key(&mut self) -> Result<(), StorageError> {
+        let store = self.store;
+        boxed("delete_key", async {
+            let mut tx = store.write_transaction().await;
+            tx.delete(DEVICE_KEY).await?;
 
             Ok(tx.commit().await?)
         })

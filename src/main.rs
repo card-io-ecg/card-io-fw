@@ -22,6 +22,9 @@ use signal_processing::compressing_buffer::CompressingBuffer;
 use static_cell::StaticCell;
 
 #[cfg(feature = "wifi")]
+use network_services::pairing::Pairing;
+
+#[cfg(feature = "wifi")]
 use crate::states::{
     firmware_update::firmware_update, throughput::throughput,
     upload_or_store_measurement::upload_stored_measurements,
@@ -135,6 +138,22 @@ async fn load_config(storage: Option<&mut FileSystem>) -> &'static mut Config {
     CONFIG.init(config)
 }
 
+#[cfg(feature = "wifi")]
+async fn load_pairing(storage: Option<&mut FileSystem>) -> Pairing {
+    let key = match storage {
+        Some(storage) => storage.load_key().await,
+        None => None,
+    };
+
+    let pairing = Pairing::new(key);
+    if pairing.paired() {
+        info!("Device is paired");
+    } else {
+        info!("Device is unpaired");
+    }
+    pairing
+}
+
 #[esp_rtos::main]
 async fn main(_spawner: Spawner) {
     #[cfg(all(feature = "rtt", feature = "defmt"))]
@@ -165,12 +184,16 @@ async fn main(_spawner: Spawner) {
     log_heap("after mount");
     let config = load_config(storage.as_mut()).await;
     log_heap("after load_config");
+    #[cfg(feature = "wifi")]
+    let pairing = load_pairing(storage.as_mut()).await;
 
     // We're boxing Context because we will need to move out of it during shutdown.
     let mut board = Box::new(Context {
         // If the device is awake, the display should be enabled.
         frontend: resources.frontend,
         storage,
+        #[cfg(feature = "wifi")]
+        pairing,
         inner: InnerContext {
             display: resources.display,
             high_prio_spawner: interrupt_executor.start(Priority::Priority2),

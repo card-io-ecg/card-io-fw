@@ -72,13 +72,12 @@ fn main_menu_builder(_ctx: &mut Context) -> MainMenuBuilder {
                 .push(MenuItem::new(label, event).with_value_converter(|evt| evt))
                 .ok())
         };
-        let network_configured =
-            !_ctx.config.backend_url.is_empty() && !_ctx.config.known_networks.is_empty();
+        let backend_ready = _ctx.backend_ready().is_ok();
 
         optional_item("Wifi setup", MainMenuEvents::WifiSetup);
         optional_item("Wifi networks", MainMenuEvents::WifiListVisible);
 
-        if network_configured {
+        if backend_ready {
             optional_item("Firmware update", MainMenuEvents::FirmwareUpdate);
             optional_item("Speed test", MainMenuEvents::Throughput);
         }
