@@ -1,11 +1,12 @@
 use core::cell::Cell;
 
 use alloc::boxed::Box;
+use edge_http::Method;
 use embassy_futures::select::{select, Either};
 use embassy_time::{with_timeout, Duration, Instant, Timer};
-use embedded_io_async::BufRead;
+use embedded_io_async::Read;
 use esp_bootloader_esp_idf::partitions::PARTITION_TABLE_MAX_LEN;
-use reqwless::{request::Method, response::Status};
+use network_services::{http::Request, url};
 use ufmt::uwrite;
 
 use crate::{
@@ -21,6 +22,7 @@ use crate::{
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 const READ_TIMEOUT: Duration = Duration::from_secs(10);
+const READ_BUFFER_LEN: usize = 4096;
 
 #[derive(Clone, Copy, PartialEq)]
 enum UpdateError {
@@ -89,16 +91,20 @@ async fn do_update(context: &mut Context) -> UpdateResult {
 
     context.display_message("Looking for updates").await;
 
-    let Ok(mut client_resources) = sta.https_client_resources() else {
+    let Ok(mut client) = sta.client() else {
         return UpdateResult::Failed(UpdateError::InternalError);
     };
-    let mut client = client_resources.client();
 
-    let mut url = heapless::String::<128>::new();
+    let Some(base) = url::parse(context.config.backend_url.as_str()) else {
+        error!("Invalid backend URL");
+        return UpdateResult::Failed(UpdateError::InternalError);
+    };
+
+    let mut path = heapless::String::<128>::new();
     if uwrite!(
-        &mut url,
+        &mut path,
         "{}/firmware/{}/{}/{}",
-        context.config.backend_url.as_str(),
+        base.path,
         env!("HW_VERSION"),
         SerialNumber,
         env!("COMMIT_HASH")
@@ -109,36 +115,31 @@ async fn do_update(context: &mut Context) -> UpdateResult {
         return UpdateResult::Failed(UpdateError::InternalError);
     }
 
-    debug!("Looking for update at {}", url.as_str());
+    debug!("Looking for update at {}", path.as_str());
 
-    let mut request = match with_timeout(CONNECT_TIMEOUT, client.request(Method::GET, &url)).await {
-        Ok(Ok(request)) => request,
-        Ok(Err(e)) => {
-            warn!("HTTP connect error: {:?}", e);
-            return UpdateResult::Failed(UpdateError::HttpConnectionFailed);
-        }
+    let mut connection = match with_timeout(CONNECT_TIMEOUT, client.connect(&base)).await {
+        Ok(Ok(connection)) => connection,
+        Ok(Err(_)) => return UpdateResult::Failed(UpdateError::HttpConnectionFailed),
         Err(_) => return UpdateResult::Failed(UpdateError::HttpConnectionTimeout),
     };
 
-    let mut rx_buffer = [0; 4096];
-    let result = match with_timeout(READ_TIMEOUT, request.send(&mut rx_buffer)).await {
-        Ok(result) => result,
-        _ => return UpdateResult::Failed(UpdateError::HttpRequestTimeout),
+    let request = Request {
+        method: Method::Get,
+        path: &path,
+        authorization: None,
+        body: None,
     };
-
-    let response = match result {
-        Ok(response) => match response.status.into() {
-            Status::Ok => response,
-            Status::NotModified => return UpdateResult::AlreadyUpToDate,
-            _ => {
-                warn!("HTTP response error: {:?}", response.status);
+    let mut response = match with_timeout(READ_TIMEOUT, connection.send(&request)).await {
+        Ok(Ok(response)) => match response.status {
+            200 => response,
+            304 => return UpdateResult::AlreadyUpToDate,
+            status => {
+                warn!("HTTP response error: {}", status);
                 return UpdateResult::Failed(UpdateError::HttpRequestFailed);
             }
         },
-        Err(e) => {
-            warn!("HTTP response error: {:?}", e);
-            return UpdateResult::Failed(UpdateError::HttpRequestFailed);
-        }
+        Ok(Err(_)) => return UpdateResult::Failed(UpdateError::HttpRequestFailed),
+        Err(_) => return UpdateResult::Failed(UpdateError::HttpRequestTimeout),
     };
 
     let Some(mut flash) = lock_flash().await else {
@@ -146,6 +147,10 @@ async fn do_update(context: &mut Context) -> UpdateResult {
         return UpdateResult::Failed(UpdateError::InternalError);
     };
     let Ok(mut partition_table) = Box::try_new([0u8; PARTITION_TABLE_MAX_LEN]) else {
+        warn!("Out of memory while preparing OTA");
+        return UpdateResult::Failed(UpdateError::InternalError);
+    };
+    let Ok(mut buffer) = Box::try_new([0u8; READ_BUFFER_LEN]) else {
         warn!("Out of memory while preparing OTA");
         return UpdateResult::Failed(UpdateError::InternalError);
     };
@@ -157,7 +162,9 @@ async fn do_update(context: &mut Context) -> UpdateResult {
         }
     };
 
-    let size = response.content_length;
+    let size = response
+        .content_len
+        .and_then(|len| usize::try_from(len).ok());
     print_progress(context, 0, size, None).await;
 
     if let Err(e) = ota.erase().await {
@@ -165,34 +172,29 @@ async fn do_update(context: &mut Context) -> UpdateResult {
         return UpdateResult::Failed(UpdateError::EraseFailed);
     };
 
-    let mut reader = response.body().reader();
-
     let started = Instant::now();
     let received_since = Cell::new(0);
     let mut received_total = 0;
     let result = select(
         async {
             loop {
-                let received_buffer = match with_timeout(READ_TIMEOUT, reader.fill_buf()).await {
-                    Ok(result) => match result {
-                        Ok(&[]) => break None,
-                        Ok(read) => read,
-                        Err(e) => {
-                            warn!("HTTP read error: {:?}", e);
-                            break Some(UpdateError::DownloadFailed);
-                        }
-                    },
-                    _ => break Some(UpdateError::DownloadTimeout),
+                let read = match with_timeout(READ_TIMEOUT, response.body.read(&mut *buffer)).await
+                {
+                    Ok(Ok(0)) => break None,
+                    Ok(Ok(read)) => read,
+                    Ok(Err(e)) => {
+                        warn!("HTTP read error: {:?}", defmt::Debug2Format(&e));
+                        break Some(UpdateError::DownloadFailed);
+                    }
+                    Err(_) => break Some(UpdateError::DownloadTimeout),
                 };
 
-                if let Err(e) = ota.write(received_buffer) {
+                if let Err(e) = ota.write(&buffer[..read]) {
                     warn!("Failed to write OTA: {:?}", e);
                     break Some(UpdateError::WriteError);
                 }
 
-                let received_len = received_buffer.len();
-                received_since.set(received_since.get() + received_len);
-                reader.consume(received_len);
+                received_since.set(received_since.get() + read);
             }
         },
         async {
@@ -230,8 +232,7 @@ async fn print_progress(
     speed: Option<Throughput>,
 ) {
     let mut message = heapless::String::<128>::new();
-    if let Some(size) = size {
-        let progress = current * 100 / size;
+    if let Some(progress) = size.and_then(|size| (current * 100).checked_div(size)) {
         unwrap!(uwrite!(message, "Downloading update: {}%", progress));
     } else {
         unwrap!(uwrite!(

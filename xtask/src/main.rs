@@ -248,7 +248,7 @@ fn extra_checks(config: BuildConfig) -> AnyResult<()> {
 }
 
 fn test() -> AnyResult<()> {
-    let packages = ["signal-processing", "config-types"];
+    let packages = ["signal-processing", "config-types", "network-services"];
 
     let mut args = vec!["test", "--features=dyn_filter"];
 

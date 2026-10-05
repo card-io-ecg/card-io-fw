@@ -1,18 +1,18 @@
-use core::{alloc::AllocError, future::pending, ptr::addr_of, sync::atomic::Ordering};
+use core::{alloc::AllocError, future::pending, sync::atomic::Ordering};
 
 use crate::{
     board::{initialized::Context, wifi::net_task},
     task_control::{TaskControlToken, TaskController},
     Shared,
 };
-use alloc::{boxed::Box, rc::Rc, vec::Vec};
+use alloc::{rc::Rc, vec::Vec};
 use config_site::data::network::WifiNetwork;
 use embassy_executor::Spawner;
 use embassy_futures::{
     join::join,
     select::{select, Either},
 };
-use embassy_net::{dns::DnsSocket, Runner, Stack};
+use embassy_net::{Runner, Stack};
 use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
     channel::Channel,
@@ -28,7 +28,10 @@ use esp_radio::wifi::{
 use gui::widgets::wifi_client::WifiClientState;
 use heapless::String;
 use macros as cardio;
-use reqwless::client::{HttpClient, TlsConfig, TlsVerify};
+use network_services::{
+    client::{Client, ClientError, Connection},
+    url::BaseUrl,
+};
 
 pub(super) const SCAN_RESULTS: usize = 20;
 
@@ -170,16 +173,10 @@ impl Sta {
         }
     }
 
-    /// Allocates resources for an HTTPS capable [`HttpClient`].
-    pub fn https_client_resources(&self) -> Result<HttpsClientResources<'static>, AllocError> {
-        // The client state must be heap allocated, because we take a reference to it.
-        let resources = Box::try_new(TlsClientState::EMPTY)?;
-        let client_state = unsafe { unwrap!(addr_of!(resources.tcp_state).as_ref()) };
-
-        Ok(HttpsClientResources {
-            resources,
-            tcp_client: TcpClient::new(self.sta_stack, client_state),
-            dns_client: DnsSocket::new(self.sta_stack),
+    pub fn client(&self) -> Result<StaClient, AllocError> {
+        Ok(StaClient {
+            client: Client::new()?,
+            stack: self.sta_stack,
         })
     }
 
@@ -202,57 +199,46 @@ impl Sta {
     }
 }
 
-const SOCKET_COUNT: usize = 1;
-const SOCKET_TX_BUFFER: usize = 8 * 1024;
-const SOCKET_RX_BUFFER: usize = 16 * 1024;
-
-const TLS_READ_BUFFER: usize = 16 * 1024 + 256;
-const TLS_WRITE_BUFFER: usize = 4096;
-
-type TcpClientState =
-    embassy_net::tcp::client::TcpClientState<SOCKET_COUNT, SOCKET_TX_BUFFER, SOCKET_RX_BUFFER>;
-type TcpClient<'a> =
-    embassy_net::tcp::client::TcpClient<'a, SOCKET_COUNT, SOCKET_TX_BUFFER, SOCKET_RX_BUFFER>;
-
-struct TlsClientState {
-    tcp_state: TcpClientState,
-    tls_read_buffer: [u8; TLS_READ_BUFFER], // must be 16K
-    tls_write_buffer: [u8; TLS_WRITE_BUFFER],
+pub struct StaClient {
+    client: Client,
+    stack: Stack<'static>,
 }
 
-impl TlsClientState {
-    pub const EMPTY: Self = Self {
-        tcp_state: TcpClientState::new(),
-        tls_read_buffer: [0; TLS_READ_BUFFER],
-        tls_write_buffer: [0; TLS_WRITE_BUFFER],
-    };
-}
-
-pub struct HttpsClientResources<'a> {
-    resources: Box<TlsClientState>,
-    tcp_client: TcpClient<'a>,
-    dns_client: DnsSocket<'a>,
-}
-
-impl<'a> HttpsClientResources<'a> {
-    pub fn client(&mut self) -> HttpClient<'_, TcpClient<'a>, DnsSocket<'a>> {
-        let rng = Rng::new();
-        let upper = rng.random() as u64;
-        let lower = rng.random() as u64;
-        let seed = (upper << 32) | lower;
-
-        HttpClient::new_with_tls(
-            &self.tcp_client,
-            &self.dns_client,
-            TlsConfig::new(
-                seed,
-                &mut self.resources.tls_read_buffer,
-                &mut self.resources.tls_write_buffer,
-                TlsVerify::None,
-            ),
-        )
+impl StaClient {
+    pub async fn connect<'c>(
+        &'c mut self,
+        base: &BaseUrl<'_>,
+    ) -> Result<Connection<'c>, ClientError> {
+        self.client
+            .connect(self.stack, WifiRng::default(), base)
+            .await
     }
 }
+
+/// The hardware RNG mixes in RF noise while Wi-Fi runs, which makes it a true random source
+/// (esp-hal `rng` docs). The client runs only with Wi-Fi up.
+#[derive(Default)]
+struct WifiRng(Rng);
+
+impl rand_core::RngCore for WifiRng {
+    fn next_u32(&mut self) -> u32 {
+        self.0.next_u32()
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        self.0.next_u64()
+    }
+
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        self.0.fill_bytes(dest);
+    }
+
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+        self.0.try_fill_bytes(dest)
+    }
+}
+
+impl rand_core::CryptoRng for WifiRng {}
 
 pub(super) struct StaState {
     connection_task_control: TaskController<(), StaTaskResources>,

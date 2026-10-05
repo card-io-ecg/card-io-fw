@@ -1,9 +1,11 @@
 use core::cell::Cell;
 
+use alloc::boxed::Box;
+use edge_http::Method;
 use embassy_futures::select::{select, Either};
 use embassy_time::{with_timeout, Duration, Instant, Timer};
-use embedded_io_async::BufRead;
-use reqwless::{request::Method, response::Status};
+use embedded_io_async::Read;
+use network_services::{http::Request, url};
 use ufmt::{uwrite, uwriteln};
 
 use crate::{
@@ -15,6 +17,7 @@ use crate::{
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 const READ_TIMEOUT: Duration = Duration::from_secs(10);
+const READ_BUFFER_LEN: usize = 4096;
 
 #[derive(Clone, Copy, PartialEq)]
 enum TestError {
@@ -77,16 +80,26 @@ async fn run_test(context: &mut Context) -> TestResult {
         return TestResult::Failed(TestError::WifiNotEnabled);
     };
 
-    let Ok(mut client_resources) = sta.https_client_resources() else {
+    let Ok(mut client) = sta.client() else {
         return TestResult::Failed(TestError::InternalError);
     };
-    let mut client = client_resources.client();
+    let Ok(mut buffer) = Box::try_new([0u8; READ_BUFFER_LEN]) else {
+        warn!("Out of memory while preparing the test");
+        return TestResult::Failed(TestError::InternalError);
+    };
 
-    let mut url = heapless::String::<128>::new();
+    context.display_message("Connecting to server...").await;
+
+    let Some(base) = url::parse(context.config.backend_url.as_str()) else {
+        error!("Invalid backend URL");
+        return TestResult::Failed(TestError::InternalError);
+    };
+
+    let mut path = heapless::String::<128>::new();
     if uwrite!(
-        &mut url,
+        &mut path,
         "{}/firmware/{}/{}/0000000",
-        context.config.backend_url.as_str(),
+        base.path,
         env!("HW_VERSION"),
         SerialNumber
     )
@@ -96,84 +109,47 @@ async fn run_test(context: &mut Context) -> TestResult {
         return TestResult::Failed(TestError::InternalError);
     }
 
-    debug!("Testing throughput using {}", url.as_str());
+    debug!("Testing throughput using {}", path.as_str());
 
-    let connect = with_timeout(CONNECT_TIMEOUT, async {
-        let futures = select(client.request(Method::GET, &url), async {
-            loop {
-                // A message is displayed for at least 300ms so we don't need to wait here.
-                context.display_message("Connecting to server...").await;
-            }
-        });
-        match futures.await {
-            Either::First(request) => request,
-            Either::Second(_) => unreachable!(),
-        }
-    });
-
-    let mut request = match connect.await {
-        Ok(Ok(request)) => request,
-        Ok(Err(e)) => {
-            warn!("HTTP connect error: {:?}", e);
-            return TestResult::Failed(TestError::HttpConnectionFailed);
-        }
-        _ => return TestResult::Failed(TestError::HttpConnectionTimeout),
+    let mut connection = match with_timeout(CONNECT_TIMEOUT, client.connect(&base)).await {
+        Ok(Ok(connection)) => connection,
+        Ok(Err(_)) => return TestResult::Failed(TestError::HttpConnectionFailed),
+        Err(_) => return TestResult::Failed(TestError::HttpConnectionTimeout),
     };
 
-    let mut rx_buffer = [0; 4096];
-    let result = match with_timeout(READ_TIMEOUT, request.send(&mut rx_buffer)).await {
-        Ok(result) => result,
-        _ => return TestResult::Failed(TestError::HttpRequestTimeout),
+    let request = Request {
+        method: Method::Get,
+        path: &path,
+        authorization: None,
+        body: None,
     };
-
-    let response = match result {
-        Ok(response) => match response.status.into() {
-            Status::Ok => response,
-            _ => {
-                warn!("HTTP response error: {:?}", response.status);
-                return TestResult::Failed(TestError::HttpRequestFailed);
-            }
-        },
-        Err(e) => {
-            warn!("HTTP response error: {:?}", e);
+    let mut response = match with_timeout(READ_TIMEOUT, connection.send(&request)).await {
+        Ok(Ok(response)) if response.status == 200 => response,
+        Ok(Ok(response)) => {
+            warn!("HTTP response error: {}", response.status);
             return TestResult::Failed(TestError::HttpRequestFailed);
         }
+        Ok(Err(_)) => return TestResult::Failed(TestError::HttpRequestFailed),
+        Err(_) => return TestResult::Failed(TestError::HttpRequestTimeout),
     };
 
-    for header in response.headers() {
-        if !header.0.is_empty() {
-            debug!(
-                "Header {}: {}",
-                header.0,
-                core::str::from_utf8(header.1).unwrap_or("not a string")
-            );
-        }
-    }
-
-    let size = response.content_length;
+    let size = response
+        .content_len
+        .and_then(|len| usize::try_from(len).ok());
     let mut received_total = 0;
-
-    let mut reader = response.body().reader();
-
     let started = Instant::now();
     let received_since = Cell::new(0);
     let result = select(
         async {
             loop {
-                match with_timeout(READ_TIMEOUT, reader.fill_buf()).await {
-                    Ok(result) => match result {
-                        Ok(&[]) => break None,
-                        Ok(read) => {
-                            let read_len = read.len();
-                            received_since.set(received_since.get() + read_len);
-                            reader.consume(read_len);
-                        }
-                        Err(e) => {
-                            warn!("HTTP read error: {:?}", e);
-                            break Some(TestError::DownloadFailed);
-                        }
-                    },
-                    _ => break Some(TestError::DownloadTimeout),
+                match with_timeout(READ_TIMEOUT, response.body.read(&mut *buffer)).await {
+                    Ok(Ok(0)) => break None,
+                    Ok(Ok(read)) => received_since.set(received_since.get() + read),
+                    Ok(Err(e)) => {
+                        warn!("HTTP read error: {:?}", defmt::Debug2Format(&e));
+                        break Some(TestError::DownloadFailed);
+                    }
+                    Err(_) => break Some(TestError::DownloadTimeout),
                 };
             }
         },
@@ -213,8 +189,7 @@ async fn print_progress(
     average_tp: Throughput,
 ) {
     let mut message = heapless::String::<128>::new();
-    if let Some(size) = size {
-        let progress = current * 100 / size;
+    if let Some(progress) = size.and_then(|size| (current * 100).checked_div(size)) {
         unwrap!(uwriteln!(message, "Testing: {}%", progress));
     } else {
         unwrap!(uwriteln!(message, "Testing: {}", BinarySize(current)));

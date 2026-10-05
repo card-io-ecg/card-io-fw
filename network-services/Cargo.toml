@@ -1,0 +1,27 @@
+[package]
+name = "network-services"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cfg-if = "1"
+defmt = { workspace = true, optional = true }
+edge-http.workspace = true
+embassy-net.workspace = true
+embassy-time.workspace = true
+embedded-io-async.workspace = true
+embedded-tls = { version = "0.19", default-features = false }
+heapless.workspace = true
+rand_core = { version = "0.6", default-features = false }
+
+[dev-dependencies]
+embassy-futures = "0.1"
+
+[features]
+defmt = [
+    "dep:defmt",
+    "edge-http/defmt",
+    "embassy-net/defmt",
+    "embedded-tls/defmt",
+    "heapless/defmt",
+]

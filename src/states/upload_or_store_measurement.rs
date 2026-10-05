@@ -1,5 +1,3 @@
-use core::str;
-
 use alloc::boxed::Box;
 use embedded_graphics::pixelcolor::BinaryColor;
 use embedded_menu::{
@@ -221,15 +219,17 @@ async fn try_store_measurement(
 mod wifi {
     use super::*;
     use crate::{
-        board::initialized::{InnerContext, StaMode},
+        board::{
+            initialized::{InnerContext, StaMode},
+            wifi::sta::StaClient,
+        },
         SerialNumber,
     };
+    use edge_http::Method;
     use embassy_time::{with_timeout, Duration};
-    use embedded_nal_async::{Dns, TcpConnect};
-    use reqwless::{
-        client::HttpClient,
-        request::{Method, RequestBody, RequestBuilder},
-        response::Status,
+    use network_services::{
+        http::{Body, Request},
+        url,
     };
     use ufmt::uwrite;
 
@@ -262,15 +262,13 @@ mod wifi {
         // TODO: only try to upload if we are registered.
         debug!("Trying to upload measurement");
 
-        let Ok(mut client_resources) = sta.https_client_resources() else {
+        let Ok(mut client) = sta.client() else {
             context.display_message("Out of memory").await;
             return StoreMeasurement::Store;
         };
-        let mut client = client_resources.client();
 
         match upload_measurement(
             &mut client,
-            0,
             MeasurementRef { version: 0, buffer },
             &mut context.inner,
         )
@@ -311,11 +309,10 @@ mod wifi {
             return;
         };
 
-        let Ok(mut client_resources) = sta.https_client_resources() else {
+        let Ok(mut client) = sta.client() else {
             context.display_message("Out of memory").await;
             return;
         };
-        let mut client = client_resources.client();
 
         let success = loop {
             let measurement = match storage.load_oldest_measurement().await {
@@ -331,7 +328,7 @@ mod wifi {
                 version: u32::from(measurement.version),
                 buffer: &measurement.payload,
             };
-            if upload_measurement(&mut client, 0, samples, &mut context.inner)
+            if upload_measurement(&mut client, samples, &mut context.inner)
                 .await
                 .is_err()
             {
@@ -361,29 +358,11 @@ mod wifi {
         buffer: &'a [u8],
     }
 
-    impl RequestBody for MeasurementRef<'_> {
-        fn len(&self) -> Option<usize> {
-            Some(self.buffer.len() + 4)
-        }
-
-        async fn write<W: embedded_io_async::Write>(&self, writer: &mut W) -> Result<(), W::Error> {
-            writer.write_all(&self.version.to_le_bytes()).await?;
-            writer.write_all(self.buffer).await?;
-
-            Ok(())
-        }
-    }
-
-    pub async fn upload_measurement<T, DNS>(
-        client: &mut HttpClient<'_, T, DNS>,
-        meas_timestamp: u64,
+    pub async fn upload_measurement(
+        client: &mut StaClient,
         samples: MeasurementRef<'_>,
         context: &mut InnerContext,
-    ) -> Result<(), ()>
-    where
-        T: TcpConnect,
-        DNS: Dns,
-    {
+    ) -> Result<(), ()> {
         let uploading_msg = uformat!(
             32,
             "Uploading measurement: {}",
@@ -394,63 +373,47 @@ mod wifi {
         const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
         const UPLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
-        let mut upload_url = heapless::String::<128>::new();
-        if uwrite!(
-            &mut upload_url,
-            "{}/upload_data/{}",
-            context.config.backend_url.as_str(),
-            SerialNumber
-        )
-        .is_err()
-        {
+        let Some(base) = url::parse(context.config.backend_url.as_str()) else {
+            warn!("Invalid backend URL");
+            return Err(());
+        };
+
+        let mut path = heapless::String::<128>::new();
+        if uwrite!(&mut path, "{}/upload_data/{}", base.path, SerialNumber).is_err() {
             warn!("URL too long");
             return Err(());
         }
 
-        let mut timestamp = heapless::String::<32>::new();
-        unwrap!(uwrite!(&mut timestamp, "{}", meas_timestamp));
+        debug!("Uploading measurement to {}", path);
 
-        debug!("Uploading measurement to {}", upload_url);
-
-        let headers = [("X-Timestamp", timestamp.as_str())];
-
-        let mut request =
-            match with_timeout(CONNECT_TIMEOUT, client.request(Method::POST, &upload_url)).await {
-                Ok(Ok(request)) => request.headers(&headers).body(samples),
-                Ok(Err(e)) => {
-                    warn!("HTTP connect error: {:?}", e);
-                    return Err(());
-                }
-                _ => {
-                    warn!("Conect timeout");
-                    return Err(());
-                }
-            };
-
-        let mut rx_buffer = [0; 512];
-        match with_timeout(UPLOAD_TIMEOUT, request.send(&mut rx_buffer)).await {
-            Ok(Ok(response)) => {
-                if [Status::Ok, Status::Created].contains(&response.status.into()) {
-                    return Ok(());
-                }
-
-                warn!("HTTP upload failed: {:?}", response.status);
-                for header in response.headers() {
-                    if !header.0.is_empty() {
-                        debug!(
-                            "Header {}: {}",
-                            header.0,
-                            str::from_utf8(header.1).unwrap_or("not a string")
-                        );
-                    }
-                }
+        let mut connection = match with_timeout(CONNECT_TIMEOUT, client.connect(&base)).await {
+            Ok(Ok(connection)) => connection,
+            Ok(Err(_)) => return Err(()),
+            _ => {
+                warn!("Conect timeout");
+                return Err(());
             }
-            Ok(Err(e)) => warn!("HTTP upload error: {:?}", e),
+        };
+
+        let version = samples.version.to_le_bytes();
+        let request = Request {
+            method: Method::Post,
+            path: &path,
+            authorization: None,
+            body: Some(Body {
+                content_type: "application/octet-stream",
+                parts: &[&version, samples.buffer],
+            }),
+        };
+
+        match with_timeout(UPLOAD_TIMEOUT, connection.send(&request)).await {
+            Ok(Ok(response)) if matches!(response.status, 200 | 201) => return Ok(()),
+            Ok(Ok(response)) => warn!("HTTP upload failed: {}", response.status),
+            Ok(Err(_)) => {}
             _ => warn!("Timeout"),
         }
         Err(())
     }
 }
-
 #[cfg(feature = "wifi")]
 use wifi::*;

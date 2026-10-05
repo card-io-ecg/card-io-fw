@@ -3,7 +3,6 @@
 // MUST be the first module
 mod fmt;
 
-pub const DEFAULT_BACKEND_URL: &str = "https://stingray-prime-monkey.ngrok-free.app";
 pub const LOW_BATTERY_PERCENTAGE: u8 = 5;
 
 pub mod current;
