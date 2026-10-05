@@ -4,7 +4,7 @@ use core::{
 };
 
 #[cfg(feature = "wifi")]
-use crate::board::wifi::{ap::Ap, sta::Sta, WifiDriver};
+use crate::board::wifi::{ap::Ap, sta::Sta, WifiDriver, AP_ADDRESS};
 use crate::{
     board::{
         drivers::battery_monitor::BatteryMonitor, startup::Display, storage::FileSystem,
@@ -17,7 +17,7 @@ use display_interface::DisplayError;
 use embassy_executor::SendSpawner;
 
 #[cfg(feature = "wifi")]
-use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
+use embassy_net::{Config as NetConfig, Ipv4Cidr, StaticConfigV4};
 #[cfg(feature = "wifi")]
 use network_services::pairing::Pairing;
 
@@ -240,8 +240,8 @@ impl InnerContext {
         let ap = self
             .wifi
             .configure_ap(NetConfig::ipv4_static(StaticConfigV4 {
-                address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
-                gateway: Some(Ipv4Address::new(192, 168, 2, 1)),
+                address: Ipv4Cidr::new(AP_ADDRESS, 24),
+                gateway: Some(AP_ADDRESS),
                 dns_servers: Default::default(),
             }))
             .await;
@@ -260,8 +260,8 @@ impl InnerContext {
             .wifi
             .configure_ap_sta(
                 NetConfig::ipv4_static(StaticConfigV4 {
-                    address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
-                    gateway: Some(Ipv4Address::new(192, 168, 2, 1)),
+                    address: Ipv4Cidr::new(AP_ADDRESS, 24),
+                    gateway: Some(AP_ADDRESS),
                     dns_servers: Default::default(),
                 }),
                 NetConfig::dhcpv4(Default::default()),

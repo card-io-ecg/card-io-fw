@@ -1,20 +1,30 @@
-use core::future::pending;
+use core::{
+    future::pending,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+};
 
-use alloc::{rc::Rc, vec::Vec};
+use alloc::{boxed::Box, rc::Rc, vec::Vec};
 use embassy_sync::{mutex::Mutex, signal::Signal};
-use embassy_time::Timer;
+use embassy_time::{Instant, Timer};
 
 use crate::{
     board::wifi::{
         ap::{Ap, ApConnectionState, ApController},
         net_task,
         sta::{CommandQueue, Sta, StaConnectionState, StaController},
+        AP_ADDRESS,
     },
     task_control::{TaskControlToken, TaskController},
 };
+use edge_dhcp::{
+    io::server::run as run_dhcp,
+    server::{Server as DhcpServer, ServerOptions},
+};
+use edge_nal::UdpBind;
+use edge_nal_embassy::{Udp, UdpBuffers};
 use embassy_executor::Spawner;
 use embassy_futures::{
-    join::join3,
+    join::join4,
     select::{select4, Either4},
 };
 use embassy_net::{Runner, Stack};
@@ -25,6 +35,7 @@ pub(super) struct ApStaState {
     connection_task_control: TaskController<(), ApStaTaskResources>,
     ap_net_task_control: TaskController<()>,
     sta_net_task_control: TaskController<()>,
+    dhcp_task_control: TaskController<()>,
     ap_handle: Ap,
     sta_handle: Sta,
 }
@@ -51,6 +62,7 @@ impl ApStaState {
             TaskController::from_resources(ApStaTaskResources { controller });
         let ap_net_task_control = TaskController::new();
         let sta_net_task_control = TaskController::new();
+        let dhcp_task_control = TaskController::new();
 
         let ap_config = AccessPointConfig::default()
             .with_ssid(unwrap!("Card/IO".try_into()))
@@ -73,11 +85,13 @@ impl ApStaState {
 
         spawner.spawn(unwrap!(net_task(ap_runner, ap_net_task_control.token())));
         spawner.spawn(unwrap!(net_task(sta_runner, sta_net_task_control.token())));
+        spawner.spawn(unwrap!(dhcp_task(ap_stack, dhcp_task_control.token())));
 
         Self {
             connection_task_control,
             ap_net_task_control,
             sta_net_task_control,
+            dhcp_task_control,
 
             ap_handle: Ap {
                 ap_stack,
@@ -96,10 +110,11 @@ impl ApStaState {
 
     pub(super) async fn stop(self) {
         info!("Stopping AP-STA");
-        let _ = join3(
+        let _ = join4(
             self.connection_task_control.stop(),
             self.ap_net_task_control.stop(),
             self.sta_net_task_control.stop(),
+            self.dhcp_task_control.stop(),
         )
         .await;
 
@@ -115,6 +130,50 @@ struct ApStaTaskResources {
     controller: WifiController<'static>,
 }
 unsafe impl Send for ApStaTaskResources {}
+
+const DHCP_SERVER_PORT: u16 = 67;
+const DHCP_LEASES: usize = 8;
+const DHCP_PACKET_LEN: usize = 1500;
+
+struct DhcpResources {
+    buffers: UdpBuffers<1>,
+    packet: [u8; DHCP_PACKET_LEN],
+}
+
+#[cardio::task]
+async fn dhcp_task(stack: Stack<'static>, mut task_control: TaskControlToken<()>) {
+    info!("Started DHCP task");
+    task_control
+        .run_cancellable(|_| async {
+            let mut resources = Box::new(DhcpResources {
+                buffers: UdpBuffers::new(),
+                packet: [0; DHCP_PACKET_LEN],
+            });
+
+            let udp = Udp::new(stack, &resources.buffers);
+            let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), DHCP_SERVER_PORT);
+            let mut socket = match udp.bind(address).await {
+                Ok(socket) => socket,
+                Err(e) => {
+                    warn!("Failed to bind DHCP socket: {:?}", e);
+                    return;
+                }
+            };
+
+            let mut server =
+                DhcpServer::<_, DHCP_LEASES>::new(|| Instant::now().as_secs(), AP_ADDRESS);
+            let mut gateway = [AP_ADDRESS];
+            let options = ServerOptions::new(AP_ADDRESS, Some(&mut gateway));
+
+            if let Err(e) =
+                run_dhcp(&mut server, &options, &mut socket, &mut resources.packet).await
+            {
+                warn!("DHCP server error: {:?}", e);
+            }
+        })
+        .await;
+    info!("Stopped DHCP task");
+}
 
 #[cardio::task]
 async fn ap_sta_task(

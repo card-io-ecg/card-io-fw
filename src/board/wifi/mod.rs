@@ -1,4 +1,4 @@
-use core::hint::unreachable_unchecked;
+use core::{hint::unreachable_unchecked, net::Ipv4Addr};
 
 use crate::{
     board::wifi::{
@@ -24,7 +24,12 @@ macro_rules! mk_static {
     }};
 }
 
-const STACK_SOCKET_COUNT: usize = 3;
+// embassy-net adds a DNS socket to every stack. The access point also holds the DHCP server and
+// the web server connections.
+const AP_SOCKET_COUNT: usize = 4;
+const STA_SOCKET_COUNT: usize = 3;
+
+pub const AP_ADDRESS: Ipv4Addr = Ipv4Addr::new(192, 168, 2, 1);
 
 pub mod ap;
 pub mod ap_sta;
@@ -32,8 +37,8 @@ pub mod sta;
 
 pub struct WifiDriver {
     state: WifiDriverState,
-    ap_resources: &'static mut StackResources<STACK_SOCKET_COUNT>,
-    sta_resources: &'static mut StackResources<STACK_SOCKET_COUNT>,
+    ap_resources: &'static mut StackResources<AP_SOCKET_COUNT>,
+    sta_resources: &'static mut StackResources<STA_SOCKET_COUNT>,
 }
 
 struct WifiInitResources {
@@ -58,8 +63,8 @@ impl WifiDriverState {
                 Runner<'static, Interface>,
             ) -> Self
             + 'static,
-        ap_resources: &'static mut StackResources<STACK_SOCKET_COUNT>,
-        sta_resources: &'static mut StackResources<STACK_SOCKET_COUNT>,
+        ap_resources: &'static mut StackResources<AP_SOCKET_COUNT>,
+        sta_resources: &'static mut StackResources<STA_SOCKET_COUNT>,
     ) {
         self.uninit().await;
         replace_with::replace_with_or_abort(self, |this| {
@@ -117,12 +122,12 @@ impl WifiDriverState {
 impl WifiDriver {
     pub fn new(wifi: WIFI<'static>) -> Self {
         let ap_resources = mk_static!(
-            StackResources<STACK_SOCKET_COUNT>,
-            StackResources::<STACK_SOCKET_COUNT>::new()
+            StackResources<AP_SOCKET_COUNT>,
+            StackResources::<AP_SOCKET_COUNT>::new()
         );
         let sta_resources = mk_static!(
-            StackResources<STACK_SOCKET_COUNT>,
-            StackResources::<STACK_SOCKET_COUNT>::new()
+            StackResources<STA_SOCKET_COUNT>,
+            StackResources::<STA_SOCKET_COUNT>::new()
         );
 
         Self {
