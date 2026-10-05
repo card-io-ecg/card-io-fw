@@ -45,17 +45,23 @@ impl Name {
 #[derive(Clone, Copy)]
 pub enum Template {
     Unpair,
+    Upload,
+    Firmware,
 }
 
 #[derive(Default)]
 pub struct Counters {
     unpair: Counter,
+    upload: Counter,
+    firmware: Counter,
 }
 
 impl Counters {
     pub fn get(&mut self, template: Template) -> &mut Counter {
         match template {
             Template::Unpair => &mut self.unpair,
+            Template::Upload => &mut self.upload,
+            Template::Firmware => &mut self.firmware,
         }
     }
 }
@@ -131,13 +137,6 @@ pub enum UnpairAnswer {
     Failed,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum UnpairStep {
-    Done(UnpairAnswer),
-    Resync(u64),
-}
-
 pub fn pair_answer(status: u16, key: SigningKey) -> PairAnswer {
     match status {
         201 => PairAnswer::Registered(key),
@@ -147,13 +146,67 @@ pub fn pair_answer(status: u16, key: SigningKey) -> PairAnswer {
     }
 }
 
-/// `retried` is true for the second attempt.
-pub fn unpair_step(status: u16, counter: Option<u64>, retried: bool) -> UnpairStep {
-    match (status, counter) {
-        (204, _) => UnpairStep::Done(UnpairAnswer::Removed),
-        (401, Some(last)) if !retried => UnpairStep::Resync(last),
-        (401, None) => UnpairStep::Done(UnpairAnswer::Refused),
-        _ => UnpairStep::Done(UnpairAnswer::Failed),
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum Step {
+    Answered(u16),
+    /// The counter was stale and is resynced; send again with a new token.
+    Resend,
+    /// A `401` without `X-Request-Counter`: the server does not accept this key for this name.
+    Refused,
+}
+
+/// Signs the attempts of one request with its class's counter.
+pub struct Signer<'a> {
+    key: &'a SigningKey,
+    name: &'a Name,
+    counter: &'a mut Counter,
+    method: Method,
+    path: &'a str,
+    resynced: bool,
+}
+
+impl<'a> Signer<'a> {
+    pub fn new(
+        key: &'a SigningKey,
+        name: &'a Name,
+        counters: &'a mut Counters,
+        template: Template,
+        method: Method,
+        path: &'a str,
+    ) -> Self {
+        Self {
+            key,
+            name,
+            counter: counters.get(template),
+            method,
+            path,
+            resynced: false,
+        }
+    }
+
+    /// Each call advances the class's counter.
+    pub fn authorization(&mut self) -> String {
+        bearer(
+            self.key,
+            self.name,
+            self.counter.next_jti(),
+            self.method,
+            self.path,
+        )
+    }
+
+    /// `counter` is the answer's parsed `X-Request-Counter`. A request resyncs at most once.
+    pub fn answered(&mut self, status: u16, counter: Option<u64>) -> Step {
+        match (status, counter) {
+            (401, Some(last)) if !self.resynced => {
+                self.counter.resync(last);
+                self.resynced = true;
+                Step::Resend
+            }
+            (401, None) => Step::Refused,
+            (status, _) => Step::Answered(status),
+        }
     }
 }
 
@@ -181,6 +234,14 @@ impl Pairing {
 
     pub fn paired(&self) -> bool {
         matches!(self.state, State::Paired(..))
+    }
+
+    /// The key that signs requests; only a Paired device has one to use.
+    pub fn key(&self) -> Option<Rc<SigningKey>> {
+        match &self.state {
+            State::Paired(key, _) => Some(key.clone()),
+            _ => None,
+        }
     }
 
     pub fn status(&self) -> Status {
@@ -238,6 +299,14 @@ impl Pairing {
             }
             (State::Unpairing(key), UnpairAnswer::Failed) => State::Paired(key, Some(UnpairFailed)),
             (state, _) => state,
+        });
+    }
+
+    /// A signed request outside setup was refused; only a Paired device sends one.
+    pub fn refused(&mut self) {
+        self.transition(|state| match state {
+            State::Paired(key, _) => State::Refused(key, None),
+            state => state,
         });
     }
 
@@ -386,10 +455,9 @@ async fn unpair(
 ) -> UnpairAnswer {
     let answered = with_timeout(DEADLINE, async {
         let path = unpair_path(link.base.path, name);
-        let mut retried = false;
+        let mut signer = Signer::new(key, name, counters, Template::Unpair, Method::Delete, &path);
         loop {
-            let jti = counters.get(Template::Unpair).next_jti();
-            let authorization = bearer(key, name, jti, Method::Delete, &path);
+            let authorization = signer.authorization();
             let request = Request {
                 method: Method::Delete,
                 path: &path,
@@ -400,12 +468,11 @@ async fn unpair(
                 return UnpairAnswer::Failed;
             };
             info!("The unpair answered with status {}", status);
-            match unpair_step(status, counter, retried) {
-                UnpairStep::Done(answer) => return answer,
-                UnpairStep::Resync(last) => {
-                    counters.get(Template::Unpair).resync(last);
-                    retried = true;
-                }
+            match signer.answered(status, counter) {
+                Step::Resend => {}
+                Step::Refused => return UnpairAnswer::Refused,
+                Step::Answered(204) => return UnpairAnswer::Removed,
+                Step::Answered(_) => return UnpairAnswer::Failed,
             }
         }
     })
@@ -594,52 +661,100 @@ mod test {
         }
     }
 
-    #[test]
-    fn unpair_204_removes_the_device() {
-        for counter in [None, Some(7)] {
-            assert_eq!(
-                unpair_step(204, counter, false),
-                UnpairStep::Done(UnpairAnswer::Removed)
-            );
-        }
+    fn signer<'a>(
+        key: &'a SigningKey,
+        name: &'a Name,
+        counters: &'a mut Counters,
+        template: Template,
+    ) -> Signer<'a> {
+        Signer::new(
+            key,
+            name,
+            counters,
+            template,
+            Method::Get,
+            "/api/firmware/v6c6/0000000",
+        )
     }
 
     #[test]
-    fn unpair_401_with_a_counter_resyncs_once() {
-        assert_eq!(unpair_step(401, Some(41), false), UnpairStep::Resync(41));
-        assert_eq!(unpair_step(401, Some(0), false), UnpairStep::Resync(0));
+    fn a_401_with_a_counter_resyncs_the_class_and_resends() {
+        let (key, name, mut counters) = (key(1), name(), Counters::default());
+        let mut signer = signer(&key, &name, &mut counters, Template::Firmware);
+        signer.authorization();
+        assert_eq!(signer.answered(401, Some(41)), Step::Resend);
+        assert_eq!(counters.get(Template::Firmware).next_jti(), 42);
     }
 
     #[test]
-    fn unpair_401_with_a_counter_after_a_resync_fails() {
-        assert_eq!(
-            unpair_step(401, Some(41), true),
-            UnpairStep::Done(UnpairAnswer::Failed)
-        );
+    fn a_second_401_with_a_counter_is_the_answer() {
+        let (key, name, mut counters) = (key(1), name(), Counters::default());
+        let mut signer = signer(&key, &name, &mut counters, Template::Upload);
+        assert_eq!(signer.answered(401, Some(41)), Step::Resend);
+        assert_eq!(signer.answered(401, Some(42)), Step::Answered(401));
     }
 
     #[test]
-    fn unpair_401_without_a_counter_is_refused_on_either_attempt() {
-        for retried in [false, true] {
-            assert_eq!(
-                unpair_step(401, None, retried),
-                UnpairStep::Done(UnpairAnswer::Refused)
-            );
-        }
+    fn a_401_without_a_counter_is_refused_on_either_attempt() {
+        let (key, name, mut counters) = (key(1), name(), Counters::default());
+        let mut signer = signer(&key, &name, &mut counters, Template::Unpair);
+        assert_eq!(signer.answered(401, None), Step::Refused);
+        assert_eq!(signer.answered(401, Some(7)), Step::Resend);
+        assert_eq!(signer.answered(401, None), Step::Refused);
     }
 
     #[test]
-    fn unpair_with_any_other_status_fails() {
-        for status in [0, 100, 200, 304, 400, 403, 404, 409, 500] {
+    fn other_statuses_are_the_answer() {
+        let (key, name) = (key(1), name());
+        for status in [0, 200, 201, 204, 304, 400, 403, 404, 409, 500] {
             for counter in [None, Some(7)] {
-                for retried in [false, true] {
-                    assert_eq!(
-                        unpair_step(status, counter, retried),
-                        UnpairStep::Done(UnpairAnswer::Failed),
-                        "{status} {counter:?} {retried}"
-                    );
-                }
+                let mut counters = Counters::default();
+                let mut signer = signer(&key, &name, &mut counters, Template::Upload);
+                assert_eq!(
+                    signer.answered(status, counter),
+                    Step::Answered(status),
+                    "{status} {counter:?}"
+                );
             }
+        }
+    }
+
+    #[test]
+    fn each_class_advances_and_resyncs_only_its_own_counter() {
+        let (key, name, mut counters) = (key(1), name(), Counters::default());
+        signer(&key, &name, &mut counters, Template::Upload).authorization();
+        signer(&key, &name, &mut counters, Template::Upload).authorization();
+        signer(&key, &name, &mut counters, Template::Firmware).answered(401, Some(10));
+        assert_eq!(counters.get(Template::Upload).next_jti(), 3);
+        assert_eq!(counters.get(Template::Firmware).next_jti(), 11);
+        assert_eq!(counters.get(Template::Unpair).next_jti(), 1);
+    }
+
+    #[test]
+    fn a_refused_request_moves_paired_to_refused_and_keeps_the_key() {
+        let mut pairing = paired_with_unpair_failed();
+        pairing.refused();
+        assert_eq!(pairing.status(), Status::Unpaired(None));
+        assert!(!pairing.paired());
+        assert_eq!(pairing.key(), None);
+        assert_eq!(held_key(pairing), Some(key(1)));
+    }
+
+    #[test]
+    fn a_refused_request_changes_no_other_state() {
+        for state in [unpaired, refused, pairing_from_unpaired, unpairing] {
+            let mut pairing = state();
+            let before = pairing.status();
+            pairing.refused();
+            assert_eq!(pairing.status(), before);
+        }
+    }
+
+    #[test]
+    fn only_a_paired_device_hands_out_its_key() {
+        assert_eq!(paired().key().map(|key| (*key).clone()), Some(key(1)));
+        for state in [unpaired, refused, pairing_from_unpaired, unpairing] {
+            assert_eq!(state().key(), None);
         }
     }
 

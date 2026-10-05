@@ -22,7 +22,7 @@ use signal_processing::compressing_buffer::CompressingBuffer;
 use static_cell::StaticCell;
 
 #[cfg(feature = "wifi")]
-use network_services::pairing::Pairing;
+use network_services::pairing::{Counters, Pairing};
 
 #[cfg(feature = "wifi")]
 use crate::states::{
@@ -194,6 +194,8 @@ async fn main(_spawner: Spawner) {
         storage,
         #[cfg(feature = "wifi")]
         pairing,
+        #[cfg(feature = "wifi")]
+        counters: Rc::new(Mutex::new(Counters::default())),
         inner: InnerContext {
             display: resources.display,
             high_prio_spawner: interrupt_executor.start(Priority::Priority2),

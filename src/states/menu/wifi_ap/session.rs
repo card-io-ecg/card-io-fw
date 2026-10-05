@@ -6,6 +6,7 @@ use network_services::pairing::{perform, Counters, Job, Name, Outcome, SigningKe
 use crate::{
     board::wifi::sta::{Sta, WifiRng},
     task_control::TaskControlToken,
+    Shared,
 };
 
 /// Held for the length of a scan and of a request, so a request waits for a running scan and
@@ -41,16 +42,16 @@ pub async fn session_task(
     sta: Sta,
     name: Rc<Name>,
     scan_lock: Rc<ScanLock>,
+    counters: Shared<Counters>,
     session: Rc<Session>,
     mut task_control: TaskControlToken<()>,
 ) {
     info!("Started setup session task");
     task_control
         .run_cancellable(|_| async {
-            let mut counters = Counters::default();
             loop {
                 let request = session.requests.receive().await;
-                let outcome = run(&sta, &name, &scan_lock, &mut counters, request).await;
+                let outcome = run(&sta, &name, &scan_lock, &counters, request).await;
                 session.outcomes.send(outcome).await;
             }
         })
@@ -62,7 +63,7 @@ async fn run(
     sta: &Sta,
     name: &Name,
     scan_lock: &ScanLock,
-    counters: &mut Counters,
+    counters: &Shared<Counters>,
     Request { url, job }: Request,
 ) -> Outcome {
     let _scan = scan_lock.lock().await;
@@ -77,7 +78,7 @@ async fn run(
         &mut WifiRng::default(),
         &url,
         name,
-        counters,
+        &mut *counters.lock().await,
         job,
     )
     .await

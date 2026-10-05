@@ -106,6 +106,7 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
         sta.clone(),
         name,
         scan_lock,
+        context.counters.clone(),
         session.clone(),
         session_task_control.token(),
     )));

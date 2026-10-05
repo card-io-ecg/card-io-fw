@@ -17,9 +17,13 @@ use display_interface::DisplayError;
 use embassy_executor::SendSpawner;
 
 #[cfg(feature = "wifi")]
+use crate::{SerialNumber, Shared};
+#[cfg(feature = "wifi")]
+use alloc::rc::Rc;
+#[cfg(feature = "wifi")]
 use embassy_net::{Config as NetConfig, Ipv4Cidr, StaticConfigV4};
 #[cfg(feature = "wifi")]
-use network_services::pairing::Pairing;
+use network_services::pairing::{Counters, Name, Pairing, SigningKey};
 
 use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::Drawable;
@@ -36,6 +40,13 @@ use gui::{
 pub enum StaMode {
     Enable,
     OnDemand,
+}
+
+#[cfg(feature = "wifi")]
+pub struct Signing {
+    pub key: Rc<SigningKey>,
+    pub name: Name,
+    pub counters: Shared<Counters>,
 }
 
 #[cfg(feature = "wifi")]
@@ -65,6 +76,8 @@ pub struct Context {
     pub storage: Option<FileSystem>,
     #[cfg(feature = "wifi")]
     pub pairing: Pairing,
+    #[cfg(feature = "wifi")]
+    pub counters: Shared<Counters>,
     pub inner: InnerContext,
 }
 
@@ -123,6 +136,16 @@ impl Context {
             return Err(NotReady::NotPaired);
         }
         Ok(())
+    }
+
+    /// `None` unless the device is Paired.
+    #[cfg(feature = "wifi")]
+    pub fn signing(&self) -> Option<Signing> {
+        Some(Signing {
+            key: self.pairing.key()?,
+            name: Name::from_mac(SerialNumber::bytes()),
+            counters: self.counters.clone(),
+        })
     }
 
     #[cfg(feature = "wifi")]

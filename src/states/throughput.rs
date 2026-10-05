@@ -5,14 +5,18 @@ use edge_http::Method;
 use embassy_futures::select::{select, Either};
 use embassy_time::{with_timeout, Duration, Instant, Timer};
 use embedded_io_async::Read;
-use network_services::{http::Request, url};
+use network_services::{
+    http::{Request, Response},
+    pairing::{Signer, Step, Template},
+    url,
+};
 use ufmt::{uwrite, uwriteln};
 
 use crate::{
     board::initialized::{Context, StaMode},
     human_readable::{BinarySize, Throughput},
     states::menu::AppMenu,
-    AppState, SerialNumber,
+    AppState,
 };
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
@@ -30,6 +34,7 @@ enum TestError {
     HttpRequestFailed,
     DownloadFailed,
     DownloadTimeout,
+    Refused,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -61,6 +66,7 @@ pub async fn throughput(context: &mut Context) -> AppState {
             TestError::HttpRequestFailed => "Failed to access test data",
             TestError::DownloadFailed => "Failed to download test data",
             TestError::DownloadTimeout => "Test timed out",
+            TestError::Refused => "Server refused this device",
         },
     };
 
@@ -80,6 +86,9 @@ async fn run_test(context: &mut Context) -> TestResult {
         return TestResult::Failed(TestError::WifiNotEnabled);
     };
 
+    let Some(signing) = context.signing() else {
+        return TestResult::Failed(TestError::InternalError);
+    };
     let Ok(mut client) = sta.client() else {
         return TestResult::Failed(TestError::InternalError);
     };
@@ -98,10 +107,9 @@ async fn run_test(context: &mut Context) -> TestResult {
     let mut path = heapless::String::<128>::new();
     if uwrite!(
         &mut path,
-        "{}/firmware/{}/{}/0000000",
+        "{}/firmware/{}/0000000",
         base.path,
-        env!("HW_VERSION"),
-        SerialNumber
+        env!("HW_VERSION")
     )
     .is_err()
     {
@@ -111,28 +119,55 @@ async fn run_test(context: &mut Context) -> TestResult {
 
     debug!("Testing throughput using {}", path.as_str());
 
-    let mut connection = match with_timeout(CONNECT_TIMEOUT, client.connect(&base)).await {
-        Ok(Ok(connection)) => connection,
-        Ok(Err(_)) => return TestResult::Failed(TestError::HttpConnectionFailed),
-        Err(_) => return TestResult::Failed(TestError::HttpConnectionTimeout),
-    };
+    let mut counters = signing.counters.lock().await;
+    let mut signer = Signer::new(
+        &signing.key,
+        &signing.name,
+        &mut counters,
+        Template::Firmware,
+        Method::Get,
+        &path,
+    );
+    loop {
+        let authorization = signer.authorization();
+        let mut connection = match with_timeout(CONNECT_TIMEOUT, client.connect(&base)).await {
+            Ok(Ok(connection)) => connection,
+            Ok(Err(_)) => return TestResult::Failed(TestError::HttpConnectionFailed),
+            Err(_) => return TestResult::Failed(TestError::HttpConnectionTimeout),
+        };
 
-    let request = Request {
-        method: Method::Get,
-        path: &path,
-        authorization: None,
-        body: None,
-    };
-    let mut response = match with_timeout(READ_TIMEOUT, connection.send(&request)).await {
-        Ok(Ok(response)) if response.status == 200 => response,
-        Ok(Ok(response)) => {
-            warn!("HTTP response error: {}", response.status);
-            return TestResult::Failed(TestError::HttpRequestFailed);
+        let request = Request {
+            method: Method::Get,
+            path: &path,
+            authorization: Some(&authorization),
+            body: None,
+        };
+        let mut response = match with_timeout(READ_TIMEOUT, connection.send(&request)).await {
+            Ok(Ok(response)) => response,
+            Ok(Err(_)) => return TestResult::Failed(TestError::HttpRequestFailed),
+            Err(_) => return TestResult::Failed(TestError::HttpRequestTimeout),
+        };
+
+        match signer.answered(response.status, response.counter) {
+            Step::Resend => {}
+            Step::Refused => {
+                context.pairing.refused();
+                return TestResult::Failed(TestError::Refused);
+            }
+            Step::Answered(200) => return measure(context, &mut response, &mut *buffer).await,
+            Step::Answered(status) => {
+                warn!("HTTP response error: {}", status);
+                return TestResult::Failed(TestError::HttpRequestFailed);
+            }
         }
-        Ok(Err(_)) => return TestResult::Failed(TestError::HttpRequestFailed),
-        Err(_) => return TestResult::Failed(TestError::HttpRequestTimeout),
-    };
+    }
+}
 
+async fn measure<R: Read>(
+    context: &mut Context,
+    response: &mut Response<R>,
+    buffer: &mut [u8],
+) -> TestResult {
     let size = response
         .content_len
         .and_then(|len| usize::try_from(len).ok());
@@ -142,7 +177,7 @@ async fn run_test(context: &mut Context) -> TestResult {
     let result = select(
         async {
             loop {
-                match with_timeout(READ_TIMEOUT, response.body.read(&mut *buffer)).await {
+                match with_timeout(READ_TIMEOUT, response.body.read(buffer)).await {
                     Ok(Ok(0)) => break None,
                     Ok(Ok(read)) => received_since.set(received_since.get() + read),
                     Ok(Err(e)) => {
