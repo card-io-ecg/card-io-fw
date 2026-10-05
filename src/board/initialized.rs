@@ -4,7 +4,7 @@ use core::{
 };
 
 #[cfg(feature = "wifi")]
-use crate::board::wifi::{ap::Ap, sta::Sta, WifiDriver};
+use crate::board::wifi::{ap::Ap, sta::Sta, WifiDriver, AP_ADDRESS};
 use crate::{
     board::{
         drivers::battery_monitor::BatteryMonitor, startup::Display, storage::FileSystem,
@@ -17,7 +17,13 @@ use display_interface::DisplayError;
 use embassy_executor::SendSpawner;
 
 #[cfg(feature = "wifi")]
-use embassy_net::{Config as NetConfig, Ipv4Address, Ipv4Cidr, StaticConfigV4};
+use crate::{SerialNumber, Shared};
+#[cfg(feature = "wifi")]
+use alloc::rc::Rc;
+#[cfg(feature = "wifi")]
+use embassy_net::{Config as NetConfig, Ipv4Cidr, StaticConfigV4};
+#[cfg(feature = "wifi")]
+use network_services::pairing::{Counters, Name, Pairing, SigningKey};
 
 use embassy_time::{Duration, Instant, Timer};
 use embedded_graphics::Drawable;
@@ -36,6 +42,22 @@ pub enum StaMode {
     OnDemand,
 }
 
+#[cfg(feature = "wifi")]
+pub struct Signing {
+    pub key: Rc<SigningKey>,
+    pub name: Name,
+    pub counters: Shared<Counters>,
+}
+
+#[cfg(feature = "wifi")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum NotReady {
+    NoServerAddress,
+    NoNetwork,
+    NotPaired,
+}
+
 pub struct InnerContext {
     pub display: &'static mut Display,
     pub high_prio_spawner: SendSpawner,
@@ -52,6 +74,10 @@ pub struct InnerContext {
 pub struct Context {
     pub frontend: EcgFrontend,
     pub storage: Option<FileSystem>,
+    #[cfg(feature = "wifi")]
+    pub pairing: Pairing,
+    #[cfg(feature = "wifi")]
+    pub counters: Shared<Counters>,
     pub inner: InnerContext,
 }
 
@@ -69,22 +95,57 @@ impl DerefMut for Context {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Save {
+    Unchanged,
+    Written,
+    Failed,
+}
+
 impl Context {
-    pub async fn save_config(&mut self) {
+    pub async fn save_config(&mut self) -> Save {
         if !self.config_changed {
-            return;
+            return Save::Unchanged;
         }
 
         info!("Saving config");
         self.config_changed = false;
 
-        if let Some(storage) = self.storage.as_mut() {
-            if let Err(e) = storage.save_config(self.inner.config).await {
-                error!("Failed to save config: {:?}", e);
-            }
-        } else {
+        let Some(storage) = self.storage.as_mut() else {
             warn!("Storage unavailable");
+            return Save::Failed;
+        };
+        if let Err(e) = storage.save_config(self.inner.config).await {
+            error!("Failed to save config: {:?}", e);
+            // The next save writes the config again.
+            self.config_changed = true;
+            return Save::Failed;
         }
+        Save::Written
+    }
+
+    #[cfg(feature = "wifi")]
+    pub fn backend_ready(&self) -> Result<(), NotReady> {
+        if self.config.backend_url.is_empty() {
+            return Err(NotReady::NoServerAddress);
+        }
+        if self.config.known_networks.is_empty() {
+            return Err(NotReady::NoNetwork);
+        }
+        if !self.pairing.paired() {
+            return Err(NotReady::NotPaired);
+        }
+        Ok(())
+    }
+
+    /// `None` unless the device is Paired.
+    #[cfg(feature = "wifi")]
+    pub fn signing(&self) -> Option<Signing> {
+        Some(Signing {
+            key: self.pairing.key()?,
+            name: Name::from_mac(SerialNumber::bytes()),
+            counters: self.counters.clone(),
+        })
     }
 
     #[cfg(feature = "wifi")]
@@ -202,8 +263,8 @@ impl InnerContext {
         let ap = self
             .wifi
             .configure_ap(NetConfig::ipv4_static(StaticConfigV4 {
-                address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
-                gateway: Some(Ipv4Address::new(192, 168, 2, 1)),
+                address: Ipv4Cidr::new(AP_ADDRESS, 24),
+                gateway: Some(AP_ADDRESS),
                 dns_servers: Default::default(),
             }))
             .await;
@@ -218,19 +279,21 @@ impl InnerContext {
             return None;
         }
 
-        let apsta = self
+        let (ap, sta) = self
             .wifi
             .configure_ap_sta(
                 NetConfig::ipv4_static(StaticConfigV4 {
-                    address: Ipv4Cidr::new(Ipv4Address::new(192, 168, 2, 1), 24),
-                    gateway: Some(Ipv4Address::new(192, 168, 2, 1)),
+                    address: Ipv4Cidr::new(AP_ADDRESS, 24),
+                    gateway: Some(AP_ADDRESS),
                     dns_servers: Default::default(),
                 }),
                 NetConfig::dhcpv4(Default::default()),
             )
             .await;
 
-        Some(apsta)
+        sta.update_known_networks(&self.config.known_networks).await;
+
+        Some((ap, sta))
     }
 
     /// Note: make sure Sta/Ap is released before calling this.

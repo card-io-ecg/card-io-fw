@@ -1,16 +1,22 @@
 use core::future::Future;
 
 use alloc::boxed::Box;
+#[cfg(feature = "wifi")]
+use alloc::vec::Vec;
 use config_types::{
     measurement_queue::{measurement_key, measurement_version_key, Queue},
     record::{decode_config, encode_config, encode_version, CONFIG_LEN, VERSION_LEN},
     Config,
 };
+#[cfg(feature = "wifi")]
+use ekv::config::MAX_VALUE_SIZE;
 use ekv::{CommitError, Database, FormatError, MountError, ReadError, ReadTransaction, WriteError};
 use embassy_sync::once_lock::OnceLock;
 use embassy_sync_06::blocking_mutex::raw::CriticalSectionRawMutex as EkvRawMutex;
 use esp_hal::{peripherals::FLASH, rng::Rng};
 use esp_storage::FlashStorage;
+#[cfg(feature = "wifi")]
+use network_services::pairing::SigningKey;
 
 use crate::board::flash::PartitionFlash;
 
@@ -20,9 +26,13 @@ type ReadTx<'a> = ReadTransaction<'a, PartitionFlash, EkvRawMutex>;
 static STORE: OnceLock<Store> = OnceLock::new();
 
 // ekv requires the keys of one write transaction in ascending order:
-// config < meas/N < queue < ver/N < version.
+// config < device_key < meas/N < queue < ver/N < version.
 const CONFIG_KEY: &[u8] = b"config";
+#[cfg(feature = "wifi")]
+const DEVICE_KEY: &[u8] = b"device_key";
 const VERSION_KEY: &[u8] = b"version";
+#[cfg(feature = "wifi")]
+const DEVICE_KEY_LEN: usize = 32;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -76,10 +86,21 @@ impl<E> From<CommitError<E>> for StorageError {
     }
 }
 
+/// A buffer that holds the largest measurement, for `load_oldest_measurement`.
 #[cfg(feature = "wifi")]
-pub struct Measurement {
-    pub version: u8,
-    pub payload: alloc::vec::Vec<u8>,
+pub fn measurement_buffer() -> Result<Vec<u8>, StorageError> {
+    let mut payload = Vec::new();
+    reserve_measurement(&mut payload)?;
+    Ok(payload)
+}
+
+/// `ekv` reads a value only as a whole, and gives no length before the read.
+#[cfg(feature = "wifi")]
+fn reserve_measurement(payload: &mut Vec<u8>) -> Result<(), StorageError> {
+    payload.clear();
+    payload
+        .try_reserve_exact(MAX_VALUE_SIZE)
+        .map_err(|_| StorageError::OutOfMemory)
 }
 
 pub fn init(flash: FLASH<'static>, partition: &str) {
@@ -294,6 +315,62 @@ impl FileSystem {
         .await
     }
 
+    /// A bad record counts as no key. It stays in the store until `save_key` overwrites it.
+    #[cfg(feature = "wifi")]
+    pub async fn load_key(&mut self) -> Option<SigningKey> {
+        let store = self.store;
+        let loaded = boxed("load_key", async {
+            let mut key = [0; DEVICE_KEY_LEN];
+            let tx = store.read_transaction().await;
+            let len = read_value(&tx, DEVICE_KEY, &mut key).await?;
+            Ok(len.map(|len| (key, len)))
+        })
+        .await;
+
+        match loaded {
+            Ok(None) => None,
+            Ok(Some((key, DEVICE_KEY_LEN))) => {
+                let key = SigningKey::from_bytes(&key.into()).ok();
+                if key.is_none() {
+                    warn!("Stored device key is not a valid P-256 scalar");
+                }
+                key
+            }
+            Ok(Some((_, len))) => {
+                warn!("Stored device key is {} bytes, not {}", len, DEVICE_KEY_LEN);
+                None
+            }
+            Err(e) => {
+                warn!("Failed to load the device key: {:?}", e);
+                None
+            }
+        }
+    }
+
+    #[cfg(feature = "wifi")]
+    pub async fn save_key(&mut self, key: &SigningKey) -> Result<(), StorageError> {
+        let store = self.store;
+        boxed("save_key", async {
+            let mut tx = store.write_transaction().await;
+            tx.write(DEVICE_KEY, &key.to_bytes()).await?;
+
+            Ok(tx.commit().await?)
+        })
+        .await
+    }
+
+    #[cfg(feature = "wifi")]
+    pub async fn delete_key(&mut self) -> Result<(), StorageError> {
+        let store = self.store;
+        boxed("delete_key", async {
+            let mut tx = store.write_transaction().await;
+            tx.delete(DEVICE_KEY).await?;
+
+            Ok(tx.commit().await?)
+        })
+        .await
+    }
+
     pub async fn store_measurement(
         &mut self,
         version: u8,
@@ -333,15 +410,17 @@ impl FileSystem {
         .await
     }
 
+    /// Loads into `payload` and returns the format version. `payload` keeps its capacity, so one
+    /// buffer from `measurement_buffer` serves every load.
     #[cfg(feature = "wifi")]
-    pub async fn load_oldest_measurement(&mut self) -> Result<Option<Measurement>, StorageError> {
+    pub async fn load_oldest_measurement(
+        &mut self,
+        payload: &mut Vec<u8>,
+    ) -> Result<Option<u8>, StorageError> {
         let store = self.store;
         boxed("load_oldest_measurement", async {
-            let mut payload = alloc::vec::Vec::new();
-            payload
-                .try_reserve_exact(ekv::config::MAX_VALUE_SIZE)
-                .map_err(|_| StorageError::OutOfMemory)?;
-            payload.resize(ekv::config::MAX_VALUE_SIZE, 0);
+            reserve_measurement(payload)?;
+            payload.resize(MAX_VALUE_SIZE, 0);
 
             loop {
                 let queue = read_queue(store).await?;
@@ -349,11 +428,9 @@ impl FileSystem {
                     return Ok(None);
                 }
 
-                if let Some((version, len)) =
-                    read_measurement(store, queue.head, &mut payload).await?
-                {
+                if let Some((version, len)) = read_measurement(store, queue.head, payload).await? {
                     payload.truncate(len);
-                    return Ok(Some(Measurement { version, payload }));
+                    return Ok(Some(version));
                 }
 
                 warn!("Dropping unreadable measurement {}", queue.head);

@@ -1,5 +1,3 @@
-use core::str;
-
 use alloc::boxed::Box;
 use embedded_graphics::pixelcolor::BinaryColor;
 use embedded_menu::{
@@ -58,21 +56,29 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
         MeasurementAction::Discard => (false, false),
     };
 
-    let store_after_upload = if can_upload {
+    let uploaded = if can_upload {
         cfg_if::cfg_if! {
             if #[cfg(feature = "wifi")] {
                 let upload_result = try_to_upload(context, samples).await;
                 debug!("Upload result: {:?}", upload_result);
-                upload_result == StoreMeasurement::Store
+                match upload_result {
+                    Ok(()) => true,
+                    Err(reason) => {
+                        if !can_store {
+                            display_discarded(context, reason).await;
+                        }
+                        false
+                    }
+                }
             } else {
-                true
+                false
             }
         }
     } else {
-        true
+        false
     };
 
-    if can_store && store_after_upload {
+    if can_store && !uploaded {
         let store_result = try_store_measurement(context, samples).await;
 
         if let Err(e) = store_result {
@@ -83,7 +89,7 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
 
     // Only upload if we did not store.
     #[cfg(feature = "wifi")]
-    if can_upload && !store_after_upload {
+    if can_upload && uploaded {
         // Drop to free up 90kB of memory.
         core::mem::drop(buffer);
 
@@ -95,13 +101,23 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     next_state
 }
 
+fn backend_ready(context: &Context) -> bool {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "wifi")] {
+            context.backend_ready().is_ok()
+        } else {
+            let _ = context;
+            false
+        }
+    }
+}
+
 async fn ask_for_measurement_action(context: &mut Context) -> (bool, bool) {
-    let network_configured =
-        !context.config.backend_url.is_empty() && !context.config.known_networks.is_empty();
+    let backend_ready = backend_ready(context);
 
     let can_store = context.storage.is_some();
 
-    if !network_configured && !can_store {
+    if !backend_ready && !can_store {
         return (false, false);
     }
 
@@ -152,13 +168,11 @@ fn ask_for_action_builder(context: &mut Context) -> AskForMeasurementActionMenuB
             .ok());
     };
 
-    let network_configured = cfg!(feature = "wifi")
-        && !context.config.backend_url.is_empty()
-        && !context.config.known_networks.is_empty();
+    let backend_ready = backend_ready(context);
 
     let can_store = context.storage.is_some();
 
-    if network_configured {
+    if backend_ready {
         if can_store {
             add_item("Upload or store", true, true);
         }
@@ -220,76 +234,131 @@ async fn try_store_measurement(
 #[cfg(feature = "wifi")]
 mod wifi {
     use super::*;
-    use crate::{
-        board::initialized::{InnerContext, StaMode},
-        SerialNumber,
+    use crate::board::{
+        initialized::{InnerContext, NotReady, Signing, StaMode},
+        storage::measurement_buffer,
+        wifi::sta::StaClient,
     };
+    use edge_http::Method;
     use embassy_time::{with_timeout, Duration};
-    use embedded_nal_async::{Dns, TcpConnect};
-    use reqwless::{
-        client::HttpClient,
-        request::{Method, RequestBody, RequestBuilder},
-        response::Status,
+    use network_services::{
+        http::{Body, Request},
+        pairing::{Signer, Step, Template},
+        url,
     };
     use ufmt::uwrite;
 
-    /// Whether to store the measurement or not. Used instead of a bool to reduce confusion.
+    const REFUSED: &str = "Server refused this device";
+
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-    pub enum StoreMeasurement {
-        Store,
-        DontStore,
+    pub enum NotUploaded {
+        NotReady(NotReady),
+        WifiNotEnabled,
+        WifiNotConnected,
+        Failed,
+        Refused,
     }
 
-    pub async fn try_to_upload(context: &mut Context, buffer: &[u8]) -> StoreMeasurement {
-        if context.config.backend_url.is_empty() {
-            debug!("No backend URL configured, not uploading.");
-            return StoreMeasurement::Store;
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub enum UploadError {
+        Failed,
+        Refused,
+    }
+
+    pub async fn display_discarded(context: &mut Context, reason: NotUploaded) {
+        const DISCARDED: &str = "Measurement discarded";
+
+        let (reason_message, last_message) = match reason {
+            NotUploaded::NotReady(NotReady::NoServerAddress) => {
+                (None, "No server address. Measurement discarded")
+            }
+            NotUploaded::NotReady(NotReady::NoNetwork) => {
+                (None, "No saved network. Measurement discarded")
+            }
+            NotUploaded::NotReady(NotReady::NotPaired) => {
+                (None, "Device not paired. Measurement discarded")
+            }
+            NotUploaded::WifiNotEnabled => (Some("WiFi not enabled"), DISCARDED),
+            NotUploaded::WifiNotConnected => (Some("Failed to connect to WiFi"), DISCARDED),
+            // `try_to_upload` showed these failures.
+            NotUploaded::Failed | NotUploaded::Refused => (None, DISCARDED),
+        };
+
+        if let Some(message) = reason_message {
+            context.display_message(message).await;
+        }
+        context.display_message(last_message).await;
+    }
+
+    pub async fn try_to_upload(context: &mut Context, buffer: &[u8]) -> Result<(), NotUploaded> {
+        if let Err(reason) = context.backend_ready() {
+            debug!("Backend is not ready, not uploading.");
+            return Err(NotUploaded::NotReady(reason));
         }
 
         let sta = if let Some(sta) = context.enable_wifi_sta(StaMode::Enable).await {
             if sta.wait_for_connection(context).await {
                 sta
             } else {
-                // If we do not have a network connection, save to file.
-                return StoreMeasurement::Store;
+                return Err(NotUploaded::WifiNotConnected);
             }
         } else {
-            return StoreMeasurement::Store;
+            return Err(NotUploaded::WifiNotEnabled);
         };
 
         // If we found a network, attempt to upload.
-        // TODO: only try to upload if we are registered.
         debug!("Trying to upload measurement");
 
-        let Ok(mut client_resources) = sta.https_client_resources() else {
-            context.display_message("Out of memory").await;
-            return StoreMeasurement::Store;
+        let Some(signing) = context.signing() else {
+            return Err(NotUploaded::NotReady(NotReady::NotPaired));
         };
-        let mut client = client_resources.client();
+        let Ok(mut client) = sta.client() else {
+            context.display_message("Out of memory").await;
+            return Err(NotUploaded::Failed);
+        };
 
         match upload_measurement(
             &mut client,
-            0,
+            &signing,
             MeasurementRef { version: 0, buffer },
             &mut context.inner,
         )
         .await
         {
-            Ok(_) => {
-                // Upload successful, do not store in file.
+            Ok(()) => {
                 context.display_message("Upload successful").await;
-                StoreMeasurement::DontStore
+                Ok(())
             }
-            Err(_) => {
+            Err(UploadError::Failed) => {
                 warn!("Failed to upload measurement");
                 context.display_message("Upload failed").await;
-                StoreMeasurement::Store
+                Err(NotUploaded::Failed)
+            }
+            Err(UploadError::Refused) => {
+                context.pairing.refused();
+                context.display_message(REFUSED).await;
+                Err(NotUploaded::Refused)
             }
         }
     }
 
     pub async fn upload_stored(context: &mut Context) {
+        let Some(signing) = context.signing() else {
+            context.display_message("Device not paired").await;
+            return;
+        };
+
+        let Ok(mut payload) = measurement_buffer() else {
+            warn!(
+                "No heap for the measurement buffer: {}",
+                esp_alloc::HEAP.stats()
+            );
+            context.display_message("Out of memory").await;
+            return;
+        };
+
         let sta = if let Some(sta) = context.enable_wifi_sta(StaMode::OnDemand).await {
             if sta.wait_for_connection(context).await {
                 sta
@@ -311,49 +380,50 @@ mod wifi {
             return;
         };
 
-        let Ok(mut client_resources) = sta.https_client_resources() else {
+        let Ok(mut client) = sta.client() else {
             context.display_message("Out of memory").await;
             return;
         };
-        let mut client = client_resources.client();
 
-        let success = loop {
-            let measurement = match storage.load_oldest_measurement().await {
-                Ok(Some(measurement)) => measurement,
-                Ok(None) => break true,
+        let result = loop {
+            let version = match storage.load_oldest_measurement(&mut payload).await {
+                Ok(Some(version)) => version,
+                Ok(None) => break Ok(()),
                 Err(e) => {
                     warn!("Failed to load measurement: {:?}", e);
-                    break false;
+                    break Err(UploadError::Failed);
                 }
             };
 
             let samples = MeasurementRef {
-                version: u32::from(measurement.version),
-                buffer: &measurement.payload,
+                version: u32::from(version),
+                buffer: &payload,
             };
-            if upload_measurement(&mut client, 0, samples, &mut context.inner)
-                .await
-                .is_err()
+            if let Err(e) =
+                upload_measurement(&mut client, &signing, samples, &mut context.inner).await
             {
                 warn!("Failed to upload measurement");
-                break false;
+                break Err(e);
             }
 
             info!("Uploaded measurement");
             if let Err(e) = storage.delete_oldest_measurement().await {
                 warn!("Failed to delete measurement: {:?}", e);
-                break false;
+                break Err(UploadError::Failed);
             }
         };
 
-        let message = if success {
-            "Upload successful"
-        } else {
-            "Failed to upload measurements"
+        let message = match result {
+            Ok(()) => "Upload successful",
+            Err(UploadError::Failed) => "Failed to upload measurements",
+            Err(UploadError::Refused) => {
+                context.pairing.refused();
+                REFUSED
+            }
         };
         context.display_message(message).await;
 
-        context.signal_sta_work_available(!success);
+        context.signal_sta_work_available(result.is_err());
     }
 
     pub struct MeasurementRef<'a> {
@@ -361,29 +431,12 @@ mod wifi {
         buffer: &'a [u8],
     }
 
-    impl RequestBody for MeasurementRef<'_> {
-        fn len(&self) -> Option<usize> {
-            Some(self.buffer.len() + 4)
-        }
-
-        async fn write<W: embedded_io_async::Write>(&self, writer: &mut W) -> Result<(), W::Error> {
-            writer.write_all(&self.version.to_le_bytes()).await?;
-            writer.write_all(self.buffer).await?;
-
-            Ok(())
-        }
-    }
-
-    pub async fn upload_measurement<T, DNS>(
-        client: &mut HttpClient<'_, T, DNS>,
-        meas_timestamp: u64,
+    pub async fn upload_measurement(
+        client: &mut StaClient,
+        signing: &Signing,
         samples: MeasurementRef<'_>,
         context: &mut InnerContext,
-    ) -> Result<(), ()>
-    where
-        T: TcpConnect,
-        DNS: Dns,
-    {
+    ) -> Result<(), UploadError> {
         let uploading_msg = uformat!(
             32,
             "Uploading measurement: {}",
@@ -394,63 +447,71 @@ mod wifi {
         const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
         const UPLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
-        let mut upload_url = heapless::String::<128>::new();
-        if uwrite!(
-            &mut upload_url,
-            "{}/upload_data/{}",
-            context.config.backend_url.as_str(),
-            SerialNumber
-        )
-        .is_err()
-        {
+        let Some(base) = url::parse(context.config.backend_url.as_str()) else {
+            warn!("Invalid backend URL");
+            return Err(UploadError::Failed);
+        };
+
+        let mut path = heapless::String::<128>::new();
+        if uwrite!(&mut path, "{}/upload_data", base.path).is_err() {
             warn!("URL too long");
-            return Err(());
+            return Err(UploadError::Failed);
         }
 
-        let mut timestamp = heapless::String::<32>::new();
-        unwrap!(uwrite!(&mut timestamp, "{}", meas_timestamp));
+        debug!("Uploading measurement to {}", path);
 
-        debug!("Uploading measurement to {}", upload_url);
-
-        let headers = [("X-Timestamp", timestamp.as_str())];
-
-        let mut request =
-            match with_timeout(CONNECT_TIMEOUT, client.request(Method::POST, &upload_url)).await {
-                Ok(Ok(request)) => request.headers(&headers).body(samples),
-                Ok(Err(e)) => {
-                    warn!("HTTP connect error: {:?}", e);
-                    return Err(());
-                }
-                _ => {
-                    warn!("Conect timeout");
-                    return Err(());
+        let version = samples.version.to_le_bytes();
+        let mut counters = signing.counters.lock().await;
+        let mut signer = Signer::new(
+            &signing.key,
+            &signing.name,
+            &mut counters,
+            Template::Upload,
+            Method::Post,
+            &path,
+        );
+        loop {
+            let authorization = signer.authorization();
+            let mut connection = match with_timeout(CONNECT_TIMEOUT, client.connect(&base)).await {
+                Ok(Ok(connection)) => connection,
+                Ok(Err(_)) => return Err(UploadError::Failed),
+                Err(_) => {
+                    warn!("Connect timeout");
+                    return Err(UploadError::Failed);
                 }
             };
 
-        let mut rx_buffer = [0; 512];
-        match with_timeout(UPLOAD_TIMEOUT, request.send(&mut rx_buffer)).await {
-            Ok(Ok(response)) => {
-                if [Status::Ok, Status::Created].contains(&response.status.into()) {
-                    return Ok(());
-                }
+            let request = Request {
+                method: Method::Post,
+                path: &path,
+                authorization: Some(&authorization),
+                body: Some(Body {
+                    content_type: "application/octet-stream",
+                    parts: &[&version, samples.buffer],
+                }),
+            };
 
-                warn!("HTTP upload failed: {:?}", response.status);
-                for header in response.headers() {
-                    if !header.0.is_empty() {
-                        debug!(
-                            "Header {}: {}",
-                            header.0,
-                            str::from_utf8(header.1).unwrap_or("not a string")
-                        );
+            let (status, counter) =
+                match with_timeout(UPLOAD_TIMEOUT, connection.send(&request)).await {
+                    Ok(Ok(response)) => (response.status, response.counter),
+                    Ok(Err(_)) => return Err(UploadError::Failed),
+                    Err(_) => {
+                        warn!("Timeout");
+                        return Err(UploadError::Failed);
                     }
+                };
+
+            match signer.answered(status, counter) {
+                Step::Resend => {}
+                Step::Refused => return Err(UploadError::Refused),
+                Step::Answered(200 | 201) => return Ok(()),
+                Step::Answered(status) => {
+                    warn!("HTTP upload failed: {}", status);
+                    return Err(UploadError::Failed);
                 }
             }
-            Ok(Err(e)) => warn!("HTTP upload error: {:?}", e),
-            _ => warn!("Timeout"),
         }
-        Err(())
     }
 }
-
 #[cfg(feature = "wifi")]
 use wifi::*;

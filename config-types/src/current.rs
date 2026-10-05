@@ -31,7 +31,7 @@ impl Default for Config {
             display_brightness: DisplayBrightness::Normal,
             known_networks: heapless::Vec::new(),
             filter_strength: FilterStrength::Weak,
-            backend_url: heapless::String::try_from(crate::DEFAULT_BACKEND_URL).unwrap(),
+            backend_url: heapless::String::new(),
             measurement_action: MeasurementAction::Auto,
             use_external_clock: true,
             lead_off_current: LeadOffCurrent::Normal,

@@ -1,20 +1,27 @@
 use core::cell::Cell;
 
+use alloc::boxed::Box;
+use edge_http::Method;
 use embassy_futures::select::{select, Either};
 use embassy_time::{with_timeout, Duration, Instant, Timer};
-use embedded_io_async::BufRead;
-use reqwless::{request::Method, response::Status};
+use embedded_io_async::Read;
+use network_services::{
+    http::{Request, Response},
+    pairing::{Signer, Step, Template},
+    url,
+};
 use ufmt::{uwrite, uwriteln};
 
 use crate::{
     board::initialized::{Context, StaMode},
     human_readable::{BinarySize, Throughput},
     states::menu::AppMenu,
-    AppState, SerialNumber,
+    AppState,
 };
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 const READ_TIMEOUT: Duration = Duration::from_secs(10);
+const READ_BUFFER_LEN: usize = 4096;
 
 #[derive(Clone, Copy, PartialEq)]
 enum TestError {
@@ -27,6 +34,7 @@ enum TestError {
     HttpRequestFailed,
     DownloadFailed,
     DownloadTimeout,
+    Refused,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -58,6 +66,7 @@ pub async fn throughput(context: &mut Context) -> AppState {
             TestError::HttpRequestFailed => "Failed to access test data",
             TestError::DownloadFailed => "Failed to download test data",
             TestError::DownloadTimeout => "Test timed out",
+            TestError::Refused => "Server refused this device",
         },
     };
 
@@ -77,18 +86,30 @@ async fn run_test(context: &mut Context) -> TestResult {
         return TestResult::Failed(TestError::WifiNotEnabled);
     };
 
-    let Ok(mut client_resources) = sta.https_client_resources() else {
+    let Some(signing) = context.signing() else {
         return TestResult::Failed(TestError::InternalError);
     };
-    let mut client = client_resources.client();
+    let Ok(mut client) = sta.client() else {
+        return TestResult::Failed(TestError::InternalError);
+    };
+    let Ok(mut buffer) = Box::try_new([0u8; READ_BUFFER_LEN]) else {
+        warn!("Out of memory while preparing the test");
+        return TestResult::Failed(TestError::InternalError);
+    };
 
-    let mut url = heapless::String::<128>::new();
+    context.display_message("Connecting to server...").await;
+
+    let Some(base) = url::parse(context.config.backend_url.as_str()) else {
+        error!("Invalid backend URL");
+        return TestResult::Failed(TestError::InternalError);
+    };
+
+    let mut path = heapless::String::<128>::new();
     if uwrite!(
-        &mut url,
-        "{}/firmware/{}/{}/0000000",
-        context.config.backend_url.as_str(),
-        env!("HW_VERSION"),
-        SerialNumber
+        &mut path,
+        "{}/firmware/{}/0000000",
+        base.path,
+        env!("HW_VERSION")
     )
     .is_err()
     {
@@ -96,84 +117,74 @@ async fn run_test(context: &mut Context) -> TestResult {
         return TestResult::Failed(TestError::InternalError);
     }
 
-    debug!("Testing throughput using {}", url.as_str());
+    debug!("Testing throughput using {}", path.as_str());
 
-    let connect = with_timeout(CONNECT_TIMEOUT, async {
-        let futures = select(client.request(Method::GET, &url), async {
-            loop {
-                // A message is displayed for at least 300ms so we don't need to wait here.
-                context.display_message("Connecting to server...").await;
+    let mut counters = signing.counters.lock().await;
+    let mut signer = Signer::new(
+        &signing.key,
+        &signing.name,
+        &mut counters,
+        Template::Firmware,
+        Method::Get,
+        &path,
+    );
+    loop {
+        let authorization = signer.authorization();
+        let mut connection = match with_timeout(CONNECT_TIMEOUT, client.connect(&base)).await {
+            Ok(Ok(connection)) => connection,
+            Ok(Err(_)) => return TestResult::Failed(TestError::HttpConnectionFailed),
+            Err(_) => return TestResult::Failed(TestError::HttpConnectionTimeout),
+        };
+
+        let request = Request {
+            method: Method::Get,
+            path: &path,
+            authorization: Some(&authorization),
+            body: None,
+        };
+        let mut response = match with_timeout(READ_TIMEOUT, connection.send(&request)).await {
+            Ok(Ok(response)) => response,
+            Ok(Err(_)) => return TestResult::Failed(TestError::HttpRequestFailed),
+            Err(_) => return TestResult::Failed(TestError::HttpRequestTimeout),
+        };
+
+        match signer.answered(response.status, response.counter) {
+            Step::Resend => {}
+            Step::Refused => {
+                context.pairing.refused();
+                return TestResult::Failed(TestError::Refused);
             }
-        });
-        match futures.await {
-            Either::First(request) => request,
-            Either::Second(_) => unreachable!(),
-        }
-    });
-
-    let mut request = match connect.await {
-        Ok(Ok(request)) => request,
-        Ok(Err(e)) => {
-            warn!("HTTP connect error: {:?}", e);
-            return TestResult::Failed(TestError::HttpConnectionFailed);
-        }
-        _ => return TestResult::Failed(TestError::HttpConnectionTimeout),
-    };
-
-    let mut rx_buffer = [0; 4096];
-    let result = match with_timeout(READ_TIMEOUT, request.send(&mut rx_buffer)).await {
-        Ok(result) => result,
-        _ => return TestResult::Failed(TestError::HttpRequestTimeout),
-    };
-
-    let response = match result {
-        Ok(response) => match response.status.into() {
-            Status::Ok => response,
-            _ => {
-                warn!("HTTP response error: {:?}", response.status);
+            Step::Answered(200) => return measure(context, &mut response, &mut *buffer).await,
+            Step::Answered(status) => {
+                warn!("HTTP response error: {}", status);
                 return TestResult::Failed(TestError::HttpRequestFailed);
             }
-        },
-        Err(e) => {
-            warn!("HTTP response error: {:?}", e);
-            return TestResult::Failed(TestError::HttpRequestFailed);
-        }
-    };
-
-    for header in response.headers() {
-        if !header.0.is_empty() {
-            debug!(
-                "Header {}: {}",
-                header.0,
-                core::str::from_utf8(header.1).unwrap_or("not a string")
-            );
         }
     }
+}
 
-    let size = response.content_length;
+async fn measure<R: Read>(
+    context: &mut Context,
+    response: &mut Response<R>,
+    buffer: &mut [u8],
+) -> TestResult {
+    let size = response
+        .content_len
+        .and_then(|len| usize::try_from(len).ok());
     let mut received_total = 0;
-
-    let mut reader = response.body().reader();
-
     let started = Instant::now();
     let received_since = Cell::new(0);
     let result = select(
         async {
             loop {
-                match with_timeout(READ_TIMEOUT, reader.fill_buf()).await {
-                    Ok(result) => match result {
-                        Ok(&[]) => break None,
-                        Ok(read) => {
-                            let read_len = read.len();
-                            received_since.set(received_since.get() + read_len);
-                            reader.consume(read_len);
-                        }
-                        Err(e) => {
-                            warn!("HTTP read error: {:?}", e);
-                            break Some(TestError::DownloadFailed);
-                        }
-                    },
-                    _ => break Some(TestError::DownloadTimeout),
+                match with_timeout(READ_TIMEOUT, response.body.read(buffer)).await {
+                    Ok(Ok(0)) => break None,
+                    Ok(Ok(read)) => received_since.set(received_since.get() + read),
+                    Ok(Err(e)) => {
+                        warn!("HTTP read error: {:?}", defmt::Debug2Format(&e));
+                        break Some(TestError::DownloadFailed);
+                    }
+                    Err(_) => break Some(TestError::DownloadTimeout),
                 };
             }
         },
@@ -213,8 +224,7 @@ async fn print_progress(
     average_tp: Throughput,
 ) {
     let mut message = heapless::String::<128>::new();
-    if let Some(size) = size {
-        let progress = current * 100 / size;
+    if let Some(progress) = size.and_then(|size| (current * 100).checked_div(size)) {
         unwrap!(uwriteln!(message, "Testing: {}%", progress));
     } else {
         unwrap!(uwriteln!(message, "Testing: {}", BinarySize(current)));

@@ -28,6 +28,8 @@ monitor = "xtask monitor"
 [env]
 DEFMT_LOG = "card_io_fw=debug,info"
 ESP_ALLOC_CONFIG_HEAP_ALGORITHM = "LLFF"
+# The heap takes its second region from the main stack; keep the stack from shrinking unnoticed.
+ESP_HAL_CONFIG_ENSURE_MAIN_STACK_MINIMUM = "65536"
 EKV_MAX_PAGE_COUNT = "1008"
 EKV_MAX_VALUE_SIZE = "90000"
 EKV_MAX_KEY_SIZE = "16"

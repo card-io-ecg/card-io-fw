@@ -77,10 +77,7 @@ async fn storage_menu_builder(context: &mut Context) -> StorageMenuBuilder {
     }
 
     #[cfg(feature = "wifi")]
-    if context.can_enable_wifi()
-        && !context.config.known_networks.is_empty()
-        && !context.config.backend_url.is_empty()
-        && context.sta_has_work().await
+    if context.can_enable_wifi() && context.backend_ready().is_ok() && context.sta_has_work().await
     {
         unwrap!(items
             .push(

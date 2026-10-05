@@ -22,6 +22,9 @@ use signal_processing::compressing_buffer::CompressingBuffer;
 use static_cell::StaticCell;
 
 #[cfg(feature = "wifi")]
+use network_services::pairing::{Counters, Pairing};
+
+#[cfg(feature = "wifi")]
 use crate::states::{
     firmware_update::firmware_update, throughput::throughput,
     upload_or_store_measurement::upload_stored_measurements,
@@ -107,15 +110,6 @@ pub enum AppState {
     UploadOrStore(Box<CompressingBuffer<ECG_BUFFER_SIZE>>),
 }
 
-fn log_heap(stage: &str) {
-    info!(
-        "Heap {}: {} bytes used, {} bytes free",
-        stage,
-        esp_alloc::HEAP.used(),
-        esp_alloc::HEAP.free()
-    );
-}
-
 async fn load_config(storage: Option<&mut FileSystem>) -> &'static mut Config {
     static CONFIG: StaticCell<Config> = StaticCell::new();
 
@@ -135,6 +129,22 @@ async fn load_config(storage: Option<&mut FileSystem>) -> &'static mut Config {
     CONFIG.init(config)
 }
 
+#[cfg(feature = "wifi")]
+async fn load_pairing(storage: Option<&mut FileSystem>) -> Pairing {
+    let key = match storage {
+        Some(storage) => storage.load_key().await,
+        None => None,
+    };
+
+    let pairing = Pairing::new(key);
+    if pairing.paired() {
+        info!("Device is paired");
+    } else {
+        info!("Device is unpaired");
+    }
+    pairing
+}
+
 #[esp_rtos::main]
 async fn main(_spawner: Spawner) {
     #[cfg(all(feature = "rtt", feature = "defmt"))]
@@ -142,14 +152,22 @@ async fn main(_spawner: Spawner) {
 
     let wake_lock = Some(WakeLock::new());
 
+    // ECG_BUFFER_SIZE must fit in one of these regions. An upload holds a 90 KB measurement and
+    // the HTTP client's buffers at once, while Wi-Fi fills most of the reclaimed region. A chip
+    // with PSRAM adds it as a further region at startup; without it the second internal region
+    // takes both, and its extra size comes out of the main stack.
     const RECLAIMED_SIZE: usize = const {
         let range = esp_metadata_generated::memory_range!("DRAM2_UNINIT");
         range.end - range.start
     };
+    const HEAP_SIZE: usize = if cfg!(soc_has_psram) {
+        96 * 1024
+    } else {
+        144 * 1024
+    };
 
-    // ECG_BUFFER_SIZE must fit in one of these regions
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: RECLAIMED_SIZE);
-    esp_alloc::heap_allocator!(size: 96 * 1024);
+    esp_alloc::heap_allocator!(size: HEAP_SIZE);
 
     let resources = StartupResources::initialize().await;
 
@@ -162,15 +180,21 @@ async fn main(_spawner: Spawner) {
     board::storage::init(resources.flash, "storage");
 
     let mut storage = FileSystem::mount().await;
-    log_heap("after mount");
+    info!("Heap after mount: {}", esp_alloc::HEAP.stats());
     let config = load_config(storage.as_mut()).await;
-    log_heap("after load_config");
+    info!("Heap after load_config: {}", esp_alloc::HEAP.stats());
+    #[cfg(feature = "wifi")]
+    let pairing = load_pairing(storage.as_mut()).await;
 
     // We're boxing Context because we will need to move out of it during shutdown.
     let mut board = Box::new(Context {
         // If the device is awake, the display should be enabled.
         frontend: resources.frontend,
         storage,
+        #[cfg(feature = "wifi")]
+        pairing,
+        #[cfg(feature = "wifi")]
+        counters: Rc::new(Mutex::new(Counters::default())),
         inner: InnerContext {
             display: resources.display,
             high_prio_spawner: interrupt_executor.start(Priority::Priority2),
