@@ -6,3 +6,6 @@ Cargo.lock
 .vscode/.cortex-debug.peripherals.state.json
 .zed/
 cfg.toml
+
+.agent/
+.cursor/
