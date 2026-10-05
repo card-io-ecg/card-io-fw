@@ -41,8 +41,9 @@ defmt = "1"
 device-auth-firmware = { git = "https://github.com/card-io-ecg/device-auth.git", rev = "d59c2676ece41e86387fa6b1cff86f0396d325a1" }
 ufmt = "0.2.0"
 
+# A DHCP lease names up to 3 DNS servers.
 smoltcp = { version = "0.13.0", default-features = false, features = [
-  "dns-max-server-count-2",
+  "dns-max-server-count-3",
   "proto-ipv4",
 ] }
 
@@ -139,7 +140,7 @@ default = ["defmt", "rtt"]
 #default = ["defmt", "esp-println"]
 
 # Enable Wi-Fi features. The purpose of this feature is to shorten the debugging iteration time by removing a big chunk of the binary.
-wifi = ["dep:esp-radio", "dep:edge-dhcp", "dep:edge-http", "dep:edge-nal", "dep:edge-nal-embassy", "dep:embassy-net", "dep:network-services", "dep:rand_core", "esp-radio/unstable", "esp-rtos/esp-radio", "config-site/compress", "config-site/serve"]
+wifi = ["dep:esp-radio", "dep:edge-dhcp", "dep:edge-http", "dep:edge-nal", "dep:edge-nal-embassy", "dep:embassy-net", "dep:network-services", "dep:rand_core", "dep:smoltcp", "esp-radio/unstable", "esp-rtos/esp-radio", "config-site/compress", "config-site/serve"]
 
 hw_v4 = ["esp32s3"]
 # hw_v5 skipped
