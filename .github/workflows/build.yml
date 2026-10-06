@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: ["v6c6", "v8s3"]
+        version: ["v8s3", "v8c6"]
 
     runs-on: ubuntu-latest
 
