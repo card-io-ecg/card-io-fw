@@ -43,7 +43,7 @@ pub struct WifiApScreen {
 impl WifiApScreen {
     pub fn new() -> Self {
         Self {
-            menu: create_menu("WiFi Config")
+            menu: create_menu("WiFi setup")
                 .add_item("Exit", (), |_| ApMenuEvents::Exit)
                 .build(),
             state: WifiAccessPointState::NotConnected,
