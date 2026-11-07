@@ -113,7 +113,7 @@ pub async fn measure(context: &mut Context) -> AppState {
     let mut ecg = Box::new(EcgObjects::new(filter));
 
     if ecg_buffer.is_none() {
-        warn!("Failed to allocate ECG buffer");
+        warn!("Failed to allocate ECG buffer: {}", esp_alloc::HEAP.stats());
     }
 
     unsafe {
@@ -317,11 +317,15 @@ async fn measure_impl(
             } else if let Some(ecg_buffer) = ecg_buffer {
                 AppState::UploadOrStore(ecg_buffer)
             } else {
+                context
+                    .display_message("Out of memory, measurement not recorded")
+                    .await;
                 AppState::Shutdown
             }
         }
         Err(_) => {
             // task was aborted - battery low
+            context.display_message("Battery low").await;
             AppState::Shutdown
         }
     };
