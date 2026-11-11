@@ -13,8 +13,11 @@ use ekv::config::MAX_VALUE_SIZE;
 use ekv::{CommitError, Database, FormatError, MountError, ReadError, ReadTransaction, WriteError};
 use embassy_sync::once_lock::OnceLock;
 use embassy_sync_06::blocking_mutex::raw::CriticalSectionRawMutex as EkvRawMutex;
-use esp_hal::{peripherals::FLASH, rng::Rng};
-use esp_storage::FlashStorage;
+use esp_hal::{
+    flash::{Config as FlashConfig, Flash},
+    peripherals::FLASH,
+    rng::Rng,
+};
 #[cfg(feature = "wifi")]
 use network_services::pairing::SigningKey;
 
@@ -104,7 +107,14 @@ fn reserve_measurement(payload: &mut Vec<u8>) -> Result<(), StorageError> {
 }
 
 pub fn init(flash: FLASH<'static>, partition: &str) {
-    let Some(flash) = PartitionFlash::find(FlashStorage::new(flash), partition) else {
+    let flash = match Flash::new(flash, FlashConfig::default()) {
+        Ok(flash) => flash,
+        Err(e) => {
+            error!("Failed to initialize flash: {:?}", e);
+            return;
+        }
+    };
+    let Some(flash) = PartitionFlash::find(flash, partition) else {
         return;
     };
 

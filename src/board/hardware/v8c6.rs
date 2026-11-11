@@ -44,11 +44,7 @@ impl super::startup::StartupResources {
         let peripherals = Self::common_init();
 
         let systimer = SystemTimer::new(peripherals.SYSTIMER);
-        esp_rtos::start_with_idle_hook(
-            systimer.alarm0,
-            peripherals.FROM_CPU_INTR0,
-            super::setup_sleep(peripherals.LPWR),
-        );
+        esp_rtos::start_with_idle_hook(systimer.alarm0, super::setup_sleep(peripherals.LPWR));
 
         let display = Self::create_display_driver(
             peripherals.DMA_CH0,

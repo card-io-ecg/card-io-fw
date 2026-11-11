@@ -1,15 +1,13 @@
 use alloc::boxed::Box;
-use embedded_storage::nor_flash::NorFlash;
 use esp_bootloader_esp_idf::{
-    ota::OtaImageState, ota_updater::OtaUpdater, partitions::PARTITION_TABLE_MAX_LEN,
+    ota::OtaImageState,
+    ota_updater::OtaUpdater,
+    partitions::{Error, FlashStorage, PARTITION_TABLE_MAX_LEN},
 };
-use esp_storage::FlashStorage;
 
 const SECTOR_SIZE: usize = 4096;
 const ERASE_STEP: u32 = 64 * 1024;
 
-// `write_nor` copies through a 4096 byte stack buffer unless the data is 4-byte aligned.
-#[repr(align(4))]
 struct Staging([u8; SECTOR_SIZE]);
 
 #[derive(Clone, Copy, Debug)]
@@ -18,8 +16,8 @@ pub enum OtaError {
     Io,
 }
 
-impl From<esp_bootloader_esp_idf::partitions::Error> for OtaError {
-    fn from(_: esp_bootloader_esp_idf::partitions::Error) -> Self {
+impl From<Error> for OtaError {
+    fn from(_: Error) -> Self {
         OtaError::Io
     }
 }
@@ -97,9 +95,7 @@ impl<'a> OtaClient<'a> {
         self.staging.0[self.staged..len].fill(0xFF);
 
         let (mut region, _) = self.updater.next_partition()?;
-        region
-            .as_nor_flash()?
-            .write(self.offset, &self.staging.0[..len])?;
+        region.write(self.offset, &self.staging.0[..len])?;
 
         self.offset += len as u32;
         self.staged = 0;

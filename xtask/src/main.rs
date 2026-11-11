@@ -140,7 +140,12 @@ fn cargo(toolchain: &'static str, command: &[&str]) -> Expression {
     let mut args_vec = vec!["run", toolchain, "cargo"];
     args_vec.extend(command);
 
-    cmd("rustup", args_vec)
+    // The toolchains give host crates the same hash. A shared build directory makes each toolchain
+    // overwrite the build of the other.
+    cmd("rustup", args_vec).env(
+        "CARGO_BUILD_BUILD_DIR",
+        format!("{{workspace-root}}/target/build-{toolchain}"),
+    )
 }
 
 fn build(config: BuildConfig, timings: bool) -> AnyResult<()> {

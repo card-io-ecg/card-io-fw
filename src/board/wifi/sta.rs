@@ -1,7 +1,10 @@
 use core::{alloc::AllocError, cell::RefCell, future::pending};
 
 use crate::{
-    board::{initialized::Context, wifi::net_task},
+    board::{
+        initialized::Context,
+        wifi::{net_task, set_config},
+    },
     task_control::{TaskControlToken, TaskController},
     Shared,
 };
@@ -22,8 +25,8 @@ use embassy_sync::{
 use embassy_time::{with_timeout, Duration, Instant, Timer};
 use esp_hal::rng::Rng;
 use esp_radio::wifi::{
-    ap::{AccessPointConfig, AccessPointInfo},
-    scan::ScanConfig,
+    ap::AccessPointConfig,
+    scan::{AccessPointInfo, ScanConfig},
     sta::StationConfig,
     AuthenticationMethodConfig, Config, Interface, WifiController,
 };
@@ -413,7 +416,7 @@ impl StaController {
         info!("Configuring STA");
 
         let client_config = self.config(StationConfig::default());
-        unwrap!(controller.set_config(&client_config));
+        unwrap!(set_config(controller, &client_config));
     }
 
     async fn do_scan(&mut self, controller: &mut WifiController<'_>) {
@@ -515,7 +518,7 @@ impl StaController {
             .with_authentication(AuthenticationMethodConfig::Wpa2Personal(unwrap!(
                 connect_to.pass.as_str().try_into()
             )));
-        unwrap!(controller.set_config(&self.config(station_config)));
+        unwrap!(set_config(controller, &self.config(station_config)));
 
         Ok(())
     }
