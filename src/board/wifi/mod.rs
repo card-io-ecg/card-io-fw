@@ -11,7 +11,7 @@ use crate::{
 use embassy_executor::Spawner;
 use embassy_net::{Config, Runner, Stack, StackResources};
 use esp_hal::{peripherals::WIFI, rng::Rng};
-use esp_radio::wifi::{Interface, WifiController};
+use esp_radio::wifi::{Interface, WifiController, WifiError};
 use gui::widgets::{wifi_access_point::WifiAccessPointState, wifi_client::WifiClientState};
 use macros as cardio;
 
@@ -30,6 +30,19 @@ const AP_SOCKET_COUNT: usize = 4;
 const STA_SOCKET_COUNT: usize = 3;
 
 pub const AP_ADDRESS: Ipv4Addr = Ipv4Addr::new(192, 168, 2, 1);
+
+/// Maximum TX power in 0.25 dBm units (5 dBm). The esp-radio default of 20 dBm turns the device off.
+const MAX_TX_POWER: i8 = 20;
+
+/// Applies `config` and limits the TX power. `set_config` starts the radio, and the driver accepts
+/// the TX power only after the start.
+fn set_config(
+    controller: &mut WifiController<'_>,
+    config: &esp_radio::wifi::Config,
+) -> Result<(), WifiError> {
+    controller.set_config(config)?;
+    controller.set_max_tx_power(MAX_TX_POWER)
+}
 
 pub mod ap;
 pub mod ap_sta;

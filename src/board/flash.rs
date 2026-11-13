@@ -4,13 +4,13 @@ use ekv::{
     flash::{Flash, PageID},
 };
 use esp_bootloader_esp_idf::partitions::{
-    read_partition_table, DataPartitionSubType, PartitionType, PARTITION_TABLE_MAX_LEN,
+    read_partition_table, DataPartitionSubType, Error, FlashRegion, FlashStorage, PartitionEntry,
+    PartitionType, PARTITION_TABLE_MAX_LEN,
 };
-use esp_storage::{FlashStorage, FlashStorageError};
 
 pub struct PartitionFlash {
     storage: FlashStorage<'static>,
-    offset: u32,
+    partition: PartitionEntry,
     pages: usize,
 }
 
@@ -54,8 +54,8 @@ impl PartitionFlash {
         info!("Partition {}: {} pages", label, pages);
 
         Some(Self {
-            offset: partition.offset(),
             storage,
+            partition,
             pages,
         })
     }
@@ -65,21 +65,25 @@ impl PartitionFlash {
         &mut self.storage
     }
 
-    fn address(&self, page: PageID, offset: usize) -> u32 {
-        self.offset + (page.index() * PAGE_SIZE + offset) as u32
+    fn region(&mut self) -> Result<FlashRegion<'_, 'static>, Error> {
+        self.partition.as_flash_region(&mut self.storage)
+    }
+
+    fn address(page: PageID, offset: usize) -> u32 {
+        (page.index() * PAGE_SIZE + offset) as u32
     }
 }
 
 impl Flash for PartitionFlash {
-    type Error = FlashStorageError;
+    type Error = Error;
 
     fn page_count(&self) -> usize {
         self.pages
     }
 
     async fn erase(&mut self, page: PageID) -> Result<(), Self::Error> {
-        let from = self.address(page, 0);
-        self.storage.erase(from, from + PAGE_SIZE as u32)
+        let from = Self::address(page, 0);
+        self.region()?.erase(from, from + PAGE_SIZE as u32)
     }
 
     async fn read(
@@ -88,12 +92,10 @@ impl Flash for PartitionFlash {
         offset: usize,
         data: &mut [u8],
     ) -> Result<(), Self::Error> {
-        let address = self.address(page, offset);
-        self.storage.read_nor(address, data)
+        self.region()?.read(Self::address(page, offset), data)
     }
 
     async fn write(&mut self, page: PageID, offset: usize, data: &[u8]) -> Result<(), Self::Error> {
-        let address = self.address(page, offset);
-        self.storage.write_nor(address, data)
+        self.region()?.write(Self::address(page, offset), data)
     }
 }

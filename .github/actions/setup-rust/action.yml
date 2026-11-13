@@ -6,7 +6,7 @@ inputs:
     description: Install nightly Rust (required for RISC-V targets and rustfmt) and make it the default.
     default: "true"
   espflash:
-    description: Install cargo-espflash.
+    description: Install espflash.
     default: "false"
   cache-key:
     description: Extra key to separate caches between jobs (e.g. matrix entries).
@@ -36,6 +36,6 @@ runs:
       uses: cargo-bins/cargo-binstall@main
 
     - if: inputs.espflash == 'true'
-      name: Install cargo-espflash
+      name: Install espflash
       shell: bash
-      run: cargo binstall --no-confirm --force cargo-espflash
+      run: cargo binstall --no-confirm --force espflash

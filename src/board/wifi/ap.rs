@@ -4,7 +4,7 @@ use embassy_futures::join::join;
 use gui::widgets::wifi_access_point::WifiAccessPointState;
 
 use crate::{
-    board::wifi::net_task,
+    board::wifi::{net_task, set_config},
     task_control::{TaskControlToken, TaskController},
 };
 use embassy_executor::Spawner;
@@ -128,7 +128,7 @@ impl ApController {
                 .with_ssid(unwrap!("Card/IO".try_into()))
                 .with_max_connections(1),
         );
-        unwrap!(controller.set_config(&ap_config));
+        unwrap!(set_config(controller, &ap_config));
     }
 
     pub fn handle_event(&mut self, event: EventInfo) {
