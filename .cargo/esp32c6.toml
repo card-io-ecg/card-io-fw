@@ -1,0 +1,13 @@
+# ESP32-C6 settings. xtask passes this file with `--config`.
+
+[target.riscv32imac-unknown-none-elf]
+runner    = "probe-rs run --preverify --always-print-stacktrace --idf-partition-table partitions.csv"
+#runner = "espflash flash -M --erase-parts=otadata --log-format=defmt --partition-table partitions.csv -s 8mb"
+rustflags = [
+  "-C", "force-frame-pointers",
+  "-C", "link-arg=-Tlinkall.x",
+]
+
+[env]
+# Run the CPU from XTAL_CLK while it waits for an interrupt.
+ESP_HAL_CONFIG_IDLE_FREQUENCY_SCALING = "true"

@@ -13,7 +13,7 @@ Tools you need to build the firmware:
 
 - Espressif's Xtensa-enabled rust compiler - [espup](https://github.com/esp-rs/espup)
   > Make sure to run `. ~/export-esp.sh` before trying to work with the firmware
-- `cargo install cargo-espflash`
+- `cargo install espflash`
 - `cargo install cargo-watch`
 
 ### Enable External / USB JTAG selector solder bridge

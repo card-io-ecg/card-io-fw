@@ -1,0 +1,9 @@
+# ESP32-S3 settings. xtask passes this file with `--config`.
+
+[target.xtensa-esp32s3-none-elf]
+runner    = "probe-rs run --preverify --always-print-stacktrace --idf-partition-table partitions.csv"
+#runner = "espflash flash -M --erase-parts=otadata --log-format=defmt --partition-table partitions.csv -s 8mb"
+rustflags = [
+  "-C", "link-arg=-nostartfiles",
+  "-C", "link-arg=-Wl,-Tlinkall.x",
+]

@@ -152,26 +152,26 @@ fn build(config: BuildConfig, timings: bool) -> AnyResult<()> {
     let build_flags = config.build_flags();
     let build_flags = build_flags.iter().map(|s| s.as_str()).collect::<Vec<_>>();
 
+    let mut command = vec!["build"];
     if timings {
-        let mut command = vec!["build", "--timings"];
-
-        command.extend_from_slice(&build_flags);
-
-        config.cargo(&command).run()?;
+        command.push("--timings");
     }
+    command.extend_from_slice(&build_flags);
 
+    config.cargo(&command).run()?;
+
+    // cargo-espflash does not forward `--config`, so the image comes from the ELF of the build.
     let flash_size = format!("-s{}mb", config.version.flash_size());
-    let mut command = vec![
+    cmd!(
         "espflash",
         "save-image",
         "--chip",
         config.soc.chip(),
         &flash_size,
-        "target/card_io_fw.bin",
-    ];
-    command.extend_from_slice(&build_flags);
-
-    config.cargo(&command).run()?;
+        config.elf(),
+        "target/card_io_fw.bin"
+    )
+    .run()?;
 
     Ok(())
 }
@@ -393,8 +393,20 @@ impl BuildConfig {
         flags
     }
 
+    fn elf(self) -> String {
+        let profile = match self.profile {
+            Profile::Debug => "debug",
+            Profile::Release => "release",
+        };
+        format!("target/{}/{profile}/card_io_fw", self.soc.target())
+    }
+
     fn cargo(self, command: &[&str]) -> Expression {
-        let expr = cargo(self.soc.toolchain(), command);
+        let config = format!(".cargo/{}.toml", self.soc.chip());
+        let mut command = command.to_vec();
+        command.extend_from_slice(&["--config", &config]);
+
+        let expr = cargo(self.soc.toolchain(), &command);
 
         if self.profile == Profile::Release {
             // cargo-espflash doesn't forward `--config`. Cargo appends these to the rustflags
