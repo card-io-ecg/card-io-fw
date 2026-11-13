@@ -49,6 +49,9 @@ jobs:
       - name: check with wifi
         run: cargo xcheck ${{ matrix.version }} --with-wifi
 
+      - name: clippy
+        run: cargo xclippy ${{ matrix.version }}
+
   build:
     if: github.event_name == 'merge_group'
     strategy:

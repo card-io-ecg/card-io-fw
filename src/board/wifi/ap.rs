@@ -39,7 +39,7 @@ impl Ap {
     }
 
     pub fn stack(&self) -> Stack<'static> {
-        self.ap_stack.clone()
+        self.ap_stack
     }
 
     pub fn client_count(&self) -> u32 {

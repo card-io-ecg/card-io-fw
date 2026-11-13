@@ -22,6 +22,12 @@ pub struct AllocTaskPool<F: Future + 'static, const N: usize> {
     pool: [AtomicPtr<TaskStorage<F>>; N],
 }
 
+impl<F: Future + 'static, const N: usize> Default for AllocTaskPool<F, N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<F: Future + 'static, const N: usize> AllocTaskPool<F, N> {
     #[allow(clippy::declare_interior_mutable_const)]
     const NULL_PTR: AtomicPtr<TaskStorage<F>> = AtomicPtr::new(core::ptr::null_mut());
@@ -47,7 +53,7 @@ impl<F: Future + 'static, const N: usize> AllocTaskPool<F, N> {
             if ptr
                 .compare_exchange(
                     core::ptr::null_mut(),
-                    core::mem::align_of::<TaskStorage<F>>() as *mut _,
+                    core::ptr::dangling_mut(),
                     Ordering::SeqCst,
                     Ordering::SeqCst,
                 )

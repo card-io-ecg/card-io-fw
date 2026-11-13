@@ -100,6 +100,12 @@ impl<const N: usize> defmt::Format for CompressingBuffer<N> {
     }
 }
 
+impl<const N: usize> Default for CompressingBuffer<N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<const N: usize> CompressingBuffer<N> {
     pub const EMPTY: Self = Self::new();
 

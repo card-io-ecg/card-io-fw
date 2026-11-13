@@ -19,7 +19,7 @@ macro_rules! mk_static {
     ($t:ty,$val:expr) => {{
         static STATIC_CELL: static_cell::StaticCell<$t> = static_cell::StaticCell::new();
         #[deny(unused_attributes)]
-        let x = STATIC_CELL.uninit().write(($val));
+        let x = STATIC_CELL.uninit().write($val);
         x
     }};
 }
@@ -229,7 +229,7 @@ impl WifiDriver {
     pub fn ap_handle(&self) -> Option<&Ap> {
         match &self.state {
             WifiDriverState::Ap(ap) => Some(ap.handle()),
-            WifiDriverState::ApSta(ap_sta) => Some(&ap_sta.handles().0),
+            WifiDriverState::ApSta(ap_sta) => Some(ap_sta.handles().0),
             _ => None,
         }
     }
@@ -237,7 +237,7 @@ impl WifiDriver {
     pub fn sta_handle(&self) -> Option<&Sta> {
         match &self.state {
             WifiDriverState::Sta(sta) => Some(sta.handle()),
-            WifiDriverState::ApSta(ap_sta) => Some(&ap_sta.handles().1),
+            WifiDriverState::ApSta(ap_sta) => Some(ap_sta.handles().1),
             _ => None,
         }
     }

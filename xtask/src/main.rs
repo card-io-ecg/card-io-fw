@@ -249,6 +249,8 @@ fn extra_checks(config: BuildConfig) -> AnyResult<()> {
 
     let mut args = vec!["clippy"];
     args.extend_from_slice(&build_flags);
+    // Only clippy lints fail the check. The toolchains differ in their compiler warnings.
+    args.extend_from_slice(&["--", "-D", "clippy::all"]);
 
     config.cargo(&args).run()?;
 
@@ -411,8 +413,9 @@ impl BuildConfig {
 
     fn cargo(self, command: &[&str]) -> Expression {
         let config = format!(".cargo/{}.toml", self.soc.chip());
+        // After the subcommand: arguments after a `--` go to the compiler.
         let mut command = command.to_vec();
-        command.extend_from_slice(&["--config", &config]);
+        command.splice(1..1, ["--config", &config]);
 
         cargo(self.soc.toolchain(), &command)
     }

@@ -54,7 +54,8 @@ static mut STATE: State = State {
 ///
 /// The caller is in a critical section and holds no other reference from this function.
 unsafe fn parts() -> (&'static mut State, &'static mut Ring) {
-    unsafe { (&mut *(&raw mut STATE), &mut (*(&raw mut RING)).0) }
+    let (state, ring) = (&raw mut STATE, &raw mut RING);
+    unsafe { (&mut *state, &mut (*ring).0) }
 }
 
 /// `f` must not log.

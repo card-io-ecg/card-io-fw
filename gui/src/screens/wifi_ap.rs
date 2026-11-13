@@ -25,19 +25,27 @@ pub enum ApRequest {
     Unpairing,
 }
 
+type ApMenu = Menu<
+    &'static str,
+    SingleTouch,
+    chain! { MenuItem<&'static str, ApMenuEvents, (), true> },
+    ApMenuEvents,
+    AnimatedPosition,
+    AnimatedTriangle,
+    BinaryColor,
+>;
+
 pub struct WifiApScreen {
-    pub menu: Menu<
-        &'static str,
-        SingleTouch,
-        chain! { MenuItem<&'static str, ApMenuEvents, (), true> },
-        ApMenuEvents,
-        AnimatedPosition,
-        AnimatedTriangle,
-        BinaryColor,
-    >,
+    pub menu: ApMenu,
     pub state: WifiAccessPointState,
     pub timeout: Option<u8>,
     pub request: Option<ApRequest>,
+}
+
+impl Default for WifiApScreen {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl WifiApScreen {

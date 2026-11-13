@@ -1,4 +1,4 @@
-use core::{alloc::AllocError, cell::RefCell, future::pending};
+use core::{alloc::AllocError, cell::RefCell, cmp::Reverse, future::pending};
 
 use crate::{
     board::{
@@ -430,7 +430,7 @@ impl StaController {
                 info!("Found {} access points", visible_networks.len());
 
                 // Sort by signal strength, descending
-                visible_networks.sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
+                visible_networks.sort_by_key(|network| Reverse(network.signal_strength));
 
                 let mut networks = self.networks.lock().await;
 

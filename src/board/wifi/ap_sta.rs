@@ -74,7 +74,7 @@ impl ApStaState {
                 sta_state.clone(),
                 networks.clone(),
                 known_networks.clone(),
-                sta_stack.clone(),
+                sta_stack,
                 command_queue.clone(),
                 networks_changed.clone(),
                 Some(ap_config),

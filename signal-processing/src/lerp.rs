@@ -34,13 +34,11 @@ pub fn interpolate(value: u32, x_min: u32, x_max: u32, y_min: u32, y_max: u32) -
     let y_range = y_max - y_min;
 
     if x_range == 0 {
-        y_min
-    } else {
-        let x = value - x_min;
-        let y = x * y_range / x_range;
-
-        y + y_min
+        return y_min;
     }
+
+    let x = value - x_min;
+    x * y_range / x_range + y_min
 }
 
 #[cfg(test)]

@@ -122,6 +122,12 @@ pub struct EcgScreen {
     camera: RefCell<Camera>,
 }
 
+impl Default for EcgScreen {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EcgScreen {
     pub fn new() -> Self {
         Self {

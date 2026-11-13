@@ -130,7 +130,7 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
 
         let request = running_request(&context.pairing);
         let timeout = exit_timer.remaining().as_secs() as u8;
-        let connection_state: WifiAccessPointState = ap.connection_state().into();
+        let connection_state: WifiAccessPointState = ap.connection_state();
         if connection_state != WifiAccessPointState::Connected {
             // We start counting when the last client disconnects, and we reset on interaction.
             // The timer does not run out while a request runs.

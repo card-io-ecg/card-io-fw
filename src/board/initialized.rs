@@ -323,14 +323,14 @@ impl InnerContext {
             type Target = Config;
 
             fn deref(&self) -> &Self::Target {
-                &self.config
+                self.config
             }
         }
 
         impl core::ops::DerefMut for ConfigWriter<'_> {
             fn deref_mut(&mut self) -> &mut Self::Target {
                 self.changed = true;
-                &mut self.config
+                self.config
             }
         }
 

@@ -30,7 +30,7 @@ pub const MENU_FPS: u32 = 50;
 /// `embedded-menu` measures animation and touch durations in update calls, so the constants
 /// have to be derived from the update rate to keep them tied to wall clock time.
 const fn ticks(ms: u32) -> u32 {
-    let ticks = (ms * MENU_FPS + 999) / 1000;
+    let ticks = (ms * MENU_FPS).div_ceil(1000);
     if ticks > 1 {
         ticks
     } else {
