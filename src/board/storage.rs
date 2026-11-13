@@ -18,6 +18,7 @@ use esp_hal::{
     peripherals::FLASH,
     rng::Rng,
 };
+use log_ring::{decode_next, record_key, NEXT_KEY};
 #[cfg(feature = "wifi")]
 use network_services::pairing::SigningKey;
 
@@ -29,13 +30,15 @@ type ReadTx<'a> = ReadTransaction<'a, PartitionFlash, EkvRawMutex>;
 static STORE: OnceLock<Store> = OnceLock::new();
 
 // ekv requires the keys of one write transaction in ascending order:
-// config < device_key < meas/N < queue < ver/N < version.
+// config < device_key < log/NN < log_next < meas/N < queue < ver/N < version.
 const CONFIG_KEY: &[u8] = b"config";
 #[cfg(feature = "wifi")]
 const DEVICE_KEY: &[u8] = b"device_key";
 const VERSION_KEY: &[u8] = b"version";
 #[cfg(feature = "wifi")]
 const DEVICE_KEY_LEN: usize = 32;
+/// The store keeps the newest log records, about 2.1 kB each.
+const STORED_LOG_RECORDS: u8 = 32;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -396,6 +399,37 @@ impl FileSystem {
                 .await?;
             tx.write(Queue::KEY, &pushed.encode()).await?;
             tx.write(measurement_version_key(queue.tail).as_bytes(), &[version])
+                .await?;
+
+            Ok(tx.commit().await?)
+        })
+        .await
+    }
+
+    /// The sequence number that the next log record gets.
+    pub async fn next_log_sequence(&mut self) -> Result<u32, StorageError> {
+        let store = self.store;
+        boxed("next_log_sequence", async {
+            let mut next = [0; 8];
+            let tx = store.read_transaction().await;
+            let len = read_value(&tx, NEXT_KEY, &mut next).await?;
+
+            Ok(decode_next(len.map(|len| &next[..len])))
+        })
+        .await
+    }
+
+    pub async fn store_log_record(
+        &mut self,
+        sequence: u32,
+        record: &[u8],
+    ) -> Result<(), StorageError> {
+        let store = self.store;
+        boxed("store_log_record", async {
+            let mut tx = store.write_transaction().await;
+            tx.write(&record_key(sequence, STORED_LOG_RECORDS), record)
+                .await?;
+            tx.write(NEXT_KEY, &sequence.wrapping_add(1).to_le_bytes())
                 .await?;
 
             Ok(tx.commit().await?)

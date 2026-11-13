@@ -41,3 +41,10 @@ jobs:
         with:
           name: card_io_fw_${{ matrix.version }}.bin
           path: target/card_io_fw.bin
+
+      # For decoding logs.
+      - name: archive ELF
+        uses: actions/upload-artifact@v6
+        with:
+          name: card_io_fw_${{ matrix.version }}.elf
+          path: target/card_io_fw.elf

@@ -18,6 +18,7 @@ pub mod hardware;
 pub mod drivers;
 pub mod flash;
 pub mod initialized;
+pub mod logging;
 #[cfg(feature = "wifi")]
 pub mod ota;
 pub mod startup;
@@ -26,8 +27,6 @@ pub mod utils;
 #[cfg(feature = "wifi")]
 pub mod wifi;
 
-#[cfg(feature = "esp-println")]
-use esp_backtrace as _;
 #[cfg(feature = "esp32c6")]
 use esp_hal::riscv::interrupt;
 #[cfg(feature = "esp32s3")]
@@ -35,11 +34,9 @@ use esp_hal::xtensa_lx::interrupt;
 use esp_hal::{
     gpio::{AnyPin, Event, Input, InputConfig, WakeupConfig},
     peripherals::LPWR,
-    rtc_cntl::sleep::LowPower,
+    rtc_cntl::{sleep::LowPower, SocResetReason},
 };
 use esp_rtos::sleep::Sleep;
-#[cfg(feature = "rtt")]
-use panic_rtt_target as _;
 
 use core::sync::atomic::{AtomicU32, Ordering};
 pub use hardware::*;
@@ -57,7 +54,22 @@ pub fn enter_sleep(is_charging: bool) {
     } else {
         EXIT_REQUESTED
     };
+    logging::mark_healthy();
     EXIT.store(value, Ordering::Relaxed);
+}
+
+/// Names the last reset, unless the device woke from the deep sleep that `enter_sleep` starts.
+pub fn reset_message() -> Option<heapless::String<32>> {
+    use core::fmt::Write;
+
+    let mut message = heapless::String::new();
+    let written = match esp_hal::system::reset_reason() {
+        Some(SocResetReason::CoreDeepSleep) => return None,
+        Some(reason) => write!(message, "Reset: {:?}", reason),
+        None => write!(message, "Reset: unknown"),
+    };
+
+    written.ok().map(|()| message)
 }
 
 fn setup_sleep(lpwr: LPWR<'static>) -> extern "C" fn() -> ! {

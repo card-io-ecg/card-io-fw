@@ -8,9 +8,6 @@ extern crate alloc;
 // MUST be the first module
 mod fmt;
 
-#[cfg(feature = "esp-println")]
-use esp_println as _;
-
 use alloc::{boxed::Box, rc::Rc};
 use embassy_executor::Spawner;
 use embassy_sync::{
@@ -54,6 +51,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 mod board;
 pub mod human_readable;
+mod panic;
 mod states;
 mod task_control;
 mod timeout;
@@ -147,8 +145,7 @@ async fn load_pairing(storage: Option<&mut FileSystem>) -> Pairing {
 
 #[esp_rtos::main]
 async fn main(_spawner: Spawner) {
-    #[cfg(all(feature = "rtt", feature = "defmt"))]
-    rtt_target::rtt_init_defmt!();
+    board::logging::init();
 
     let wake_lock = Some(WakeLock::new());
 
@@ -180,6 +177,7 @@ async fn main(_spawner: Spawner) {
     board::storage::init(resources.flash, "storage");
 
     let mut storage = FileSystem::mount().await;
+    board::logging::save(storage.as_mut()).await;
     info!("Heap after mount: {}", esp_alloc::HEAP.stats());
     let config = load_config(storage.as_mut()).await;
     info!("Heap after load_config: {}", esp_alloc::HEAP.stats());
@@ -224,6 +222,10 @@ async fn main(_spawner: Spawner) {
         info!("New app state: {:?}", state);
         state = match state {
             AppState::PreInitialize => {
+                if let Some(message) = board::reset_message() {
+                    board.display_message(&message).await;
+                }
+
                 if board.battery_monitor.is_plugged() {
                     AppState::Charging
                 } else {

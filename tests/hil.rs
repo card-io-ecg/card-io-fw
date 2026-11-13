@@ -15,7 +15,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 #[embedded_test::setup]
 fn setup() {
-    rtt_target::rtt_init_defmt!();
+    board::logging::init();
 }
 
 #[embedded_test::tests(executor = esp_rtos::embassy::Executor::new())]
@@ -29,9 +29,13 @@ mod tests {
     use ekv::{config::MAX_VALUE_SIZE, flash::Flash, Database};
     use embassy_sync_06::blocking_mutex::raw::NoopRawMutex;
     use embassy_time::Instant;
-    use esp_bootloader_esp_idf::partitions::{read_partition_table, PARTITION_TABLE_MAX_LEN};
-    use esp_hal::{clock::CpuClock, peripherals::FLASH, timer::systimer::SystemTimer};
-    use esp_storage::FlashStorage;
+    use esp_bootloader_esp_idf::partitions::{
+        read_partition_table, FlashStorage, PARTITION_TABLE_MAX_LEN,
+    };
+    use esp_hal::{
+        clock::CpuClock, flash::Config as FlashConfig, peripherals::FLASH,
+        timer::systimer::SystemTimer,
+    };
     use network_services::pairing::{Name, SigningKey};
 
     use crate::board::storage::{self, measurement_buffer, FileSystem};
@@ -57,7 +61,7 @@ mod tests {
         esp_alloc::heap_allocator!(size: 192 * 1024);
 
         let systimer = SystemTimer::new(peripherals.SYSTIMER);
-        esp_rtos::start(systimer.alarm0, peripherals.FROM_CPU_INTR0);
+        esp_rtos::start(systimer.alarm0);
 
         Board {
             flash: peripherals.FLASH,
@@ -66,7 +70,8 @@ mod tests {
 
     /// Erases the whole `hil` partition, so the store has to be formatted by the first mount.
     fn erase_partition(flash: FLASH<'_>) {
-        let mut storage = FlashStorage::new(flash);
+        let mut storage =
+            FlashStorage::new(flash, FlashConfig::default()).expect("flash did not start");
 
         let mut buffer = Vec::new();
         buffer.resize(PARTITION_TABLE_MAX_LEN, 0);
@@ -76,9 +81,10 @@ mod tests {
             .find(|entry| entry.label_as_str() == HIL_PARTITION)
             .expect("no `hil` partition");
 
-        let from = partition.offset();
-        storage
-            .erase(from, from + partition.len())
+        partition
+            .as_flash_region(&mut storage)
+            .expect("the `hil` partition is encrypted")
+            .erase(0, partition.len())
             .expect("erase failed");
     }
 

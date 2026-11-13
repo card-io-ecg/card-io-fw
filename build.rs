@@ -109,14 +109,16 @@ fn main() {
 
     let pkg_version = env!("CARGO_PKG_VERSION");
     let git_hash_bytes = std::process::Command::new("git")
-        .args(["rev-parse", "--short", "HEAD"])
+        .args(["rev-parse", "HEAD"])
         .output()
         .expect("Failed to execute git command")
         .stdout;
 
+    // The backend stores the first 7 characters of the commit as the version of a CI run.
     let git_hash_str = std::str::from_utf8(&git_hash_bytes)
         .expect("Not a valid utf8 string")
-        .trim();
+        .get(..7)
+        .expect("git rev-parse HEAD names a full commit");
 
     println!("cargo:rustc-env=COMMIT_HASH={git_hash_str}");
     println!("cargo:rustc-env=FW_VERSION={pkg_version}-{git_hash_str}");

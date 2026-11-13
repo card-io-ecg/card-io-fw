@@ -173,6 +173,9 @@ fn build(config: BuildConfig, timings: bool) -> AnyResult<()> {
     )
     .run()?;
 
+    // The ELF decodes the logs of the image.
+    std::fs::copy(config.elf(), "target/card_io_fw.elf")?;
+
     Ok(())
 }
 
@@ -253,7 +256,12 @@ fn extra_checks(config: BuildConfig) -> AnyResult<()> {
 }
 
 fn test() -> AnyResult<()> {
-    let packages = ["signal-processing", "config-types", "network-services"];
+    let packages = [
+        "signal-processing",
+        "config-types",
+        "network-services",
+        "log-ring",
+    ];
 
     let mut args = vec!["test", "--features=dyn_filter"];
 
@@ -406,18 +414,6 @@ impl BuildConfig {
         let mut command = command.to_vec();
         command.extend_from_slice(&["--config", &config]);
 
-        let expr = cargo(self.soc.toolchain(), &command);
-
-        if self.profile == Profile::Release {
-            // cargo-espflash doesn't forward `--config`. Cargo appends these to the rustflags
-            // in `.cargo/config.toml` instead of replacing them.
-            let triple = self.soc.target().to_uppercase().replace('-', "_");
-            expr.env(
-                format!("CARGO_TARGET_{triple}_RUSTFLAGS"),
-                "-Zunstable-options -Cpanic=immediate-abort",
-            )
-        } else {
-            expr
-        }
+        cargo(self.soc.toolchain(), &command)
     }
 }

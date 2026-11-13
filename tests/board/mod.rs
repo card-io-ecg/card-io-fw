@@ -6,5 +6,9 @@ mod fmt;
 
 #[path = "../../src/board/flash.rs"]
 pub mod flash;
+// The tests save no record and never panic through the firmware's handler.
+#[allow(dead_code)]
+#[path = "../../src/board/logging.rs"]
+pub mod logging;
 #[path = "../../src/board/storage.rs"]
 pub mod storage;
