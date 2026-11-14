@@ -178,7 +178,8 @@ pub async fn save(storage: Option<&mut FileSystem>) {
         // A flash or a reset through the probe is no crash.
         _ if debugger_connected() => debug!("Debugger connected. Log record dropped"),
         Some(storage) => {
-            if let Err(e) = store_record(storage, pending).await {
+            let reset_reason = system::reset_reason().map_or(0, |reason| reason as u8);
+            if let Err(e) = store_record(storage, pending, reset_reason).await {
                 warn!("Failed to save the log record: {:?}", e);
             }
         }
@@ -191,7 +192,20 @@ pub async fn save(storage: Option<&mut FileSystem>) {
     });
 }
 
-async fn store_record(storage: &mut FileSystem, pending: Pending) -> Result<(), StorageError> {
+/// Saves the logs of this boot as a record, for a diagnosis. The record names no reset reason.
+pub async fn save_now(storage: &mut FileSystem) -> Result<(), StorageError> {
+    let pending = Pending {
+        suspect: false,
+        panic: false,
+    };
+    store_record(storage, pending, 0).await
+}
+
+async fn store_record(
+    storage: &mut FileSystem,
+    pending: Pending,
+    reset_reason: u8,
+) -> Result<(), StorageError> {
     let sequence = storage.next_log_sequence().await?;
 
     let mut record = Vec::new();
@@ -202,7 +216,7 @@ async fn store_record(storage: &mut FileSystem, pending: Pending) -> Result<(), 
 
     let info = RecordInfo {
         pending,
-        reset_reason: system::reset_reason().map_or(0, |reason| reason as u8),
+        reset_reason,
         sequence,
         firmware_version: env!("COMMIT_HASH"),
         hardware_version: env!("HW_VERSION"),

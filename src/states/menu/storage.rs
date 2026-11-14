@@ -1,5 +1,5 @@
 use crate::{
-    board::{initialized::Context, storage::FileSystem},
+    board::{initialized::Context, logging, storage::FileSystem},
     states::menu::{AppMenu, MenuBuilder, MenuItems, MenuScreen},
     uformat, AppState,
 };
@@ -16,6 +16,7 @@ use gui::{
 #[derive(Clone, Copy)]
 pub enum StorageMenuEvents {
     ChangeMeasurementAction(MeasurementAction),
+    SaveLogs,
     Format,
     Nothing,
     Back,
@@ -48,6 +49,7 @@ type StorageMenuBuilder = MenuBuilder<
     chain!(
         StorageMenuItem<MeasurementAction>,
         MenuItems<StorageMenuItem<SavedCount>, StorageMenuEvents, 2>,
+        StorageMenuItem<&'static str>,
         StorageMenuItem<&'static str>,
         StorageMenuItem<&'static str>
     ),
@@ -87,6 +89,7 @@ async fn storage_menu_builder(context: &mut Context) -> StorageMenuBuilder {
             StorageMenuEvents::ChangeMeasurementAction,
         )
         .add_menu_items(used_item)
+        .add_item("Save logs", "->", |_| StorageMenuEvents::SaveLogs)
         .add_item("Format storage", "->", |_| StorageMenuEvents::Format)
         .add_item("Back", "<-", |_| StorageMenuEvents::Back)
 }
@@ -113,6 +116,22 @@ impl MenuScreen for StorageMenu {
                 debug!("Settings changed");
 
                 context.update_config(|config| config.measurement_action = action);
+            }
+            StorageMenuEvents::SaveLogs => {
+                let message = match context.storage.as_mut() {
+                    Some(storage) => match logging::save_now(storage).await {
+                        Ok(()) => "Logs saved",
+                        Err(e) => {
+                            warn!("Failed to save the logs: {:?}", e);
+                            "Could not save the logs"
+                        }
+                    },
+                    None => "Storage not available",
+                };
+                context.display_message(message).await;
+
+                // The menu shows the new count of saved logs.
+                return Some(AppState::Menu(AppMenu::Storage));
             }
             StorageMenuEvents::Format => {
                 info!("Format requested");
