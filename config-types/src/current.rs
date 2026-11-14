@@ -7,7 +7,7 @@ use super::types::{
     MeasurementAction, MeasurementWifi, MenuWifi, MinBattery,
 };
 
-pub const DEFAULT_NTP_SERVER: &str = "pool.ntp.org";
+pub use config_site::data::DEFAULT_NTP_SERVER;
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Config {

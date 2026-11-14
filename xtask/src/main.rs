@@ -260,6 +260,7 @@ fn extra_checks(config: BuildConfig) -> AnyResult<()> {
 fn test() -> AnyResult<()> {
     let packages = [
         "signal-processing",
+        "config-site",
         "config-types",
         "network-services",
         "log-ring",
