@@ -40,7 +40,7 @@ use network_services::{
 use crate::{
     board::{
         initialized::{Context, Save},
-        wifi::{ap::Ap, sta::Sta},
+        wifi::{ap::Ap, sta::Sta, AP_HOST},
     },
     states::{
         menu::{
@@ -363,7 +363,8 @@ async fn webserver_task(
                 }
             };
 
-            let handler = ConfigSite::new(&context, &*station, &pairing, env!("FW_VERSION"));
+            let handler =
+                ConfigSite::new(&context, &*station, &pairing, env!("FW_VERSION"), AP_HOST);
 
             if let Err(e) = resources
                 .server

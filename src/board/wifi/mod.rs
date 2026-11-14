@@ -25,12 +25,16 @@ macro_rules! mk_static {
     }};
 }
 
-// embassy-net adds a DNS socket to every stack. The access point also holds the DHCP server and
-// the web server connections. The station also holds the time sync socket.
-const AP_SOCKET_COUNT: usize = 4;
+// embassy-net adds a DNS socket to every stack. The access point also holds the DHCP server, the
+// DNS server and the web server connections. The station also holds the time sync socket.
+const AP_SOCKET_COUNT: usize = 5;
 const STA_SOCKET_COUNT: usize = 4;
 
 pub const AP_ADDRESS: Ipv4Addr = Ipv4Addr::new(192, 168, 2, 1);
+/// `AP_ADDRESS` as the host of the setup page.
+pub const AP_HOST: &str = "192.168.2.1";
+/// The captive portal API (RFC 8910) that DHCP names, on the setup page's server.
+pub const CAPTIVE_URL: &str = "http://192.168.2.1/captive";
 
 /// Maximum TX power in 0.25 dBm units (5 dBm). The esp-radio default of 20 dBm turns the device off.
 const MAX_TX_POWER: i8 = 20;

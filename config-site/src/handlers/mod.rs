@@ -54,20 +54,25 @@ pub struct ConfigSite<'a, S, P> {
     station: &'a S,
     pairing: &'a P,
     fw_version: &'a str,
+    host: &'a str,
 }
 
 impl<'a, S: Station, P: PairingControl> ConfigSite<'a, S, P> {
+    /// `host` is the host name of the site, without a port. A request for another host gets a
+    /// redirect to it.
     pub fn new(
         context: &'a SharedWebContext,
         station: &'a S,
         pairing: &'a P,
         fw_version: &'a str,
+        host: &'a str,
     ) -> Self {
         Self {
             context,
             station,
             pairing,
             fw_version,
+            host,
         }
     }
 }
@@ -89,9 +94,17 @@ impl<S: Station, P: PairingControl> Handler for ConfigSite<'_, S, P> {
         let headers = conn.headers()?;
         let method = headers.method;
         let path = headers.path.split('?').next().unwrap_or_default();
-        info!("Setup page: {:?} {}", method, path);
+        let host = headers.headers.get("Host").unwrap_or_default();
+        info!("Setup page: {:?} {} {}", method, host, path);
+
+        // A phone checks for internet with a request to another host. The redirect tells it that
+        // this network is a captive portal, and it opens the setup page.
+        if !host.is_empty() && host.split(':').next() != Some(self.host) {
+            return redirect(conn, self.host).await;
+        }
 
         match (method, path) {
+            (Method::Get, "/captive") => captive(conn, self.host).await,
             (Method::Get, "/") => send_static(conn, "text/html; charset=utf-8", INDEX).await,
             (Method::Get, "/font") => send_static(conn, "font/ttf", HEADER_FONT).await,
             (Method::Get, "/si") => respond(conn, 200, self.fw_version).await,
@@ -140,6 +153,49 @@ where
 
     conn.initiate_response(200, None, headers).await?;
     conn.write_all(body).await
+}
+
+/// Sends the client to the site's home page.
+async fn redirect<T, const N: usize>(
+    conn: &mut Connection<'_, T, N>,
+    host: &str,
+) -> Result<(), Error<T::Error>>
+where
+    T: Read + Write,
+{
+    let mut location = heapless::String::<80>::new();
+    unwrap!(write!(location, "http://{host}/"));
+    let headers = [
+        ("Location", location.as_str()),
+        ("Content-Length", "0"),
+        ("Cache-Control", "no-store"),
+    ];
+
+    conn.initiate_response(302, None, &headers).await
+}
+
+/// The captive portal API of RFC 8910: the network is captive, and the site is its portal.
+async fn captive<T, const N: usize>(
+    conn: &mut Connection<'_, T, N>,
+    host: &str,
+) -> Result<(), Error<T::Error>>
+where
+    T: Read + Write,
+{
+    let mut body = heapless::String::<96>::new();
+    unwrap!(write!(
+        body,
+        r#"{{"captive":true,"user-portal-url":"http://{host}/"}}"#
+    ));
+    let len = length(body.len());
+    let headers = [
+        ("Content-Type", "application/captive+json"),
+        ("Content-Length", len.as_str()),
+        ("Cache-Control", "no-store"),
+    ];
+
+    conn.initiate_response(200, None, &headers).await?;
+    conn.write_all(body.as_bytes()).await
 }
 
 /// Sends a plain text response.

@@ -10,6 +10,7 @@ extern crate std;
 mod fmt;
 
 pub mod client;
+pub mod dns;
 pub mod http;
 pub mod pairing;
 pub mod sntp;

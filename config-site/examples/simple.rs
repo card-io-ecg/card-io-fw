@@ -198,7 +198,7 @@ pub async fn run() {
 
     let station = FakeStation::new(&context);
     let pairing = FakePairing::new();
-    let handler = ConfigSite::new(&context, &station, &pairing, "Example");
+    let handler = ConfigSite::new(&context, &station, &pairing, "Example", "127.0.0.1");
 
     DefaultServer::new()
         .run(None, acceptor, handler)

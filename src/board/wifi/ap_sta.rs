@@ -14,7 +14,7 @@ use crate::{
         power::Power,
         sta::{CommandQueue, Sta, StaConnectionState, StaController},
         time_sync::{time_sync_task, TimeSync},
-        AP_ADDRESS,
+        AP_ADDRESS, CAPTIVE_URL,
     },
     task_control::{TaskControlToken, TaskController},
 };
@@ -29,15 +29,20 @@ use embassy_futures::{
     join::join4,
     select::{select4, Either4},
 };
-use embassy_net::{Runner, Stack};
+use embassy_net::{
+    udp::{PacketMetadata, UdpSocket},
+    Runner, Stack,
+};
 use esp_radio::wifi::{ap::AccessPointConfig, Interface, PowerSaveMode, WifiController};
 use macros as cardio;
+use network_services::dns;
 
 pub(super) struct ApStaState {
     connection_task_control: TaskController<(), ApStaTaskResources>,
     ap_net_task_control: TaskController<()>,
     sta_net_task_control: TaskController<()>,
     dhcp_task_control: TaskController<()>,
+    dns_task_control: TaskController<()>,
     time_sync_task_control: TaskController<()>,
     ap_handle: Ap,
     sta_handle: Sta,
@@ -72,6 +77,7 @@ impl ApStaState {
         let ap_net_task_control = TaskController::new();
         let sta_net_task_control = TaskController::new();
         let dhcp_task_control = TaskController::new();
+        let dns_task_control = TaskController::new();
         let time_sync_task_control = TaskController::new();
 
         let ap_config = AccessPointConfig::default()
@@ -88,6 +94,7 @@ impl ApStaState {
         spawner.spawn(unwrap!(net_task(ap_runner, ap_net_task_control.token())));
         spawner.spawn(unwrap!(net_task(sta_runner, sta_net_task_control.token())));
         spawner.spawn(unwrap!(dhcp_task(ap_stack, dhcp_task_control.token())));
+        spawner.spawn(unwrap!(dns_task(ap_stack, dns_task_control.token())));
         spawner.spawn(unwrap!(time_sync_task(
             sta_stack,
             time_sync,
@@ -100,6 +107,7 @@ impl ApStaState {
             ap_net_task_control,
             sta_net_task_control,
             dhcp_task_control,
+            dns_task_control,
             time_sync_task_control,
 
             ap_handle: Ap {
@@ -113,6 +121,7 @@ impl ApStaState {
     pub(super) async fn stop(self) {
         info!("Stopping AP-STA");
         let _ = self.time_sync_task_control.stop().await;
+        let _ = self.dns_task_control.stop().await;
         let _ = join4(
             self.connection_task_control.stop(),
             self.ap_net_task_control.stop(),
@@ -167,7 +176,12 @@ async fn dhcp_task(stack: Stack<'static>, mut task_control: TaskControlToken<()>
             let mut server =
                 DhcpServer::<_, DHCP_LEASES>::new(|| Instant::now().as_secs(), AP_ADDRESS);
             let mut gateway = [AP_ADDRESS];
-            let options = ServerOptions::new(AP_ADDRESS, Some(&mut gateway));
+            let dns = [AP_ADDRESS];
+            let mut options = ServerOptions::new(AP_ADDRESS, Some(&mut gateway));
+            // The access point answers every name, and a phone opens the setup page as the
+            // captive portal.
+            options.dns = &dns;
+            options.captive_url = Some(CAPTIVE_URL);
 
             if let Err(e) =
                 run_dhcp(&mut server, &options, &mut socket, &mut resources.packet).await
@@ -177,6 +191,50 @@ async fn dhcp_task(stack: Stack<'static>, mut task_control: TaskControlToken<()>
         })
         .await;
     info!("Stopped DHCP task");
+}
+
+const DNS_PORT: u16 = 53;
+/// The largest DNS message over UDP without EDNS.
+const DNS_MESSAGE_LEN: usize = 512;
+
+// One spare slot: see `net_task`.
+#[cardio::task(pool_size = 2)]
+async fn dns_task(stack: Stack<'static>, mut task_control: TaskControlToken<()>) {
+    task_control
+        .run_cancellable(|_| async {
+            let mut rx_meta = [PacketMetadata::EMPTY; 2];
+            let mut rx_buffer = [0; 2 * DNS_MESSAGE_LEN];
+            let mut tx_meta = [PacketMetadata::EMPTY; 2];
+            let mut tx_buffer = [0; 2 * DNS_MESSAGE_LEN];
+            let mut socket = UdpSocket::new(
+                stack,
+                &mut rx_meta,
+                &mut rx_buffer,
+                &mut tx_meta,
+                &mut tx_buffer,
+            );
+            if let Err(e) = socket.bind(DNS_PORT) {
+                warn!("Failed to bind the DNS socket: {:?}", e);
+                return;
+            }
+
+            let mut query = [0; DNS_MESSAGE_LEN];
+            let mut reply = [0; DNS_MESSAGE_LEN];
+            loop {
+                let Ok((len, meta)) = socket.recv_from(&mut query).await else {
+                    continue;
+                };
+                let Some(reply_len) = dns::answer(&query[..len], AP_ADDRESS, &mut reply) else {
+                    debug!("Ignored a DNS message");
+                    continue;
+                };
+                debug!("Answered a DNS query from {}", meta.endpoint);
+                if let Err(e) = socket.send_to(&reply[..reply_len], meta.endpoint).await {
+                    warn!("Failed to send a DNS answer: {:?}", e);
+                }
+            }
+        })
+        .await;
 }
 
 // One spare slot: see `net_task`.
