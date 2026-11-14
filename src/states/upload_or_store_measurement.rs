@@ -288,6 +288,9 @@ mod wifi {
             return Err(NotUploaded::NotReady(reason));
         }
 
+        // Starting the radio takes seconds and draws nothing.
+        context.display_message("Preparing upload...").await;
+
         let sta = if let Some(sta) = context.enable_wifi_sta(StaMode::Enable).await {
             if sta.wait_for_connection(context).await {
                 sta

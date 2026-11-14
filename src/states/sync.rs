@@ -8,6 +8,9 @@ use crate::{
 
 /// Uploads the stored measurements and the log records, then looks for a firmware update.
 pub async fn sync(context: &mut Context) -> AppState {
+    // Starting the radio takes seconds and draws nothing.
+    context.display_message("Syncing...").await;
+
     if !upload_stored(context, StaMode::Enable).await {
         return AppState::Menu(AppMenu::Main);
     }
