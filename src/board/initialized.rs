@@ -4,7 +4,7 @@ use core::{
 };
 
 #[cfg(feature = "wifi")]
-use crate::board::wifi::{ap::Ap, sta::Sta, WifiDriver, AP_ADDRESS};
+use crate::board::wifi::{ap::Ap, sta::Sta, time_sync::TimeSync, WifiDriver, AP_ADDRESS};
 use crate::{
     board::{
         clock::Clock, drivers::battery_monitor::BatteryMonitor, startup::Display,
@@ -246,7 +246,7 @@ impl InnerContext {
 
         let sta = self
             .wifi
-            .configure_sta(NetConfig::dhcpv4(Default::default()))
+            .configure_sta(NetConfig::dhcpv4(Default::default()), self.time_sync())
             .await;
 
         sta.update_known_networks(&self.config.known_networks).await;
@@ -290,12 +290,21 @@ impl InnerContext {
                     dns_servers: Default::default(),
                 }),
                 NetConfig::dhcpv4(Default::default()),
+                self.time_sync(),
             )
             .await;
 
         sta.update_known_networks(&self.config.known_networks).await;
 
         Some((ap, sta))
+    }
+
+    #[cfg(feature = "wifi")]
+    fn time_sync(&self) -> TimeSync {
+        TimeSync {
+            clock: self.clock,
+            server: self.config.ntp_server.clone(),
+        }
     }
 
     /// Note: make sure Sta/Ap is released before calling this.

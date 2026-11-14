@@ -7,6 +7,7 @@ use crate::{
             net_task,
             power::{Awake, Power},
             set_config,
+            time_sync::{time_sync_task, TimeSync},
         },
     },
     task_control::{TaskControlToken, TaskController},
@@ -16,7 +17,7 @@ use alloc::{rc::Rc, vec::Vec};
 use config_site::data::network::{StationStatus, WifiNetwork};
 use embassy_executor::Spawner;
 use embassy_futures::{
-    join::join,
+    join::join3,
     select::{select, select4, Either4},
 };
 use embassy_net::{Runner, Stack};
@@ -282,6 +283,7 @@ impl rand_core::CryptoRng for WifiRng {}
 pub(super) struct StaState {
     connection_task_control: TaskController<(), StaTaskResources>,
     net_task_control: TaskController<()>,
+    time_sync_task_control: TaskController<()>,
     handle: Sta,
 }
 
@@ -291,6 +293,7 @@ impl StaState {
         sta_stack: Stack<'static>,
         sta_runner: Runner<'static, Interface>,
         spawner: Spawner,
+        time_sync: TimeSync,
     ) -> Self {
         info!("Starting STA");
         let handle = Sta {
@@ -306,6 +309,7 @@ impl StaState {
         let connection_task_control =
             TaskController::from_resources(StaTaskResources { controller });
         let net_task_control = TaskController::new();
+        let time_sync_task_control = TaskController::new();
 
         info!("Starting STA tasks");
         spawner.spawn(unwrap!(sta_task(
@@ -313,19 +317,27 @@ impl StaState {
             connection_task_control.token(),
         )));
         spawner.spawn(unwrap!(net_task(sta_runner, net_task_control.token())));
+        spawner.spawn(unwrap!(time_sync_task(
+            sta_stack,
+            time_sync,
+            handle.power.clone(),
+            time_sync_task_control.token(),
+        )));
 
         Self {
             connection_task_control,
             net_task_control,
+            time_sync_task_control,
             handle,
         }
     }
 
     pub(super) async fn stop(self) {
         info!("Stopping STA");
-        let _ = join(
+        let _ = join3(
             self.connection_task_control.stop(),
             self.net_task_control.stop(),
+            self.time_sync_task_control.stop(),
         )
         .await;
 
