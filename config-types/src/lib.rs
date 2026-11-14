@@ -9,5 +9,6 @@ pub mod current;
 pub mod measurement_queue;
 pub mod record;
 pub mod types;
+pub mod v1;
 
 pub use current::Config;

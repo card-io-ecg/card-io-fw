@@ -23,6 +23,8 @@ pub mod frontend;
 pub mod main;
 pub mod storage;
 #[cfg(feature = "wifi")]
+pub mod wifi;
+#[cfg(feature = "wifi")]
 pub mod wifi_ap;
 #[cfg(feature = "wifi")]
 pub mod wifi_sta;
@@ -36,6 +38,8 @@ pub enum AppMenu {
     Storage,
     DeviceInfo,
     BatteryInfo,
+    #[cfg(feature = "wifi")]
+    Wifi,
     #[cfg(feature = "wifi")]
     WifiAP,
     #[cfg(feature = "wifi")]
@@ -177,12 +181,17 @@ pub trait MenuScreen {
 
 pub async fn display_menu_screen(mut menu: AppMenu, board: &mut Context) -> AppState {
     loop {
+        #[cfg(feature = "wifi")]
+        start_menu_wifi(menu, board).await;
+
         let next = match menu {
             AppMenu::Main => main::main_menu(board).await,
             AppMenu::Display => display::display_menu(board).await,
             AppMenu::Frontend => frontend::frontend_menu(board).await,
             AppMenu::Storage => storage::storage_menu(board).await,
             AppMenu::DeviceInfo => about::about_menu(board).await,
+            #[cfg(feature = "wifi")]
+            AppMenu::Wifi => wifi::wifi_menu(board).await,
             #[cfg(feature = "wifi")]
             AppMenu::WifiAP => wifi_ap::wifi_ap(board).await,
             #[cfg(feature = "wifi")]
@@ -192,7 +201,36 @@ pub async fn display_menu_screen(mut menu: AppMenu, board: &mut Context) -> AppS
 
         match next {
             AppState::Menu(app_menu) => menu = app_menu,
-            other => return other,
+            other => {
+                #[cfg(feature = "wifi")]
+                stop_measurement_wifi(&other, board).await;
+
+                return other;
+            }
         }
+    }
+}
+
+/// The setup and the network list start the Wi-Fi mode that they need.
+#[cfg(feature = "wifi")]
+async fn start_menu_wifi(menu: AppMenu, board: &mut Context) {
+    use crate::board::initialized::StaMode;
+    use config_types::types::MenuWifi;
+
+    if board.config.wifi_in_menu == MenuWifi::Always
+        && !matches!(menu, AppMenu::WifiAP | AppMenu::WifiListVisible)
+    {
+        board.enable_wifi_sta(StaMode::Enable).await;
+    }
+}
+
+#[cfg(feature = "wifi")]
+async fn stop_measurement_wifi(next: &AppState, board: &mut Context) {
+    use config_types::types::MeasurementWifi;
+
+    if matches!(next, AppState::Initialize)
+        && board.config.wifi_in_measurement == MeasurementWifi::Stop
+    {
+        board.disable_wifi().await;
     }
 }

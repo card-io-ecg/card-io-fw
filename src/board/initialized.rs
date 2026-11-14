@@ -150,11 +150,6 @@ impl Context {
 
     #[cfg(feature = "wifi")]
     pub async fn sta_has_work(&mut self) -> bool {
-        // TODO: we can do a flag that is true on boot, so that entering the menu will always
-        // connect and look for update, etc. We can also use a flag to see if we have ongoing
-        // communication, so we can keep wifi on. Question is: when/how do we disable wifi if
-        // it is in on-demand mode?
-
         if self.inner.sta_work_available.is_none() {
             if let Some(storage) = self.storage.as_mut() {
                 match storage.has_measurements().await {
@@ -306,7 +301,10 @@ impl InnerContext {
     pub fn can_enable_wifi(&mut self) -> bool {
         self.battery_monitor
             .battery_data()
-            .map(|battery| battery.percentage > 50 || battery.is_charging())
+            .map(|battery| {
+                battery.percentage > self.config.wifi_min_battery.percentage()
+                    || battery.is_charging()
+            })
             .unwrap_or(false)
     }
 

@@ -10,18 +10,13 @@ use embedded_menu::{
 use gui::{embedded_layout::object_chain, screens::create_menu};
 use signal_processing::compressing_buffer::{CompressingBuffer, EkgFormat};
 
+#[cfg(feature = "wifi")]
+use crate::board::initialized::StaMode;
 use crate::{
     board::initialized::Context, human_readable::BinarySize, states::menu::MenuScreen, uformat,
     AppState,
 };
 use config_types::types::MeasurementAction;
-
-#[cfg(feature = "wifi")]
-pub async fn upload_stored_measurements(context: &mut Context, next_state: AppState) -> AppState {
-    upload_stored(context).await;
-
-    next_state
-}
 
 pub async fn upload_or_store_measurement<const SIZE: usize>(
     context: &mut Context,
@@ -82,7 +77,7 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
         // `upload_stored` deletes each measurement that the server takes, and keeps the others.
         let reachable = context.backend_ready().is_ok() && context.can_enable_wifi();
         if (stored && reachable) || (uploaded_directly && context.sta_has_work().await) {
-            upload_stored(context).await;
+            upload_stored(context, StaMode::OnDemand).await;
         }
     }
 
@@ -313,6 +308,7 @@ mod wifi {
             context.display_message("Out of memory").await;
             return Err(NotUploaded::Failed);
         };
+        let _awake = client.awake().await;
 
         match upload_measurement(
             &mut client,
@@ -343,10 +339,11 @@ mod wifi {
         }
     }
 
-    pub async fn upload_stored(context: &mut Context) {
+    /// Returns `false` when the device has no connection to the server.
+    pub async fn upload_stored(context: &mut Context, mode: StaMode) -> bool {
         let Some(signing) = context.signing() else {
             context.display_message("Device not paired").await;
-            return;
+            return false;
         };
 
         let Ok(mut payload) = measurement_buffer() else {
@@ -355,35 +352,46 @@ mod wifi {
                 esp_alloc::HEAP.stats()
             );
             context.display_message("Out of memory").await;
-            return;
+            return true;
         };
 
-        let sta = if let Some(sta) = context.enable_wifi_sta(StaMode::OnDemand).await {
+        let sta = if let Some(sta) = context.enable_wifi_sta(mode).await {
             if sta.wait_for_connection(context).await {
                 sta
             } else {
                 context.display_message("Failed to connect to WiFi").await;
-                return;
+                return false;
             }
         } else {
-            context.display_message("Nothing to upload").await;
-            return;
+            let message = match mode {
+                StaMode::OnDemand => "Nothing to upload",
+                StaMode::Enable => "WiFi not enabled",
+            };
+            context.display_message(message).await;
+            return false;
         };
 
-        context
-            .display_message("Uploading stored measurements...")
-            .await;
+        let has_measurements = match context.storage.as_mut() {
+            Some(storage) => matches!(storage.has_measurements().await, Ok(true)),
+            None => false,
+        };
+        if has_measurements {
+            context
+                .display_message("Uploading stored measurements...")
+                .await;
+        }
 
         let Some(storage) = context.storage.as_mut() else {
             context.display_message("Storage not available").await;
-            return;
+            return true;
         };
 
         let Ok(mut client) = sta.client() else {
             context.display_message("Out of memory").await;
-            return;
+            return true;
         };
 
+        let _awake = client.awake().await;
         let result = loop {
             let version = match storage.load_oldest_measurement(&mut payload).await {
                 Ok(Some(version)) => version,
@@ -418,16 +426,21 @@ mod wifi {
         }
 
         let message = match result {
-            Ok(()) => "Upload successful",
-            Err(UploadError::Failed) => "Failed to upload measurements",
+            Ok(()) if !has_measurements => None,
+            Ok(()) => Some("Upload successful"),
+            Err(UploadError::Failed) => Some("Failed to upload measurements"),
             Err(UploadError::Refused) => {
                 context.pairing.refused();
-                REFUSED
+                Some(REFUSED)
             }
         };
-        context.display_message(message).await;
+        if let Some(message) = message {
+            context.display_message(message).await;
+        }
 
         context.signal_sta_work_available(result.is_err());
+
+        result != Err(UploadError::Refused)
     }
 
     pub struct MeasurementRef<'a> {
@@ -552,6 +565,8 @@ mod wifi {
 
         debug!("Uploading to {}", path);
 
+        let _awake = client.awake().await;
+
         let mut counters = signing.counters.lock().await;
         let mut signer = Signer::new(
             &signing.key,
@@ -600,5 +615,7 @@ mod wifi {
         }
     }
 }
+#[cfg(feature = "wifi")]
+pub use wifi::upload_stored;
 #[cfg(feature = "wifi")]
 use wifi::*;

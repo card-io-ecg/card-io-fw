@@ -95,6 +95,8 @@ async fn do_update(context: &mut Context) -> UpdateResult {
         return UpdateResult::Failed(UpdateError::WifiNotEnabled);
     };
 
+    let _awake = sta.awake().await;
+
     context.display_message("Looking for updates").await;
 
     let Some(signing) = context.signing() else {

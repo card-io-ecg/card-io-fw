@@ -11,6 +11,7 @@ use crate::{
     board::wifi::{
         ap::{Ap, ApConnectionState, ApController},
         net_task,
+        power::Power,
         sta::{CommandQueue, Sta, StaConnectionState, StaController},
         AP_ADDRESS,
     },
@@ -28,7 +29,7 @@ use embassy_futures::{
     select::{select4, Either4},
 };
 use embassy_net::{Runner, Stack};
-use esp_radio::wifi::{ap::AccessPointConfig, Interface, WifiController};
+use esp_radio::wifi::{ap::AccessPointConfig, Interface, PowerSaveMode, WifiController};
 use macros as cardio;
 
 pub(super) struct ApStaState {
@@ -52,11 +53,16 @@ impl ApStaState {
         info!("Configuring AP-STA");
 
         let ap_state = Rc::new(ApConnectionState::new());
-        let sta_state = Rc::new(StaConnectionState::new());
-        let networks = Rc::new(Mutex::new(heapless::Vec::new()));
-        let known_networks = Rc::new(Mutex::new(Vec::new()));
-        let command_queue = Rc::new(CommandQueue::new());
-        let networks_changed = Rc::new(Signal::new());
+        let sta_handle = Sta {
+            sta_stack,
+            networks: Rc::new(Mutex::new(heapless::Vec::new())),
+            known_networks: Rc::new(Mutex::new(Vec::new())),
+            state: Rc::new(StaConnectionState::new()),
+            command_queue: Rc::new(CommandQueue::new()),
+            networks_changed: Rc::new(Signal::new()),
+            // Modem sleep takes the radio away from the access point.
+            power: Rc::new(Power::new(PowerSaveMode::None)),
+        };
 
         let connection_task_control =
             TaskController::from_resources(ApStaTaskResources { controller });
@@ -70,15 +76,7 @@ impl ApStaState {
 
         info!("Starting AP-STA tasks");
         spawner.spawn(unwrap!(ap_sta_task(
-            StaController::new(
-                sta_state.clone(),
-                networks.clone(),
-                known_networks.clone(),
-                sta_stack,
-                command_queue.clone(),
-                networks_changed.clone(),
-                Some(ap_config),
-            ),
+            StaController::new(&sta_handle, Some(ap_config)),
             ApController::new(ap_state.clone()),
             connection_task_control.token(),
         )));
@@ -97,14 +95,7 @@ impl ApStaState {
                 ap_stack,
                 state: ap_state,
             },
-            sta_handle: Sta {
-                sta_stack,
-                networks,
-                known_networks,
-                state: sta_state,
-                command_queue,
-                networks_changed,
-            },
+            sta_handle,
         }
     }
 

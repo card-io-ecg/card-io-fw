@@ -23,7 +23,7 @@ pub enum WifiStaMenuEvents {
 pub async fn wifi_sta(context: &mut Context) -> AppState {
     let Some(sta) = context.enable_wifi_sta_for_scan().await else {
         // FIXME: Show error screen
-        return AppState::Menu(AppMenu::Main);
+        return AppState::Menu(AppMenu::Wifi);
     };
 
     const MENU_IDLE_DURATION: Duration = Duration::from_secs(30);
@@ -83,7 +83,7 @@ pub async fn wifi_sta(context: &mut Context) -> AppState {
             }
 
             if let Some(WifiStaMenuEvents::Back) = menu_screen.interact(is_touched) {
-                break AppState::Menu(AppMenu::Main);
+                break AppState::Menu(AppMenu::Wifi);
             }
 
             context

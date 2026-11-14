@@ -1,11 +1,13 @@
-use config_site::data::network::WifiNetwork;
+use config_site::data::{network::WifiNetwork, TimeZoneRule, UTC_RULE};
 use gui::widgets::battery_small::BatteryStyle;
 use ssd1306::prelude::Brightness;
 
 use super::types::{
     DisplayBrightness, FilterStrength, Gain, LeadOffCurrent, LeadOffFrequency, LeadOffThreshold,
-    MeasurementAction,
+    MeasurementAction, MeasurementWifi, MenuWifi, MinBattery,
 };
+
+pub const DEFAULT_NTP_SERVER: &str = "pool.ntp.org";
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Config {
@@ -21,6 +23,11 @@ pub struct Config {
     pub lead_off_threshold: LeadOffThreshold,
     pub lead_off_frequency: LeadOffFrequency,
     pub gain: Gain,
+    pub time_zone: TimeZoneRule,
+    pub ntp_server: heapless::String<64>,
+    pub wifi_in_menu: MenuWifi,
+    pub wifi_in_measurement: MeasurementWifi,
+    pub wifi_min_battery: MinBattery,
 }
 
 impl Default for Config {
@@ -38,6 +45,11 @@ impl Default for Config {
             lead_off_threshold: LeadOffThreshold::_95,
             lead_off_frequency: LeadOffFrequency::Dc,
             gain: Gain::X1,
+            time_zone: unwrap!(TimeZoneRule::try_from(UTC_RULE).ok()),
+            ntp_server: unwrap!(heapless::String::try_from(DEFAULT_NTP_SERVER).ok()),
+            wifi_in_menu: MenuWifi::OnDemand,
+            wifi_in_measurement: MeasurementWifi::Keep,
+            wifi_min_battery: MinBattery::_50,
         }
     }
 }

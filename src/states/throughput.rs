@@ -72,7 +72,7 @@ pub async fn throughput(context: &mut Context) -> AppState {
 
     context.display_message(message).await;
 
-    AppState::Menu(AppMenu::Main)
+    AppState::Menu(AppMenu::Wifi)
 }
 
 async fn run_test(context: &mut Context) -> TestResult {
@@ -85,6 +85,8 @@ async fn run_test(context: &mut Context) -> TestResult {
     } else {
         return TestResult::Failed(TestError::WifiNotEnabled);
     };
+
+    let _awake = sta.awake().await;
 
     let Some(signing) = context.signing() else {
         return TestResult::Failed(TestError::InternalError);

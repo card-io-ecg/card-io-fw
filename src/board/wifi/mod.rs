@@ -46,6 +46,7 @@ fn set_config(
 
 pub mod ap;
 pub mod ap_sta;
+mod power;
 pub mod sta;
 
 pub struct WifiDriver {

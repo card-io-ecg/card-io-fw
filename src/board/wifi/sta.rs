@@ -3,7 +3,11 @@ use core::{alloc::AllocError, cell::RefCell, cmp::Reverse, future::pending};
 use crate::{
     board::{
         initialized::Context,
-        wifi::{net_task, set_config},
+        wifi::{
+            net_task,
+            power::{Awake, Power},
+            set_config,
+        },
     },
     task_control::{TaskControlToken, TaskController},
     Shared,
@@ -13,7 +17,7 @@ use config_site::data::network::{StationStatus, WifiNetwork};
 use embassy_executor::Spawner;
 use embassy_futures::{
     join::join,
-    select::{select, select3, Either3},
+    select::{select, select4, Either4},
 };
 use embassy_net::{Runner, Stack};
 use embassy_sync::{
@@ -28,7 +32,7 @@ use esp_radio::wifi::{
     ap::AccessPointConfig,
     scan::{AccessPointInfo, ScanConfig},
     sta::StationConfig,
-    AuthenticationMethodConfig, Config, Interface, WifiController,
+    AuthenticationMethodConfig, Config, Interface, PowerSaveMode, WifiController,
 };
 use gui::widgets::wifi_client::WifiClientState;
 use heapless::String;
@@ -117,6 +121,7 @@ pub struct Sta {
     pub(super) state: Rc<StaConnectionState>,
     pub(super) command_queue: Rc<CommandQueue>,
     pub(super) networks_changed: Rc<Signal<NoopRawMutex, ()>>,
+    pub(super) power: Rc<Power>,
 }
 
 impl Sta {
@@ -194,7 +199,12 @@ impl Sta {
         Ok(StaClient {
             client,
             stack: self.sta_stack,
+            power: self.power.clone(),
         })
+    }
+
+    pub async fn awake(&self) -> Awake {
+        Awake::new(self.power.clone()).await
     }
 
     async fn send_command(&self, command: StaCommand) -> bool {
@@ -226,9 +236,14 @@ impl Sta {
 pub struct StaClient {
     pub client: Client,
     pub stack: Stack<'static>,
+    power: Rc<Power>,
 }
 
 impl StaClient {
+    pub async fn awake(&self) -> Awake {
+        Awake::new(self.power.clone()).await
+    }
+
     pub async fn connect<'c>(
         &'c mut self,
         base: &BaseUrl<'_>,
@@ -278,11 +293,15 @@ impl StaState {
         spawner: Spawner,
     ) -> Self {
         info!("Starting STA");
-        let networks = Rc::new(Mutex::new(heapless::Vec::new()));
-        let known_networks = Rc::new(Mutex::new(Vec::new()));
-        let state = Rc::new(StaConnectionState::new());
-        let command_queue = Rc::new(CommandQueue::new());
-        let networks_changed = Rc::new(Signal::new());
+        let handle = Sta {
+            sta_stack,
+            networks: Rc::new(Mutex::new(heapless::Vec::new())),
+            known_networks: Rc::new(Mutex::new(Vec::new())),
+            state: Rc::new(StaConnectionState::new()),
+            command_queue: Rc::new(CommandQueue::new()),
+            networks_changed: Rc::new(Signal::new()),
+            power: Rc::new(Power::new(PowerSaveMode::Maximum)),
+        };
 
         let connection_task_control =
             TaskController::from_resources(StaTaskResources { controller });
@@ -290,15 +309,7 @@ impl StaState {
 
         info!("Starting STA tasks");
         spawner.spawn(unwrap!(sta_task(
-            StaController::new(
-                state.clone(),
-                networks.clone(),
-                known_networks.clone(),
-                sta_stack,
-                command_queue.clone(),
-                networks_changed.clone(),
-                None,
-            ),
+            StaController::new(&handle, None),
             connection_task_control.token(),
         )));
         spawner.spawn(unwrap!(net_task(sta_runner, net_task_control.token())));
@@ -306,14 +317,7 @@ impl StaState {
         Self {
             connection_task_control,
             net_task_control,
-            handle: Sta {
-                sta_stack,
-                networks,
-                known_networks,
-                state,
-                command_queue,
-                networks_changed,
-            },
+            handle,
         }
     }
 
@@ -356,6 +360,8 @@ const SCAN_PERIOD: Duration = Duration::from_secs(5);
 const CONTINUE: Duration = Duration::from_millis(0);
 const CONNECT_RETRY_PERIOD: Duration = Duration::from_millis(100);
 const CONNECT_RETRY_COUNT: u8 = 5;
+/// In beacon intervals. `PowerSaveMode::Maximum` wakes the radio once in this time.
+const LISTEN_INTERVAL: u16 = 10;
 
 pub enum StaCommand {
     ScanOnce,
@@ -379,25 +385,23 @@ pub(super) struct StaController {
 
     command_queue: Rc<CommandQueue>,
     networks_changed: Rc<Signal<NoopRawMutex, ()>>,
+
+    power: Rc<Power>,
+    /// `None` until the first mode is set.
+    power_save: Option<PowerSaveMode>,
 }
 
 impl StaController {
-    pub fn new(
-        state: Rc<StaConnectionState>,
-        networks: Shared<heapless::Vec<AccessPointInfo, SCAN_RESULTS>>,
-        known_networks: Shared<Vec<KnownNetwork>>,
-        stack: Stack<'static>,
-        command_queue: Rc<CommandQueue>,
-        networks_changed: Rc<Signal<NoopRawMutex, ()>>,
-        access_point: Option<AccessPointConfig>,
-    ) -> Self {
+    pub fn new(handle: &Sta, access_point: Option<AccessPointConfig>) -> Self {
         Self {
-            state,
-            networks,
-            known_networks,
-            stack,
-            command_queue,
-            networks_changed,
+            state: handle.state.clone(),
+            networks: handle.networks.clone(),
+            known_networks: handle.known_networks.clone(),
+            stack: handle.sta_stack,
+            command_queue: handle.command_queue.clone(),
+            networks_changed: handle.networks_changed.clone(),
+            power: handle.power.clone(),
+            power_save: None,
             access_point,
             next_step: Some(Instant::now()),
             controller_state: StaControllerState::ScanAndConnect,
@@ -417,6 +421,23 @@ impl StaController {
 
         let client_config = self.config(StationConfig::default());
         unwrap!(set_config(controller, &client_config));
+        self.sync_power(controller);
+    }
+
+    /// Power save stays off while an `Awake` guard lives.
+    pub(super) fn sync_power(&mut self, controller: &mut WifiController<'_>) {
+        let wanted = self.power.wanted();
+        if self.power_save != Some(wanted) {
+            match controller.set_power_saving(wanted) {
+                Ok(()) => self.power_save = Some(wanted),
+                Err(e) => error!("Failed to set power save: {:?}", e),
+            }
+        }
+        self.power.applied();
+    }
+
+    pub(super) async fn wait_for_power_change(&self) {
+        self.power.wait_for_change().await;
     }
 
     async fn do_scan(&mut self, controller: &mut WifiController<'_>) {
@@ -514,6 +535,7 @@ impl StaController {
             .update(StationStatus::Joining(connect_to.ssid.clone()));
 
         let station_config = StationConfig::default()
+            .with_listen_interval(LISTEN_INTERVAL)
             .with_ssid(unwrap!(connect_to.ssid.as_str().try_into()))
             .with_authentication(AuthenticationMethodConfig::Wpa2Personal(unwrap!(
                 connect_to.pass.as_str().try_into()
@@ -663,6 +685,10 @@ impl StaController {
                 info!("Got IP: {}", config.address);
                 self.state.advance(StationStatus::Joined);
                 self.controller_state = StaControllerState::AutoConnected;
+
+                // A new link can start with the power save mode of the driver default.
+                self.power_save = None;
+                self.sync_power(controller);
                 Some(CONTINUE)
             }
 
@@ -691,7 +717,7 @@ async fn sta_task(
             loop {
                 let next_step = sta_controller.update(&mut resources.controller).await;
 
-                let poll_result = select3(
+                let poll_result = select4(
                     async {
                         if sta_controller.controller_state.is_connected() {
                             _ = resources.controller.wait_for_disconnect_async().await;
@@ -705,19 +731,21 @@ async fn sta_task(
                     },
                     sta_controller.wait_for_command(),
                     sta_controller.wait_for_networks_changed(),
+                    sta_controller.wait_for_power_change(),
                 )
                 .await;
 
                 match poll_result {
-                    Either3::First(disconnected) if disconnected => {
+                    Either4::First(disconnected) if disconnected => {
                         sta_controller.on_disconnected();
                     }
-                    Either3::Second(command) => {
+                    Either4::Second(command) => {
                         sta_controller
                             .handle_command(command, &mut resources.controller)
                             .await;
                     }
-                    Either3::Third(()) => sta_controller.on_networks_changed(),
+                    Either4::Third(()) => sta_controller.on_networks_changed(),
+                    Either4::Fourth(()) => sta_controller.sync_power(&mut resources.controller),
 
                     _ => {}
                 }

@@ -1,6 +1,6 @@
-use crate::Config;
+use crate::{v1::Config1, Config};
 
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 pub const VERSION_LEN: usize = 5;
 pub const CONFIG_LEN: usize = 1024;
 
@@ -30,6 +30,9 @@ pub fn decode_config(version: Option<&[u8]>, config: Option<&[u8]>) -> Result<Co
 
     match postcard::from_bytes::<u32>(version).map_err(|_| ConfigError::Malformed)? {
         VERSION => postcard::from_bytes(config).map_err(|_| ConfigError::Malformed),
+        1 => postcard::from_bytes::<Config1>(config)
+            .map(Config::from)
+            .map_err(|_| ConfigError::Malformed),
         other => Err(ConfigError::UnknownVersion(other)),
     }
 }
@@ -39,7 +42,7 @@ mod test {
     use super::*;
     use crate::types::{
         DisplayBrightness, FilterStrength, Gain, LeadOffCurrent, LeadOffFrequency,
-        LeadOffThreshold, MeasurementAction,
+        LeadOffThreshold, MeasurementAction, MeasurementWifi, MenuWifi, MinBattery,
     };
     use config_site::data::network::WifiNetwork;
     use gui::widgets::battery_small::BatteryStyle;
@@ -62,6 +65,29 @@ mod test {
             lead_off_threshold: LeadOffThreshold::_70,
             lead_off_frequency: LeadOffFrequency::Ac,
             gain: Gain::X12,
+            time_zone: core::iter::repeat_n('z', 48).collect(),
+            ntp_server: core::iter::repeat_n('n', 64).collect(),
+            wifi_in_menu: MenuWifi::Always,
+            wifi_in_measurement: MeasurementWifi::Stop,
+            wifi_min_battery: MinBattery::_90,
+        }
+    }
+
+    fn version_1_config() -> Config1 {
+        let config = worst_case_config();
+
+        Config1 {
+            battery_display_style: config.battery_display_style,
+            display_brightness: config.display_brightness,
+            known_networks: config.known_networks,
+            filter_strength: config.filter_strength,
+            backend_url: config.backend_url,
+            measurement_action: config.measurement_action,
+            use_external_clock: config.use_external_clock,
+            lead_off_current: config.lead_off_current,
+            lead_off_threshold: config.lead_off_threshold,
+            lead_off_frequency: config.lead_off_frequency,
+            gain: config.gain,
         }
     }
 
@@ -97,6 +123,25 @@ mod test {
         let (encoded, len) = encoded_config(&config);
 
         assert_eq!(Ok(config), decode(&version[..version_len], &encoded[..len]));
+    }
+
+    #[test]
+    fn version_1_config_gets_the_defaults_of_the_new_fields() {
+        let old = version_1_config();
+        let mut buf = [0; CONFIG_LEN];
+        let encoded = postcard::to_slice(&old, &mut buf).unwrap();
+
+        let defaults = Config::default();
+        let expected = Config {
+            time_zone: defaults.time_zone,
+            ntp_server: defaults.ntp_server,
+            wifi_in_menu: defaults.wifi_in_menu,
+            wifi_in_measurement: defaults.wifi_in_measurement,
+            wifi_min_battery: defaults.wifi_min_battery,
+            ..worst_case_config()
+        };
+
+        assert_eq!(Ok(expected), decode(&[1], encoded));
     }
 
     #[test]
@@ -138,7 +183,7 @@ mod test {
         let (config, config_len) = encoded_config(&Config::default());
         let config = &config[..config_len];
 
-        assert_eq!(Err(ConfigError::UnknownVersion(2)), decode(&[2], config));
+        assert_eq!(Err(ConfigError::UnknownVersion(3)), decode(&[3], config));
         assert_eq!(Err(ConfigError::UnknownVersion(0)), decode(&[0], config));
     }
 
