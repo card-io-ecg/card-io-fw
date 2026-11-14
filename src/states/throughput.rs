@@ -86,6 +86,8 @@ async fn run_test(context: &mut Context) -> TestResult {
         return TestResult::Failed(TestError::WifiNotEnabled);
     };
 
+    let _awake = sta.awake().await;
+
     let Some(signing) = context.signing() else {
         return TestResult::Failed(TestError::InternalError);
     };

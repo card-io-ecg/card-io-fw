@@ -313,6 +313,7 @@ mod wifi {
             context.display_message("Out of memory").await;
             return Err(NotUploaded::Failed);
         };
+        let _awake = client.awake().await;
 
         match upload_measurement(
             &mut client,
@@ -384,6 +385,7 @@ mod wifi {
             return;
         };
 
+        let _awake = client.awake().await;
         let result = loop {
             let version = match storage.load_oldest_measurement(&mut payload).await {
                 Ok(Some(version)) => version,
@@ -551,6 +553,8 @@ mod wifi {
         }
 
         debug!("Uploading to {}", path);
+
+        let _awake = client.awake().await;
 
         let mut counters = signing.counters.lock().await;
         let mut signer = Signer::new(
