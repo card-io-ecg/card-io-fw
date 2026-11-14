@@ -332,7 +332,8 @@ struct WebserverResources {
     server: Server<WEBSERVER_TASKS, 2048, 24>,
 }
 
-#[cardio::task]
+// One spare slot: see `net_task`.
+#[cardio::task(pool_size = 2)]
 async fn webserver_task(
     ap: Ap,
     context: Rc<SharedWebContext>,

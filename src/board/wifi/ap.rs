@@ -149,7 +149,8 @@ impl ApController {
     }
 }
 
-#[cardio::task]
+// One spare slot: see `net_task`.
+#[cardio::task(pool_size = 2)]
 async fn ap_task(
     mut ap_controller: ApController,
     mut task_control: TaskControlToken<(), ApTaskResources>,

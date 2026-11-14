@@ -717,7 +717,8 @@ impl StaController {
     }
 }
 
-#[cardio::task]
+// One spare slot: see `net_task`.
+#[cardio::task(pool_size = 2)]
 async fn sta_task(
     mut sta_controller: StaController,
     mut task_control: TaskControlToken<(), StaTaskResources>,

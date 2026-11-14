@@ -10,7 +10,6 @@ use crate::{
     task_control::TaskControlToken,
 };
 use embassy_executor::Spawner;
-use embassy_futures::yield_now;
 use embassy_net::{Config, Runner, Stack, StackResources};
 use esp_hal::{peripherals::WIFI, rng::Rng};
 use esp_radio::wifi::{Interface, WifiController, WifiError};
@@ -131,13 +130,8 @@ impl WifiDriverState {
             Self::Sta(sta) => sta.stop().await,
             Self::Ap(ap) => ap.stop().await,
             Self::ApSta(apsta) => apsta.stop().await,
-            Self::Uninitialized(_) => return,
+            _ => {}
         };
-
-        // A task that ends while it is in the run queue keeps its pool slot until the executor
-        // dequeues it, so the next state could not spawn the same task. The yield lets the
-        // executor dequeue it first.
-        yield_now().await;
     }
 }
 
@@ -270,7 +264,11 @@ impl WifiDriver {
     }
 }
 
-#[cardio::task(pool_size = 2)]
+// A Wi-Fi mode spawns its tasks right after the previous mode stopped the same ones. A stopped
+// task keeps its pool slot while it is in the run queue, and a stale waker can put it back there,
+// so each task that a mode spawns has one slot more than a mode needs. Access point and station
+// together run two of this task.
+#[cardio::task(pool_size = 3)]
 async fn net_task(mut runner: Runner<'static, Interface>, mut task_control: TaskControlToken<()>) {
     task_control
         .run_cancellable(|_| async {

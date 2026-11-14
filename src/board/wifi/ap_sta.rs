@@ -143,7 +143,8 @@ struct DhcpResources {
     packet: [u8; DHCP_PACKET_LEN],
 }
 
-#[cardio::task]
+// One spare slot: see `net_task`.
+#[cardio::task(pool_size = 2)]
 async fn dhcp_task(stack: Stack<'static>, mut task_control: TaskControlToken<()>) {
     info!("Started DHCP task");
     task_control
@@ -178,7 +179,8 @@ async fn dhcp_task(stack: Stack<'static>, mut task_control: TaskControlToken<()>
     info!("Stopped DHCP task");
 }
 
-#[cardio::task]
+// One spare slot: see `net_task`.
+#[cardio::task(pool_size = 2)]
 async fn ap_sta_task(
     mut sta_controller: StaController,
     mut ap_controller: ApController,

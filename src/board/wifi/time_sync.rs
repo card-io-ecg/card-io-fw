@@ -39,7 +39,8 @@ enum SyncError {
 }
 
 /// Sets the clock once in each boot, the first time the station has an address.
-#[cardio::task]
+// One spare slot: see `net_task`.
+#[cardio::task(pool_size = 2)]
 pub(super) async fn time_sync_task(
     stack: Stack<'static>,
     sync: TimeSync,

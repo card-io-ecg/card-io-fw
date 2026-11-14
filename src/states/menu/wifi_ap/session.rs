@@ -37,7 +37,8 @@ pub fn new_key() -> SigningKey {
     SigningKey::random(&mut WifiRng::default())
 }
 
-#[cardio::task]
+// One spare slot: see `net_task`.
+#[cardio::task(pool_size = 2)]
 pub async fn session_task(
     sta: Sta,
     name: Rc<Name>,
