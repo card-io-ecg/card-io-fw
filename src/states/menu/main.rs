@@ -21,7 +21,7 @@ pub enum MainMenuEvents {
     #[cfg(feature = "wifi")]
     Wifi,
     #[cfg(feature = "wifi")]
-    FirmwareUpdate,
+    Sync,
     Storage,
     Shutdown,
 }
@@ -73,10 +73,7 @@ fn main_menu_builder(_ctx: &mut Context) -> MainMenuBuilder {
     {
         if _ctx.can_enable_wifi() && _ctx.backend_ready().is_ok() {
             unwrap!(network_items
-                .push(optional_item(
-                    "Firmware update",
-                    MainMenuEvents::FirmwareUpdate
-                ))
+                .push(optional_item("Sync", MainMenuEvents::Sync))
                 .ok());
         }
         unwrap!(wifi_items
@@ -118,7 +115,7 @@ impl MenuScreen for MainMenu {
             MainMenuEvents::Wifi => AppState::Menu(AppMenu::Wifi),
             MainMenuEvents::Storage => AppState::Menu(AppMenu::Storage),
             #[cfg(feature = "wifi")]
-            MainMenuEvents::FirmwareUpdate => AppState::FirmwareUpdate,
+            MainMenuEvents::Sync => AppState::Sync,
             MainMenuEvents::Shutdown => AppState::Shutdown,
         };
 

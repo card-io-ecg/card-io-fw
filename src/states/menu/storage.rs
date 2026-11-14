@@ -17,8 +17,6 @@ use gui::{
 pub enum StorageMenuEvents {
     ChangeMeasurementAction(MeasurementAction),
     Format,
-    #[cfg(feature = "wifi")]
-    Upload,
     Nothing,
     Back,
 }
@@ -50,7 +48,6 @@ type StorageMenuBuilder = MenuBuilder<
     chain!(
         StorageMenuItem<MeasurementAction>,
         MenuItems<StorageMenuItem<SavedCount>, StorageMenuEvents, 2>,
-        MenuItems<StorageMenuItem<&'static str>, StorageMenuEvents, 2>,
         StorageMenuItem<&'static str>,
         StorageMenuItem<&'static str>
     ),
@@ -59,9 +56,6 @@ type StorageMenuBuilder = MenuBuilder<
 
 async fn storage_menu_builder(context: &mut Context) -> StorageMenuBuilder {
     let mut used_item = heapless::Vec::<_, 2>::new();
-
-    #[cfg_attr(not(feature = "wifi"), allow(unused_mut))]
-    let mut items = heapless::Vec::<_, 2>::new();
 
     if let Some(storage) = context.storage.as_mut() {
         if let Ok(count) = storage.measurement_count().await {
@@ -86,17 +80,6 @@ async fn storage_menu_builder(context: &mut Context) -> StorageMenuBuilder {
         }
     }
 
-    #[cfg(feature = "wifi")]
-    if context.can_enable_wifi() && context.backend_ready().is_ok() && context.sta_has_work().await
-    {
-        unwrap!(items
-            .push(
-                MenuItem::new("Upload data", "->")
-                    .with_value_converter(|_| StorageMenuEvents::Upload)
-            )
-            .ok());
-    }
-
     create_menu("Storage")
         .add_item(
             "New EKG",
@@ -104,7 +87,6 @@ async fn storage_menu_builder(context: &mut Context) -> StorageMenuBuilder {
             StorageMenuEvents::ChangeMeasurementAction,
         )
         .add_menu_items(used_item)
-        .add_menu_items(items)
         .add_item("Format storage", "->", |_| StorageMenuEvents::Format)
         .add_item("Back", "<-", |_| StorageMenuEvents::Back)
 }
@@ -146,8 +128,6 @@ impl MenuScreen for StorageMenu {
 
                 return Some(AppState::Menu(AppMenu::Main));
             }
-            #[cfg(feature = "wifi")]
-            StorageMenuEvents::Upload => return Some(AppState::UploadStored(AppMenu::Storage)),
             StorageMenuEvents::Back => return Some(AppState::Menu(AppMenu::Main)),
             StorageMenuEvents::Nothing => {}
         }

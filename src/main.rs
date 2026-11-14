@@ -22,10 +22,7 @@ use static_cell::StaticCell;
 use network_services::pairing::{Counters, Pairing};
 
 #[cfg(feature = "wifi")]
-use crate::states::{
-    firmware_update::firmware_update, throughput::throughput,
-    upload_or_store_measurement::upload_stored_measurements,
-};
+use crate::states::{sync::sync, throughput::throughput};
 use crate::{
     board::{
         initialized::{Context, InnerContext},
@@ -99,12 +96,10 @@ pub enum AppState {
     Menu(AppMenu),
     DisplaySerial,
     #[cfg(feature = "wifi")]
-    FirmwareUpdate,
+    Sync,
     #[cfg(feature = "wifi")]
     Throughput,
     Shutdown,
-    #[cfg(feature = "wifi")]
-    UploadStored(AppMenu),
     UploadOrStore(Box<CompressingBuffer<ECG_BUFFER_SIZE>>),
 }
 
@@ -238,13 +233,9 @@ async fn main(_spawner: Spawner) {
             AppState::Menu(menu) => display_menu_screen(menu, &mut board).await,
             AppState::DisplaySerial => display_serial(&mut board).await,
             #[cfg(feature = "wifi")]
-            AppState::FirmwareUpdate => firmware_update(&mut board).await,
+            AppState::Sync => sync(&mut board).await,
             #[cfg(feature = "wifi")]
             AppState::Throughput => throughput(&mut board).await,
-            #[cfg(feature = "wifi")]
-            AppState::UploadStored(next_state) => {
-                upload_stored_measurements(&mut board, AppState::Menu(next_state)).await
-            }
             AppState::UploadOrStore(buffer) => {
                 upload_or_store_measurement(&mut board, buffer, AppState::Shutdown).await
             }

@@ -6,6 +6,8 @@ pub mod init;
 pub mod measure;
 pub mod menu;
 #[cfg(feature = "wifi")]
+pub mod sync;
+#[cfg(feature = "wifi")]
 pub mod throughput;
 pub mod upload_or_store_measurement;
 
