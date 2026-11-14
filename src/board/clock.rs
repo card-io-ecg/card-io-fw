@@ -2,6 +2,18 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use esp_hal::{peripherals::RTC_TIMER, rtc_cntl::Rtc};
 
+// UTC once the clock is set. Before that, the time since the last power-on reset, which the
+// decoder shows as a date in 1970.
+defmt::timestamp!("{=u64:iso8601ms}", rtc_time_us() / 1000);
+
+/// The RTC time in microseconds, also while it is not known. The logger runs before `Clock`
+/// exists, so this reads the timer without it.
+fn rtc_time_us() -> u64 {
+    // SAFETY: this only reads the timer and the boot time registers. `Clock::set_us` is the only
+    // writer, and a log frame that interrupts it reads either the old or the new boot time.
+    Rtc::new(unsafe { RTC_TIMER::steal() }).current_time_us()
+}
+
 /// UTC, kept by the RTC timer through sleep and through each reset except a power-on reset.
 pub struct Clock {
     rtc: Rtc<'static>,
