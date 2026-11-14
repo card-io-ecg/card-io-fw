@@ -82,3 +82,53 @@ implement_enum! {
         X12 = 6,
     }
 }
+
+implement_enum! {
+    /// When the menus start the station.
+    pub enum MenuWifi {
+        #[display_as("Off")]
+        OnDemand = 0,
+        #[display_as("On")]
+        Always = 1,
+    }
+}
+
+implement_enum! {
+    /// What happens to a running station when a measurement starts.
+    pub enum MeasurementWifi {
+        #[display_as("On")]
+        Keep = 0,
+        #[display_as("Off")]
+        Stop = 1,
+    }
+}
+
+implement_enum! {
+    /// Wi-Fi runs on battery only above this charge, in percent.
+    pub enum MinBattery {
+        #[display_as("10%")]
+        _10 = 10,
+        #[display_as("20%")]
+        _20 = 20,
+        #[display_as("30%")]
+        _30 = 30,
+        #[display_as("40%")]
+        _40 = 40,
+        #[display_as("50%")]
+        _50 = 50,
+        #[display_as("60%")]
+        _60 = 60,
+        #[display_as("70%")]
+        _70 = 70,
+        #[display_as("80%")]
+        _80 = 80,
+        #[display_as("90%")]
+        _90 = 90,
+    }
+}
+
+impl MinBattery {
+    pub fn percentage(self) -> u8 {
+        self as u8
+    }
+}

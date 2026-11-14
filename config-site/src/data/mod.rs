@@ -8,6 +8,12 @@ use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
 #[cfg(feature = "std")]
 use smol::lock::Mutex;
 
+/// A POSIX TZ rule, in the format that libc reads from `TZ`.
+pub type TimeZoneRule = heapless::String<48>;
+
+pub const UTC_RULE: &str = "UTC0";
+pub const CENTRAL_EUROPE_RULE: &str = "CET-1CEST,M3.5.0,M10.5.0/3";
+
 pub struct WebContext {
     pub known_networks: heapless::Vec<WifiNetwork, 8>,
     pub backend_url: heapless::String<64>,
