@@ -36,13 +36,6 @@ use gui::{
     },
 };
 #[cfg(feature = "wifi")]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum StaMode {
-    Enable,
-    OnDemand,
-}
-
-#[cfg(feature = "wifi")]
 pub struct Signing {
     pub key: Rc<SigningKey>,
     pub name: Name,
@@ -66,7 +59,6 @@ pub struct InnerContext {
     pub wifi: &'static mut WifiDriver,
     pub config: &'static mut Config,
     pub config_changed: bool,
-    pub sta_work_available: Option<bool>,
     pub message_displayed_at: Option<Instant>,
     pub wake_lock: Option<WakeLock>,
     pub clock: &'static Clock,
@@ -150,29 +142,9 @@ impl Context {
     }
 
     #[cfg(feature = "wifi")]
-    pub async fn sta_has_work(&mut self) -> bool {
-        if self.inner.sta_work_available.is_none() {
-            if let Some(storage) = self.storage.as_mut() {
-                match storage.has_measurements().await {
-                    Ok(true) => self.inner.sta_work_available = Some(true),
-                    Ok(false) => {}
-                    Err(e) => warn!("Failed to look for saved measurements: {:?}", e),
-                }
-            }
-        }
-
-        self.inner.sta_work_available.unwrap_or(false)
-    }
-
-    #[cfg(feature = "wifi")]
-    pub async fn enable_wifi_sta(&mut self, mode: StaMode) -> Option<Sta> {
+    pub async fn enable_wifi_sta(&mut self) -> Option<Sta> {
         debug!("Enabling STA");
-        let can_enable = self.can_enable_wifi()
-            && !self.config.known_networks.is_empty()
-            && match mode {
-                StaMode::Enable => true,
-                StaMode::OnDemand => self.sta_has_work().await,
-            };
+        let can_enable = self.can_enable_wifi() && !self.config.known_networks.is_empty();
 
         self.enable_sta(can_enable).await
     }
@@ -322,10 +294,6 @@ impl InnerContext {
                     || battery.is_charging()
             })
             .unwrap_or(false)
-    }
-
-    pub fn signal_sta_work_available(&mut self, available: bool) {
-        self.sta_work_available = Some(available);
     }
 
     pub fn update_config(&mut self, cb: impl FnOnce(&mut Config)) {

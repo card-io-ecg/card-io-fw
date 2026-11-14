@@ -14,14 +14,8 @@ use network_services::{
 use ufmt::uwrite;
 
 use crate::{
-    board::{
-        initialized::{Context, StaMode},
-        ota::OtaClient,
-        storage::lock_flash,
-    },
+    board::{initialized::Context, ota::OtaClient, storage::lock_flash},
     human_readable::{BinarySize, Throughput},
-    states::menu::AppMenu,
-    AppState,
 };
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
@@ -52,7 +46,8 @@ enum UpdateResult {
     Failed(UpdateError),
 }
 
-pub async fn firmware_update(context: &mut Context) -> AppState {
+/// Returns whether a new firmware waits for a restart.
+pub async fn firmware_update(context: &mut Context) -> bool {
     let update_result = do_update(context).await;
 
     let message = match update_result {
@@ -77,15 +72,11 @@ pub async fn firmware_update(context: &mut Context) -> AppState {
 
     context.display_message(message).await;
 
-    if let UpdateResult::Success = update_result {
-        AppState::Shutdown
-    } else {
-        AppState::Menu(AppMenu::Main)
-    }
+    matches!(update_result, UpdateResult::Success)
 }
 
 async fn do_update(context: &mut Context) -> UpdateResult {
-    let sta = if let Some(sta) = context.enable_wifi_sta(StaMode::Enable).await {
+    let sta = if let Some(sta) = context.enable_wifi_sta().await {
         if sta.wait_for_connection(context).await {
             sta
         } else {

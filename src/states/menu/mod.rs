@@ -214,13 +214,12 @@ pub async fn display_menu_screen(mut menu: AppMenu, board: &mut Context) -> AppS
 /// The setup and the network list start the Wi-Fi mode that they need.
 #[cfg(feature = "wifi")]
 async fn start_menu_wifi(menu: AppMenu, board: &mut Context) {
-    use crate::board::initialized::StaMode;
     use config_types::types::MenuWifi;
 
     if board.config.wifi_in_menu == MenuWifi::Always
         && !matches!(menu, AppMenu::WifiAP | AppMenu::WifiListVisible)
     {
-        board.enable_wifi_sta(StaMode::Enable).await;
+        board.enable_wifi_sta().await;
     }
 }
 

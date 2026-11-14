@@ -13,7 +13,7 @@ use network_services::{
 use ufmt::{uwrite, uwriteln};
 
 use crate::{
-    board::initialized::{Context, StaMode},
+    board::initialized::Context,
     human_readable::{BinarySize, Throughput},
     states::menu::AppMenu,
     AppState,
@@ -79,7 +79,7 @@ async fn run_test(context: &mut Context) -> TestResult {
     // Starting the radio takes seconds and draws nothing.
     context.display_message("Starting speed test...").await;
 
-    let sta = if let Some(sta) = context.enable_wifi_sta(StaMode::Enable).await {
+    let sta = if let Some(sta) = context.enable_wifi_sta().await {
         if sta.wait_for_connection(context).await {
             sta
         } else {

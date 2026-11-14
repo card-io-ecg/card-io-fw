@@ -201,7 +201,6 @@ async fn main(_spawner: Spawner) {
             },
             config,
             config_changed: true,
-            sta_work_available: None,
             message_displayed_at: None,
             wake_lock,
             clock: resources.clock,

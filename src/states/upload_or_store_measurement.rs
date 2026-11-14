@@ -11,7 +11,7 @@ use gui::{embedded_layout::object_chain, screens::create_menu};
 use signal_processing::compressing_buffer::{CompressingBuffer, EkgFormat};
 
 #[cfg(feature = "wifi")]
-use crate::board::initialized::StaMode;
+use crate::states::sync::sync_all;
 use crate::{
     board::{initialized::Context, storage::StoredMeasurement},
     human_readable::BinarySize,
@@ -60,8 +60,9 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
 
     #[cfg(feature = "wifi")]
     if can_upload {
-        let uploaded_directly = if stored {
-            false
+        // `sync_all` uploads a stored measurement with the others.
+        let sync = if stored {
+            context.backend_ready().is_ok() && context.can_enable_wifi()
         } else {
             let upload_result = try_to_upload(context, samples, started_at).await;
             debug!("Upload result: {:?}", upload_result);
@@ -77,10 +78,8 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
         // Drop to free up 90kB of memory.
         core::mem::drop(buffer);
 
-        // `upload_stored` deletes each measurement that the server takes, and keeps the others.
-        let reachable = context.backend_ready().is_ok() && context.can_enable_wifi();
-        if (stored && reachable) || (uploaded_directly && context.sta_has_work().await) {
-            upload_stored(context, StaMode::OnDemand).await;
+        if sync && sync_all(context).await {
+            return AppState::Shutdown;
         }
     }
 
@@ -227,8 +226,6 @@ async fn try_store_measurement(
 
     info!("Measurement saved");
 
-    context.signal_sta_work_available(true);
-
     true
 }
 
@@ -236,7 +233,7 @@ async fn try_store_measurement(
 mod wifi {
     use super::*;
     use crate::board::{
-        initialized::{InnerContext, NotReady, Signing, StaMode},
+        initialized::{InnerContext, NotReady, Signing},
         logging::MAX_RECORD,
         storage::{measurement_buffer, FileSystem},
         wifi::sta::StaClient,
@@ -308,7 +305,7 @@ mod wifi {
         // Starting the radio takes seconds and draws nothing.
         context.display_message("Preparing upload...").await;
 
-        let sta = if let Some(sta) = context.enable_wifi_sta(StaMode::Enable).await {
+        let sta = if let Some(sta) = context.enable_wifi_sta().await {
             if sta.wait_for_connection(context).await {
                 sta
             } else {
@@ -340,10 +337,6 @@ mod wifi {
         {
             Ok(()) => {
                 context.display_message("Upload successful").await;
-                if let Some(storage) = context.storage.as_mut() {
-                    let backend_url = context.inner.config.backend_url.as_str();
-                    upload_logs(&mut client, &signing, storage, backend_url).await;
-                }
                 Ok(())
             }
             Err(UploadError::Failed) => {
@@ -360,7 +353,7 @@ mod wifi {
     }
 
     /// Returns `false` when the device has no connection to the server.
-    pub async fn upload_stored(context: &mut Context, mode: StaMode) -> bool {
+    pub async fn upload_stored(context: &mut Context) -> bool {
         let Some(signing) = context.signing() else {
             context.display_message("Device not paired").await;
             return false;
@@ -375,7 +368,7 @@ mod wifi {
             return true;
         };
 
-        let sta = if let Some(sta) = context.enable_wifi_sta(mode).await {
+        let sta = if let Some(sta) = context.enable_wifi_sta().await {
             if sta.wait_for_connection(context).await {
                 sta
             } else {
@@ -383,11 +376,7 @@ mod wifi {
                 return false;
             }
         } else {
-            let message = match mode {
-                StaMode::OnDemand => "Nothing to upload",
-                StaMode::Enable => "WiFi not enabled",
-            };
-            context.display_message(message).await;
+            context.display_message("WiFi not enabled").await;
             return false;
         };
 
@@ -457,8 +446,6 @@ mod wifi {
         if let Some(message) = message {
             context.display_message(message).await;
         }
-
-        context.signal_sta_work_available(result.is_err());
 
         result != Err(UploadError::Refused)
     }
