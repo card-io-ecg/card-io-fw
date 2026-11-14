@@ -84,6 +84,7 @@ impl super::startup::StartupResources {
             wifi: peripherals.WIFI,
             software_interrupt2: peripherals.FROM_CPU_INTR2,
             flash: peripherals.FLASH,
+            clock: Self::create_clock(peripherals.RTC_TIMER),
         }
     }
 }

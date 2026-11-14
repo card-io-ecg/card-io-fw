@@ -15,6 +15,7 @@
 )]
 pub mod hardware;
 
+pub mod clock;
 pub mod drivers;
 pub mod flash;
 pub mod initialized;

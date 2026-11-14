@@ -1,4 +1,5 @@
 use crate::board::{
+    clock::Clock,
     drivers::{
         battery_monitor::{battery_fg::BatteryFg as BatteryDriver, BatteryMonitor},
         display::Display as DisplayDriver,
@@ -17,7 +18,7 @@ use esp_hal::{
     clock::CpuClock,
     gpio::{Input, InputPin, Level, Output, OutputPin, Pull},
     i2c,
-    peripherals::{Peripherals, FLASH, FROM_CPU_INTR2},
+    peripherals::{Peripherals, FLASH, FROM_CPU_INTR2, RTC_TIMER},
     spi::{
         master::{Config as SpiConfig, Spi},
         Mode,
@@ -46,6 +47,7 @@ pub struct StartupResources {
 
     pub software_interrupt2: FROM_CPU_INTR2<'static>,
     pub flash: FLASH<'static>,
+    pub clock: &'static Clock,
 }
 
 impl StartupResources {
@@ -55,6 +57,11 @@ impl StartupResources {
             _ => CpuClock::max(),
         };
         esp_hal::init(esp_hal::Config::default().with_cpu_clock(cpu_clock))
+    }
+
+    pub(crate) fn create_clock(rtc_timer: RTC_TIMER<'static>) -> &'static Clock {
+        static CLOCK: StaticCell<Clock> = StaticCell::new();
+        CLOCK.init(Clock::new(rtc_timer))
     }
 
     #[inline(always)]
