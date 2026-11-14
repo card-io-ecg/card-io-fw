@@ -9,7 +9,7 @@ use embedded_layout::prelude::{horizontal, vertical, Align};
 
 use crate::{
     screens::BatteryInfo,
-    widgets::{battery::Battery, progress_bar::ProgressBar},
+    widgets::{battery::Battery, clock::Clock, progress_bar::ProgressBar},
 };
 
 pub struct ChargingScreen {
@@ -18,6 +18,8 @@ pub struct ChargingScreen {
     pub frames: u32,
     pub fps: u32,
     pub progress: u32,
+    /// The local hour and minute.
+    pub time: Option<(u8, u8)>,
 }
 
 impl ChargingScreen {
@@ -62,6 +64,10 @@ impl Drawable for ChargingScreen {
                 vertical::Center,
             )
             .draw(display)?;
+        }
+
+        if let Some((hour, minute)) = self.time {
+            Clock { hour, minute }.draw(display)?;
         }
 
         if self.progress > 0 {

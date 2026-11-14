@@ -35,6 +35,7 @@ fn main() -> Result<(), Infallible> {
             frames,
             fps: 100,
             progress: 1,
+            time: Some((12, 34)),
         }
         .draw(&mut display)
         .unwrap();

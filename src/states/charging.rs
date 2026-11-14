@@ -20,6 +20,7 @@ pub async fn charging(context: &mut Context) -> AppState {
         frames: 0,
         fps: TARGET_FPS,
         progress: 0,
+        time: context.local_time(),
     };
 
     let mut input = TouchInputShaper::new();
@@ -37,6 +38,7 @@ pub async fn charging(context: &mut Context) -> AppState {
 
         charging_screen.is_charging = context.battery_monitor.is_charging();
         charging_screen.battery_data = context.battery_monitor.battery_data();
+        charging_screen.time = context.local_time();
         charging_screen.frames += 1;
 
         context
