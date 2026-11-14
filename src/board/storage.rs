@@ -37,7 +37,7 @@ const DEVICE_KEY: &[u8] = b"device_key";
 const VERSION_KEY: &[u8] = b"version";
 #[cfg(feature = "wifi")]
 const DEVICE_KEY_LEN: usize = 32;
-/// The store keeps the newest log records, about 2.1 kB each.
+/// The store keeps the newest log records, about 4.1 kB each.
 const STORED_LOG_RECORDS: u8 = 32;
 
 /// The sequence numbers of the log records that wait for upload.

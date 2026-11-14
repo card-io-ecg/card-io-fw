@@ -16,7 +16,7 @@ mod transport;
 
 use transport::Transport;
 
-const RING_BYTES: usize = 2048;
+const RING_BYTES: usize = 4096;
 /// The largest record, in bytes.
 pub const MAX_RECORD: usize = RECORD_HEADER + 2 * MAX_VERSION_LEN + RING_BYTES;
 

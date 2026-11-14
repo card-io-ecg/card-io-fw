@@ -89,6 +89,7 @@ impl<S: Station, P: PairingControl> Handler for ConfigSite<'_, S, P> {
         let headers = conn.headers()?;
         let method = headers.method;
         let path = headers.path.split('?').next().unwrap_or_default();
+        info!("Setup page: {:?} {}", method, path);
 
         match (method, path) {
             (Method::Get, "/") => send_static(conn, "text/html; charset=utf-8", INDEX).await,

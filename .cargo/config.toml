@@ -13,7 +13,8 @@ example = "xtask example"
 monitor = "xtask monitor"
 
 [env]
-DEFMT_LOG = "card_io_fw=debug,info"
+# edge_dhcp at debug logs each lease of the setup access point.
+DEFMT_LOG = "card_io_fw=debug,edge_dhcp=debug,info"
 ESP_ALLOC_CONFIG_HEAP_ALGORITHM = "LLFF"
 # The heap takes its second region from the main stack; keep the stack from shrinking unnoticed.
 ESP_HAL_CONFIG_ENSURE_MAIN_STACK_MINIMUM = "65536"
