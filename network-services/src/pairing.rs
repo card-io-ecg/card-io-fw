@@ -13,7 +13,6 @@ use device_auth_firmware::{registration, request_token};
 use edge_http::Method;
 use embassy_net::Stack;
 use embassy_time::{with_timeout, Duration};
-use rand_core::CryptoRngCore;
 
 use crate::{
     client::Client,
@@ -126,11 +125,25 @@ impl Refusal {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum PairAnswer {
     Registered(SigningKey),
     Failed(Failure),
 }
+
+// embassy-crypto's `SigningKey` has no `PartialEq`: two answers with keys are equal when the keys
+// are.
+impl PartialEq for PairAnswer {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Registered(a), Self::Registered(b)) => a.to_bytes() == b.to_bytes(),
+            (Self::Failed(a), Self::Failed(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for PairAnswer {}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -371,7 +384,6 @@ pub enum Outcome {
 struct Link<'a> {
     client: &'a mut Client,
     stack: Stack<'a>,
-    rng: &'a mut dyn CryptoRngCore,
     base: BaseUrl<'a>,
 }
 
@@ -384,11 +396,7 @@ impl Link<'_> {
     // The answer is decided by its status and counter header. The body stays unread, and
     // dropping the connection discards it.
     async fn exchange(&mut self, request: &Request<'_>) -> Option<Answer> {
-        let mut connection = self
-            .client
-            .connect(self.stack, &mut *self.rng, &self.base)
-            .await
-            .ok()?;
+        let mut connection = self.client.connect(self.stack, &self.base).await.ok()?;
         let response = connection.send(request).await.ok()?;
         Some(Answer {
             status: response.status,
@@ -401,7 +409,6 @@ impl Link<'_> {
 pub async fn perform(
     client: &mut Client,
     stack: Stack<'_>,
-    rng: &mut dyn CryptoRngCore,
     base_url: &str,
     name: &Name,
     counters: &mut Counters,
@@ -414,7 +421,6 @@ pub async fn perform(
     let mut link = Link {
         client,
         stack,
-        rng,
         base,
     };
     match job {
@@ -519,11 +525,44 @@ mod test {
     use std::{format, string::String};
 
     use device_auth_firmware::{parse_code, registration, request_token, valid_name};
+    use embassy_crypto::{p256::Signature, Sha256};
+    use embassy_crypto_rand as _;
+    use embassy_crypto_rustcrypto as _;
 
     use super::*;
 
+    /// Asserts that `token` signs what `expected` signs, with the key of seed 1.
+    fn assert_signs_as(token: &str, expected: &str) {
+        let (input, signature) = token.rsplit_once('.').unwrap();
+        assert_eq!(input, expected.rsplit_once('.').unwrap().0);
+        let signature = base64url_decode(signature);
+        let signature = Signature::from_bytes(signature.as_slice().try_into().unwrap()).unwrap();
+        key(1)
+            .verifying_key()
+            .unwrap()
+            .verify_prehash(&Sha256::digest(input.as_bytes()), &signature)
+            .unwrap();
+    }
+
+    fn base64url_decode(text: &str) -> std::vec::Vec<u8> {
+        const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+        let mut bits = 0u32;
+        let mut count = 0;
+        let mut out = std::vec::Vec::new();
+        for byte in text.bytes() {
+            let value = ALPHABET.iter().position(|&c| c == byte).unwrap() as u32;
+            bits = (bits << 6) | value;
+            count += 6;
+            if count >= 8 {
+                count -= 8;
+                out.push((bits >> count) as u8);
+            }
+        }
+        out
+    }
+
     fn key(seed: u8) -> SigningKey {
-        SigningKey::from_bytes(&[seed; 32].into()).unwrap()
+        SigningKey::from_bytes(&[seed; 32]).unwrap()
     }
 
     fn unpaired() -> Pairing {
@@ -572,9 +611,10 @@ mod test {
 
     /// The key a settled `Pairing` holds. A save moves Refused to Paired, where Unpair hands the
     /// key out.
-    fn held_key(mut pairing: Pairing) -> Option<SigningKey> {
+    /// The bytes of the key that an unpair would use. Keys have no `PartialEq`.
+    fn held_key(mut pairing: Pairing) -> Option<[u8; 32]> {
         pairing.saved();
-        pairing.start_unpair().ok().map(|key| (*key).clone())
+        pairing.start_unpair().ok().map(|key| key.to_bytes())
     }
 
     const ALL_STATES: [fn() -> Pairing; 5] =
@@ -739,8 +779,8 @@ mod test {
         pairing.refused();
         assert_eq!(pairing.status(), Status::Unpaired(None));
         assert!(!pairing.paired());
-        assert_eq!(pairing.key(), None);
-        assert_eq!(held_key(pairing), Some(key(1)));
+        assert!(pairing.key().is_none());
+        assert_eq!(held_key(pairing), Some(key(1).to_bytes()));
     }
 
     #[test]
@@ -755,9 +795,12 @@ mod test {
 
     #[test]
     fn only_a_paired_device_hands_out_its_key() {
-        assert_eq!(paired().key().map(|key| (*key).clone()), Some(key(1)));
+        assert_eq!(
+            paired().key().map(|key| key.to_bytes()),
+            Some(key(1).to_bytes())
+        );
         for state in [unpaired, refused, pairing_from_unpaired, unpairing] {
-            assert_eq!(state().key(), None);
+            assert!(state().key().is_none());
         }
     }
 
@@ -765,7 +808,7 @@ mod test {
     fn a_loaded_key_starts_paired() {
         let pairing = paired();
         assert_eq!(pairing.status(), Status::Paired(None));
-        assert_eq!(held_key(pairing), Some(key(1)));
+        assert_eq!(held_key(pairing), Some(key(1).to_bytes()));
     }
 
     #[test]
@@ -802,7 +845,7 @@ mod test {
         let mut pairing = paired();
         assert_eq!(pairing.start_pair(), Err(Refusal::Paired));
         assert_eq!(pairing.status(), Status::Paired(None));
-        assert_eq!(held_key(pairing), Some(key(1)));
+        assert_eq!(held_key(pairing), Some(key(1).to_bytes()));
     }
 
     #[test]
@@ -831,7 +874,7 @@ mod test {
         let mut pairing = pairing_from_unpaired();
         pairing.pair_answered(PairAnswer::Registered(key(2)));
         assert_eq!(pairing.status(), Status::Paired(None));
-        assert_eq!(held_key(pairing), Some(key(2)));
+        assert_eq!(held_key(pairing), Some(key(2).to_bytes()));
     }
 
     #[test]
@@ -839,14 +882,14 @@ mod test {
         let mut pairing = pairing_from_refused();
         pairing.pair_answered(PairAnswer::Registered(key(2)));
         assert_eq!(pairing.status(), Status::Paired(None));
-        assert_eq!(held_key(pairing), Some(key(2)));
+        assert_eq!(held_key(pairing), Some(key(2).to_bytes()));
     }
 
     #[test]
     fn pair_from_refused_keeps_the_old_key_until_the_answer() {
         let mut pairing = pairing_from_refused();
         pairing.pair_answered(PairAnswer::Failed(Failure::Failed));
-        assert_eq!(held_key(pairing), Some(key(1)));
+        assert_eq!(held_key(pairing), Some(key(1).to_bytes()));
     }
 
     #[test]
@@ -855,7 +898,7 @@ mod test {
         pairing.pair_answered(PairAnswer::Failed(Failure::Taken));
         assert_eq!(pairing.status(), Status::Paired(None));
         assert!(pairing.paired());
-        assert_eq!(held_key(pairing), Some(key(1)));
+        assert_eq!(held_key(pairing), Some(key(1).to_bytes()));
     }
 
     #[test]
@@ -874,7 +917,7 @@ mod test {
             pairing.pair_answered(PairAnswer::Failed(failure));
             assert_eq!(pairing.status(), Status::Unpaired(Some(failure)));
             assert!(!pairing.paired());
-            assert_eq!(held_key(pairing), Some(key(1)));
+            assert_eq!(held_key(pairing), Some(key(1).to_bytes()));
         }
     }
 
@@ -890,7 +933,10 @@ mod test {
     #[test]
     fn unpair_from_paired_starts_unpairing_and_hands_out_the_key() {
         let mut pairing = paired();
-        assert_eq!(pairing.start_unpair(), Ok(Rc::new(key(1))));
+        assert_eq!(
+            pairing.start_unpair().map(|key| key.to_bytes()),
+            Ok(key(1).to_bytes())
+        );
         assert_eq!(pairing.status(), Status::Unpairing);
         assert!(!pairing.paired());
     }
@@ -898,36 +944,36 @@ mod test {
     #[test]
     fn unpair_from_unpaired_is_refused_with_unpaired() {
         let mut pairing = unpaired();
-        assert_eq!(pairing.start_unpair(), Err(Refusal::Unpaired));
+        assert_eq!(pairing.start_unpair().err(), Some(Refusal::Unpaired));
         assert_eq!(pairing.status(), Status::Unpaired(None));
     }
 
     #[test]
     fn unpair_from_refused_is_refused_with_unpaired() {
         let mut pairing = refused();
-        assert_eq!(pairing.start_unpair(), Err(Refusal::Unpaired));
+        assert_eq!(pairing.start_unpair().err(), Some(Refusal::Unpaired));
         assert_eq!(pairing.status(), Status::Unpaired(Some(Failure::Failed)));
-        assert_eq!(held_key(pairing), Some(key(1)));
+        assert_eq!(held_key(pairing), Some(key(1).to_bytes()));
     }
 
     #[test]
     fn unpair_while_pairing_is_refused_with_busy() {
         let mut pairing = pairing_from_unpaired();
-        assert_eq!(pairing.start_unpair(), Err(Refusal::Busy));
+        assert_eq!(pairing.start_unpair().err(), Some(Refusal::Busy));
         assert_eq!(pairing.status(), Status::Pairing);
     }
 
     #[test]
     fn unpair_while_unpairing_is_refused_with_busy() {
         let mut pairing = unpairing();
-        assert_eq!(pairing.start_unpair(), Err(Refusal::Busy));
+        assert_eq!(pairing.start_unpair().err(), Some(Refusal::Busy));
         assert_eq!(pairing.status(), Status::Unpairing);
     }
 
     #[test]
     fn a_refused_unpair_keeps_the_result() {
         let mut pairing = unpaired_with(Failure::Rejected);
-        assert_eq!(pairing.start_unpair(), Err(Refusal::Unpaired));
+        assert_eq!(pairing.start_unpair().err(), Some(Refusal::Unpaired));
         assert_eq!(pairing.status(), Status::Unpaired(Some(Failure::Rejected)));
     }
 
@@ -945,7 +991,7 @@ mod test {
         pairing.unpair_answered(UnpairAnswer::Refused);
         assert_eq!(pairing.status(), Status::Unpaired(Some(Failure::Failed)));
         assert!(!pairing.paired());
-        assert_eq!(held_key(pairing), Some(key(1)));
+        assert_eq!(held_key(pairing), Some(key(1).to_bytes()));
     }
 
     #[test]
@@ -953,7 +999,7 @@ mod test {
         let pairing = paired_with_unpair_failed();
         assert_eq!(pairing.status(), Status::Paired(Some(UnpairFailed)));
         assert!(pairing.paired());
-        assert_eq!(held_key(pairing), Some(key(1)));
+        assert_eq!(held_key(pairing), Some(key(1).to_bytes()));
     }
 
     #[test]
@@ -977,7 +1023,7 @@ mod test {
         let mut pairing = paired_with_unpair_failed();
         pairing.session_opened();
         assert_eq!(pairing.status(), Status::Paired(None));
-        assert_eq!(held_key(pairing), Some(key(1)));
+        assert_eq!(held_key(pairing), Some(key(1).to_bytes()));
     }
 
     #[test]
@@ -986,7 +1032,7 @@ mod test {
         pairing.session_opened();
         assert_eq!(pairing.status(), Status::Unpaired(None));
         assert!(!pairing.paired());
-        assert_eq!(held_key(pairing), Some(key(1)));
+        assert_eq!(held_key(pairing), Some(key(1).to_bytes()));
     }
 
     #[test]
@@ -1006,7 +1052,7 @@ mod test {
         pairing.saved();
         assert_eq!(pairing.status(), Status::Paired(None));
         assert!(pairing.paired());
-        assert_eq!(held_key(pairing), Some(key(1)));
+        assert_eq!(held_key(pairing), Some(key(1).to_bytes()));
     }
 
     #[test]
@@ -1052,7 +1098,7 @@ mod test {
         }
         let mut pairing = paired();
         pairing.pair_answered(PairAnswer::Registered(key(2)));
-        assert_eq!(held_key(pairing), Some(key(1)));
+        assert_eq!(held_key(pairing), Some(key(1).to_bytes()));
     }
 
     #[test]
@@ -1072,7 +1118,7 @@ mod test {
         }
         let mut pairing = paired();
         pairing.unpair_answered(UnpairAnswer::Removed);
-        assert_eq!(held_key(pairing), Some(key(1)));
+        assert_eq!(held_key(pairing), Some(key(1).to_bytes()));
     }
 
     #[test]
@@ -1117,7 +1163,7 @@ mod test {
         let code = parse_code(NEUTRAL_CODE).unwrap();
         let mut body = String::new();
         registration(&key(1), name.as_str(), &code, &mut body).unwrap();
-        assert_eq!(body, NEUTRAL_REGISTRATION);
+        assert_signs_as(&body, NEUTRAL_REGISTRATION);
     }
 
     #[test]
@@ -1126,16 +1172,16 @@ mod test {
         let path = format!("/api/devices/{}", name.as_str());
         let mut token = String::new();
         request_token(&key(1), name.as_str(), 42, "DELETE", &path, &mut token).unwrap();
-        assert_eq!(token, NEUTRAL_TOKEN);
+        assert_signs_as(&token, NEUTRAL_TOKEN);
     }
 
     #[test]
     fn the_registration_body_carries_the_name_and_the_code() {
         let name = Name::from_mac(NEUTRAL_NAME_MAC);
         let code = parse_code(NEUTRAL_CODE).unwrap();
-        assert_eq!(
-            registration_body(&key(1), &name, &code),
-            NEUTRAL_REGISTRATION
+        assert_signs_as(
+            &registration_body(&key(1), &name, &code),
+            NEUTRAL_REGISTRATION,
         );
     }
 
@@ -1143,10 +1189,8 @@ mod test {
     fn the_unpair_authorization_is_a_bearer_token_for_delete() {
         let name = Name::from_mac(NEUTRAL_NAME_MAC);
         let path = unpair_path("/api", &name);
-        assert_eq!(
-            bearer(&key(1), &name, 42, Method::Delete, &path),
-            format!("Bearer {NEUTRAL_TOKEN}")
-        );
+        let bearer = bearer(&key(1), &name, 42, Method::Delete, &path);
+        assert_signs_as(bearer.strip_prefix("Bearer ").unwrap(), NEUTRAL_TOKEN);
     }
 
     #[test]

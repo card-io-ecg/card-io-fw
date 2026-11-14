@@ -3,11 +3,7 @@ use embassy_sync::{blocking_mutex::raw::NoopRawMutex, channel::Channel, mutex::M
 use macros as cardio;
 use network_services::pairing::{perform, Counters, Job, Name, Outcome, SigningKey};
 
-use crate::{
-    board::wifi::sta::{Sta, WifiRng},
-    task_control::TaskControlToken,
-    Shared,
-};
+use crate::{board::wifi::sta::Sta, task_control::TaskControlToken, Shared};
 
 /// Held for the length of a scan and of a request, so a request waits for a running scan and
 /// a scan does not start during a request.
@@ -34,7 +30,7 @@ impl Session {
 }
 
 pub fn new_key() -> SigningKey {
-    SigningKey::random(&mut WifiRng::default())
+    unwrap!(SigningKey::generate())
 }
 
 // One spare slot: see `net_task`.
@@ -76,7 +72,6 @@ async fn run(
     perform(
         &mut client.client,
         client.stack,
-        &mut WifiRng::default(),
         &url,
         name,
         &mut *counters.lock().await,

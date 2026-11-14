@@ -63,6 +63,21 @@ mod tests {
         let systimer = SystemTimer::new(peripherals.SYSTIMER);
         esp_rtos::start(systimer.alarm0);
 
+        // The signing test runs the embassy-crypto drivers.
+        #[cfg(feature = "wifi")]
+        use embassy_crypto_rustcrypto as _;
+        #[cfg(feature = "wifi")]
+        crypto_drivers::start(crypto_drivers::Peripherals {
+            aes: peripherals.AES,
+            aes_dma: cfg_select! {
+                feature = "esp32s3" => peripherals.DMA_CH2,
+                _ => peripherals.DMA_CH1,
+            },
+            sha: peripherals.SHA,
+            #[cfg(feature = "esp32c6")]
+            ecc: peripherals.ECC,
+        });
+
         Board {
             flash: peripherals.FLASH,
         }
@@ -95,7 +110,7 @@ mod tests {
     }
 
     fn neutral_key() -> SigningKey {
-        SigningKey::from_bytes(&[1; 32].into()).expect("the neutral key is a valid scalar")
+        SigningKey::from_bytes(&[1; 32]).expect("the neutral key is a valid scalar")
     }
 
     /// Remounts the store with a `device_key` record of any content. `FileSystem` saves only
@@ -344,7 +359,7 @@ mod tests {
             "registration signing took {} ms",
             started.elapsed().as_millis()
         );
-        assert_eq!(body, NEUTRAL_REGISTRATION);
+        assert_signs_as(&key, &body, NEUTRAL_REGISTRATION);
 
         let path = format!("/api/devices/{}", name.as_str());
         let started = Instant::now();
@@ -355,6 +370,41 @@ mod tests {
             "request token signing took {} ms",
             started.elapsed().as_millis()
         );
-        assert_eq!(token, NEUTRAL_TOKEN);
+        assert_signs_as(&key, &token, NEUTRAL_TOKEN);
+    }
+
+    /// Asserts that `token` signs what `expected` signs, with `key`. Each signature draws a new
+    /// nonce, so the signatures themselves differ.
+    fn assert_signs_as(key: &SigningKey, token: &str, expected: &str) {
+        use embassy_crypto::{p256::Signature, Sha256};
+
+        let (input, signature) = token.rsplit_once('.').expect("a token has three parts");
+        assert_eq!(input, expected.rsplit_once('.').unwrap().0);
+        let mut bytes = [0u8; 64];
+        let mut bits = 0u32;
+        let mut count = 0;
+        let mut len = 0;
+        for byte in signature.bytes() {
+            let value = match byte {
+                b'A'..=b'Z' => byte - b'A',
+                b'a'..=b'z' => byte - b'a' + 26,
+                b'0'..=b'9' => byte - b'0' + 52,
+                b'-' => 62,
+                _ => 63,
+            };
+            bits = (bits << 6) | u32::from(value);
+            count += 6;
+            if count >= 8 {
+                count -= 8;
+                bytes[len] = (bits >> count) as u8;
+                len += 1;
+            }
+        }
+        assert_eq!(len, 64);
+        let signature = Signature::from_bytes(&bytes).expect("the signature does not parse");
+        key.verifying_key()
+            .expect("no verifying key")
+            .verify_prehash(&Sha256::digest(input.as_bytes()), &signature)
+            .expect("the signature does not verify");
     }
 }

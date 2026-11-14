@@ -28,7 +28,6 @@ use embassy_sync::{
     signal::Signal,
 };
 use embassy_time::{with_timeout, Duration, Instant, Timer};
-use esp_hal::rng::Rng;
 use esp_radio::wifi::{
     ap::AccessPointConfig,
     scan::{AccessPointInfo, ScanConfig},
@@ -249,36 +248,12 @@ impl StaClient {
         &'c mut self,
         base: &BaseUrl<'_>,
     ) -> Result<Connection<'c>, ClientError> {
-        self.client
-            .connect(self.stack, WifiRng::default(), base)
-            .await
+        self.client.connect(self.stack, base).await
     }
 }
 
-/// The hardware RNG mixes in RF noise while Wi-Fi runs, which makes it a true random source
-/// (esp-hal `rng` docs). The client runs only with Wi-Fi up.
-#[derive(Default)]
-pub struct WifiRng(Rng);
-
-impl rand_core::RngCore for WifiRng {
-    fn next_u32(&mut self) -> u32 {
-        self.0.next_u32()
-    }
-
-    fn next_u64(&mut self) -> u64 {
-        self.0.next_u64()
-    }
-
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
-        self.0.fill_bytes(dest);
-    }
-
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
-        self.0.try_fill_bytes(dest)
-    }
-}
-
-impl rand_core::CryptoRng for WifiRng {}
+// Registers the software drivers of the operations that `crypto_drivers` does not serve.
+use embassy_crypto_rustcrypto as _;
 
 pub(super) struct StaState {
     connection_task_control: TaskController<(), StaTaskResources>,
