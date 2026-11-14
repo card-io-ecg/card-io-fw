@@ -12,4 +12,5 @@ mod fmt;
 pub mod client;
 pub mod http;
 pub mod pairing;
+pub mod sntp;
 pub mod url;
