@@ -203,6 +203,7 @@ async fn main(_spawner: Spawner) {
             sta_work_available: None,
             message_displayed_at: None,
             wake_lock,
+            clock: resources.clock,
         },
     });
 

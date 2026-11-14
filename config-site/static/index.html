@@ -212,6 +212,13 @@
             <legend>Settings</legend>
             <label for="host">Server address</label>
             <input id="host" type="text" autocomplete="off" placeholder="https://example.com/api">
+            <label for="ntp">Time server</label>
+            <input id="ntp" type="text" autocomplete="off" placeholder="pool.ntp.org">
+            <label for="time-zone">Time zone</label>
+            <select id="time-zone">
+                <option value="UTC0">UTC</option>
+                <option value="CET-1CEST,M3.5.0,M10.5.0/3">Central European</option>
+            </select>
             <div class="actions">
                 <button id="discard-settings" type="button">Discard settings</button>
             </div>
@@ -445,6 +452,8 @@
 
         const SETTING_ERRORS = {
             host: "The server address must start with http:// or https:// and be at most 64 bytes.",
+            ntp: "The time server must be a host name of at most 64 bytes.",
+            zone: "The device does not know this time zone.",
         };
 
         // Pair and Unpair save the settings, so they wait for the field commit that the click's blur started.
@@ -457,7 +466,8 @@
         // Resolves to whether the device took the settings.
         async function sendSettings() {
             try {
-                await request("/settings", $("host").value);
+                const lines = [$("host").value, $("ntp").value, $("time-zone").value];
+                await request("/settings", lines.join("\n"));
                 return true;
             } catch (error) {
                 toast(SETTING_ERRORS[error.message] || "Could not change settings: " + error.message);
@@ -475,7 +485,10 @@
         }
 
         async function loadSettings() {
-            $("host").value = (await request("/settings")).split("\n")[0];
+            const [host, ntp, zone] = (await request("/settings")).split("\n");
+            $("host").value = host;
+            $("ntp").value = ntp;
+            $("time-zone").value = zone;
         }
 
         async function loadFirmware() {
@@ -614,6 +627,8 @@
         $("add-confirm").addEventListener("click", addNetwork);
         $("add-cancel").addEventListener("click", unpick);
         $("host").addEventListener("change", commitSettings);
+        $("ntp").addEventListener("change", commitSettings);
+        $("time-zone").addEventListener("change", commitSettings);
         $("discard-settings").addEventListener("click", discardSettings);
         $("pair").addEventListener("click", pair);
         $("unpair").addEventListener("click", unpair);

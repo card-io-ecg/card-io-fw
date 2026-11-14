@@ -4,15 +4,15 @@ use core::{
 };
 
 #[cfg(feature = "wifi")]
-use crate::board::wifi::{ap::Ap, sta::Sta, WifiDriver, AP_ADDRESS};
+use crate::board::wifi::{ap::Ap, sta::Sta, time_sync::TimeSync, WifiDriver, AP_ADDRESS};
 use crate::{
     board::{
-        drivers::battery_monitor::BatteryMonitor, startup::Display, storage::FileSystem,
-        EcgFrontend,
+        clock::Clock, drivers::battery_monitor::BatteryMonitor, startup::Display,
+        storage::FileSystem, EcgFrontend,
     },
     states::MESSAGE_MIN_DURATION,
 };
-use config_types::Config;
+use config_types::{types::local_hm, Config};
 use display_interface::DisplayError;
 use embassy_executor::SendSpawner;
 
@@ -69,6 +69,7 @@ pub struct InnerContext {
     pub sta_work_available: Option<bool>,
     pub message_displayed_at: Option<Instant>,
     pub wake_lock: Option<WakeLock>,
+    pub clock: &'static Clock,
 }
 
 pub struct Context {
@@ -186,6 +187,12 @@ impl Context {
 }
 
 impl InnerContext {
+    /// The local hour and minute, or `None` while the time or the time zone is not known.
+    pub fn local_time(&self) -> Option<(u8, u8)> {
+        let now_us = self.clock.now_us()?;
+        local_hm(&self.config.time_zone, now_us / 1_000_000)
+    }
+
     pub async fn apply_hw_config_changes(&mut self) {
         if !self.config_changed {
             return;
@@ -239,7 +246,7 @@ impl InnerContext {
 
         let sta = self
             .wifi
-            .configure_sta(NetConfig::dhcpv4(Default::default()))
+            .configure_sta(NetConfig::dhcpv4(Default::default()), self.time_sync())
             .await;
 
         sta.update_known_networks(&self.config.known_networks).await;
@@ -283,12 +290,21 @@ impl InnerContext {
                     dns_servers: Default::default(),
                 }),
                 NetConfig::dhcpv4(Default::default()),
+                self.time_sync(),
             )
             .await;
 
         sta.update_known_networks(&self.config.known_networks).await;
 
         Some((ap, sta))
+    }
+
+    #[cfg(feature = "wifi")]
+    fn time_sync(&self) -> TimeSync {
+        TimeSync {
+            clock: self.clock,
+            server: self.config.ntp_server.clone(),
+        }
     }
 
     /// Note: make sure Sta/Ap is released before calling this.

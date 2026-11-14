@@ -5,6 +5,7 @@ use crate::{
         ap::{Ap, ApState},
         ap_sta::ApStaState,
         sta::{Sta, StaState},
+        time_sync::TimeSync,
     },
     task_control::TaskControlToken,
 };
@@ -25,9 +26,9 @@ macro_rules! mk_static {
 }
 
 // embassy-net adds a DNS socket to every stack. The access point also holds the DHCP server and
-// the web server connections.
+// the web server connections. The station also holds the time sync socket.
 const AP_SOCKET_COUNT: usize = 4;
-const STA_SOCKET_COUNT: usize = 3;
+const STA_SOCKET_COUNT: usize = 4;
 
 pub const AP_ADDRESS: Ipv4Addr = Ipv4Addr::new(192, 168, 2, 1);
 
@@ -48,6 +49,7 @@ pub mod ap;
 pub mod ap_sta;
 mod power;
 pub mod sta;
+pub mod time_sync;
 
 pub struct WifiDriver {
     state: WifiDriverState,
@@ -175,7 +177,12 @@ impl WifiDriver {
         }
     }
 
-    pub async fn configure_ap_sta(&mut self, ap_config: Config, sta_config: Config) -> (Ap, Sta) {
+    pub async fn configure_ap_sta(
+        &mut self,
+        ap_config: Config,
+        sta_config: Config,
+        time_sync: TimeSync,
+    ) -> (Ap, Sta) {
         // Prepare, stop STA if running
         if !matches!(self.state, WifiDriverState::ApSta(_)) {
             let spawner = unsafe { Spawner::for_current_executor().await };
@@ -186,6 +193,7 @@ impl WifiDriver {
                         sta_stack.set_config_v4(sta_config.ipv4);
                         WifiDriverState::ApSta(ApStaState::init(
                             controller, ap_stack, ap_runner, sta_stack, sta_runner, spawner,
+                            time_sync,
                         ))
                     },
                     unsafe { &mut *(self.ap_resources as *mut _) },
@@ -202,7 +210,7 @@ impl WifiDriver {
         }
     }
 
-    pub async fn configure_sta(&mut self, sta_config: Config) -> Sta {
+    pub async fn configure_sta(&mut self, sta_config: Config, time_sync: TimeSync) -> Sta {
         // Prepare, stop AP if running
         if !matches!(self.state, WifiDriverState::Sta(_)) {
             let spawner = unsafe { Spawner::for_current_executor().await };
@@ -211,7 +219,7 @@ impl WifiDriver {
                     move |controller, _ap_stack, _ap_runner, sta_stack, sta_runner| {
                         sta_stack.set_config_v4(sta_config.ipv4);
                         WifiDriverState::Sta(StaState::init(
-                            controller, sta_stack, sta_runner, spawner,
+                            controller, sta_stack, sta_runner, spawner, time_sync,
                         ))
                     },
                     unsafe { &mut *(self.ap_resources as *mut _) },

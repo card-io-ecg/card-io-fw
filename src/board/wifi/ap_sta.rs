@@ -13,6 +13,7 @@ use crate::{
         net_task,
         power::Power,
         sta::{CommandQueue, Sta, StaConnectionState, StaController},
+        time_sync::{time_sync_task, TimeSync},
         AP_ADDRESS,
     },
     task_control::{TaskControlToken, TaskController},
@@ -37,6 +38,7 @@ pub(super) struct ApStaState {
     ap_net_task_control: TaskController<()>,
     sta_net_task_control: TaskController<()>,
     dhcp_task_control: TaskController<()>,
+    time_sync_task_control: TaskController<()>,
     ap_handle: Ap,
     sta_handle: Sta,
 }
@@ -49,6 +51,7 @@ impl ApStaState {
         sta_stack: Stack<'static>,
         sta_runner: Runner<'static, Interface>,
         spawner: Spawner,
+        time_sync: TimeSync,
     ) -> Self {
         info!("Configuring AP-STA");
 
@@ -69,6 +72,7 @@ impl ApStaState {
         let ap_net_task_control = TaskController::new();
         let sta_net_task_control = TaskController::new();
         let dhcp_task_control = TaskController::new();
+        let time_sync_task_control = TaskController::new();
 
         let ap_config = AccessPointConfig::default()
             .with_ssid(unwrap!("Card/IO".try_into()))
@@ -84,12 +88,19 @@ impl ApStaState {
         spawner.spawn(unwrap!(net_task(ap_runner, ap_net_task_control.token())));
         spawner.spawn(unwrap!(net_task(sta_runner, sta_net_task_control.token())));
         spawner.spawn(unwrap!(dhcp_task(ap_stack, dhcp_task_control.token())));
+        spawner.spawn(unwrap!(time_sync_task(
+            sta_stack,
+            time_sync,
+            sta_handle.power.clone(),
+            time_sync_task_control.token(),
+        )));
 
         Self {
             connection_task_control,
             ap_net_task_control,
             sta_net_task_control,
             dhcp_task_control,
+            time_sync_task_control,
 
             ap_handle: Ap {
                 ap_stack,
@@ -101,6 +112,7 @@ impl ApStaState {
 
     pub(super) async fn stop(self) {
         info!("Stopping AP-STA");
+        let _ = self.time_sync_task_control.stop().await;
         let _ = join4(
             self.connection_task_control.stop(),
             self.ap_net_task_control.stop(),

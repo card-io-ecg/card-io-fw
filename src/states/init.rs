@@ -26,12 +26,14 @@ pub async fn initialize(context: &mut Context) -> AppState {
         }
 
         let elapsed = exit_timer.elapsed();
+        let time = context.local_time();
 
         context
             .with_status_bar(|display| {
                 StartupScreen {
                     label: "Release to shutdown",
                     progress: to_progress(elapsed, INIT_TIME),
+                    time,
                 }
                 .draw(display)?;
                 Ok(true)

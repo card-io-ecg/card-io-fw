@@ -7,7 +7,7 @@ use std::{
 use config_site::{
     data::{
         network::{StationStatus, VisibleNetwork, WifiNetwork, MAX_VISIBLE_NETWORKS},
-        SharedWebContext, WebContext,
+        Settings, SharedWebContext, WebContext, DEFAULT_NTP_SERVER, UTC_RULE,
     },
     ConfigSite, PairingControl, Station,
 };
@@ -184,7 +184,11 @@ pub async fn run() {
 
     let context = SharedWebContext::new(WebContext::new(
         known_networks,
-        "http://localhost:8080".try_into().unwrap(),
+        Settings {
+            backend_url: "http://localhost:8080".try_into().unwrap(),
+            ntp_server: DEFAULT_NTP_SERVER.try_into().unwrap(),
+            time_zone: UTC_RULE.try_into().unwrap(),
+        },
     ));
 
     let acceptor = edge_nal_std::Stack::new()

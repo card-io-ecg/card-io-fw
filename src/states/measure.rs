@@ -284,12 +284,18 @@ async fn measure_impl(
             debug_print_timer.reset();
         }
 
+        let time = if exit_timer.is_elapsed() {
+            None
+        } else {
+            context.local_time()
+        };
         context
             .with_status_bar(|display| {
                 if !exit_timer.is_elapsed() {
                     StartupScreen {
                         label: "Release to menu",
                         progress: to_progress(exit_timer.elapsed(), INIT_TIME),
+                        time,
                     }
                     .draw(display)?;
                 } else {

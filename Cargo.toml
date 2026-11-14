@@ -16,6 +16,7 @@ embedded-io-async = "0.7"
 embedded-menu = "0.7.0"
 embassy-net = { version = "0.9", features = [
     "tcp",
+    "udp",
     "dhcpv4",
     "dns",
     "medium-ethernet",

@@ -9,7 +9,7 @@ use alloc::{boxed::Box, rc::Rc};
 use config_site::{
     data::{
         network::{StationStatus, VisibleNetwork, WifiNetwork, MAX_VISIBLE_NETWORKS},
-        SharedWebContext, WebContext,
+        Settings, SharedWebContext, WebContext,
     },
     ConfigSite, PairingControl, Station,
 };
@@ -79,7 +79,11 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
 
     let web_context = Rc::new(SharedWebContext::new(WebContext::new(
         context.config.known_networks.clone(),
-        context.config.backend_url.clone(),
+        Settings {
+            backend_url: context.config.backend_url.clone(),
+            ntp_server: context.config.ntp_server.clone(),
+            time_zone: context.config.time_zone.clone(),
+        },
     )));
     let station = Rc::new(SetupStation {
         sta: sta.clone(),
@@ -223,8 +227,15 @@ async fn apply_page_settings(context: &mut Context, web_context: &SharedWebConte
                 .known_networks
                 .clone_from(&web_context.known_networks);
         }
-        if web_context.backend_url != config.backend_url {
-            config.backend_url.clone_from(&web_context.backend_url);
+        let settings = &web_context.settings;
+        if settings.backend_url != config.backend_url {
+            config.backend_url.clone_from(&settings.backend_url);
+        }
+        if settings.ntp_server != config.ntp_server {
+            config.ntp_server.clone_from(&settings.ntp_server);
+        }
+        if settings.time_zone != config.time_zone {
+            config.time_zone.clone_from(&settings.time_zone);
         }
     });
 }
