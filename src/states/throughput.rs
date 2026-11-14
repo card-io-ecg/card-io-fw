@@ -72,7 +72,7 @@ pub async fn throughput(context: &mut Context) -> AppState {
 
     context.display_message(message).await;
 
-    AppState::Menu(AppMenu::Main)
+    AppState::Menu(AppMenu::Wifi)
 }
 
 async fn run_test(context: &mut Context) -> TestResult {

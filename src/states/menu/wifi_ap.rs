@@ -65,7 +65,7 @@ type Commands = Channel<NoopRawMutex, (Command, Reply), 1>;
 pub async fn wifi_ap(context: &mut Context) -> AppState {
     let Some((ap, sta)) = context.enable_wifi_ap_sta().await else {
         // FIXME: Show error screen
-        return AppState::Menu(AppMenu::Main);
+        return AppState::Menu(AppMenu::Wifi);
     };
 
     let spawner = unsafe { Spawner::for_current_executor().await };
@@ -204,7 +204,7 @@ pub async fn wifi_ap(context: &mut Context) -> AppState {
         context.pairing.saved();
     }
 
-    AppState::Menu(AppMenu::Main)
+    AppState::Menu(AppMenu::Wifi)
 }
 
 fn running_request(pairing: &Pairing) -> Option<ApRequest> {

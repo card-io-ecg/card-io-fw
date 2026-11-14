@@ -19,13 +19,9 @@ pub enum MainMenuEvents {
     Frontend,
     About,
     #[cfg(feature = "wifi")]
-    WifiSetup,
-    #[cfg(feature = "wifi")]
-    WifiListVisible,
+    Wifi,
     #[cfg(feature = "wifi")]
     FirmwareUpdate,
-    #[cfg(feature = "wifi")]
-    Throughput,
     Storage,
     Shutdown,
 }
@@ -51,45 +47,51 @@ struct MainMenu;
 type MainMenuBuilder = MenuBuilder<
     chain!(
         MainMenuItem<MainMenuEvents>,
+        MenuItems<MainMenuItem<MainMenuEvents>, MainMenuEvents, 1>,
         MainMenuItem<MainMenuEvents>,
         MainMenuItem<MainMenuEvents>,
         MainMenuItem<MainMenuEvents>,
+        MenuItems<MainMenuItem<MainMenuEvents>, MainMenuEvents, 1>,
         MainMenuItem<MainMenuEvents>,
-        MenuItems<MainMenuItem<MainMenuEvents>, MainMenuEvents, 4>,
         MainMenuItem<MainMenuEvents>
     ),
     MainMenuEvents,
 >;
 
+#[cfg(feature = "wifi")]
+fn optional_item(label: &'static str, event: MainMenuEvents) -> MainMenuItem<MainMenuEvents> {
+    MenuItem::new(label, event).with_value_converter(|evt| evt)
+}
+
 fn main_menu_builder(_ctx: &mut Context) -> MainMenuBuilder {
     #[allow(unused_mut)]
-    let mut optional_items = heapless::Vec::<_, 4>::new();
+    let mut network_items = heapless::Vec::<_, 1>::new();
+    #[allow(unused_mut)]
+    let mut wifi_items = heapless::Vec::<_, 1>::new();
 
     #[cfg(feature = "wifi")]
-    if _ctx.can_enable_wifi() {
-        let mut optional_item = |label, event| {
-            unwrap!(optional_items
-                .push(MenuItem::new(label, event).with_value_converter(|evt| evt))
-                .ok())
-        };
-        let backend_ready = _ctx.backend_ready().is_ok();
-
-        optional_item("Wifi setup", MainMenuEvents::WifiSetup);
-        optional_item("Wifi networks", MainMenuEvents::WifiListVisible);
-
-        if backend_ready {
-            optional_item("Firmware update", MainMenuEvents::FirmwareUpdate);
-            optional_item("Speed test", MainMenuEvents::Throughput);
+    {
+        if _ctx.can_enable_wifi() && _ctx.backend_ready().is_ok() {
+            unwrap!(network_items
+                .push(optional_item(
+                    "Firmware update",
+                    MainMenuEvents::FirmwareUpdate
+                ))
+                .ok());
         }
+        unwrap!(wifi_items
+            .push(optional_item("Wi-Fi", MainMenuEvents::Wifi))
+            .ok());
     }
 
     create_menu("Main menu")
         .add_item("Measure", MainMenuEvents::Measure, |evt| evt)
+        .add_menu_items(network_items)
         .add_item("Display", MainMenuEvents::Display, |evt| evt)
         .add_item("EKG", MainMenuEvents::Frontend, |evt| evt)
         .add_item("Storage", MainMenuEvents::Storage, |evt| evt)
+        .add_menu_items(wifi_items)
         .add_item("Device info", MainMenuEvents::About, |evt| evt)
-        .add_menu_items(optional_items)
         .add_item("Shutdown", MainMenuEvents::Shutdown, |evt| evt)
 }
 
@@ -113,14 +115,10 @@ impl MenuScreen for MainMenu {
             MainMenuEvents::Frontend => AppState::Menu(AppMenu::Frontend),
             MainMenuEvents::About => AppState::Menu(AppMenu::DeviceInfo),
             #[cfg(feature = "wifi")]
-            MainMenuEvents::WifiSetup => AppState::Menu(AppMenu::WifiAP),
-            #[cfg(feature = "wifi")]
-            MainMenuEvents::WifiListVisible => AppState::Menu(AppMenu::WifiListVisible),
+            MainMenuEvents::Wifi => AppState::Menu(AppMenu::Wifi),
             MainMenuEvents::Storage => AppState::Menu(AppMenu::Storage),
             #[cfg(feature = "wifi")]
             MainMenuEvents::FirmwareUpdate => AppState::FirmwareUpdate,
-            #[cfg(feature = "wifi")]
-            MainMenuEvents::Throughput => AppState::Throughput,
             MainMenuEvents::Shutdown => AppState::Shutdown,
         };
 
