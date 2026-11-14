@@ -11,10 +11,8 @@ use gui::{embedded_layout::object_chain, screens::create_menu};
 use signal_processing::compressing_buffer::{CompressingBuffer, EkgFormat};
 
 use crate::{
-    board::{initialized::Context, storage::StorageError},
-    human_readable::BinarySize,
-    states::menu::MenuScreen,
-    uformat, AppState,
+    board::initialized::Context, human_readable::BinarySize, states::menu::MenuScreen, uformat,
+    AppState,
 };
 use config_types::types::MeasurementAction;
 
@@ -56,44 +54,34 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
         MeasurementAction::Discard => (false, false),
     };
 
-    let uploaded = if can_upload {
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "wifi")] {
-                let upload_result = try_to_upload(context, samples).await;
-                debug!("Upload result: {:?}", upload_result);
-                match upload_result {
-                    Ok(()) => true,
-                    Err(reason) => {
-                        if !can_store {
-                            display_discarded(context, reason).await;
-                        }
-                        false
-                    }
-                }
-            } else {
-                false
-            }
-        }
-    } else {
-        false
-    };
+    // The measurement is saved before the radio starts, so a reset during the upload keeps it.
+    let stored = can_store && try_store_measurement(context, samples).await;
 
-    if can_store && !uploaded {
-        let store_result = try_store_measurement(context, samples).await;
+    #[cfg(not(feature = "wifi"))]
+    let _ = (can_upload, stored);
 
-        if let Err(e) = store_result {
-            context.display_message("Could not store measurement").await;
-            error!("Failed to store measurement: {:?}", e);
-        }
-    }
-
-    // Only upload if we did not store.
     #[cfg(feature = "wifi")]
-    if can_upload && uploaded {
+    if can_upload {
+        let uploaded_directly = if stored {
+            false
+        } else {
+            let upload_result = try_to_upload(context, samples).await;
+            debug!("Upload result: {:?}", upload_result);
+            match upload_result {
+                Ok(()) => true,
+                Err(reason) => {
+                    display_discarded(context, reason).await;
+                    false
+                }
+            }
+        };
+
         // Drop to free up 90kB of memory.
         core::mem::drop(buffer);
 
-        if context.sta_has_work().await {
+        // `upload_stored` deletes each measurement that the server takes, and keeps the others.
+        let reachable = context.backend_ready().is_ok() && context.can_enable_wifi();
+        if (stored && reachable) || (uploaded_directly && context.sta_has_work().await) {
             upload_stored(context).await;
         }
     }
@@ -208,27 +196,32 @@ impl MenuScreen for AskForMeasurementActionMenu {
     }
 }
 
-async fn try_store_measurement(
-    context: &mut Context,
-    measurement: &[u8],
-) -> Result<(), StorageError> {
+/// Returns whether the measurement is in the storage.
+async fn try_store_measurement(context: &mut Context, measurement: &[u8]) -> bool {
     debug!("Trying to store measurement");
+
+    if context.storage.is_none() {
+        return false;
+    }
 
     let saving_msg = uformat!(32, "Saving measurement: {}", BinarySize(measurement.len()));
     context.display_message(&saving_msg).await;
-    let Some(storage) = context.storage.as_mut() else {
-        return Ok(());
-    };
+    let storage = unwrap!(context.storage.as_mut());
 
-    storage
+    if let Err(e) = storage
         .store_measurement(EkgFormat::VERSION, measurement)
-        .await?;
+        .await
+    {
+        context.display_message("Could not store measurement").await;
+        error!("Failed to store measurement: {:?}", e);
+        return false;
+    }
 
     info!("Measurement saved");
 
     context.signal_sta_work_available(true);
 
-    Ok(())
+    true
 }
 
 #[cfg(feature = "wifi")]
