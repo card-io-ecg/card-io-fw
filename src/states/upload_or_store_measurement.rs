@@ -236,9 +236,11 @@ mod wifi {
     use super::*;
     use crate::board::{
         initialized::{InnerContext, NotReady, Signing, StaMode},
-        storage::measurement_buffer,
+        logging::MAX_RECORD,
+        storage::{measurement_buffer, FileSystem},
         wifi::sta::StaClient,
     };
+    use alloc::vec::Vec;
     use edge_http::Method;
     use embassy_time::{with_timeout, Duration};
     use network_services::{
@@ -329,6 +331,10 @@ mod wifi {
         {
             Ok(()) => {
                 context.display_message("Upload successful").await;
+                if let Some(storage) = context.storage.as_mut() {
+                    let backend_url = context.inner.config.backend_url.as_str();
+                    upload_logs(&mut client, &signing, storage, backend_url).await;
+                }
                 Ok(())
             }
             Err(UploadError::Failed) => {
@@ -413,6 +419,11 @@ mod wifi {
             }
         };
 
+        if result.is_ok() {
+            let backend_url = context.inner.config.backend_url.as_str();
+            upload_logs(&mut client, &signing, storage, backend_url).await;
+        }
+
         let message = match result {
             Ok(()) => "Upload successful",
             Err(UploadError::Failed) => "Failed to upload measurements",
@@ -444,29 +455,116 @@ mod wifi {
         );
         context.display_message(uploading_msg.as_str()).await;
 
+        let version = samples.version.to_le_bytes();
+        let parts = [&version[..], samples.buffer];
+        let backend_url = context.config.backend_url.as_str();
+        match post(
+            client,
+            signing,
+            backend_url,
+            "upload_data",
+            Template::Upload,
+            &parts,
+        )
+        .await?
+        {
+            200 | 201 => Ok(()),
+            status => {
+                warn!("HTTP upload failed: {}", status);
+                Err(UploadError::Failed)
+            }
+        }
+    }
+
+    /// Uploads the log records that wait, oldest first, and deletes each one that the server
+    /// takes. Stops at the first record that the server does not take.
+    pub async fn upload_logs(
+        client: &mut StaClient,
+        signing: &Signing,
+        storage: &mut FileSystem,
+        backend_url: &str,
+    ) {
+        let waiting = match storage.waiting_log_records().await {
+            Ok(waiting) => waiting,
+            Err(e) => {
+                warn!("Failed to look for log records: {:?}", e);
+                return;
+            }
+        };
+        if waiting.is_empty() {
+            return;
+        }
+
+        let mut record = Vec::new();
+        if record.try_reserve_exact(MAX_RECORD).is_err() {
+            warn!("No heap for a log record: {}", esp_alloc::HEAP.stats());
+            return;
+        }
+        record.resize(MAX_RECORD, 0);
+
+        for sequence in waiting {
+            let len = match storage.load_log_record(sequence, &mut record).await {
+                Ok(Some(len)) => len,
+                Ok(None) => continue,
+                Err(e) => {
+                    warn!("Failed to load log record {}: {:?}", sequence, e);
+                    return;
+                }
+            };
+            let parts = [&record[..len]];
+            match post(client, signing, backend_url, "logs", Template::Logs, &parts).await {
+                // A `400` or a `413` refuses these bytes each time.
+                Ok(status @ (201 | 400 | 413)) => {
+                    info!("Log record {} answered {}", sequence, status);
+                    if let Err(e) = storage.delete_log_record(sequence).await {
+                        warn!("Failed to delete log record {}: {:?}", sequence, e);
+                        return;
+                    }
+                }
+                Ok(status) => {
+                    warn!("Log record {} answered {}", sequence, status);
+                    return;
+                }
+                Err(e) => {
+                    warn!("Log record {} not uploaded: {:?}", sequence, e);
+                    return;
+                }
+            }
+        }
+    }
+
+    /// Sends a signed `POST {backend_url}/{route}` and returns the answer's status. A `401` with
+    /// a request counter sends it again once.
+    async fn post(
+        client: &mut StaClient,
+        signing: &Signing,
+        backend_url: &str,
+        route: &str,
+        template: Template,
+        parts: &[&[u8]],
+    ) -> Result<u16, UploadError> {
         const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
         const UPLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
-        let Some(base) = url::parse(context.config.backend_url.as_str()) else {
+        let Some(base) = url::parse(backend_url) else {
             warn!("Invalid backend URL");
             return Err(UploadError::Failed);
         };
 
         let mut path = heapless::String::<128>::new();
-        if uwrite!(&mut path, "{}/upload_data", base.path).is_err() {
+        if uwrite!(&mut path, "{}/{}", base.path, route).is_err() {
             warn!("URL too long");
             return Err(UploadError::Failed);
         }
 
-        debug!("Uploading measurement to {}", path);
+        debug!("Uploading to {}", path);
 
-        let version = samples.version.to_le_bytes();
         let mut counters = signing.counters.lock().await;
         let mut signer = Signer::new(
             &signing.key,
             &signing.name,
             &mut counters,
-            Template::Upload,
+            template,
             Method::Post,
             &path,
         );
@@ -487,7 +585,7 @@ mod wifi {
                 authorization: Some(&authorization),
                 body: Some(Body {
                     content_type: "application/octet-stream",
-                    parts: &[&version, samples.buffer],
+                    parts,
                 }),
             };
 
@@ -504,11 +602,7 @@ mod wifi {
             match signer.answered(status, counter) {
                 Step::Resend => {}
                 Step::Refused => return Err(UploadError::Refused),
-                Step::Answered(200 | 201) => return Ok(()),
-                Step::Answered(status) => {
-                    warn!("HTTP upload failed: {}", status);
-                    return Err(UploadError::Failed);
-                }
+                Step::Answered(status) => return Ok(status),
             }
         }
     }

@@ -1,5 +1,7 @@
 //! The record of one unexpected boot, and where the store keeps it.
 
+use core::ops::Range;
+
 use crate::{LogRing, Pending};
 
 /// The record bytes before the two version strings.
@@ -31,6 +33,12 @@ pub struct RecordInfo<'a> {
 pub fn record_key(sequence: u32, slots: u8) -> [u8; 6] {
     let slot = (sequence % u32::from(slots)) as u8;
     [b'l', b'o', b'g', b'/', b'0' + slot / 10, b'0' + slot % 10]
+}
+
+/// The sequence numbers whose slots can hold a record that waits for upload, oldest first. `next`
+/// is the value of [`NEXT_KEY`]. A slot without a record holds no waiting record.
+pub fn waiting(next: u32, slots: u8) -> Range<u32> {
+    next.saturating_sub(u32::from(slots))..next
 }
 
 /// The sequence number of the next record, from the value of [`NEXT_KEY`].
@@ -146,6 +154,13 @@ mod tests {
         assert_eq!(*b"log/00", record_key(32, 32));
         assert_eq!(*b"log/99", record_key(199, 100));
         assert!(record_key(99, 100).as_slice() < NEXT_KEY);
+    }
+
+    #[test]
+    fn the_newest_slots_wait_for_upload() {
+        assert_eq!(0..0, waiting(0, 32));
+        assert_eq!(0..5, waiting(5, 32));
+        assert_eq!(8..40, waiting(40, 32));
     }
 
     #[test]

@@ -74,6 +74,16 @@ async fn storage_menu_builder(context: &mut Context) -> StorageMenuBuilder {
                 )
                 .ok());
         }
+        if let Ok(waiting) = storage.waiting_log_records().await {
+            let logs = SavedCount(uformat!(32, "{}", waiting.len()));
+
+            unwrap!(used_item
+                .push(
+                    MenuItem::new("Logs", logs)
+                        .with_value_converter(|_| StorageMenuEvents::Nothing)
+                )
+                .ok());
+        }
     }
 
     #[cfg(feature = "wifi")]

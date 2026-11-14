@@ -5,7 +5,8 @@
 mod record;
 
 pub use record::{
-    decode_next, encode_record, record_key, RecordInfo, MAX_VERSION_LEN, NEXT_KEY, RECORD_HEADER,
+    decode_next, encode_record, record_key, waiting, RecordInfo, MAX_VERSION_LEN, NEXT_KEY,
+    RECORD_HEADER,
 };
 
 // The bytes "LRG1".

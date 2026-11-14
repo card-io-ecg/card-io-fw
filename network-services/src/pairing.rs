@@ -47,6 +47,7 @@ pub enum Template {
     Unpair,
     Upload,
     Firmware,
+    Logs,
 }
 
 #[derive(Default)]
@@ -54,6 +55,7 @@ pub struct Counters {
     unpair: Counter,
     upload: Counter,
     firmware: Counter,
+    logs: Counter,
 }
 
 impl Counters {
@@ -62,6 +64,7 @@ impl Counters {
             Template::Unpair => &mut self.unpair,
             Template::Upload => &mut self.upload,
             Template::Firmware => &mut self.firmware,
+            Template::Logs => &mut self.logs,
         }
     }
 }

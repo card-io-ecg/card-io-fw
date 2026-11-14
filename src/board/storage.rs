@@ -18,7 +18,7 @@ use esp_hal::{
     peripherals::FLASH,
     rng::Rng,
 };
-use log_ring::{decode_next, record_key, NEXT_KEY};
+use log_ring::{decode_next, record_key, waiting, NEXT_KEY};
 #[cfg(feature = "wifi")]
 use network_services::pairing::SigningKey;
 
@@ -39,6 +39,9 @@ const VERSION_KEY: &[u8] = b"version";
 const DEVICE_KEY_LEN: usize = 32;
 /// The store keeps the newest log records, about 2.1 kB each.
 const STORED_LOG_RECORDS: u8 = 32;
+
+/// The sequence numbers of the log records that wait for upload.
+pub type WaitingLogs = heapless::Vec<u32, { STORED_LOG_RECORDS as usize }>;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -431,6 +434,64 @@ impl FileSystem {
                 .await?;
             tx.write(NEXT_KEY, &sequence.wrapping_add(1).to_le_bytes())
                 .await?;
+
+            Ok(tx.commit().await?)
+        })
+        .await
+    }
+
+    /// The sequence numbers of the log records that wait for upload, oldest first.
+    pub async fn waiting_log_records(&mut self) -> Result<WaitingLogs, StorageError> {
+        let store = self.store;
+        boxed("waiting_log_records", async {
+            let mut next = [0; 8];
+            let tx = store.read_transaction().await;
+            let len = read_value(&tx, NEXT_KEY, &mut next).await?;
+            let next = decode_next(len.map(|len| &next[..len]));
+
+            let mut sequences = heapless::Vec::new();
+            for sequence in waiting(next, STORED_LOG_RECORDS) {
+                // An empty buffer finds the record without reading it.
+                let found = match tx
+                    .read(&record_key(sequence, STORED_LOG_RECORDS), &mut [])
+                    .await
+                {
+                    Ok(_) | Err(ReadError::BufferTooSmall) => true,
+                    Err(ReadError::KeyNotFound) => false,
+                    Err(e) => return Err(e.into()),
+                };
+                if found {
+                    // `waiting` gives at most `STORED_LOG_RECORDS` numbers.
+                    unwrap!(sequences.push(sequence).ok());
+                }
+            }
+            Ok(sequences)
+        })
+        .await
+    }
+
+    /// Reads the log record of `sequence` into `record` and returns its length. `None` when the
+    /// slot holds no record.
+    #[cfg(feature = "wifi")]
+    pub async fn load_log_record(
+        &mut self,
+        sequence: u32,
+        record: &mut [u8],
+    ) -> Result<Option<usize>, StorageError> {
+        let store = self.store;
+        boxed("load_log_record", async {
+            let tx = store.read_transaction().await;
+            read_value(&tx, &record_key(sequence, STORED_LOG_RECORDS), record).await
+        })
+        .await
+    }
+
+    #[cfg(feature = "wifi")]
+    pub async fn delete_log_record(&mut self, sequence: u32) -> Result<(), StorageError> {
+        let store = self.store;
+        boxed("delete_log_record", async {
+            let mut tx = store.write_transaction().await;
+            tx.delete(&record_key(sequence, STORED_LOG_RECORDS)).await?;
 
             Ok(tx.commit().await?)
         })

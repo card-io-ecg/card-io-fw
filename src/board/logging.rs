@@ -17,7 +17,8 @@ mod transport;
 use transport::Transport;
 
 const RING_BYTES: usize = 2048;
-const RECORD_CAPACITY: usize = RECORD_HEADER + 2 * MAX_VERSION_LEN + RING_BYTES;
+/// The largest record, in bytes.
+pub const MAX_RECORD: usize = RECORD_HEADER + 2 * MAX_VERSION_LEN + RING_BYTES;
 
 type Ring = LogRing<RING_BYTES>;
 
@@ -195,9 +196,9 @@ async fn store_record(storage: &mut FileSystem, pending: Pending) -> Result<(), 
 
     let mut record = Vec::new();
     record
-        .try_reserve_exact(RECORD_CAPACITY)
+        .try_reserve_exact(MAX_RECORD)
         .map_err(|_| StorageError::OutOfMemory)?;
-    record.resize(RECORD_CAPACITY, 0);
+    record.resize(MAX_RECORD, 0);
 
     let info = RecordInfo {
         pending,
