@@ -10,6 +10,7 @@ use crate::{
     task_control::TaskControlToken,
 };
 use embassy_executor::Spawner;
+use embassy_futures::yield_now;
 use embassy_net::{Config, Runner, Stack, StackResources};
 use esp_hal::{peripherals::WIFI, rng::Rng};
 use esp_radio::wifi::{Interface, WifiController, WifiError};
@@ -130,8 +131,13 @@ impl WifiDriverState {
             Self::Sta(sta) => sta.stop().await,
             Self::Ap(ap) => ap.stop().await,
             Self::ApSta(apsta) => apsta.stop().await,
-            _ => {}
+            Self::Uninitialized(_) => return,
         };
+
+        // A task that ends while it is in the run queue keeps its pool slot until the executor
+        // dequeues it, so the next state could not spawn the same task. The yield lets the
+        // executor dequeue it first.
+        yield_now().await;
     }
 }
 
