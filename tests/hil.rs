@@ -38,7 +38,7 @@ mod tests {
     };
     use network_services::pairing::{Name, SigningKey};
 
-    use crate::board::storage::{self, measurement_buffer, FileSystem};
+    use crate::board::storage::{self, measurement_buffer, FileSystem, StoredMeasurement};
 
     const HIL_PARTITION: &str = "hil";
 
@@ -152,6 +152,13 @@ mod tests {
         (0..len).map(pattern_byte).collect()
     }
 
+    fn stored(version: u8) -> StoredMeasurement {
+        StoredMeasurement {
+            version,
+            started_at: None,
+        }
+    }
+
     #[test]
     async fn the_flash_lock_is_available_only_once_the_store_is_initialised(board: Board) {
         assert!(storage::lock_flash().await.is_none());
@@ -186,7 +193,7 @@ mod tests {
     async fn formatting_empties_the_store_and_resets_the_config(board: Board) {
         let mut fs = mount_erased(board.flash).await;
         assert_eq!(fs.save_config(&changed_config()).await, Ok(()));
-        assert_eq!(fs.store_measurement(1, &pattern(100)).await, Ok(()));
+        assert_eq!(fs.store_measurement(stored(1), &pattern(100)).await, Ok(()));
         drop(fs);
 
         FileSystem::format().await;
@@ -199,18 +206,28 @@ mod tests {
     #[test]
     async fn measurements_come_back_oldest_first_and_deleting_removes_the_oldest(board: Board) {
         let mut fs = mount_erased(board.flash).await;
-        assert_eq!(fs.store_measurement(1, &pattern(100)).await, Ok(()));
-        assert_eq!(fs.store_measurement(2, &pattern(200)).await, Ok(()));
+        let timed = StoredMeasurement {
+            version: 2,
+            started_at: Some(1_767_225_600),
+        };
+        assert_eq!(fs.store_measurement(stored(1), &pattern(100)).await, Ok(()));
+        assert_eq!(fs.store_measurement(timed, &pattern(200)).await, Ok(()));
         assert_eq!(fs.measurement_count().await, Ok(2));
         assert_eq!(fs.has_measurements().await, Ok(true));
 
         let mut payload = measurement_buffer().unwrap();
-        assert_eq!(fs.load_oldest_measurement(&mut payload).await, Ok(Some(1)));
+        assert_eq!(
+            fs.load_oldest_measurement(&mut payload).await,
+            Ok(Some(stored(1)))
+        );
         assert_eq!(payload, pattern(100));
 
         assert_eq!(fs.delete_oldest_measurement().await, Ok(()));
         assert_eq!(fs.measurement_count().await, Ok(1));
-        assert_eq!(fs.load_oldest_measurement(&mut payload).await, Ok(Some(2)));
+        assert_eq!(
+            fs.load_oldest_measurement(&mut payload).await,
+            Ok(Some(timed))
+        );
         assert_eq!(payload, pattern(200));
 
         assert_eq!(fs.delete_oldest_measurement().await, Ok(()));
@@ -221,13 +238,16 @@ mod tests {
     #[test]
     async fn stored_measurements_survive_a_remount(board: Board) {
         let mut fs = mount_erased(board.flash).await;
-        assert_eq!(fs.store_measurement(3, &pattern(500)).await, Ok(()));
+        assert_eq!(fs.store_measurement(stored(3), &pattern(500)).await, Ok(()));
         drop(fs);
 
         let mut fs = FileSystem::mount().await.expect("storage did not remount");
         assert_eq!(fs.measurement_count().await, Ok(1));
         let mut payload = measurement_buffer().unwrap();
-        assert_eq!(fs.load_oldest_measurement(&mut payload).await, Ok(Some(3)));
+        assert_eq!(
+            fs.load_oldest_measurement(&mut payload).await,
+            Ok(Some(stored(3)))
+        );
         assert_eq!(payload, pattern(500));
     }
 
@@ -236,10 +256,16 @@ mod tests {
         let mut fs = mount_erased(board.flash).await;
         let size = MAX_VALUE_SIZE;
 
-        assert_eq!(fs.store_measurement(1, &pattern(size)).await, Ok(()));
+        assert_eq!(
+            fs.store_measurement(stored(1), &pattern(size)).await,
+            Ok(())
+        );
 
         let mut payload = measurement_buffer().unwrap();
-        assert_eq!(fs.load_oldest_measurement(&mut payload).await, Ok(Some(1)));
+        assert_eq!(
+            fs.load_oldest_measurement(&mut payload).await,
+            Ok(Some(stored(1)))
+        );
         assert_eq!(payload.len(), size);
         assert!(payload
             .iter()

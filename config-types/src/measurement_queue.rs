@@ -77,6 +77,12 @@ pub fn measurement_version_key(id: u32) -> heapless::String<16> {
     key
 }
 
+pub fn measurement_time_key(id: u32) -> heapless::String<16> {
+    let mut key = heapless::String::new();
+    unwrap!(write!(key, "time/{id:08}").ok());
+    key
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -160,6 +166,14 @@ mod test {
     #[test]
     fn measurement_version_key_is_zero_padded() {
         assert_eq!("ver/00000007", measurement_version_key(7).as_str());
+    }
+
+    #[test]
+    fn measurement_time_key_sorts_between_the_queue_and_the_version() {
+        let key = measurement_time_key(7);
+        assert_eq!("time/00000007", key.as_str());
+        assert!(Queue::KEY < key.as_bytes());
+        assert!(key.as_bytes() < measurement_version_key(0).as_bytes());
     }
 
     #[test]

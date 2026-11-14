@@ -100,7 +100,8 @@ pub enum AppState {
     #[cfg(feature = "wifi")]
     Throughput,
     Shutdown,
-    UploadOrStore(Box<CompressingBuffer<ECG_BUFFER_SIZE>>),
+    /// The samples, and the start of the recording in Unix seconds when the clock was set.
+    UploadOrStore(Box<CompressingBuffer<ECG_BUFFER_SIZE>>, Option<u64>),
 }
 
 async fn load_config(storage: Option<&mut FileSystem>) -> &'static mut Config {
@@ -237,8 +238,9 @@ async fn main(_spawner: Spawner) {
             AppState::Sync => sync(&mut board).await,
             #[cfg(feature = "wifi")]
             AppState::Throughput => throughput(&mut board).await,
-            AppState::UploadOrStore(buffer) => {
-                upload_or_store_measurement(&mut board, buffer, AppState::Shutdown).await
+            AppState::UploadOrStore(buffer, started_at) => {
+                upload_or_store_measurement(&mut board, buffer, started_at, AppState::Shutdown)
+                    .await
             }
             AppState::Shutdown => break,
         };

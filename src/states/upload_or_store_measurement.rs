@@ -13,14 +13,17 @@ use signal_processing::compressing_buffer::{CompressingBuffer, EkgFormat};
 #[cfg(feature = "wifi")]
 use crate::board::initialized::StaMode;
 use crate::{
-    board::initialized::Context, human_readable::BinarySize, states::menu::MenuScreen, uformat,
-    AppState,
+    board::{initialized::Context, storage::StoredMeasurement},
+    human_readable::BinarySize,
+    states::menu::MenuScreen,
+    uformat, AppState,
 };
 use config_types::types::MeasurementAction;
 
 pub async fn upload_or_store_measurement<const SIZE: usize>(
     context: &mut Context,
     mut buffer: Box<CompressingBuffer<SIZE>>,
+    started_at: Option<u64>,
     next_state: AppState,
 ) -> AppState {
     let sample_count = buffer.len();
@@ -50,7 +53,7 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     };
 
     // The measurement is saved before the radio starts, so a reset during the upload keeps it.
-    let stored = can_store && try_store_measurement(context, samples).await;
+    let stored = can_store && try_store_measurement(context, samples, started_at).await;
 
     #[cfg(not(feature = "wifi"))]
     let _ = (can_upload, stored);
@@ -60,7 +63,7 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
         let uploaded_directly = if stored {
             false
         } else {
-            let upload_result = try_to_upload(context, samples).await;
+            let upload_result = try_to_upload(context, samples, started_at).await;
             debug!("Upload result: {:?}", upload_result);
             match upload_result {
                 Ok(()) => true,
@@ -192,7 +195,11 @@ impl MenuScreen for AskForMeasurementActionMenu {
 }
 
 /// Returns whether the measurement is in the storage.
-async fn try_store_measurement(context: &mut Context, measurement: &[u8]) -> bool {
+async fn try_store_measurement(
+    context: &mut Context,
+    measurement: &[u8],
+    started_at: Option<u64>,
+) -> bool {
     debug!("Trying to store measurement");
 
     if context.storage.is_none() {
@@ -204,7 +211,13 @@ async fn try_store_measurement(context: &mut Context, measurement: &[u8]) -> boo
     let storage = unwrap!(context.storage.as_mut());
 
     if let Err(e) = storage
-        .store_measurement(EkgFormat::VERSION, measurement)
+        .store_measurement(
+            StoredMeasurement {
+                version: EkgFormat::VERSION,
+                started_at,
+            },
+            measurement,
+        )
         .await
     {
         context.display_message("Could not store measurement").await;
@@ -282,7 +295,11 @@ mod wifi {
         context.display_message(last_message).await;
     }
 
-    pub async fn try_to_upload(context: &mut Context, buffer: &[u8]) -> Result<(), NotUploaded> {
+    pub async fn try_to_upload(
+        context: &mut Context,
+        buffer: &[u8],
+        started_at: Option<u64>,
+    ) -> Result<(), NotUploaded> {
         if let Err(reason) = context.backend_ready() {
             debug!("Backend is not ready, not uploading.");
             return Err(NotUploaded::NotReady(reason));
@@ -316,7 +333,7 @@ mod wifi {
         match upload_measurement(
             &mut client,
             &signing,
-            MeasurementRef { version: 0, buffer },
+            MeasurementRef { started_at, buffer },
             &mut context.inner,
         )
         .await
@@ -396,8 +413,8 @@ mod wifi {
 
         let _awake = client.awake().await;
         let result = loop {
-            let version = match storage.load_oldest_measurement(&mut payload).await {
-                Ok(Some(version)) => version,
+            let stored = match storage.load_oldest_measurement(&mut payload).await {
+                Ok(Some(stored)) => stored,
                 Ok(None) => break Ok(()),
                 Err(e) => {
                     warn!("Failed to load measurement: {:?}", e);
@@ -406,7 +423,7 @@ mod wifi {
             };
 
             let samples = MeasurementRef {
-                version: u32::from(version),
+                started_at: stored.started_at,
                 buffer: &payload,
             };
             if let Err(e) =
@@ -447,9 +464,14 @@ mod wifi {
     }
 
     pub struct MeasurementRef<'a> {
-        version: u32,
+        started_at: Option<u64>,
         buffer: &'a [u8],
     }
+
+    /// Upload body version 1: the start of the recording in Unix seconds (`u64`, 0 when not known),
+    /// then the samples in `EkgFormat` version 0.
+    const BODY_VERSION: u32 = 1;
+    const _: () = core::assert!(EkgFormat::VERSION == 0);
 
     pub async fn upload_measurement(
         client: &mut StaClient,
@@ -464,8 +486,9 @@ mod wifi {
         );
         context.display_message(uploading_msg.as_str()).await;
 
-        let version = samples.version.to_le_bytes();
-        let parts = [&version[..], samples.buffer];
+        let version = BODY_VERSION.to_le_bytes();
+        let started_at = samples.started_at.unwrap_or(0).to_le_bytes();
+        let parts = [&version[..], &started_at[..], samples.buffer];
         let backend_url = context.config.backend_url.as_str();
         match post(
             client,

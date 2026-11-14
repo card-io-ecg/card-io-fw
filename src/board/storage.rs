@@ -4,7 +4,7 @@ use alloc::boxed::Box;
 #[cfg(feature = "wifi")]
 use alloc::vec::Vec;
 use config_types::{
-    measurement_queue::{measurement_key, measurement_version_key, Queue},
+    measurement_queue::{measurement_key, measurement_time_key, measurement_version_key, Queue},
     record::{decode_config, encode_config, encode_version, CONFIG_LEN, VERSION_LEN},
     Config,
 };
@@ -30,7 +30,7 @@ type ReadTx<'a> = ReadTransaction<'a, PartitionFlash, EkvRawMutex>;
 static STORE: OnceLock<Store> = OnceLock::new();
 
 // ekv requires the keys of one write transaction in ascending order:
-// config < device_key < log/NN < log_next < meas/N < queue < ver/N < version.
+// config < device_key < log/NN < log_next < meas/N < queue < time/N < ver/N < version.
 const CONFIG_KEY: &[u8] = b"config";
 #[cfg(feature = "wifi")]
 const DEVICE_KEY: &[u8] = b"device_key";
@@ -208,20 +208,31 @@ async fn pop_measurement(store: &Store, queue: Queue) -> Result<(), StorageError
     let mut tx = store.write_transaction().await;
     tx.delete(measurement_key(queue.head).as_bytes()).await?;
     tx.write(Queue::KEY, &queue.after_pop().encode()).await?;
+    tx.delete(measurement_time_key(queue.head).as_bytes())
+        .await?;
     tx.delete(measurement_version_key(queue.head).as_bytes())
         .await?;
 
     Ok(tx.commit().await?)
 }
 
-/// Returns the version and the payload length, or `None` if the measurement at `id` is not
+/// What the store keeps beside the samples of a measurement.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct StoredMeasurement {
+    pub version: u8,
+    /// The start of the recording in Unix seconds, or `None` when the clock was not set.
+    pub started_at: Option<u64>,
+}
+
+/// Returns the measurement and the payload length, or `None` if the measurement at `id` is not
 /// readable.
 #[cfg(feature = "wifi")]
 async fn read_measurement(
     store: &Store,
     id: u32,
     payload: &mut [u8],
-) -> Result<Option<(u8, usize)>, StorageError> {
+) -> Result<Option<(StoredMeasurement, usize)>, StorageError> {
     let tx = store.read_transaction().await;
 
     let mut version = [0; 2];
@@ -230,9 +241,21 @@ async fn read_measurement(
         return Ok(None);
     };
 
+    // Measurements stored before the clock existed have no time.
+    let mut started_at = [0; 8];
+    let time_key = measurement_time_key(id);
+    let started_at = match read_value(&tx, time_key.as_bytes(), &mut started_at).await? {
+        Some(8) => Some(u64::from_le_bytes(started_at)),
+        _ => None,
+    };
+
+    let measurement = StoredMeasurement {
+        version: version[0],
+        started_at,
+    };
     let key = measurement_key(id);
     match read_value(&tx, key.as_bytes(), payload).await? {
-        Some(len @ 1..) => Ok(Some((version[0], len))),
+        Some(len @ 1..) => Ok(Some((measurement, len))),
         _ => Ok(None),
     }
 }
@@ -389,7 +412,7 @@ impl FileSystem {
 
     pub async fn store_measurement(
         &mut self,
-        version: u8,
+        measurement: StoredMeasurement,
         payload: &[u8],
     ) -> Result<(), StorageError> {
         let store = self.store;
@@ -401,8 +424,18 @@ impl FileSystem {
             tx.write(measurement_key(queue.tail).as_bytes(), payload)
                 .await?;
             tx.write(Queue::KEY, &pushed.encode()).await?;
-            tx.write(measurement_version_key(queue.tail).as_bytes(), &[version])
+            if let Some(started_at) = measurement.started_at {
+                tx.write(
+                    measurement_time_key(queue.tail).as_bytes(),
+                    &started_at.to_le_bytes(),
+                )
                 .await?;
+            }
+            tx.write(
+                measurement_version_key(queue.tail).as_bytes(),
+                &[measurement.version],
+            )
+            .await?;
 
             Ok(tx.commit().await?)
         })
@@ -521,7 +554,7 @@ impl FileSystem {
     pub async fn load_oldest_measurement(
         &mut self,
         payload: &mut Vec<u8>,
-    ) -> Result<Option<u8>, StorageError> {
+    ) -> Result<Option<StoredMeasurement>, StorageError> {
         let store = self.store;
         boxed("load_oldest_measurement", async {
             reserve_measurement(payload)?;
@@ -533,9 +566,11 @@ impl FileSystem {
                     return Ok(None);
                 }
 
-                if let Some((version, len)) = read_measurement(store, queue.head, payload).await? {
+                if let Some((measurement, len)) =
+                    read_measurement(store, queue.head, payload).await?
+                {
                     payload.truncate(len);
-                    return Ok(Some(version));
+                    return Ok(Some(measurement));
                 }
 
                 warn!("Dropping unreadable measurement {}", queue.head);

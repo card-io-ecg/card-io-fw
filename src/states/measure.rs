@@ -240,6 +240,7 @@ async fn measure_impl(
     let mut ticker = Ticker::every(MIN_MEASURE_FRAME_TIME);
     let mut drop_samples = 1500; // Slight delay for the input to settle
     let mut entered = Instant::now();
+    let mut started_at = None;
     let exit_timer = Timeout::new_with_start(INIT_TIME, entered - INIT_MENU_THRESHOLD);
 
     while !task_control.has_exited() && !context.battery_monitor.is_low() {
@@ -268,6 +269,7 @@ async fn measure_impl(
         if !display_full {
             if screen.buffer_full() {
                 entered = Instant::now();
+                started_at = context.clock.now_us().map(|now| now / 1_000_000);
             }
             if let Some(ecg_buffer) = ecg_buffer.as_deref_mut() {
                 ecg_buffer.clear();
@@ -321,7 +323,7 @@ async fn measure_impl(
             if result.is_ok() && !exit_timer.is_elapsed() {
                 AppState::Menu(AppMenu::Main)
             } else if let Some(ecg_buffer) = ecg_buffer {
-                AppState::UploadOrStore(ecg_buffer)
+                AppState::UploadOrStore(ecg_buffer, started_at)
             } else {
                 context
                     .display_message("Out of memory, measurement not recorded")
