@@ -1,14 +1,14 @@
 use crate::board::{
     drivers::frontend::{Frontend, PoweredFrontend},
-    utils::DummyOutputPin,
+    utils::{BlockingDelay, DummyOutputPin},
 };
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
     gpio::{Input, Level, Output},
     i2c::master::I2c,
-    peripherals::{DMA_CH0, DMA_CH1},
-    spi::master::SpiDma,
+    peripherals::DMA_CH0,
+    spi::master::{Spi, SpiDma},
     timer::systimer::SystemTimer,
     Async,
 };
@@ -20,9 +20,7 @@ pub type DisplayDmaChannel<'a> = DMA_CH0<'a>;
 
 pub type DisplaySpi<'d> = ExclusiveDevice<SpiDma<'d, Async>, DummyOutputPin, Delay>;
 
-pub type AdcDmaChannel<'a> = DMA_CH1<'a>;
-
-pub type AdcSpi = ExclusiveDevice<SpiDma<'static, Async>, Output<'static>, Delay>;
+pub type AdcSpi = ExclusiveDevice<Spi<'static, Async>, Output<'static>, BlockingDelay>;
 
 pub type BatteryAdcEnablePin = Output<'static>;
 pub type VbusDetectPin = Input<'static>;
@@ -55,7 +53,6 @@ impl super::startup::StartupResources {
 
         let frontend = Self::create_frontend_driver(
             Self::create_frontend_spi(
-                peripherals.DMA_CH1,
                 peripherals.SPI3,
                 peripherals.GPIO6,
                 peripherals.GPIO7,
