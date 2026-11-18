@@ -42,13 +42,15 @@ impl super::startup::StartupResources {
         esp_rtos::start_with_idle_hook(systimer.alarm0, super::setup_sleep(peripherals.LPWR));
 
         let display = Self::create_display_driver(
-            peripherals.DMA_CH0,
-            peripherals.SPI2,
+            Self::create_display_spi(
+                peripherals.DMA_CH0,
+                peripherals.SPI2,
+                peripherals.GPIO11,
+                peripherals.GPIO14,
+                peripherals.GPIO21,
+            ),
             peripherals.GPIO12,
             peripherals.GPIO13,
-            peripherals.GPIO11,
-            peripherals.GPIO14,
-            peripherals.GPIO21,
         );
 
         let frontend = Self::create_frontend_driver(

@@ -6,8 +6,8 @@ use crate::board::{
         frontend::Frontend,
     },
     utils::DummyOutputPin,
-    AdcSpi, BatteryAdcEnablePin, BatteryFgI2c, ChargerStatusPin, DisplayDmaChannel, DisplaySpi,
-    EcgFrontend, VbusDetectPin,
+    AdcDmaChannel, AdcSpi, BatteryAdcEnablePin, BatteryFgI2c, ChargerStatusPin, DisplayDmaChannel,
+    DisplaySpi, EcgFrontend, VbusDetectPin,
 };
 use display_interface_spi::SPIInterface;
 use embassy_time::Delay;
@@ -26,9 +26,6 @@ use esp_hal::{
     time::Rate,
 };
 use static_cell::StaticCell;
-
-#[cfg(feature = "esp32s3")]
-use crate::board::AdcDmaChannel;
 
 use esp_hal::i2c::master::I2c;
 use max17055::{DesignData, Max17055};
@@ -65,16 +62,14 @@ impl StartupResources {
     }
 
     #[inline(always)]
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn create_display_driver(
+    #[cfg(feature = "esp32s3")]
+    pub(crate) fn create_display_spi(
         display_dma_channel: DisplayDmaChannel<'static>,
         display_spi: impl esp_hal::spi::master::Instance + 'static,
-        display_reset: impl OutputPin + 'static,
-        display_dc: impl OutputPin + 'static,
         display_cs: impl OutputPin + 'static,
         display_sclk: impl OutputPin + 'static,
         display_mosi: impl OutputPin + 'static,
-    ) -> &'static mut Display {
+    ) -> DisplaySpi<'static> {
         let display_spi = Spi::new(
             display_spi,
             SpiConfig::default()
@@ -89,10 +84,47 @@ impl StartupResources {
         .with_dma(display_dma_channel)
         .into_async();
 
+        ExclusiveDevice::new(display_spi, DummyOutputPin, Delay).unwrap()
+    }
+
+    #[inline(always)]
+    #[cfg(feature = "esp32c6")]
+    pub(crate) fn create_display_spi(
+        display_dma_channel: DisplayDmaChannel<'static>,
+        display_parl_io: esp_hal::peripherals::PARL_IO<'static>,
+        display_cs: impl OutputPin + 'static,
+        display_sclk: impl OutputPin + 'static,
+        display_mosi: impl OutputPin + 'static,
+    ) -> DisplaySpi<'static> {
+        use crate::board::drivers::parl_io_spi::ParlIoSpi;
+        use esp_hal::{gpio::NoPin, parl_io::ParlIo};
+
+        let parl_io = ParlIo::new(display_parl_io, display_dma_channel)
+            .unwrap()
+            .into_async();
+        let display_spi = ParlIoSpi::new(
+            parl_io,
+            display_sclk,
+            display_mosi,
+            NoPin,
+            display_cs,
+            Rate::from_mhz(40),
+        )
+        .unwrap();
+
+        ExclusiveDevice::new(display_spi, DummyOutputPin, Delay).unwrap()
+    }
+
+    #[inline(always)]
+    pub(crate) fn create_display_driver(
+        display_spi: DisplaySpi<'static>,
+        display_reset: impl OutputPin + 'static,
+        display_dc: impl OutputPin + 'static,
+    ) -> &'static mut Display {
         static DISPLAY: StaticCell<Display> = StaticCell::new();
         DISPLAY.init(Display::new(
             SPIInterface::new(
-                ExclusiveDevice::new(display_spi, DummyOutputPin, Delay).unwrap(),
+                display_spi,
                 Output::new(display_dc, Level::Low, Default::default()),
             ),
             Output::new(display_reset, Level::Low, Default::default()),
@@ -101,7 +133,6 @@ impl StartupResources {
 
     #[inline(always)]
     #[allow(clippy::too_many_arguments)]
-    #[cfg(feature = "esp32s3")]
     pub(crate) fn create_frontend_spi(
         adc_dma_channel: AdcDmaChannel<'static>,
         adc_spi: impl esp_hal::spi::master::Instance + 'static,

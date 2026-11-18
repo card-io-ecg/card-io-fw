@@ -1,18 +1,17 @@
 use crate::board::{
     drivers::{
-        bitbang_spi::BitbangSpi,
         frontend::{Frontend, PoweredFrontend},
+        parl_io_spi::ParlIoSpi,
     },
     utils::DummyOutputPin,
 };
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
-    gpio::{Input, Level, Output},
+    gpio::{Input, Output},
     i2c::master::I2c,
-    peripherals::DMA_CH0,
+    peripherals::{DMA_CH0, DMA_CH1},
     spi::master::SpiDma,
-    time::Rate,
     timer::systimer::SystemTimer,
     Async,
 };
@@ -22,13 +21,11 @@ pub const VBUS_DETECT_PIN: u8 = 3;
 
 pub type DisplayDmaChannel<'a> = DMA_CH0<'a>;
 
-pub type DisplaySpi<'d> = ExclusiveDevice<SpiDma<'d, Async>, DummyOutputPin, Delay>;
+pub type DisplaySpi<'d> = ExclusiveDevice<ParlIoSpi<'d>, DummyOutputPin, Delay>;
 
-pub type AdcSpi = ExclusiveDevice<
-    BitbangSpi<Output<'static>, Input<'static>, Output<'static>>,
-    Output<'static>,
-    Delay,
->;
+pub type AdcDmaChannel<'a> = DMA_CH1<'a>;
+
+pub type AdcSpi = ExclusiveDevice<SpiDma<'static, Async>, Output<'static>, Delay>;
 
 pub type BatteryAdcEnablePin = DummyOutputPin;
 pub type VbusDetectPin = Input<'static>;
@@ -47,27 +44,26 @@ impl super::startup::StartupResources {
         esp_rtos::start_with_idle_hook(systimer.alarm0, super::setup_sleep(peripherals.LPWR));
 
         let display = Self::create_display_driver(
-            peripherals.DMA_CH0,
-            peripherals.SPI2,
+            Self::create_display_spi(
+                peripherals.DMA_CH0,
+                peripherals.PARL_IO,
+                peripherals.GPIO11,
+                peripherals.GPIO22,
+                peripherals.GPIO21,
+            ),
             peripherals.GPIO10,
             peripherals.GPIO8,
-            peripherals.GPIO11,
-            peripherals.GPIO22,
-            peripherals.GPIO21,
         );
 
         let frontend = Self::create_frontend_driver(
-            ExclusiveDevice::new(
-                BitbangSpi::new(
-                    Output::new(peripherals.GPIO7, Level::Low, Default::default()),
-                    Input::new(peripherals.GPIO5, Default::default()),
-                    Output::new(peripherals.GPIO6, Level::Low, Default::default()),
-                    Rate::from_mhz(1),
-                ),
-                Output::new(peripherals.GPIO9, Level::High, Default::default()),
-                Delay,
-            )
-            .unwrap(),
+            Self::create_frontend_spi(
+                peripherals.DMA_CH1,
+                peripherals.SPI2,
+                peripherals.GPIO6,
+                peripherals.GPIO7,
+                peripherals.GPIO5,
+                peripherals.GPIO9,
+            ),
             peripherals.GPIO4,
             peripherals.GPIO15,
             Some(peripherals.GPIO23),
