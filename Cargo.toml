@@ -90,7 +90,7 @@ embassy-alloc-taskpool = { path = "embassy-alloc-taskpool" }
 ads129x = { path = "ads129x" }
 max17055 = { path = "max17055" }
 signal-processing = { workspace = true, features = ["alloc"] }
-replace_with = { version = "0.1", default-features = false }
+replace_with = { version = "0.1", default-features = false, optional = true }
 semihosting = "0.1"
 static_cell = { version = "2.0.0" }
 edge-dhcp = { workspace = true, optional = true }
@@ -144,7 +144,22 @@ default = ["defmt", "rtt"]
 #default = ["defmt", "esp-println"]
 
 # Enable Wi-Fi features. The purpose of this feature is to shorten the debugging iteration time by removing a big chunk of the binary.
-wifi = ["dep:esp-radio", "dep:edge-dhcp", "dep:edge-http", "dep:edge-nal", "dep:edge-nal-embassy", "dep:embassy-net", "dep:network-services", "dep:rand_core", "dep:smoltcp", "esp-radio/unstable", "esp-rtos/esp-radio", "config-site/compress", "config-site/serve"]
+wifi = [
+    "dep:esp-radio",
+    "dep:edge-dhcp",
+    "dep:edge-http",
+    "dep:edge-nal",
+    "dep:edge-nal-embassy",
+    "dep:embassy-net",
+    "dep:network-services",
+    "dep:rand_core",
+    "dep:smoltcp",
+    "dep:replace_with",
+    "esp-radio/unstable",
+    "esp-rtos/esp-radio",
+    "config-site/compress",
+    "config-site/serve"
+]
 
 hw_v4 = ["esp32s3"]
 # hw_v5 skipped
