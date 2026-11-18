@@ -4,8 +4,7 @@ use core::alloc::AllocError;
 use embassy_net::{dns::DnsQueryType, tcp::TcpSocket, IpAddress, Stack};
 use embassy_time::Duration;
 use embedded_io_async::{Error as _, ErrorKind, ErrorType, Read, Write};
-use embedded_tls::{Aes128GcmSha256, TlsConfig, TlsConnection, TlsContext, UnsecureProvider};
-use rand_core::CryptoRngCore;
+use embedded_tls::{Aes128GcmSha256, InsecureNoVerify, TlsConfig, TlsConnection, TlsContext};
 
 use crate::{
     http::{self, Request, Response},
@@ -54,7 +53,6 @@ impl Client {
     pub async fn connect<'c>(
         &'c mut self,
         stack: Stack<'c>,
-        rng: impl CryptoRngCore,
         base: &BaseUrl<'_>,
     ) -> Result<Connection<'c>, ClientError> {
         let address = resolve(stack, base.host).await?;
@@ -72,13 +70,17 @@ impl Client {
         let stream = match base.scheme {
             Scheme::Http => Stream::Plain(socket),
             Scheme::Https => {
-                let mut tls = TlsConnection::new(socket, &mut *self.tls_read, &mut *self.tls_write);
+                let mut tls = TlsConnection::<_, Aes128GcmSha256>::new(
+                    socket,
+                    &mut *self.tls_read,
+                    &mut *self.tls_write,
+                );
                 let config = match base.ipv4() {
                     Some(_) => TlsConfig::new(),
                     None => TlsConfig::new().with_server_name(base.host),
                 };
-                let provider = UnsecureProvider::new::<Aes128GcmSha256>(rng);
-                tls.open(TlsContext::new(&config, provider))
+                // The server is not authenticated; see the server authentication decision.
+                tls.open(TlsContext::new(&config, InsecureNoVerify))
                     .await
                     .map_err(|error| {
                         warn!("TLS: {}", error);

@@ -39,7 +39,10 @@ edge-nal-embassy = { version = "0.9", default-features = false, features = [
     "udp",
 ] }
 defmt = "1"
-device-auth-firmware = { git = "https://github.com/card-io-ecg/device-auth.git", rev = "d59c2676ece41e86387fa6b1cff86f0396d325a1" }
+device-auth-firmware = { git = "https://github.com/card-io-ecg/device-auth.git", rev = "e2536f745fed52f775d13ca58d193d17b10322af" }
+# embedded-tls pins this revision, and `links` allows one copy of embassy-crypto.
+embassy-crypto = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy", rev = "822a76ea91f2c0885c6eb0c65fe91181e31133e1" }
+embassy-crypto-rustcrypto = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy", rev = "822a76ea91f2c0885c6eb0c65fe91181e31133e1" }
 ufmt = "0.2.0"
 
 # A DHCP lease names up to 3 DNS servers.
@@ -98,7 +101,10 @@ edge-http = { workspace = true, optional = true }
 edge-nal = { workspace = true, optional = true }
 edge-nal-embassy = { workspace = true, optional = true }
 network-services = { path = "network-services", optional = true }
-rand_core = { version = "0.6", default-features = false, optional = true }
+embassy-crypto = { workspace = true, optional = true }
+# The operations that `crypto-drivers` does not serve: P-256 on the ESP32-S3, which has no ECC.
+embassy-crypto-rustcrypto = { workspace = true, optional = true }
+crypto-drivers = { path = "crypto-drivers", optional = true }
 
 embedded-graphics.workspace = true
 embedded-hal.workspace = true
@@ -144,7 +150,7 @@ default = ["defmt", "rtt"]
 #default = ["defmt", "esp-println"]
 
 # Enable Wi-Fi features. The purpose of this feature is to shorten the debugging iteration time by removing a big chunk of the binary.
-wifi = ["dep:esp-radio", "dep:edge-dhcp", "dep:edge-http", "dep:edge-nal", "dep:edge-nal-embassy", "dep:embassy-net", "dep:network-services", "dep:rand_core", "dep:smoltcp", "esp-radio/unstable", "esp-rtos/esp-radio", "config-site/compress", "config-site/serve"]
+wifi = ["dep:esp-radio", "dep:edge-dhcp", "dep:edge-http", "dep:edge-nal", "dep:edge-nal-embassy", "dep:embassy-net", "dep:network-services", "dep:embassy-crypto", "dep:embassy-crypto-rustcrypto", "dep:crypto-drivers", "dep:smoltcp", "esp-radio/unstable", "esp-rtos/esp-radio", "config-site/compress", "config-site/serve"]
 
 hw_v4 = ["esp32s3"]
 # hw_v5 skipped
@@ -161,6 +167,8 @@ esp32s3 = [
     "esp-println?/esp32s3",
     "esp-bootloader-esp-idf/esp32s3",
     "esp-metadata-generated/esp32s3",
+    "embassy-crypto-rustcrypto?/embassy-crypto-p256-ecdh",
+    "embassy-crypto-rustcrypto?/embassy-crypto-p256-ecdsa",
 ]
 esp32c6 = [
     "esp-hal/esp32c6",
@@ -170,6 +178,7 @@ esp32c6 = [
     "esp-println?/esp32c6",
     "esp-bootloader-esp-idf/esp32c6",
     "esp-metadata-generated/esp32c6",
+    "crypto-drivers?/ecc",
 ]
 
 # Signal processing
@@ -201,6 +210,7 @@ defmt = [
 
     "embassy-executor/defmt",
     "embassy-net?/defmt",
+    "embassy-crypto?/defmt",
 ]
 
 # Select exactly one log transport.
@@ -218,6 +228,7 @@ members = [
     ".",
     "ads129x",
     "config-types",
+    "crypto-drivers",
     "embassy-alloc-taskpool",
     "gui",
     "log-ring",
@@ -243,20 +254,20 @@ lto = "fat"
 
 [patch.crates-io]
 ssd1306 = { git = "https://github.com/card-io-ecg/ssd1306", branch = "contiguous" }
-esp-alloc = { git = "https://github.com/esp-rs/esp-hal", rev = "9639e27e25893a732443b2b0c61df7287f9c85a9" }
-esp-backtrace = { git = "https://github.com/esp-rs/esp-hal", rev = "9639e27e25893a732443b2b0c61df7287f9c85a9" }
-esp-bootloader-esp-idf = { git = "https://github.com/esp-rs/esp-hal", rev = "9639e27e25893a732443b2b0c61df7287f9c85a9" }
-esp-config = { git = "https://github.com/esp-rs/esp-hal", rev = "9639e27e25893a732443b2b0c61df7287f9c85a9" }
-esp-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9639e27e25893a732443b2b0c61df7287f9c85a9" }
-esp-hal-procmacros = { git = "https://github.com/esp-rs/esp-hal", rev = "9639e27e25893a732443b2b0c61df7287f9c85a9" }
-esp-metadata-generated = { git = "https://github.com/esp-rs/esp-hal", rev = "9639e27e25893a732443b2b0c61df7287f9c85a9" }
-esp-phy = { git = "https://github.com/esp-rs/esp-hal", rev = "9639e27e25893a732443b2b0c61df7287f9c85a9" }
-esp-println = { git = "https://github.com/esp-rs/esp-hal", rev = "9639e27e25893a732443b2b0c61df7287f9c85a9" }
-esp-radio = { git = "https://github.com/esp-rs/esp-hal", rev = "9639e27e25893a732443b2b0c61df7287f9c85a9" }
-esp-radio-rtos-driver = { git = "https://github.com/esp-rs/esp-hal", rev = "9639e27e25893a732443b2b0c61df7287f9c85a9" }
-esp-riscv-rt = { git = "https://github.com/esp-rs/esp-hal", rev = "9639e27e25893a732443b2b0c61df7287f9c85a9" }
-esp-rom-sys = { git = "https://github.com/esp-rs/esp-hal", rev = "9639e27e25893a732443b2b0c61df7287f9c85a9" }
-esp-rtos = { git = "https://github.com/esp-rs/esp-hal", rev = "9639e27e25893a732443b2b0c61df7287f9c85a9" }
-esp-sync = { git = "https://github.com/esp-rs/esp-hal", rev = "9639e27e25893a732443b2b0c61df7287f9c85a9" }
-xtensa-lx = { git = "https://github.com/esp-rs/esp-hal", rev = "9639e27e25893a732443b2b0c61df7287f9c85a9" }
-xtensa-lx-rt = { git = "https://github.com/esp-rs/esp-hal", rev = "9639e27e25893a732443b2b0c61df7287f9c85a9" }
+esp-alloc = { git = "https://github.com/bugadani/esp-hal", rev = "b3cff9fa4e1fac8a53ed0472ef008bc06633f047" }
+esp-backtrace = { git = "https://github.com/bugadani/esp-hal", rev = "b3cff9fa4e1fac8a53ed0472ef008bc06633f047" }
+esp-bootloader-esp-idf = { git = "https://github.com/bugadani/esp-hal", rev = "b3cff9fa4e1fac8a53ed0472ef008bc06633f047" }
+esp-config = { git = "https://github.com/bugadani/esp-hal", rev = "b3cff9fa4e1fac8a53ed0472ef008bc06633f047" }
+esp-hal = { git = "https://github.com/bugadani/esp-hal", rev = "b3cff9fa4e1fac8a53ed0472ef008bc06633f047" }
+esp-hal-procmacros = { git = "https://github.com/bugadani/esp-hal", rev = "b3cff9fa4e1fac8a53ed0472ef008bc06633f047" }
+esp-metadata-generated = { git = "https://github.com/bugadani/esp-hal", rev = "b3cff9fa4e1fac8a53ed0472ef008bc06633f047" }
+esp-phy = { git = "https://github.com/bugadani/esp-hal", rev = "b3cff9fa4e1fac8a53ed0472ef008bc06633f047" }
+esp-println = { git = "https://github.com/bugadani/esp-hal", rev = "b3cff9fa4e1fac8a53ed0472ef008bc06633f047" }
+esp-radio = { git = "https://github.com/bugadani/esp-hal", rev = "b3cff9fa4e1fac8a53ed0472ef008bc06633f047" }
+esp-radio-rtos-driver = { git = "https://github.com/bugadani/esp-hal", rev = "b3cff9fa4e1fac8a53ed0472ef008bc06633f047" }
+esp-riscv-rt = { git = "https://github.com/bugadani/esp-hal", rev = "b3cff9fa4e1fac8a53ed0472ef008bc06633f047" }
+esp-rom-sys = { git = "https://github.com/bugadani/esp-hal", rev = "b3cff9fa4e1fac8a53ed0472ef008bc06633f047" }
+esp-rtos = { git = "https://github.com/bugadani/esp-hal", rev = "b3cff9fa4e1fac8a53ed0472ef008bc06633f047" }
+esp-sync = { git = "https://github.com/bugadani/esp-hal", rev = "b3cff9fa4e1fac8a53ed0472ef008bc06633f047" }
+xtensa-lx = { git = "https://github.com/bugadani/esp-hal", rev = "b3cff9fa4e1fac8a53ed0472ef008bc06633f047" }
+xtensa-lx-rt = { git = "https://github.com/bugadani/esp-hal", rev = "b3cff9fa4e1fac8a53ed0472ef008bc06633f047" }

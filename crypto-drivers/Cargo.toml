@@ -1,0 +1,16 @@
+[package]
+name = "crypto-drivers"
+description = "embassy-crypto drivers on the esp-hal crypto backends"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+embassy-crypto = { workspace = true, features = ["large-sha256", "large-hmac-sha256"] }
+esp-hal = { version = "1.2.0", features = ["unstable"] }
+p256 = { version = "0.14", default-features = false, features = ["arithmetic", "ecdsa"], optional = true }
+static_cell = "2.0.0"
+
+[features]
+# P-256 ECDH and ECDSA on the ECC block. The ESP32-S3 has none.
+ecc = ["dep:p256"]

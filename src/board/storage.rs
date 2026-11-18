@@ -369,7 +369,7 @@ impl FileSystem {
         match loaded {
             Ok(None) => None,
             Ok(Some((key, DEVICE_KEY_LEN))) => {
-                let key = SigningKey::from_bytes(&key.into()).ok();
+                let key = SigningKey::from_bytes(&key).ok();
                 if key.is_none() {
                     warn!("Stored device key is not a valid P-256 scalar");
                 }

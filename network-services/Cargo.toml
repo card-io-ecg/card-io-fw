@@ -11,12 +11,14 @@ edge-http.workspace = true
 embassy-net.workspace = true
 embassy-time.workspace = true
 embedded-io-async.workspace = true
-embedded-tls = { version = "0.19", default-features = false }
+embedded-tls = { git = "https://github.com/embassy-rs/embedded-tls", rev = "0557076932c55f32e3e448566a99137012187aab", default-features = false, features = ["p256"] }
 heapless.workspace = true
-rand_core = { version = "0.6", default-features = false }
 
 [dev-dependencies]
 embassy-futures = "0.1"
+embassy-crypto = { workspace = true }
+embassy-crypto-rand = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy", rev = "822a76ea91f2c0885c6eb0c65fe91181e31133e1" }
+embassy-crypto-rustcrypto = { workspace = true, features = ["all"] }
 
 [features]
 defmt = [

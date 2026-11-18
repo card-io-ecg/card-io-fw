@@ -84,6 +84,14 @@ impl super::startup::StartupResources {
         )
         .await;
 
+        #[cfg(feature = "wifi")]
+        crypto_drivers::start(crypto_drivers::Peripherals {
+            aes: peripherals.AES,
+            aes_dma: peripherals.DMA_CH1,
+            sha: peripherals.SHA,
+            ecc: peripherals.ECC,
+        });
+
         Self {
             display,
             frontend,
