@@ -5,9 +5,9 @@ use crate::board::{
         display::Display as DisplayDriver,
         frontend::Frontend,
     },
-    utils::DummyOutputPin,
-    AdcDmaChannel, AdcSpi, BatteryAdcEnablePin, BatteryFgI2c, ChargerStatusPin, DisplayDmaChannel,
-    DisplaySpi, EcgFrontend, VbusDetectPin,
+    utils::{BlockingDelay, DummyOutputPin},
+    AdcSpi, BatteryAdcEnablePin, BatteryFgI2c, ChargerStatusPin, DisplayDmaChannel, DisplaySpi,
+    EcgFrontend, VbusDetectPin,
 };
 use display_interface_spi::SPIInterface;
 use embassy_time::Delay;
@@ -132,9 +132,7 @@ impl StartupResources {
     }
 
     #[inline(always)]
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_frontend_spi(
-        adc_dma_channel: AdcDmaChannel<'static>,
         adc_spi: impl esp_hal::spi::master::Instance + 'static,
         adc_sclk: impl OutputPin + 'static,
         adc_mosi: impl OutputPin + 'static,
@@ -148,17 +146,15 @@ impl StartupResources {
                 adc_spi,
                 SpiConfig::default()
                     .with_frequency(Rate::from_mhz(1))
-                    .with_mode(Mode::_1)
-                    .with_min_async_transfer_size(32),
+                    .with_mode(Mode::_1),
             )
             .unwrap()
             .with_sck(adc_sclk)
             .with_mosi(adc_mosi)
             .with_miso(adc_miso)
-            .with_dma(adc_dma_channel)
             .into_async(),
             Output::new(adc_cs, Level::High, Default::default()),
-            Delay,
+            BlockingDelay,
         )
         .unwrap()
     }
