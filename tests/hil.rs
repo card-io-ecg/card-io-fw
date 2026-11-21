@@ -4,7 +4,7 @@
 
 #![no_std]
 #![no_main]
-#![feature(allocator_api)] // Box::try_new
+#![feature(allocator_ext)] // Box::try_new
 #![feature(impl_trait_in_assoc_type)]
 
 extern crate alloc;

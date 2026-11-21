@@ -49,11 +49,20 @@ pub struct StartupResources {
 
 impl StartupResources {
     pub(super) fn common_init() -> Peripherals {
-        let cpu_clock = cfg_select! {
+        #[rustfmt::skip]
+        let clock_config = cfg_select! {
             feature = "esp32s3" => CpuClock::_160MHz,
-            _ => CpuClock::max(),
+            _ => {{
+                use esp_hal::clock::ClockConfig;
+                let mut config: ClockConfig = CpuClock::max().into();
+
+                config.lp_slow_clk = Some(crate::board::RC_CLK_SOURCE);
+
+                config
+            }}
         };
-        esp_hal::init(esp_hal::Config::default().with_cpu_clock(cpu_clock))
+
+        esp_hal::init(esp_hal::Config::default().with_cpu_clock(clock_config))
     }
 
     pub(crate) fn create_clock(rtc_timer: RTC_TIMER<'static>) -> &'static Clock {

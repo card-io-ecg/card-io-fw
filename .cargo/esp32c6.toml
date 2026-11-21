@@ -11,3 +11,4 @@ rustflags = [
 [env]
 # Run the CPU from XTAL_CLK while it waits for an interrupt.
 ESP_HAL_CONFIG_IDLE_FREQUENCY_SCALING = "true"
+ESP_HAL_CONFIG_USE_XTAL32K = "true"

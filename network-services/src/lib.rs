@@ -1,5 +1,5 @@
 #![no_std]
-#![feature(allocator_api)] // Box::try_new
+#![feature(allocator_ext)] // Box::try_new
 
 extern crate alloc;
 

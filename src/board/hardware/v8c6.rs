@@ -8,6 +8,7 @@ use crate::board::{
 use embassy_time::Delay;
 use embedded_hal_bus::spi::ExclusiveDevice;
 use esp_hal::{
+    clock::ll::LpSlowClkConfig,
     gpio::{Input, Output},
     i2c::master::I2c,
     peripherals::{DMA_CH0, GPIO2},
@@ -18,6 +19,7 @@ use esp_hal::{
 
 pub const TOUCH_PIN: u8 = 4;
 pub const VBUS_DETECT_PIN: u8 = 7;
+pub const RC_CLK_SOURCE: LpSlowClkConfig = LpSlowClkConfig::Xtal32k;
 
 pub type DisplayDmaChannel<'a> = DMA_CH0<'a>;
 

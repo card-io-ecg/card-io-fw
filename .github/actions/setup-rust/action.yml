@@ -19,7 +19,7 @@ runs:
       with:
         default: true
         buildtargets: esp32s3
-        version: "1.98.1.0"
+        version: "1.100.0.0"
         ldproxy: false
 
     - if: inputs.nightly == 'true'
