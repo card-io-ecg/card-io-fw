@@ -2,6 +2,7 @@ use ads129x::{ll, Ads129x, AdsConfigError, AdsData, ConfigRegisters};
 use embassy_time::{Delay, Duration, Timer};
 use embedded_hal::digital::{InputPin, OutputPin};
 use embedded_hal_async::{digital::Wait, spi::SpiDevice as AsyncSpiDevice};
+use esp_hal::gpio::{Event, Input};
 
 pub struct Frontend<S, I, O> {
     adc: Ads129x<S>,
@@ -154,12 +155,30 @@ where
         }
     }
 
-    pub fn is_touched(&mut self) -> bool {
-        unwrap!(self.touch.is_low().ok())
-    }
-
     pub async fn wait_for_release(&mut self) {
         unwrap!(self.touch.wait_for_high().await.ok());
+    }
+}
+
+impl<S, O> Frontend<S, Input<'static>, O> {
+    /// Samples the touch pin. Returns whether it is low now, and whether it went high since the
+    /// previous call.
+    ///
+    /// While the pin is low, the pin listens for a rising edge. esp-hal's default GPIO handler
+    /// disables a pin's interrupt after it fires, but leaves its status bit set, so the edge stays
+    /// visible until the next call. While the pin is high, it does not listen: a pin that listens
+    /// for a rising edge while high ends every light sleep at once.
+    pub fn sample_touch(&mut self) -> (bool, bool) {
+        let went_high = self.touch.is_interrupt_set();
+        let is_low = self.touch.is_low();
+        if is_low {
+            // `listen` clears the status bit.
+            self.touch.listen(Event::RisingEdge);
+        } else {
+            self.touch.unlisten();
+            self.touch.clear_interrupt();
+        }
+        (is_low, went_high)
     }
 }
 

@@ -5,8 +5,10 @@ use crate::{
 };
 use alloc::rc::Rc;
 use embassy_sync::mutex::Mutex;
+use embassy_time::{Duration, Instant};
 use embedded_hal::digital::InputPin;
 use gui::screens::{BatteryInfo, ChargingState};
+use signal_processing::debounce::Debouncer;
 
 pub mod battery_fg;
 
@@ -48,9 +50,32 @@ impl DerefMut for BatterySensor {
     }
 }
 
+/// A charger pin, which reports a new level only after it held that level for `MIN_STABLE`.
+struct DebouncedInput<P> {
+    pin: P,
+    debouncer: Debouncer,
+}
+
+impl<P: InputPin> DebouncedInput<P> {
+    const MIN_STABLE: Duration = Duration::from_millis(500);
+
+    fn new(mut pin: P) -> Self {
+        let initial = unwrap!(pin.is_high().ok());
+        Self {
+            pin,
+            debouncer: Debouncer::new(initial, Self::MIN_STABLE.as_millis()),
+        }
+    }
+
+    fn is_high(&mut self) -> bool {
+        let level = unwrap!(self.pin.is_high().ok());
+        self.debouncer.update(level, Instant::now().as_millis())
+    }
+}
+
 pub struct BatteryMonitor<VBUS, CHG> {
-    vbus_detect: VBUS,
-    charger_status: CHG,
+    vbus_detect: DebouncedInput<VBUS>,
+    charger_status: DebouncedInput<CHG>,
     last_battery_state: BatteryState,
     signal: TaskController<()>,
     sensor: Shared<BatterySensor>,
@@ -71,8 +96,8 @@ where
                 state: BatteryState::default(),
                 sensor,
             })),
-            vbus_detect,
-            charger_status,
+            vbus_detect: DebouncedInput::new(vbus_detect),
+            charger_status: DebouncedInput::new(charger_status),
             last_battery_state: BatteryState::default(),
             signal: TaskController::new(),
         };
@@ -112,11 +137,17 @@ where
     }
 
     pub fn is_plugged(&mut self) -> bool {
-        unwrap!(self.vbus_detect.is_high().ok())
+        self.vbus_detect.is_high()
+    }
+
+    /// Reads the VBUS pin without the debounce. The deep-sleep wakeup is level-triggered, so it
+    /// needs the current level: a stale one wakes the device at once.
+    pub fn is_plugged_now(&mut self) -> bool {
+        unwrap!(self.vbus_detect.pin.is_high().ok())
     }
 
     pub fn is_charging(&mut self) -> bool {
-        unwrap!(self.charger_status.is_low().ok())
+        !self.charger_status.is_high()
     }
 
     pub fn is_low(&mut self) -> bool {

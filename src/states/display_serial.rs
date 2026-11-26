@@ -1,6 +1,6 @@
 use crate::{
     board::initialized::Context,
-    states::{menu::AppMenu, MIN_FRAME_TIME},
+    states::{menu::AppMenu, TouchInputShaper, MIN_FRAME_TIME},
     timeout::Timeout,
     AppState, SerialNumber,
 };
@@ -17,8 +17,10 @@ pub async fn display_serial(context: &mut Context) -> AppState {
     unwrap!(uwrite!(&mut serial, "Card/IO:{}", SerialNumber));
     let mut previous_secs = 0;
 
+    let mut input = TouchInputShaper::new();
     while !shutdown_timer.is_elapsed() {
-        if context.frontend.is_touched() {
+        input.update(&mut context.frontend);
+        if input.is_touched() {
             shutdown_timer.reset();
         }
 

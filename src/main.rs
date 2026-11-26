@@ -252,7 +252,7 @@ async fn main(_spawner: Spawner) {
     board.frontend.wait_for_release().await;
     Timer::after(Duration::from_millis(100)).await;
 
-    let is_charging = board.inner.battery_monitor.is_plugged();
+    let is_charging = board.inner.battery_monitor.is_plugged_now();
     board.inner.battery_monitor.stop().await;
 
     board::enter_sleep(is_charging);

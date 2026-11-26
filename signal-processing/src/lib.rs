@@ -9,6 +9,7 @@ mod fmt;
 pub mod battery;
 pub mod buffer;
 pub mod compressing_buffer;
+pub mod debounce;
 pub mod filter;
 pub mod heart_rate;
 pub mod lerp;
