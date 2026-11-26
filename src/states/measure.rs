@@ -1,9 +1,14 @@
 use crate::{
     board::{
         initialized::{Context, InnerContext},
+        logging,
+        storage::FileSystem,
         AdcSpi, EcgFrontend, PoweredEcgFrontend,
     },
-    states::{menu::AppMenu, to_progress, INIT_MENU_THRESHOLD, INIT_TIME, MIN_MEASURE_FRAME_TIME},
+    states::{
+        menu::AppMenu, to_progress, upload_or_store_measurement::MIN_MEASUREMENT_SAMPLES,
+        INIT_MENU_THRESHOLD, INIT_TIME, MIN_MEASURE_FRAME_TIME,
+    },
     task_control::{TaskControlToken, TaskController},
     timeout::Timeout,
     AppState,
@@ -79,6 +84,9 @@ cfg_if::cfg_if! {
 
 pub const ECG_BUFFER_SIZE: usize = 90_000;
 
+/// The ADC sends 1000 samples a second. A gap this long means that the hardware is broken.
+const SAMPLE_TIMEOUT: Duration = Duration::from_secs(1);
+
 // Two filter chains:
 // - PLI -> IIR HPF -> FIR Downsample -> display
 // - PLI -> IIR HPF -> FIR LPF in HR calculator -> HR calculator
@@ -119,8 +127,14 @@ pub async fn measure(context: &mut Context) -> AppState {
     unsafe {
         let frontend = core::ptr::read(&context.frontend);
 
-        let (next_state, frontend) =
-            measure_impl(&mut context.inner, frontend, &mut ecg, ecg_buffer).await;
+        let (next_state, frontend) = measure_impl(
+            &mut context.inner,
+            context.storage.as_mut(),
+            frontend,
+            &mut ecg,
+            ecg_buffer,
+        )
+        .await;
 
         core::ptr::write(&mut context.frontend, frontend);
 
@@ -137,6 +151,7 @@ pub async fn measure(context: &mut Context) -> AppState {
 
 async fn measure_impl(
     context: &mut InnerContext,
+    storage: Option<&mut FileSystem>,
     frontend: EcgFrontend,
     ecg: &mut EcgObjects,
     mut ecg_buffer: Option<Box<CompressingBuffer<ECG_BUFFER_SIZE>>>,
@@ -242,11 +257,14 @@ async fn measure_impl(
     let mut entered = Instant::now();
     let mut started_at = None;
     let exit_timer = Timeout::new_with_start(INIT_TIME, entered - INIT_MENU_THRESHOLD);
+    let mut sample_timeout = Timeout::new(SAMPLE_TIMEOUT);
+    let mut stalled = false;
 
     while !task_control.has_exited() && !context.battery_monitor.is_low() {
         let display_full = screen.buffer_full();
         while let Ok(sample) = queue.try_receive() {
             samples += 1;
+            sample_timeout.reset();
 
             if drop_samples == 0 {
                 if let Some(ecg_buffer) = ecg_buffer.as_deref_mut() {
@@ -264,6 +282,12 @@ async fn measure_impl(
             } else {
                 drop_samples -= 1;
             }
+        }
+
+        // Checked after the queue is empty, so that a slow frame is not taken for a stall.
+        if sample_timeout.is_elapsed() {
+            stalled = true;
+            break;
         }
 
         if !display_full {
@@ -331,6 +355,16 @@ async fn measure_impl(
                 AppState::Shutdown
             }
         }
+        Err(_) if stalled => {
+            report_adc_stall(context, storage).await;
+            // Keep a recording that is long enough to store, without the "too short" message.
+            match ecg_buffer {
+                Some(ecg_buffer) if ecg_buffer.len() >= MIN_MEASUREMENT_SAMPLES => {
+                    AppState::UploadOrStore(ecg_buffer, started_at)
+                }
+                _ => AppState::Shutdown,
+            }
+        }
         Err(_) => {
             // task was aborted - battery low
             context.display_message("Battery low").await;
@@ -341,6 +375,24 @@ async fn measure_impl(
     let frontend = task_control.unwrap();
 
     (next_state, frontend.shut_down().await)
+}
+
+/// Saves the logs for a diagnosis, and tells the user that the ADC sends no samples.
+async fn report_adc_stall(context: &mut InnerContext, storage: Option<&mut FileSystem>) {
+    error!("ADC sent no sample in {}ms", SAMPLE_TIMEOUT.as_millis());
+
+    match storage {
+        Some(storage) => {
+            if let Err(e) = logging::save_now(storage).await {
+                warn!("Failed to save the logs: {:?}", e);
+            }
+        }
+        None => warn!("Storage unavailable. Logs not saved"),
+    }
+
+    context
+        .display_message("Hardware error: ADC not responding")
+        .await;
 }
 
 #[cardio::task]

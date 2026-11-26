@@ -20,6 +20,11 @@ use crate::{
 };
 use config_types::types::MeasurementAction;
 
+const SAMPLE_RATE: usize = 1000; // samples/sec
+
+/// Shorter measurements are neither uploaded nor stored.
+pub const MIN_MEASUREMENT_SAMPLES: usize = 20 * SAMPLE_RATE;
+
 pub async fn upload_or_store_measurement<const SIZE: usize>(
     context: &mut Context,
     mut buffer: Box<CompressingBuffer<SIZE>>,
@@ -29,11 +34,9 @@ pub async fn upload_or_store_measurement<const SIZE: usize>(
     let sample_count = buffer.len();
     let samples = buffer.make_contiguous();
 
-    const SAMPLE_RATE: usize = 1000; // samples/sec
-
     debug!("Measurement length: {} samples", sample_count);
 
-    if sample_count < 20 * SAMPLE_RATE {
+    if sample_count < MIN_MEASUREMENT_SAMPLES {
         if context.config.measurement_action != MeasurementAction::Discard {
             // We don't want to store too-short measurements.
             debug!("Measurement is too short to upload or store.");
